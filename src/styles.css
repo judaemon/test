@@ -52,6 +52,12 @@ code {
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.871 0.006 286.286);
+  --success: oklch(0.962 0.044 156.743);
+  --success-foreground: oklch(0.448 0.119 151.328);
+  --warning: oklch(0.987 0.026 102.212);
+  --warning-foreground: oklch(0.554 0.135 66.442);
+  --error: oklch(0.971 0.013 17.38);
+  --error-foreground: oklch(0.505 0.213 27.518);
 }
 
 .dark {
@@ -87,6 +93,12 @@ code {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.274 0.006 286.033);
   --sidebar-ring: oklch(0.442 0.017 285.786);
+  --success: oklch(0.266 0.065 152.934);
+  --success-foreground: oklch(0.871 0.15 154.449);
+  --warning: oklch(0.286 0.066 53.813);
+  --warning-foreground: oklch(0.905 0.182 98.111);
+  --error: oklch(0.258 0.092 26.042);
+  --error-foreground: oklch(0.808 0.114 19.571);
 }
 
 @theme inline {
@@ -126,6 +138,48 @@ code {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-error: var(--error);
+  --color-error-foreground: var(--error-foreground);
+}
+
+/* ORAIA brand palette */
+@theme {
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --color-cream: #fbf7f0;
+  --color-petal-50: #fdf4f6;
+  --color-petal-100: #fbe6ec;
+  --color-petal-200: #f6cdd8;
+  --color-petal-300: #f2a6b8;
+  --color-petal-500: #d9718c;
+  --color-petal-700: #9e3d58;
+  --color-petal-900: #5c1f31;
+  --color-sage-100: #e8eee2;
+  --color-sage-300: #b9c4ad;
+  --color-sage-600: #5f6f51;
+  --color-butter: #f7e3a3;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 10s ease-in-out infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(var(--tw-rotate, 0deg));
+    }
+    50% {
+      transform: translateY(-12px) rotate(calc(var(--tw-rotate, 0deg) + 8deg));
+    }
+  }
+}
+
+/* Rounded, slightly wonky Fraunces cut for headings */
+.font-soft {
+  font-variation-settings:
+    'SOFT' 100,
+    'WONK' 1;
 }
 
 @layer base {
