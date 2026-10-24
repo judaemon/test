@@ -2,9 +2,10 @@ import { Link } from "@tanstack/solid-router";
 import { useSelector } from "@tanstack/solid-store";
 import { Show } from "solid-js";
 
+import { CartSheet } from "~/components/cart/cart-sheet";
 import { BagIcon } from "~/components/product/icons";
 import { products } from "~/data/products";
-import { cartStore, getCartCount } from "~/lib/cart-store";
+import { cartStore, getCartCount, setCartOpen } from "~/lib/cart-store";
 
 import { FlowerMark } from "./brand";
 
@@ -24,7 +25,7 @@ export function SiteHeader() {
 					class="group flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 				>
 					<FlowerMark class="size-8 transition-transform duration-500 group-hover:rotate-[72deg]" />
-					<span class="font-display font-soft text-xl font-semibold tracking-[0.25em] text-petal-700">
+					<span class="font-display type-soft text-xl font-semibold tracking-[0.25em] text-petal-700">
 						ORAIA
 					</span>
 				</Link>
@@ -47,9 +48,11 @@ export function SiteHeader() {
 					<Link to="/" hash="about" class={`${navLink} hidden sm:inline-flex`}>
 						About
 					</Link>
-					<output
-						class="relative ml-1 inline-flex size-10 items-center justify-center rounded-full text-petal-900"
-						aria-label={`Shopping bag, ${cartCount()} ${cartCount() === 1 ? "item" : "items"}`}
+					<button
+						type="button"
+						onClick={() => setCartOpen(true)}
+						aria-label={`Open bag, ${cartCount()} ${cartCount() === 1 ? "item" : "items"}`}
+						class="relative ml-1 inline-flex size-10 items-center justify-center rounded-full text-petal-900 transition-colors hover:bg-petal-100 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 					>
 						<BagIcon class="size-6" />
 						<Show when={cartCount() > 0}>
@@ -60,9 +63,10 @@ export function SiteHeader() {
 								{cartCount()}
 							</span>
 						</Show>
-					</output>
+					</button>
 				</nav>
 			</div>
+			<CartSheet />
 		</header>
 	);
 }

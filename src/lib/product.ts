@@ -1,6 +1,13 @@
 import type { Product, ProductVariant } from "~/types/product";
 
 export const LOW_STOCK_THRESHOLD = 5;
+export const MAX_PER_ORDER = 10;
+
+/** Most units of a variant one bag may hold; 0 when it can't be bought. */
+export function getMaxQuantity(variant: ProductVariant) {
+	if (!variant.inStock) return 0;
+	return Math.min(MAX_PER_ORDER, variant.stockQuantity ?? MAX_PER_ORDER);
+}
 
 export function getVariantPrice(product: Product, variant: ProductVariant) {
 	return variant.price ?? product.basePrice;
@@ -35,7 +42,12 @@ export function getStockStatus(variant: ProductVariant): StockStatus {
 }
 
 export function formatPrice(amount: number, currency: string) {
-	return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-		amount,
-	);
+	// Whole amounts read cleaner without centavos: ₱2,999 rather than ₱2,999.00.
+	const fractionDigits = Number.isInteger(amount) ? 0 : 2;
+	return new Intl.NumberFormat("en-PH", {
+		style: "currency",
+		currency,
+		minimumFractionDigits: fractionDigits,
+		maximumFractionDigits: fractionDigits,
+	}).format(amount);
 }

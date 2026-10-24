@@ -12,9 +12,10 @@ import '@fontsource-variable/fraunces/full.css'
 import '@fontsource-variable/fraunces/full-italic.css'
 
 import { HydrationScript } from 'solid-js/web'
-import { Suspense } from 'solid-js'
+import { Suspense, onCleanup, onMount } from 'solid-js'
 
 import { Toaster } from '~/components/ui/toast'
+import { startCartPersistence } from '~/lib/cart-store'
 
 import styleCss from '../styles.css?url'
 
@@ -44,10 +45,17 @@ function RootComponent() {
         <Suspense>
           <Outlet />
           <Toaster />
+          <CartPersistence />
           <TanStackRouterDevtools />
         </Suspense>
         <Scripts />
       </body>
     </html>
   )
+}
+
+/** Restores the saved bag after hydration so server and client markup match. */
+function CartPersistence() {
+  onMount(() => onCleanup(startCartPersistence()))
+  return null
 }

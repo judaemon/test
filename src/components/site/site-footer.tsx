@@ -11,7 +11,7 @@ export function SiteFooter() {
 					class="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 				>
 					<FlowerMark class="size-6" />
-					<span class="font-display font-soft text-lg font-semibold tracking-[0.25em] text-petal-700">
+					<span class="font-display type-soft text-lg font-semibold tracking-[0.25em] text-petal-700">
 						ORAIA
 					</span>
 				</Link>

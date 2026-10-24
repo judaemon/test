@@ -11,15 +11,15 @@ export const products: Product[] = [
 		title: "Signature Hand-Tied Rose Bouquet",
 		description:
 			"Eighteen premium long-stem roses, hand-tied by our florists and wrapped in textured paper with a satin ribbon. Each bouquet is cut to order and arrives in a hydration pack so it stays fresh for up to 7 days.",
-		basePrice: 54.99,
-		currency: "USD",
+		basePrice: 2999,
+		currency: "PHP",
 		variants: [
 			{
 				id: "red-velvet",
 				sku: "BQ-ROSE-18-RED",
 				colorName: "Red Velvet",
 				colorHex: "#a51c34",
-				price: 59.99,
+				price: 3499,
 				inStock: true,
 				stockQuantity: 24,
 				images: gallery("red-velvet"),
@@ -47,7 +47,7 @@ export const products: Product[] = [
 				sku: "BQ-ROSE-18-CRL",
 				colorName: "Sunset Coral",
 				colorHex: "#f27a5c",
-				price: 57.99,
+				price: 3299,
 				inStock: false,
 				stockQuantity: 0,
 				images: gallery("sunset-coral"),

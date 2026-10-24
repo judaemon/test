@@ -1,3 +1,4 @@
+import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
 import { createEffect, createSignal, Match, on, Show, Switch } from "solid-js";
 
@@ -13,14 +14,23 @@ import {
 } from "~/components/ui/number-field";
 import { Separator } from "~/components/ui/separator";
 import { showToast } from "~/components/ui/toast";
-import { addToCart } from "~/lib/cart-store";
-import { formatPrice, getStockStatus, getVariantPrice } from "~/lib/product";
+import {
+	addToCart,
+	cartStore,
+	getLineQuantity,
+	setCartOpen,
+} from "~/lib/cart-store";
+import {
+	formatPrice,
+	getMaxQuantity,
+	getStockStatus,
+	getVariantPrice,
+} from "~/lib/product";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
 import { BagIcon, LeafIcon, MinusIcon, PlusIcon, TruckIcon } from "./icons";
 
-const MAX_PER_ORDER = 10;
 // Stand-in for a cart API round trip so the pending state is visible.
 const ADD_TO_CART_LATENCY_MS = 450;
 
@@ -38,11 +48,13 @@ export function ProductInfo(props: ProductInfoProps) {
 
 	const price = () => getVariantPrice(props.product, props.variant);
 	const stockStatus = () => getStockStatus(props.variant);
-	const maxQuantity = () =>
-		Math.max(
-			1,
-			Math.min(MAX_PER_ORDER, props.variant.stockQuantity ?? MAX_PER_ORDER),
-		);
+	const bagLines = useSelector(cartStore, (state) => state.lines);
+	const inBag = () =>
+		getLineQuantity(bagLines(), props.product.id, props.variant.id);
+	// Units still addable once what's already in the bag is counted.
+	const remaining = () => Math.max(0, getMaxQuantity(props.variant) - inBag());
+	const isMaxedOut = () => props.variant.inStock && remaining() === 0;
+	const maxQuantity = () => Math.max(1, remaining());
 
 	// Switching to a variant with less stock must not leave an impossible quantity.
 	createEffect(
@@ -55,7 +67,7 @@ export function ProductInfo(props: ProductInfoProps) {
 	};
 
 	const handleAddToCart = async () => {
-		if (!props.variant.inStock || isAdding()) return;
+		if (!props.variant.inStock || isMaxedOut() || isAdding()) return;
 		const variant = props.variant;
 		const count = quantity();
 		setIsAdding(true);
@@ -63,17 +75,24 @@ export function ProductInfo(props: ProductInfoProps) {
 			await new Promise((resolve) =>
 				setTimeout(resolve, ADD_TO_CART_LATENCY_MS),
 			);
-			addToCart({
+			const added = addToCart({
 				productId: props.product.id,
 				variantId: variant.id,
 				quantity: count,
 			});
-			showToast({
-				variant: "success",
-				title: "Added to bag",
-				description: `${count} × ${props.product.title} — ${variant.colorName}`,
-				duration: 3500,
-			});
+			if (added < count) {
+				showToast({
+					variant: "warning",
+					title:
+						added > 0
+							? `Added ${added} — that’s all we have`
+							: "No more available",
+					description: `Your bag now holds every ${variant.colorName} bouquet in stock.`,
+					duration: 4000,
+				});
+			}
+			setQuantity(1);
+			setCartOpen(true);
 		} finally {
 			setIsAdding(false);
 		}
@@ -82,7 +101,7 @@ export function ProductInfo(props: ProductInfoProps) {
 	return (
 		<div class={cn("flex flex-col gap-6", props.class)}>
 			<header class="flex flex-col gap-2">
-				<h1 class="font-display font-soft text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+				<h1 class="font-display type-soft text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
 					{props.product.title}
 				</h1>
 				<p class="text-xs text-muted-foreground">
@@ -122,7 +141,7 @@ export function ProductInfo(props: ProductInfoProps) {
 
 			{props.children}
 
-			<Show when={props.variant.inStock}>
+			<Show when={props.variant.inStock && !isMaxedOut()}>
 				<NumberField
 					class="flex flex-col gap-2"
 					rawValue={quantity()}
@@ -151,18 +170,44 @@ export function ProductInfo(props: ProductInfoProps) {
 			</Show>
 
 			<div class="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-				<Button
-					size="lg"
-					class="h-12 w-full text-base"
-					disabled={!props.variant.inStock || isAdding()}
-					aria-busy={isAdding()}
-					onClick={handleAddToCart}
+				<Show
+					when={!isMaxedOut()}
+					fallback={
+						<Button
+							size="lg"
+							variant="outline"
+							class="h-12 w-full text-base"
+							onClick={() => setCartOpen(true)}
+						>
+							<BagIcon class="size-5" />
+							<span>View bag</span>
+						</Button>
+					}
 				>
-					<Show when={props.variant.inStock} fallback={<span>Sold out</span>}>
-						<BagIcon class="size-5" />
-						<span>{isAdding() ? "Adding…" : "Add to Bag"}</span>
-					</Show>
-				</Button>
+					<Button
+						size="lg"
+						class="h-12 w-full text-base"
+						disabled={!props.variant.inStock || isAdding()}
+						aria-busy={isAdding()}
+						onClick={handleAddToCart}
+					>
+						<Show when={props.variant.inStock} fallback={<span>Sold out</span>}>
+							<BagIcon class="size-5" />
+							<span>{isAdding() ? "Adding…" : "Add to Bag"}</span>
+						</Show>
+					</Button>
+				</Show>
+				<Show when={isMaxedOut()}>
+					<p class="text-center text-sm text-muted-foreground">
+						You have all {inBag()} available {props.variant.colorName} bouquets
+						in your bag.
+					</p>
+				</Show>
+				<Show when={!isMaxedOut() && inBag() > 0}>
+					<p class="text-center text-sm text-muted-foreground">
+						{inBag()} already in your bag
+					</p>
+				</Show>
 				<Show when={!props.variant.inStock}>
 					<p class="text-center text-sm text-muted-foreground">
 						{props.variant.colorName} is sold out — pick another color above to

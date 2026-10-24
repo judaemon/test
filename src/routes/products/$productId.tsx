@@ -119,7 +119,7 @@ function ProductNotFound() {
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
 			<SiteHeader />
 			<main class="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-24 text-center">
-				<h1 class="font-display font-soft text-3xl font-semibold">
+				<h1 class="font-display type-soft text-3xl font-semibold">
 					We couldn't find that bouquet
 				</h1>
 				<p class="text-petal-900/70">

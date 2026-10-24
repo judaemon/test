@@ -176,7 +176,7 @@ code {
 }
 
 /* Rounded, slightly wonky Fraunces cut for headings */
-.font-soft {
+.type-soft {
   font-variation-settings:
     'SOFT' 100,
     'WONK' 1;

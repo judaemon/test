@@ -71,7 +71,7 @@ function Hero() {
 						<FlowerMark class="size-4" />
 						Hand-tied fresh every morning
 					</p>
-					<h1 class="mt-6 font-display font-soft text-5xl font-semibold leading-[1.05] tracking-tight text-balance sm:text-6xl lg:text-7xl">
+					<h1 class="mt-6 font-display type-soft text-5xl font-semibold leading-[1.05] tracking-tight text-balance sm:text-6xl lg:text-7xl">
 						Little blooms for{" "}
 						<em class="relative whitespace-nowrap italic text-petal-700">
 							big
@@ -135,7 +135,7 @@ function Hero() {
 						/>
 					</div>
 					<div class="absolute -left-1 bottom-6 flex size-24 rotate-[-10deg] flex-col items-center justify-center rounded-full bg-butter text-center shadow-md sm:size-28 motion-safe:animate-float-slow">
-						<span class="font-display font-soft text-xl font-semibold leading-none sm:text-2xl">
+						<span class="font-display type-soft text-xl font-semibold leading-none sm:text-2xl">
 							fresh
 						</span>
 						<span class="text-xs font-medium sm:text-sm">today!</span>
@@ -187,7 +187,7 @@ function ColorPicker() {
 													style={{ "background-color": variant.colorHex }}
 												/>
 											</span>
-											<span class="mt-5 font-display font-soft text-xl font-semibold">
+											<span class="mt-5 font-display type-soft text-xl font-semibold">
 												{variant.colorName}
 											</span>
 											<span class="mt-1 text-sm text-petal-900/65">
@@ -265,7 +265,7 @@ function About() {
 								<span class="flex size-14 items-center justify-center rounded-full bg-petal-50">
 									{promise.icon()}
 								</span>
-								<h3 class="mt-4 font-display font-soft text-lg font-semibold">
+								<h3 class="mt-4 font-display type-soft text-lg font-semibold">
 									{promise.title}
 								</h3>
 								<p class="mt-2 text-sm leading-relaxed text-petal-900/65">
@@ -299,7 +299,7 @@ function PetalClub() {
 				<Petal class="pointer-events-none absolute -left-2 top-6 w-10 rotate-[-20deg] text-petal-200" />
 				<Petal class="pointer-events-none absolute -right-1 bottom-4 w-12 rotate-[150deg] text-petal-200" />
 				<Sparkle class="pointer-events-none absolute right-10 top-8 w-5 text-white" />
-				<h2 class="font-display font-soft text-3xl font-semibold sm:text-4xl">
+				<h2 class="font-display type-soft text-3xl font-semibold sm:text-4xl">
 					Join the petal club
 				</h2>
 				<p class="mx-auto mt-3 max-w-md text-petal-900/70">
@@ -341,7 +341,7 @@ function SectionHeading(props: {
 			<p class="text-sm font-medium uppercase tracking-[0.2em] text-petal-700">
 				{props.eyebrow}
 			</p>
-			<h2 class="mt-3 font-display font-soft text-4xl font-semibold tracking-tight sm:text-5xl">
+			<h2 class="mt-3 font-display type-soft text-4xl font-semibold tracking-tight sm:text-5xl">
 				{props.title}
 			</h2>
 			<p class="mt-4 text-lg leading-relaxed text-petal-900/70">
