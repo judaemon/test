@@ -10,19 +10,83 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ShopRouteImport } from './routes/shop'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as AccountIndexRouteImport } from './routes/account/index'
+import { Route as AccountAddressesRouteImport } from './routes/account/addresses'
+import { Route as AccountOccasionsRouteImport } from './routes/account/occasions'
+import { Route as AccountOrdersRouteImport } from './routes/account/orders'
+import { Route as AdminDashboardRouteImport } from './routes/admin/_dashboard'
+import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as OrderOrderIdRouteImport } from './routes/order/$orderId'
 import { Route as ProductsProductIdRouteImport } from './routes/products/$productId'
+import { Route as UploadsSplatRouteImport } from './routes/uploads/$'
+import { Route as AdminDashboardIndexRouteImport } from './routes/admin/_dashboard/index'
+import { Route as AdminDashboardPaymentsRouteImport } from './routes/admin/_dashboard/payments'
+import { Route as AdminDashboardStaffRouteImport } from './routes/admin/_dashboard/staff'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AdminDashboardOrdersIndexRouteImport } from './routes/admin/_dashboard/orders/index'
+import { Route as AdminDashboardOrdersOrderIdRouteImport } from './routes/admin/_dashboard/orders/$orderId'
+import { Route as AdminDashboardProductsIndexRouteImport } from './routes/admin/_dashboard/products/index'
+import { Route as AdminDashboardProductsProductIdRouteImport } from './routes/admin/_dashboard/products/$productId'
+import { Route as ApiAdminProofsSplatRouteImport } from './routes/api/admin/proofs/$'
+import { Route as ApiOrdersOrderIdDeliveryPhotoRouteImport } from './routes/api/orders/$orderId/delivery-photo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CheckoutRoute = CheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShopRoute = ShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountIndexRoute = AccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountAddressesRoute = AccountAddressesRouteImport.update({
+  id: '/addresses',
+  path: '/addresses',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountOccasionsRoute = AccountOccasionsRouteImport.update({
+  id: '/occasions',
+  path: '/occasions',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountOrdersRoute = AccountOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AdminDashboardRoute = AdminDashboardRouteImport.update({
+  id: '/admin/_dashboard',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OrderOrderIdRoute = OrderOrderIdRouteImport.update({
@@ -35,64 +99,237 @@ const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   path: '/products/$productId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UploadsSplatRoute = UploadsSplatRouteImport.update({
+  id: '/uploads/$',
+  path: '/uploads/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminDashboardIndexRoute = AdminDashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardPaymentsRoute = AdminDashboardPaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardStaffRoute = AdminDashboardStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminDashboardOrdersIndexRoute =
+  AdminDashboardOrdersIndexRouteImport.update({
+    id: '/orders/',
+    path: '/orders/',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const AdminDashboardOrdersOrderIdRoute =
+  AdminDashboardOrdersOrderIdRouteImport.update({
+    id: '/orders/$orderId',
+    path: '/orders/$orderId',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const AdminDashboardProductsIndexRoute =
+  AdminDashboardProductsIndexRouteImport.update({
+    id: '/products/',
+    path: '/products/',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const AdminDashboardProductsProductIdRoute =
+  AdminDashboardProductsProductIdRouteImport.update({
+    id: '/products/$productId',
+    path: '/products/$productId',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const ApiAdminProofsSplatRoute = ApiAdminProofsSplatRouteImport.update({
+  id: '/api/admin/proofs/$',
+  path: '/api/admin/proofs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrdersOrderIdDeliveryPhotoRoute =
+  ApiOrdersOrderIdDeliveryPhotoRouteImport.update({
+    id: '/api/orders/$orderId/delivery-photo',
+    path: '/api/orders/$orderId/delivery-photo',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteWithChildren
   '/checkout': typeof CheckoutRoute
+  '/shop': typeof ShopRoute
+  '/sign-in': typeof SignInRoute
+  '/account/addresses': typeof AccountAddressesRoute
+  '/account/occasions': typeof AccountOccasionsRoute
+  '/account/orders': typeof AccountOrdersRoute
+  '/admin': typeof AdminDashboardRouteWithChildren
+  '/admin/login': typeof AdminLoginRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/uploads/$': typeof UploadsSplatRoute
+  '/account/': typeof AccountIndexRoute
+  '/admin/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/staff': typeof AdminDashboardStaffRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/': typeof AdminDashboardIndexRoute
+  '/admin/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
+  '/admin/products/$productId': typeof AdminDashboardProductsProductIdRoute
+  '/api/admin/proofs/$': typeof ApiAdminProofsSplatRoute
+  '/api/orders/$orderId/delivery-photo': typeof ApiOrdersOrderIdDeliveryPhotoRoute
+  '/admin/orders/': typeof AdminDashboardOrdersIndexRoute
+  '/admin/products/': typeof AdminDashboardProductsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/checkout': typeof CheckoutRoute
+  '/shop': typeof ShopRoute
+  '/sign-in': typeof SignInRoute
+  '/account/addresses': typeof AccountAddressesRoute
+  '/account/occasions': typeof AccountOccasionsRoute
+  '/account/orders': typeof AccountOrdersRoute
+  '/admin/login': typeof AdminLoginRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/uploads/$': typeof UploadsSplatRoute
+  '/account': typeof AccountIndexRoute
+  '/admin/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/staff': typeof AdminDashboardStaffRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin': typeof AdminDashboardIndexRoute
+  '/admin/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
+  '/admin/products/$productId': typeof AdminDashboardProductsProductIdRoute
+  '/api/admin/proofs/$': typeof ApiAdminProofsSplatRoute
+  '/api/orders/$orderId/delivery-photo': typeof ApiOrdersOrderIdDeliveryPhotoRoute
+  '/admin/orders': typeof AdminDashboardOrdersIndexRoute
+  '/admin/products': typeof AdminDashboardProductsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteWithChildren
   '/checkout': typeof CheckoutRoute
+  '/shop': typeof ShopRoute
+  '/sign-in': typeof SignInRoute
+  '/account/addresses': typeof AccountAddressesRoute
+  '/account/occasions': typeof AccountOccasionsRoute
+  '/account/orders': typeof AccountOrdersRoute
+  '/admin/_dashboard': typeof AdminDashboardRouteWithChildren
+  '/admin/login': typeof AdminLoginRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/uploads/$': typeof UploadsSplatRoute
+  '/account/': typeof AccountIndexRoute
+  '/admin/_dashboard/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/_dashboard/staff': typeof AdminDashboardStaffRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/_dashboard/': typeof AdminDashboardIndexRoute
+  '/admin/_dashboard/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
+  '/admin/_dashboard/products/$productId': typeof AdminDashboardProductsProductIdRoute
+  '/api/admin/proofs/$': typeof ApiAdminProofsSplatRoute
+  '/api/orders/$orderId/delivery-photo': typeof ApiOrdersOrderIdDeliveryPhotoRoute
+  '/admin/_dashboard/orders/': typeof AdminDashboardOrdersIndexRoute
+  '/admin/_dashboard/products/': typeof AdminDashboardProductsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
     | '/checkout'
+    | '/shop'
+    | '/sign-in'
+    | '/account/addresses'
+    | '/account/occasions'
+    | '/account/orders'
+    | '/admin'
+    | '/admin/login'
     | '/order/$orderId'
     | '/products/$productId'
+    | '/uploads/$'
+    | '/account/'
+    | '/admin/payments'
+    | '/admin/staff'
     | '/api/auth/$'
+    | '/admin/'
+    | '/admin/orders/$orderId'
+    | '/admin/products/$productId'
+    | '/api/admin/proofs/$'
+    | '/api/orders/$orderId/delivery-photo'
+    | '/admin/orders/'
+    | '/admin/products/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/checkout'
+    | '/shop'
+    | '/sign-in'
+    | '/account/addresses'
+    | '/account/occasions'
+    | '/account/orders'
+    | '/admin/login'
     | '/order/$orderId'
     | '/products/$productId'
+    | '/uploads/$'
+    | '/account'
+    | '/admin/payments'
+    | '/admin/staff'
     | '/api/auth/$'
+    | '/admin'
+    | '/admin/orders/$orderId'
+    | '/admin/products/$productId'
+    | '/api/admin/proofs/$'
+    | '/api/orders/$orderId/delivery-photo'
+    | '/admin/orders'
+    | '/admin/products'
   id:
     | '__root__'
     | '/'
+    | '/account'
     | '/checkout'
+    | '/shop'
+    | '/sign-in'
+    | '/account/addresses'
+    | '/account/occasions'
+    | '/account/orders'
+    | '/admin/_dashboard'
+    | '/admin/login'
     | '/order/$orderId'
     | '/products/$productId'
+    | '/uploads/$'
+    | '/account/'
+    | '/admin/_dashboard/payments'
+    | '/admin/_dashboard/staff'
     | '/api/auth/$'
+    | '/admin/_dashboard/'
+    | '/admin/_dashboard/orders/$orderId'
+    | '/admin/_dashboard/products/$productId'
+    | '/api/admin/proofs/$'
+    | '/api/orders/$orderId/delivery-photo'
+    | '/admin/_dashboard/orders/'
+    | '/admin/_dashboard/products/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRouteWithChildren
   CheckoutRoute: typeof CheckoutRoute
+  ShopRoute: typeof ShopRoute
+  SignInRoute: typeof SignInRoute
+  AdminDashboardRoute: typeof AdminDashboardRouteWithChildren
+  AdminLoginRoute: typeof AdminLoginRoute
   OrderOrderIdRoute: typeof OrderOrderIdRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
+  UploadsSplatRoute: typeof UploadsSplatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAdminProofsSplatRoute: typeof ApiAdminProofsSplatRoute
+  ApiOrdersOrderIdDeliveryPhotoRoute: typeof ApiOrdersOrderIdDeliveryPhotoRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -104,11 +341,74 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/checkout': {
       id: '/checkout'
       path: '/checkout'
       fullPath: '/checkout'
       preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shop': {
+      id: '/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof ShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account/': {
+      id: '/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountIndexRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/addresses': {
+      id: '/account/addresses'
+      path: '/addresses'
+      fullPath: '/account/addresses'
+      preLoaderRoute: typeof AccountAddressesRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/occasions': {
+      id: '/account/occasions'
+      path: '/occasions'
+      fullPath: '/account/occasions'
+      preLoaderRoute: typeof AccountOccasionsRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/orders': {
+      id: '/account/orders'
+      path: '/orders'
+      fullPath: '/account/orders'
+      preLoaderRoute: typeof AccountOrdersRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/admin/_dashboard': {
+      id: '/admin/_dashboard'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/order/$orderId': {
@@ -125,6 +425,34 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof ProductsProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/uploads/$': {
+      id: '/uploads/$'
+      path: '/uploads/$'
+      fullPath: '/uploads/$'
+      preLoaderRoute: typeof UploadsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/_dashboard/': {
+      id: '/admin/_dashboard/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminDashboardIndexRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/payments': {
+      id: '/admin/_dashboard/payments'
+      path: '/payments'
+      fullPath: '/admin/payments'
+      preLoaderRoute: typeof AdminDashboardPaymentsRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/staff': {
+      id: '/admin/_dashboard/staff'
+      path: '/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AdminDashboardStaffRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -132,15 +460,106 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/_dashboard/orders/': {
+      id: '/admin/_dashboard/orders/'
+      path: '/orders'
+      fullPath: '/admin/orders/'
+      preLoaderRoute: typeof AdminDashboardOrdersIndexRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/orders/$orderId': {
+      id: '/admin/_dashboard/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/admin/orders/$orderId'
+      preLoaderRoute: typeof AdminDashboardOrdersOrderIdRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/products/': {
+      id: '/admin/_dashboard/products/'
+      path: '/products'
+      fullPath: '/admin/products/'
+      preLoaderRoute: typeof AdminDashboardProductsIndexRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/products/$productId': {
+      id: '/admin/_dashboard/products/$productId'
+      path: '/products/$productId'
+      fullPath: '/admin/products/$productId'
+      preLoaderRoute: typeof AdminDashboardProductsProductIdRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/api/admin/proofs/$': {
+      id: '/api/admin/proofs/$'
+      path: '/api/admin/proofs/$'
+      fullPath: '/api/admin/proofs/$'
+      preLoaderRoute: typeof ApiAdminProofsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orders/$orderId/delivery-photo': {
+      id: '/api/orders/$orderId/delivery-photo'
+      path: '/api/orders/$orderId/delivery-photo'
+      fullPath: '/api/orders/$orderId/delivery-photo'
+      preLoaderRoute: typeof ApiOrdersOrderIdDeliveryPhotoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AccountRouteChildren {
+  AccountAddressesRoute: typeof AccountAddressesRoute
+  AccountOccasionsRoute: typeof AccountOccasionsRoute
+  AccountOrdersRoute: typeof AccountOrdersRoute
+  AccountIndexRoute: typeof AccountIndexRoute
+}
+
+const AccountRouteChildren: AccountRouteChildren = {
+  AccountAddressesRoute: AccountAddressesRoute,
+  AccountOccasionsRoute: AccountOccasionsRoute,
+  AccountOrdersRoute: AccountOrdersRoute,
+  AccountIndexRoute: AccountIndexRoute,
+}
+
+const AccountRouteWithChildren =
+  AccountRoute._addFileChildren(AccountRouteChildren)
+
+interface AdminDashboardRouteChildren {
+  AdminDashboardPaymentsRoute: typeof AdminDashboardPaymentsRoute
+  AdminDashboardStaffRoute: typeof AdminDashboardStaffRoute
+  AdminDashboardIndexRoute: typeof AdminDashboardIndexRoute
+  AdminDashboardOrdersOrderIdRoute: typeof AdminDashboardOrdersOrderIdRoute
+  AdminDashboardProductsProductIdRoute: typeof AdminDashboardProductsProductIdRoute
+  AdminDashboardOrdersIndexRoute: typeof AdminDashboardOrdersIndexRoute
+  AdminDashboardProductsIndexRoute: typeof AdminDashboardProductsIndexRoute
+}
+
+const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
+  AdminDashboardPaymentsRoute: AdminDashboardPaymentsRoute,
+  AdminDashboardStaffRoute: AdminDashboardStaffRoute,
+  AdminDashboardIndexRoute: AdminDashboardIndexRoute,
+  AdminDashboardOrdersOrderIdRoute: AdminDashboardOrdersOrderIdRoute,
+  AdminDashboardProductsProductIdRoute: AdminDashboardProductsProductIdRoute,
+  AdminDashboardOrdersIndexRoute: AdminDashboardOrdersIndexRoute,
+  AdminDashboardProductsIndexRoute: AdminDashboardProductsIndexRoute,
+}
+
+const AdminDashboardRouteWithChildren = AdminDashboardRoute._addFileChildren(
+  AdminDashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRouteWithChildren,
   CheckoutRoute: CheckoutRoute,
+  ShopRoute: ShopRoute,
+  SignInRoute: SignInRoute,
+  AdminDashboardRoute: AdminDashboardRouteWithChildren,
+  AdminLoginRoute: AdminLoginRoute,
   OrderOrderIdRoute: OrderOrderIdRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
+  UploadsSplatRoute: UploadsSplatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAdminProofsSplatRoute: ApiAdminProofsSplatRoute,
+  ApiOrdersOrderIdDeliveryPhotoRoute: ApiOrdersOrderIdDeliveryPhotoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

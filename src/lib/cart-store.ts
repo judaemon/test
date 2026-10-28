@@ -1,8 +1,7 @@
 import { createStore } from "@tanstack/solid-store";
 import { createSignal } from "solid-js";
 
-import { type CartLine, findVariant, sanitizeCartLines } from "~/lib/pricing";
-import { getMaxQuantity } from "~/lib/product";
+import { type CartLine, sanitizeCartLines } from "~/lib/pricing";
 
 export type { CartLine } from "~/lib/pricing";
 
@@ -28,11 +27,6 @@ function setLines(update: (lines: CartLine[]) => CartLine[]) {
 	cartStore.setState((state) => ({ ...state, lines: update(state.lines) }));
 }
 
-function lineLimit(productId: string, variantId: string) {
-	const match = findVariant(productId, variantId);
-	return match ? getMaxQuantity(match.variant) : 0;
-}
-
 export function getLineQuantity(
 	lines: CartLine[],
 	productId: string,
@@ -42,11 +36,10 @@ export function getLineQuantity(
 }
 
 /**
- * Adds units to the bag without exceeding available stock.
+ * Adds units to the bag without exceeding `limit` (the variant's max per bag).
  * Returns how many units were actually added.
  */
-export function addToCart(line: CartLine): number {
-	const limit = lineLimit(line.productId, line.variantId);
+export function addToCart(line: CartLine, limit: number): number {
 	const current = getLineQuantity(
 		cartStore.state.lines,
 		line.productId,
@@ -66,14 +59,15 @@ export function addToCart(line: CartLine): number {
 	return added;
 }
 
-/** Sets a line's quantity (clamped to stock); 0 or less removes it. */
+/** Sets a line's quantity (clamped to `limit`); 0 or less removes it. */
 export function setLineQuantity(
 	productId: string,
 	variantId: string,
 	quantity: number,
+	limit: number,
 ) {
 	if (quantity <= 0) return removeFromCart(productId, variantId);
-	const clamped = Math.min(quantity, lineLimit(productId, variantId));
+	const clamped = Math.min(quantity, limit);
 	if (clamped <= 0) return removeFromCart(productId, variantId);
 	setLines((lines) =>
 		lines.map((l) =>
@@ -90,18 +84,11 @@ export function clearCart() {
 	setLines(() => []);
 }
 
-export function getCartCount(state: CartState) {
-	return state.lines.reduce((sum, line) => sum + line.quantity, 0);
-}
-
 function readSavedLines(): CartLine[] {
 	try {
 		const raw = window.localStorage.getItem(STORAGE_KEY);
-		if (!raw) return [];
-		// Drop anything the catalog no longer carries.
-		return sanitizeCartLines(JSON.parse(raw)).filter((line) =>
-			findVariant(line.productId, line.variantId),
-		);
+		// Items the catalog no longer carries are dropped when the bag is priced.
+		return raw ? sanitizeCartLines(JSON.parse(raw)) : [];
 	} catch {
 		return [];
 	}

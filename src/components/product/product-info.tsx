@@ -75,11 +75,10 @@ export function ProductInfo(props: ProductInfoProps) {
 			await new Promise((resolve) =>
 				setTimeout(resolve, ADD_TO_CART_LATENCY_MS),
 			);
-			const added = addToCart({
-				productId: props.product.id,
-				variantId: variant.id,
-				quantity: count,
-			});
+			const added = addToCart(
+				{ productId: props.product.id, variantId: variant.id, quantity: count },
+				getMaxQuantity(variant),
+			);
 			if (added < count) {
 				showToast({
 					variant: "warning",

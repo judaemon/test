@@ -18,7 +18,6 @@ import {
 	TextFieldInput,
 	TextFieldLabel,
 } from "~/components/ui/text-field";
-import { qrPaymentAccounts } from "~/data/payment-accounts";
 import type { FieldErrors, PaymentField } from "~/lib/checkout";
 import {
 	CARD_BRAND_LABELS,
@@ -33,8 +32,11 @@ import {
 } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { cn } from "~/lib/utils";
+import type { PaymentAccount } from "~/types/payment";
 
 interface PaymentSectionProps {
+	/** Enabled methods, in display order. */
+	accounts: PaymentAccount[];
 	total: number;
 	currency: string;
 	method: PaymentMethod | null;
@@ -47,37 +49,27 @@ interface PaymentSectionProps {
 	clearError: (field: PaymentField) => void;
 }
 
-const METHOD_OPTIONS: Array<{
-	id: PaymentMethod;
-	label: string;
-	hint: string;
-	badge: () => JSX.Element;
-}> = [
-	{
-		id: "card",
-		label: "Credit / Debit card",
+const METHOD_DISPLAY: Record<
+	PaymentMethod,
+	{ hint: string; badge: () => JSX.Element }
+> = {
+	card: {
 		hint: "Visa, Mastercard, JCB, Amex",
 		badge: () => <CardIcon class="size-5" />,
 	},
-	{
-		id: "gcash",
-		label: "GCash",
+	gcash: {
 		hint: "Scan to pay",
 		badge: () => <Monogram letter="G" class="bg-[#007dfe]" />,
 	},
-	{
-		id: "maya",
-		label: "Maya",
+	maya: {
 		hint: "Scan to pay",
 		badge: () => <Monogram letter="M" class="bg-[#00a85a]" />,
 	},
-	{
-		id: "bank",
-		label: "Bank transfer",
+	bank: {
 		hint: "InstaPay / QR Ph",
 		badge: () => <BankIcon class="size-5" />,
 	},
-];
+};
 
 const inputClass =
 	"h-11 rounded-xl border-petal-200 bg-white text-base placeholder:text-petal-900/35 focus-visible:ring-petal-500 sm:text-sm";
@@ -88,28 +80,30 @@ export function PaymentSection(props: PaymentSectionProps) {
 			<fieldset aria-describedby="payment-method-error">
 				<legend class="sr-only">Payment method</legend>
 				<div class="grid gap-2 sm:grid-cols-2">
-					<For each={METHOD_OPTIONS}>
-						{(option) => (
+					<For each={props.accounts}>
+						{(account) => (
 							<label class="cursor-pointer">
 								<input
 									type="radio"
 									name="paymentMethod"
-									value={option.id}
-									checked={props.method === option.id}
+									value={account.method}
+									checked={props.method === account.method}
 									aria-invalid={props.errors.paymentMethod ? "true" : undefined}
 									onChange={() => {
-										props.onMethodChange(option.id);
+										props.onMethodChange(account.method);
 										props.clearError("paymentMethod");
 									}}
 									class="peer sr-only"
 								/>
 								<span class="flex h-full items-center gap-3 rounded-2xl border border-petal-200 bg-white px-4 py-3 transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2">
 									<span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-petal-50 text-petal-700">
-										{option.badge()}
+										{METHOD_DISPLAY[account.method].badge()}
 									</span>
 									<span class="flex flex-col">
-										<span class="font-medium">{option.label}</span>
-										<span class="text-xs text-petal-900/60">{option.hint}</span>
+										<span class="font-medium">{account.label}</span>
+										<span class="text-xs text-petal-900/60">
+											{METHOD_DISPLAY[account.method].hint}
+										</span>
 									</span>
 								</span>
 							</label>
@@ -136,6 +130,11 @@ export function PaymentSection(props: PaymentSectionProps) {
 					{(method) => (
 						<QrPayment
 							method={method() as QrPaymentMethod}
+							account={
+								props.accounts.find(
+									(a) => a.method === method(),
+								) as PaymentAccount
+							}
 							total={props.total}
 							currency={props.currency}
 							proof={props.proof}
@@ -253,6 +252,7 @@ function CardFields(props: {
 
 function QrPayment(props: {
 	method: QrPaymentMethod;
+	account: PaymentAccount;
 	total: number;
 	currency: string;
 	proof: File | null;
@@ -260,7 +260,7 @@ function QrPayment(props: {
 	errors: FieldErrors;
 	clearError: (field: PaymentField) => void;
 }) {
-	const account = () => qrPaymentAccounts[props.method];
+	const account = () => props.account;
 
 	return (
 		<div class="flex flex-col gap-5">
@@ -275,7 +275,7 @@ function QrPayment(props: {
 					/>
 					<a
 						href={account().qrImage}
-						download={`oraia-${props.method}-qr.svg`}
+						download={`oraia-${props.method}-qr.${account().qrImage.split(".").pop()}`}
 						class="rounded-full px-3 py-1 text-sm font-medium text-petal-700 underline-offset-4 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 					>
 						Save QR image

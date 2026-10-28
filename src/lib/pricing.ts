@@ -1,4 +1,3 @@
-import { getProduct } from "~/data/products";
 import { getMaxQuantity, getVariantPrice } from "~/lib/product";
 import type { Product, ProductVariant } from "~/types/product";
 
@@ -38,10 +37,11 @@ export const DELIVERY_FEE = 0;
 const DEFAULT_CURRENCY = "PHP";
 
 export function findVariant(
+	catalog: Product[],
 	productId: string,
 	variantId: string,
 ): { product: Product; variant: ProductVariant } | undefined {
-	const product = getProduct(productId);
+	const product = catalog.find((p) => p.id === productId);
 	const variant = product?.variants.find((v) => v.id === variantId);
 	return product && variant ? { product, variant } : undefined;
 }
@@ -51,12 +51,12 @@ export function findVariant(
  * the cart drawer and the server-side order handler so totals always agree.
  * Lines for products that no longer exist are dropped.
  */
-export function priceCart(lines: CartLine[]): PricedCart {
+export function priceCart(lines: CartLine[], catalog: Product[]): PricedCart {
 	const priced: PricedLine[] = [];
 	let currency = DEFAULT_CURRENCY;
 
 	for (const line of lines) {
-		const match = findVariant(line.productId, line.variantId);
+		const match = findVariant(catalog, line.productId, line.variantId);
 		if (!match) continue;
 		const { product, variant } = match;
 		currency = product.currency;

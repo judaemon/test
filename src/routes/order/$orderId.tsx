@@ -2,14 +2,16 @@ import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
+import { PaymentStatusPill } from "~/components/order/payment-status";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
-import { qrPaymentAccounts } from "~/data/payment-accounts";
-import { formatDeliveryDate } from "~/lib/checkout";
-import { CARD_BRAND_LABELS, type QrPaymentMethod } from "~/lib/payment";
+import { formatSlot, getSlot } from "~/lib/checkout";
+import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
-import { getOrder, type OrderPayment } from "~/server/orders";
+import { formatDate } from "~/lib/time";
+import { getOrder } from "~/server/orders";
+import type { OrderPayment } from "~/types/order";
 
 export const Route = createFileRoute("/order/$orderId")({
 	loader: async ({ params }) => {
@@ -25,7 +27,8 @@ export const Route = createFileRoute("/order/$orderId")({
 function OrderConfirmation() {
 	const order = Route.useLoaderData();
 	const details = () => order().details;
-	const isPending = () => order().payment.status === "pending-verification";
+	const isPending = () => order().payment.status === "pending";
+	const slot = () => getSlot(details().deliverySlot);
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
@@ -50,7 +53,8 @@ function OrderConfirmation() {
 						</strong>{" "}
 						on{" "}
 						<strong class="font-semibold text-petal-900">
-							{formatDeliveryDate(details().deliveryDate)}
+							{formatDate(details().deliveryDate)}
+							<Show when={slot()}>{(s) => <>, {formatSlot(s())}</>}</Show>
 						</strong>
 						.
 					</p>
@@ -145,7 +149,15 @@ function OrderConfirmation() {
 					</dl>
 				</section>
 
-				<div class="mt-10 flex justify-center">
+				<div class="mt-10 flex flex-wrap justify-center gap-3">
+					<Show when={order().ownedByViewer}>
+						<Link
+							to="/account/orders"
+							class="inline-flex h-12 items-center justify-center rounded-full border border-petal-200 bg-white px-8 text-base font-medium text-petal-900 transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							Track this order
+						</Link>
+					</Show>
 					<Link to="/" class={`${pillPrimary} w-auto px-8`}>
 						Back to the shop
 					</Link>
@@ -165,8 +177,8 @@ function OrderNotFound() {
 					We couldn’t find that order
 				</h1>
 				<p class="max-w-md text-petal-900/70">
-					The link may be mistyped, or the order was placed before the shop last
-					restarted.
+					The link may be mistyped. If you placed it while signed in, you’ll
+					find it under Your account → Orders.
 				</p>
 				<Link to="/" class={`${pillPrimary} w-auto px-8`}>
 					Back to the shop
@@ -177,11 +189,10 @@ function OrderNotFound() {
 }
 
 function PaymentSummary(props: { payment: OrderPayment }) {
-	const method = () => props.payment.method;
 	const label = () =>
-		method() === "card"
+		props.payment.method === "card"
 			? `${CARD_BRAND_LABELS[props.payment.cardBrand ?? "unknown"]} •••• ${props.payment.cardLast4}`
-			: qrPaymentAccounts[method() as QrPaymentMethod].label;
+			: PAYMENT_METHOD_LABELS[props.payment.method];
 
 	return (
 		<section class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-petal-100 bg-white p-6">
@@ -198,21 +209,22 @@ function PaymentSummary(props: { payment: OrderPayment }) {
 						)}
 					</Show>
 				</p>
-				<Show when={props.payment.status === "pending-verification"}>
+				<Show when={props.payment.status === "pending"}>
 					<p class="mt-1 text-sm text-petal-900/60">
 						We’ve received your screenshot and will verify it shortly.
 					</p>
 				</Show>
+				<Show when={props.payment.status === "rejected"}>
+					<p class="mt-1 text-sm text-petal-900/60">
+						We couldn’t match this payment. We’ll reach out by text or email to
+						sort it out.
+					</p>
+				</Show>
 			</div>
-			<span
-				class={
-					props.payment.status === "paid"
-						? "rounded-full bg-success px-3 py-1 text-sm font-medium text-success-foreground"
-						: "rounded-full bg-warning px-3 py-1 text-sm font-medium text-warning-foreground"
-				}
-			>
-				{props.payment.status === "paid" ? "Paid" : "Verifying payment"}
-			</span>
+			<PaymentStatusPill
+				status={props.payment.status}
+				class="px-3 py-1 text-sm"
+			/>
 		</section>
 	);
 }

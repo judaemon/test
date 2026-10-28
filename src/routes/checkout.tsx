@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createSignal, For, Match, Show, Switch } from "solid-js";
+import { createStore } from "solid-js/store";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { PaymentSection } from "~/components/checkout/payment-section";
@@ -16,19 +17,19 @@ import {
 	TextFieldLabel,
 	TextFieldTextArea,
 } from "~/components/ui/text-field";
-import { products } from "~/data/products";
 import { cartStore, clearCart, setCartOpen } from "~/lib/cart-store";
 import {
 	type CheckoutField,
+	DELIVERY_SLOTS,
+	type DeliverySlot,
 	type FieldErrors,
-	formatDeliveryDate,
+	formatSlot,
 	GIFT_MESSAGE_MAX,
 	getDeliveryDays,
 	hasErrors,
+	isSlotOpen,
 	type PaymentField,
 	readCheckoutForm,
-	SAME_DAY_CUTOFF_HOUR,
-	toISODate,
 	validateCheckoutDetails,
 } from "~/lib/checkout";
 import {
@@ -41,27 +42,66 @@ import {
 	validateProofFile,
 	validateReferenceNumber,
 } from "~/lib/payment";
-import { type PricedCart, priceCart } from "~/lib/pricing";
+import type { PricedCart } from "~/lib/pricing";
 import { formatPrice } from "~/lib/product";
+import { formatDate, shopNow } from "~/lib/time";
+import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
-import { placeOrder } from "~/server/orders";
+import { listMyAddresses } from "~/server/account";
+import { getCheckoutConfig, placeOrder } from "~/server/orders";
+import type { SavedAddress } from "~/types/account";
+import type { PaymentAccount } from "~/types/payment";
 
 export const Route = createFileRoute("/checkout")({
+	loader: async ({ context }) => {
+		const [config, savedAddresses] = await Promise.all([
+			getCheckoutConfig(),
+			context.user ? listMyAddresses() : Promise.resolve([]),
+		]);
+		return { ...config, savedAddresses };
+	},
 	head: () => ({ meta: [{ title: "Checkout · ORAIA" }] }),
 	component: CheckoutPage,
 });
 
 function CheckoutPage() {
 	const cartState = useSelector(cartStore);
-	const cart = createMemo(() => priceCart(cartState().lines));
+	const cart = usePricedCart();
+	const config = Route.useLoaderData();
+	const user = useSessionUser();
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
 			<SiteHeader />
 			<main class="mx-auto w-full max-w-6xl flex-1 px-4 pb-20 pt-8 sm:px-6 lg:px-8">
-				<h1 class="font-display type-soft text-4xl font-semibold tracking-tight">
-					Checkout
-				</h1>
+				<div class="flex flex-wrap items-end justify-between gap-3">
+					<h1 class="font-display type-soft text-4xl font-semibold tracking-tight">
+						Checkout
+					</h1>
+					<Show
+						when={user()}
+						fallback={
+							<p class="text-sm text-petal-900/65">
+								Have an account?{" "}
+								<Link
+									to="/sign-in"
+									search={{ redirect: "/checkout" }}
+									class="font-medium text-petal-700 underline underline-offset-2"
+								>
+									Sign in
+								</Link>{" "}
+								to use saved addresses and track this order.
+							</p>
+						}
+					>
+						{(signedIn) => (
+							<p class="text-sm text-petal-900/65">
+								Signed in as {signedIn().email} — you can track this order from
+								your account.
+							</p>
+						)}
+					</Show>
+				</div>
 				<Switch>
 					{/* The bag lives in localStorage, so wait for it before deciding it's empty. */}
 					<Match when={!cartState().hydrated}>
@@ -78,7 +118,12 @@ function CheckoutPage() {
 						<EmptyCheckout />
 					</Match>
 					<Match when={cart().lines.length > 0}>
-						<CheckoutForm cart={cart()} />
+						<CheckoutForm
+							cart={cart()}
+							paymentAccounts={config().paymentAccounts}
+							savedAddresses={config().savedAddresses}
+							email={user()?.email}
+						/>
 					</Match>
 				</Switch>
 			</main>
@@ -87,7 +132,31 @@ function CheckoutPage() {
 	);
 }
 
-function CheckoutForm(props: { cart: PricedCart }) {
+const chip =
+	"flex h-full flex-col items-center rounded-2xl border border-petal-200 bg-white px-2 py-3 text-center transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2";
+
+function CheckoutForm(props: {
+	cart: PricedCart;
+	paymentAccounts: PaymentAccount[];
+	savedAddresses: SavedAddress[];
+	/** Signed-in shopper's email, used to prefill the contact field. */
+	email?: string;
+}) {
+	// Controlled so picking a saved address can fill them in.
+	const fromAddress = (address?: SavedAddress) => ({
+		recipientName: address?.recipientName ?? "",
+		address: address?.address ?? "",
+		city: address?.city ?? "",
+		postalCode: address?.postalCode ?? "",
+	});
+	const [recipient, setRecipient] = createStore(
+		fromAddress(props.savedAddresses.find((a) => a.isDefault)),
+	);
+	const isPicked = (address: SavedAddress) =>
+		recipient.recipientName === address.recipientName &&
+		recipient.address === address.address &&
+		recipient.city === address.city &&
+		recipient.postalCode === address.postalCode;
 	const navigate = useNavigate();
 	const [errors, setErrors] = createSignal<FieldErrors>({});
 	const [formError, setFormError] = createSignal<string | null>(null);
@@ -104,9 +173,23 @@ function CheckoutForm(props: { cart: PricedCart }) {
 	});
 	const [proof, setProof] = createSignal<File | null>(null);
 
-	const now = new Date();
-	const deliveryDays = getDeliveryDays(now);
-	const sameDayClosed = now.getHours() >= SAME_DAY_CUTOFF_HOUR;
+	// Rendered client-side only (after the bag loads), so the clock can't
+	// differ between server and browser markup.
+	const clock = shopNow();
+	const deliveryDays = getDeliveryDays(clock);
+	const [deliveryDate, setDeliveryDate] = createSignal(
+		deliveryDays[0]?.date ?? clock.date,
+	);
+	const slotOpen = (slot: DeliverySlot) =>
+		isSlotOpen(slot, deliveryDate(), clock);
+	const firstOpenSlot = () => DELIVERY_SLOTS.find(slotOpen)?.id ?? "";
+	const [deliverySlot, setDeliverySlot] = createSignal(firstOpenSlot());
+	const chooseDay = (date: string) => {
+		setDeliveryDate(date);
+		clearError("deliveryDate");
+		const current = DELIVERY_SLOTS.find((slot) => slot.id === deliverySlot());
+		if (!current || !slotOpen(current)) setDeliverySlot(firstOpenSlot());
+	};
 	const hasProblem = () => props.cart.lines.some((line) => line.problem);
 
 	const clearError = (field: CheckoutField | PaymentField) => {
@@ -147,7 +230,7 @@ function CheckoutForm(props: { cart: PricedCart }) {
 		const formData = new FormData(form);
 		const details = readCheckoutForm(formData);
 		const fieldErrors = withoutEmpty({
-			...validateCheckoutDetails(details, toISODate(new Date())),
+			...validateCheckoutDetails(details, shopNow()),
 			...validatePayment(formData),
 		});
 		setErrors(fieldErrors);
@@ -221,6 +304,7 @@ function CheckoutForm(props: { cart: PricedCart }) {
 							type="email"
 							autocomplete="email"
 							placeholder="you@example.com"
+							defaultValue={props.email}
 							error={errors().email}
 							onInput={() => clearError("email")}
 						/>
@@ -238,12 +322,53 @@ function CheckoutForm(props: { cart: PricedCart }) {
 				</Section>
 
 				<Section title="Who are they for?" step={2}>
+					<Show when={props.savedAddresses.length > 0}>
+						<fieldset class="mb-4">
+							<legend class="mb-2 text-sm font-medium">
+								Use a saved address
+							</legend>
+							<div class="flex flex-wrap gap-2">
+								<For each={props.savedAddresses}>
+									{(address) => (
+										<button
+											type="button"
+											aria-pressed={isPicked(address)}
+											onClick={() => {
+												setRecipient(fromAddress(address));
+												for (const field of [
+													"recipientName",
+													"address",
+													"city",
+													"postalCode",
+												] as const)
+													clearError(field);
+											}}
+											class={cn(
+												"rounded-full border px-3.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+												isPicked(address)
+													? "border-petal-700 bg-petal-50 font-medium"
+													: "border-petal-200 bg-white hover:bg-petal-50",
+											)}
+										>
+											{address.label}
+											<span class="text-petal-900/55">
+												{" "}
+												· {address.recipientName}
+											</span>
+										</button>
+									)}
+								</For>
+							</div>
+						</fieldset>
+					</Show>
 					<div class="grid gap-4 sm:grid-cols-2">
 						<Field
 							name="recipientName"
 							label="Recipient’s name"
 							autocomplete="shipping name"
 							class="sm:col-span-2"
+							value={recipient.recipientName}
+							onValueChange={(value) => setRecipient("recipientName", value)}
 							error={errors().recipientName}
 							onInput={() => clearError("recipientName")}
 						/>
@@ -253,6 +378,8 @@ function CheckoutForm(props: { cart: PricedCart }) {
 							autocomplete="shipping street-address"
 							placeholder="House number, street, apartment"
 							class="sm:col-span-2"
+							value={recipient.address}
+							onValueChange={(value) => setRecipient("address", value)}
 							error={errors().address}
 							onInput={() => clearError("address")}
 						/>
@@ -260,6 +387,8 @@ function CheckoutForm(props: { cart: PricedCart }) {
 							name="city"
 							label="City"
 							autocomplete="shipping address-level2"
+							value={recipient.city}
+							onValueChange={(value) => setRecipient("city", value)}
 							error={errors().city}
 							onInput={() => clearError("city")}
 						/>
@@ -267,48 +396,48 @@ function CheckoutForm(props: { cart: PricedCart }) {
 							name="postalCode"
 							label="Postal code"
 							autocomplete="shipping postal-code"
+							value={recipient.postalCode}
+							onValueChange={(value) => setRecipient("postalCode", value)}
 							error={errors().postalCode}
 							onInput={() => clearError("postalCode")}
 						/>
 					</div>
 				</Section>
 
-				<Section title="Delivery day" step={3}>
+				<Section title="Delivery day & time" step={3}>
 					<fieldset aria-describedby="delivery-hint delivery-error">
 						<legend class="sr-only">Choose a delivery day</legend>
 						<p id="delivery-hint" class="mb-3 text-sm text-petal-900/65">
-							{sameDayClosed
-								? "Same-day delivery closes at 2pm, so the earliest is tomorrow."
-								: "Order before 2pm for free same-day delivery."}
+							{deliveryDays[0]?.offset === 0
+								? "Order before 2pm for free same-day delivery."
+								: "Same-day delivery closes at 2pm, so the earliest is tomorrow."}
 						</p>
 						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
 							<For each={deliveryDays}>
-								{(day, index) => (
+								{(day) => (
 									<label class="cursor-pointer">
 										<input
 											type="radio"
 											name="deliveryDate"
 											value={day.date}
-											checked={index() === 0}
+											checked={deliveryDate() === day.date}
 											aria-invalid={errors().deliveryDate ? "true" : undefined}
-											onChange={() => clearError("deliveryDate")}
+											onChange={() => chooseDay(day.date)}
 											class="peer sr-only"
 										/>
-										<span class="flex h-full flex-col items-center rounded-2xl border border-petal-200 bg-white px-2 py-3 text-center transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2">
+										<span class={chip}>
 											<span class="text-[11px] font-medium uppercase tracking-wide text-petal-900/60">
 												{day.offset === 0
 													? "Today"
 													: day.offset === 1
 														? "Tomorrow"
-														: formatDeliveryDate(day.date, {
-																weekday: "short",
-															})}
+														: formatDate(day.date, { weekday: "short" })}
 											</span>
 											<span class="font-display type-soft text-lg font-semibold">
-												{formatDeliveryDate(day.date, { day: "numeric" })}
+												{formatDate(day.date, { day: "numeric" })}
 											</span>
 											<span class="text-xs text-petal-900/60">
-												{formatDeliveryDate(day.date, { month: "short" })}
+												{formatDate(day.date, { month: "short" })}
 											</span>
 										</span>
 									</label>
@@ -318,6 +447,54 @@ function CheckoutForm(props: { cart: PricedCart }) {
 						<Show when={errors().deliveryDate}>
 							<p id="delivery-error" class="mt-2 text-xs text-destructive">
 								{errors().deliveryDate}
+							</p>
+						</Show>
+					</fieldset>
+
+					<fieldset class="mt-5" aria-describedby="slot-error">
+						<legend class="mb-3 text-sm font-medium">Delivery time</legend>
+						<div class="grid gap-2 sm:grid-cols-3">
+							<For each={DELIVERY_SLOTS}>
+								{(slot) => (
+									<label
+										class={cn(
+											"cursor-pointer",
+											!slotOpen(slot) && "cursor-not-allowed",
+										)}
+									>
+										<input
+											type="radio"
+											name="deliverySlot"
+											value={slot.id}
+											checked={deliverySlot() === slot.id}
+											disabled={!slotOpen(slot)}
+											aria-invalid={errors().deliverySlot ? "true" : undefined}
+											onChange={() => {
+												setDeliverySlot(slot.id);
+												clearError("deliverySlot");
+											}}
+											class="peer sr-only"
+										/>
+										<span
+											class={cn(
+												chip,
+												"py-2.5 peer-disabled:border-dashed peer-disabled:bg-transparent peer-disabled:opacity-50",
+											)}
+										>
+											<span class="text-sm font-medium">
+												{formatSlot(slot)}
+											</span>
+											<span class="text-xs text-petal-900/60">
+												{slotOpen(slot) ? "Available" : "Closed for today"}
+											</span>
+										</span>
+									</label>
+								)}
+							</For>
+						</div>
+						<Show when={errors().deliverySlot}>
+							<p id="slot-error" class="mt-2 text-xs text-destructive">
+								{errors().deliverySlot}
 							</p>
 						</Show>
 					</fieldset>
@@ -364,6 +541,7 @@ function CheckoutForm(props: { cart: PricedCart }) {
 
 				<Section title="Payment" step={5}>
 					<PaymentSection
+						accounts={props.paymentAccounts}
 						total={props.cart.total}
 						currency={props.cart.currency}
 						method={paymentMethod()}
@@ -508,11 +686,18 @@ function Field(props: {
 	optional?: boolean;
 	error?: string;
 	class?: string;
+	/** Controlled value; leave unset for an uncontrolled field. */
+	value?: string;
+	onValueChange?: (value: string) => void;
+	defaultValue?: string;
 	onInput: () => void;
 }) {
 	return (
 		<TextField
 			name={props.name}
+			value={props.value}
+			onChange={props.onValueChange}
+			defaultValue={props.defaultValue}
 			validationState={props.error ? "invalid" : "valid"}
 			class={cn("gap-2", props.class)}
 		>
@@ -541,7 +726,6 @@ function Field(props: {
 }
 
 function EmptyCheckout() {
-	const featured = products[0];
 	return (
 		<div class="mx-auto mt-12 flex max-w-md flex-col items-center gap-4 rounded-3xl bg-white px-6 py-12 text-center">
 			<FlowerMark class="size-14" />
@@ -551,17 +735,9 @@ function EmptyCheckout() {
 			<p class="text-petal-900/65">
 				Add a bouquet first, then come back to send it on its way.
 			</p>
-			<Show when={featured}>
-				{(product) => (
-					<Link
-						to="/products/$productId"
-						params={{ productId: product().id }}
-						class={`${pillPrimary} w-auto`}
-					>
-						Shop bouquets
-					</Link>
-				)}
-			</Show>
+			<Link to="/shop" class={`${pillPrimary} w-auto`}>
+				Shop bouquets
+			</Link>
 		</div>
 	);
 }

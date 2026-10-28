@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/solid-router";
-import { useSelector } from "@tanstack/solid-store";
-import { createMemo, Index, Show } from "solid-js";
+import { Index, Show } from "solid-js";
 
 import { FlowerMark } from "~/components/site/brand";
 import {
@@ -9,16 +8,15 @@ import {
 	SheetDescription,
 	SheetTitle,
 } from "~/components/ui/sheet";
-import { products } from "~/data/products";
 import {
-	cartStore,
 	isCartOpen,
 	removeFromCart,
 	setCartOpen,
 	setLineQuantity,
 } from "~/lib/cart-store";
-import { type PricedLine, priceCart } from "~/lib/pricing";
+import type { PricedLine } from "~/lib/pricing";
 import { formatPrice } from "~/lib/product";
+import { usePricedCart } from "~/lib/use-catalog";
 
 import { QuantityStepper } from "./quantity-stepper";
 
@@ -26,8 +24,7 @@ export const pillPrimary =
 	"inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-petal-700 px-6 text-base font-medium text-white transition-colors hover:bg-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 aria-disabled:pointer-events-none aria-disabled:opacity-50 disabled:pointer-events-none disabled:opacity-50";
 
 export function CartSheet() {
-	const lines = useSelector(cartStore, (state) => state.lines);
-	const cart = createMemo(() => priceCart(lines()));
+	const cart = usePricedCart();
 	const hasProblem = () => cart().lines.some((line) => line.problem);
 	const close = () => setCartOpen(false);
 	let titleRef: HTMLHeadingElement | undefined;
@@ -175,7 +172,12 @@ function BagLine(props: {
 							max={line().maxQuantity}
 							itemLabel={label()}
 							onChange={(qty) =>
-								setLineQuantity(line().productId, line().variantId, qty)
+								setLineQuantity(
+									line().productId,
+									line().variantId,
+									qty,
+									line().maxQuantity,
+								)
 							}
 						/>
 					</Show>
@@ -194,7 +196,6 @@ function BagLine(props: {
 }
 
 function EmptyBag(props: { onShop: () => void }) {
-	const featured = products[0];
 	return (
 		<div class="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
 			<FlowerMark class="size-14 opacity-80" />
@@ -204,18 +205,13 @@ function EmptyBag(props: { onShop: () => void }) {
 			<p class="text-sm text-petal-900/65">
 				Let’s find something lovely to fill it.
 			</p>
-			<Show when={featured}>
-				{(product) => (
-					<Link
-						to="/products/$productId"
-						params={{ productId: product().id }}
-						onClick={props.onShop}
-						class={`${pillPrimary} mt-2 w-auto`}
-					>
-						Shop bouquets
-					</Link>
-				)}
-			</Show>
+			<Link
+				to="/shop"
+				onClick={props.onShop}
+				class={`${pillPrimary} mt-2 w-auto`}
+			>
+				Shop bouquets
+			</Link>
 		</div>
 	);
 }

@@ -7,12 +7,13 @@ import {
 	LeafIcon,
 	TruckIcon,
 } from "~/components/product/icons";
+import { ProductCard } from "~/components/product/product-card";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { showToast } from "~/components/ui/toast";
-import { products } from "~/data/products";
 import { formatPrice, getVariantPrice } from "~/lib/product";
+import { useCatalog } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -29,7 +30,11 @@ export const Route = createFileRoute("/")({
 	component: Home,
 });
 
-const featured = products[0];
+/** The first product in the catalog leads the landing page. */
+function useFeatured() {
+	const catalog = useCatalog();
+	return () => catalog()[0];
+}
 
 const moods: Record<string, string> = {
 	"red-velvet": "For grand, swoony romance",
@@ -49,6 +54,7 @@ function Home() {
 			<SiteHeader />
 			<main>
 				<Hero />
+				<OurBouquets />
 				<ColorPicker />
 				<About />
 				<PetalClub />
@@ -59,6 +65,14 @@ function Home() {
 }
 
 function Hero() {
+	const featured = useFeatured();
+	const catalog = useCatalog();
+	const lowestPrice = () =>
+		Math.min(
+			...catalog().flatMap((product) =>
+				product.variants.map((variant) => getVariantPrice(product, variant)),
+			),
+		);
 	return (
 		<section class="relative overflow-hidden">
 			<Petal class="pointer-events-none absolute -left-4 top-24 w-10 rotate-[-30deg] text-petal-200 motion-safe:animate-float-slow" />
@@ -97,27 +111,19 @@ function Hero() {
 						and finished with a bow.
 					</p>
 					<div class="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center md:justify-start">
-						<Show when={featured}>
-							{(product) => (
-								<Link
-									to="/products/$productId"
-									params={{ productId: product().id }}
-									class={primaryCta}
-								>
-									Shop bouquets
-									<ChevronRightIcon class="size-4" />
-								</Link>
-							)}
-						</Show>
+						<Link to="/shop" class={primaryCta}>
+							Shop bouquets
+							<ChevronRightIcon class="size-4" />
+						</Link>
 						<Link to="/" hash="colors" class={secondaryCta}>
 							Find your color
 						</Link>
 					</div>
-					<Show when={featured}>
+					<Show when={featured()}>
 						{(product) => (
 							<p class="mt-5 text-sm text-petal-900/60">
-								From {formatPrice(product().basePrice, product().currency)} ·
-								Free same-day delivery before 2pm
+								From {formatPrice(lowestPrice(), product().currency)} · Free
+								same-day delivery before 2pm
 							</p>
 						)}
 					</Show>
@@ -148,7 +154,41 @@ function Hero() {
 	);
 }
 
+const LANDING_PRODUCTS = 6;
+
+function OurBouquets() {
+	const catalog = useCatalog();
+	return (
+		<Show when={catalog().length > 0}>
+			<section id="bouquets" class="scroll-mt-20 py-16 md:py-20">
+				<div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+					<SectionHeading
+						eyebrow="Our bouquets"
+						title="Made fresh this morning"
+						subtitle="Every bouquet is hand-tied to order and delivered free, same day."
+					/>
+					<ul class="mt-12 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+						<For each={catalog().slice(0, LANDING_PRODUCTS)}>
+							{(product) => (
+								<li>
+									<ProductCard product={product} />
+								</li>
+							)}
+						</For>
+					</ul>
+					<div class="mt-10 flex justify-center">
+						<Link to="/shop" class={secondaryCta}>
+							See all bouquets
+						</Link>
+					</div>
+				</div>
+			</section>
+		</Show>
+	);
+}
+
 function ColorPicker() {
+	const featured = useFeatured();
 	return (
 		<section id="colors" class="scroll-mt-20 bg-white/60 py-16 md:py-24">
 			<div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -157,7 +197,7 @@ function ColorPicker() {
 					title="Pick your mood"
 					subtitle="Same lovely bouquet, four sweet personalities."
 				/>
-				<Show when={featured}>
+				<Show when={featured()}>
 					{(product) => (
 						<ul class="mt-12 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-4">
 							<For each={product().variants}>
@@ -307,6 +347,7 @@ function PetalClub() {
 					first order.
 				</p>
 				<form
+					method="post"
 					onSubmit={handleSubmit}
 					class="mx-auto mt-8 flex max-w-md flex-col gap-3 sm:flex-row"
 				>

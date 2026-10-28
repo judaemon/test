@@ -1,11 +1,10 @@
 import { Link } from "@tanstack/solid-router";
-import { useSelector } from "@tanstack/solid-store";
 import { Show } from "solid-js";
 
 import { CartSheet } from "~/components/cart/cart-sheet";
 import { BagIcon } from "~/components/product/icons";
-import { products } from "~/data/products";
-import { cartStore, getCartCount, setCartOpen } from "~/lib/cart-store";
+import { setCartOpen } from "~/lib/cart-store";
+import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 
 import { FlowerMark } from "./brand";
 
@@ -13,8 +12,9 @@ const navLink =
 	"rounded-full px-3 py-1.5 text-sm text-petal-900/80 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
 
 export function SiteHeader() {
-	const cartCount = useSelector(cartStore, getCartCount);
-	const featured = products[0];
+	const cart = usePricedCart();
+	const cartCount = () => cart().itemCount;
+	const user = useSessionUser();
 
 	return (
 		<header class="sticky top-0 z-20 border-b border-petal-100 bg-cream/85 backdrop-blur">
@@ -31,23 +31,35 @@ export function SiteHeader() {
 				</Link>
 
 				<nav aria-label="Main" class="flex items-center gap-1 sm:gap-2">
-					<Show when={featured}>
-						{(product) => (
-							<Link
-								to="/products/$productId"
-								params={{ productId: product().id }}
-								class={navLink}
-							>
-								Shop
-							</Link>
-						)}
-					</Show>
+					<Link
+						to="/shop"
+						class={navLink}
+						activeProps={{ "aria-current": "page" }}
+					>
+						Shop
+					</Link>
 					<Link to="/" hash="colors" class={`${navLink} hidden sm:inline-flex`}>
 						Colors
 					</Link>
 					<Link to="/" hash="about" class={`${navLink} hidden sm:inline-flex`}>
 						About
 					</Link>
+					<Show
+						when={user()}
+						fallback={
+							<Link to="/sign-in" class={navLink}>
+								Sign in
+							</Link>
+						}
+					>
+						<Link
+							to="/account"
+							aria-label="Your account"
+							class="inline-flex size-10 items-center justify-center rounded-full text-petal-900 transition-colors hover:bg-petal-100 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							<AccountIcon class="size-6" />
+						</Link>
+					</Show>
 					<button
 						type="button"
 						onClick={() => setCartOpen(true)}
@@ -68,5 +80,23 @@ export function SiteHeader() {
 			</div>
 			<CartSheet />
 		</header>
+	);
+}
+
+function AccountIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={props.class}
+		>
+			<circle cx="12" cy="8" r="4" />
+			<path d="M4 21c1.2-4 4.3-6 8-6s6.8 2 8 6" />
+		</svg>
 	);
 }

@@ -1,3 +1,5 @@
+import { addDays, formatClock, type ShopClock, toMinutes } from "~/lib/time";
+
 export interface CheckoutDetails {
 	email: string;
 	phone: string;
@@ -5,8 +7,9 @@ export interface CheckoutDetails {
 	address: string;
 	city: string;
 	postalCode: string;
-	/** Local calendar date, `YYYY-MM-DD`. */
+	/** Shop-local calendar date, `YYYY-MM-DD`. */
 	deliveryDate: string;
+	deliverySlot: string;
 	giftMessage: string;
 }
 
@@ -23,8 +26,59 @@ export type FieldErrors = Partial<Record<CheckoutField | PaymentField, string>>;
 
 export const GIFT_MESSAGE_MAX = 200;
 export const DELIVERY_WINDOW_DAYS = 7;
-/** Orders after this local hour roll to next-day delivery. */
-export const SAME_DAY_CUTOFF_HOUR = 14;
+/** A slot closes this long before it starts, leaving time to arrange the bouquet. */
+export const SLOT_PREP_MINUTES = 60;
+
+export interface DeliverySlot {
+	id: string;
+	/** Shop-local `HH:MM`; also the time the courier must leave by. */
+	start: string;
+	end: string;
+}
+
+export const DELIVERY_SLOTS: DeliverySlot[] = [
+	{ id: "morning", start: "09:00", end: "12:00" },
+	{ id: "afternoon", start: "12:00", end: "15:00" },
+	{ id: "evening", start: "15:00", end: "18:00" },
+];
+
+export function getSlot(id: string) {
+	return DELIVERY_SLOTS.find((slot) => slot.id === id);
+}
+
+/** Sort key for "soonest first": date, then the slot's place in the day. */
+export function deliverySortKey(details: {
+	deliveryDate: string;
+	deliverySlot: string;
+}) {
+	const index = DELIVERY_SLOTS.findIndex(
+		(slot) => slot.id === details.deliverySlot,
+	);
+	return `${details.deliveryDate}#${index}`;
+}
+
+export function formatSlot(slot: DeliverySlot) {
+	return `${formatClock(slot.start)} – ${formatClock(slot.end)}`;
+}
+
+/** Whether a slot on `date` can still be booked at shop time `now`. */
+export function isSlotOpen(slot: DeliverySlot, date: string, now: ShopClock) {
+	if (date < now.date) return false;
+	if (date > now.date) return true;
+	return now.minutes <= toMinutes(slot.start) - SLOT_PREP_MINUTES;
+}
+
+/** Bookable days: today while any slot is open, then the following days. */
+export function getDeliveryDays(now: ShopClock) {
+	const todayOpen = DELIVERY_SLOTS.some((slot) =>
+		isSlotOpen(slot, now.date, now),
+	);
+	const start = todayOpen ? 0 : 1;
+	return Array.from({ length: DELIVERY_WINDOW_DAYS }, (_, i) => {
+		const offset = start + i;
+		return { date: addDays(now.date, offset), offset };
+	});
+}
 
 const FIELDS: CheckoutField[] = [
 	"email",
@@ -34,12 +88,12 @@ const FIELDS: CheckoutField[] = [
 	"city",
 	"postalCode",
 	"deliveryDate",
+	"deliverySlot",
 	"giftMessage",
 ];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function readCheckoutForm(form: FormData): CheckoutDetails {
 	return parseCheckoutDetails(Object.fromEntries(form.entries()));
@@ -61,13 +115,11 @@ export function parseCheckoutDetails(raw: unknown): CheckoutDetails {
 
 /**
  * Field-level validation shared by the checkout form and the order handler.
- * `today` is the shopper's local date (`YYYY-MM-DD`) so date rules don't drift
- * across time zones; the server passes its own date with a day of slack.
+ * Both sides pass the shop clock, so "today" and slot cut-offs always agree.
  */
 export function validateCheckoutDetails(
 	details: CheckoutDetails,
-	today: string,
-	{ allowYesterday = false } = {},
+	now: ShopClock,
 ): FieldErrors {
 	const errors: FieldErrors = {};
 
@@ -98,14 +150,18 @@ export function validateCheckoutDetails(
 	else if (!/^[A-Za-z0-9 -]{3,10}$/.test(details.postalCode))
 		errors.postalCode = "That postal code doesn’t look right.";
 
-	const earliest = allowYesterday ? addDays(today, -1) : today;
 	if (!DATE_PATTERN.test(details.deliveryDate))
 		errors.deliveryDate = "Pick a delivery day.";
 	else if (
-		details.deliveryDate < earliest ||
-		details.deliveryDate > addDays(today, DELIVERY_WINDOW_DAYS)
+		details.deliveryDate < now.date ||
+		details.deliveryDate > addDays(now.date, DELIVERY_WINDOW_DAYS)
 	)
 		errors.deliveryDate = "Pick a delivery day from the list.";
+
+	const slot = getSlot(details.deliverySlot);
+	if (!slot) errors.deliverySlot = "Pick a delivery time.";
+	else if (!errors.deliveryDate && !isSlotOpen(slot, details.deliveryDate, now))
+		errors.deliverySlot = "That time has closed — pick a later one.";
 
 	if (details.giftMessage.length > GIFT_MESSAGE_MAX)
 		errors.giftMessage = `Keep the card under ${GIFT_MESSAGE_MAX} characters.`;
@@ -115,39 +171,4 @@ export function validateCheckoutDetails(
 
 export function hasErrors(errors: FieldErrors) {
 	return Object.keys(errors).length > 0;
-}
-
-/** `YYYY-MM-DD` for a Date's local calendar day. */
-export function toISODate(date: Date) {
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-export function addDays(isoDate: string, days: number) {
-	const time = Date.parse(`${isoDate}T00:00:00Z`) + days * DAY_MS;
-	return new Date(time).toISOString().slice(0, 10);
-}
-
-/** Selectable delivery days, starting tomorrow once the same-day cutoff passes. */
-export function getDeliveryDays(now: Date) {
-	const today = toISODate(now);
-	const start = now.getHours() >= SAME_DAY_CUTOFF_HOUR ? 1 : 0;
-	return Array.from({ length: DELIVERY_WINDOW_DAYS }, (_, i) => {
-		const offset = start + i;
-		return { date: addDays(today, offset), offset };
-	});
-}
-
-export function formatDeliveryDate(
-	isoDate: string,
-	options: Intl.DateTimeFormatOptions = {
-		weekday: "long",
-		month: "long",
-		day: "numeric",
-	},
-) {
-	return new Intl.DateTimeFormat("en-US", {
-		...options,
-		timeZone: "UTC",
-	}).format(new Date(`${isoDate}T00:00:00Z`));
 }

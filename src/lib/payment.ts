@@ -2,6 +2,13 @@ export const PAYMENT_METHODS = ["card", "gcash", "maya", "bank"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export type QrPaymentMethod = Exclude<PaymentMethod, "card">;
 
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+	card: "Card",
+	gcash: "GCash",
+	maya: "Maya",
+	bank: "Bank transfer",
+};
+
 export function isPaymentMethod(value: unknown): value is PaymentMethod {
 	return PAYMENT_METHODS.includes(value as PaymentMethod);
 }

@@ -15,7 +15,35 @@ To build this application for production:
 
 ```bash
 bun --bun run build
+bun run start
 ```
+
+The server must run on Bun: products, orders and staff accounts live in a SQLite database via `bun:sqlite`.
+
+# ORAIA admin
+
+The admin lives at `/admin` (to-do board, orders and payment checks, products & stock, payment accounts, staff).
+
+**First owner account.** There is no public sign-up. Add these to `.env.local`, then restart the server once; the owner account is created on first start and the variables are ignored after that:
+
+```bash
+ADMIN_EMAIL=you@example.com
+ADMIN_PASSWORD=a-long-password   # at least 10 characters
+```
+
+**Demo data.** For local testing, `bun run db:seed` adds demo accounts (`owner@oraia.test` / `oraia-owner-2026`, `staff@oraia.test` / `oraia-staff-2026`), two extra products and 16 orders spread across the board, payment methods and payment states. `bun run db:seed --reset` wipes products, orders, payment settings and accounts first. It refuses to run with `NODE_ENV=production`.
+
+Owners add staff from **Admin → Staff**. Staff can run the board, orders and stock; owners can also change payment accounts and staff.
+
+**Data.** Everything is stored under `.data/` (git-ignored):
+
+| Path | Contents | Env override |
+| --- | --- | --- |
+| `.data/oraia.sqlite` | products, orders, payment accounts, staff accounts | `DATABASE_PATH` |
+| `.data/uploads/products`, `payments` | product photos and QR codes (public) | `UPLOAD_DIR` |
+| `.data/uploads/proofs` | customers' payment screenshots (staff only) | `UPLOAD_DIR` |
+
+Back up `.data/` regularly. The database is created and seeded with the starter catalog and sample payment accounts on first run; replace the sample QR codes from **Admin → Payments** before taking real orders.
 
 ## Styling
 

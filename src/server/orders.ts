@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/solid-start";
-
 import {
 	type CheckoutDetails,
 	type FieldErrors,
@@ -13,36 +12,23 @@ import {
 	isPaymentMethod,
 	isQrPayment,
 	normalizeReferenceNumber,
-	type PaymentMethod,
-	sniffImageType,
 	validateProofFile,
 	validateReferenceNumber,
 } from "~/lib/payment";
+import { type CartLine, priceCart, sanitizeCartLines } from "~/lib/pricing";
+import { shopNow } from "~/lib/time";
+import type { CustomerOrder } from "~/types/order";
+import { listPublicProducts } from "./catalog-repo";
+import { getSessionUser } from "./customer-auth";
 import {
-	type CartLine,
-	type PricedCart,
-	priceCart,
-	sanitizeCartLines,
-} from "~/lib/pricing";
-
-export interface OrderPayment {
-	method: PaymentMethod;
-	/** QR payments are settled outside the site and need a manual check. */
-	status: "paid" | "pending-verification";
-	referenceNumber?: string;
-	/** Stored screenshot filename under `.data/payment-proofs/`. */
-	proofFile?: string;
-	cardBrand?: CardBrand;
-	cardLast4?: string;
-}
-
-export interface Order extends PricedCart {
-	id: string;
-	number: string;
-	createdAt: string;
-	details: CheckoutDetails;
-	payment: OrderPayment;
-}
+	createOrder,
+	getOrderById,
+	type NewOrder,
+	OrderRuleError,
+	toCustomerOrder,
+} from "./orders-repo";
+import { getPaymentAccount, listPaymentAccounts } from "./payments-repo";
+import { deleteUpload, saveImage, UploadError } from "./uploads";
 
 export type PlaceOrderResult =
 	| { ok: true; orderId: string }
@@ -58,9 +44,12 @@ interface PlaceOrderInput {
 	cardLast4: string;
 }
 
-// In-memory order book: fine for a demo, but orders vanish on restart.
-// Swap for a database table before taking real orders.
-const orders = new Map<string, Order>();
+/** Payment methods the shop currently accepts, with their QR details. */
+export const getCheckoutConfig = createServerFn({ method: "GET" }).handler(
+	async () => ({
+		paymentAccounts: listPaymentAccounts().filter((account) => account.enabled),
+	}),
+);
 
 export const placeOrder = createServerFn({ method: "POST" })
 	.validator((input: unknown): PlaceOrderInput => {
@@ -87,36 +76,27 @@ export const placeOrder = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<PlaceOrderResult> => {
-		const serverToday = new Date().toISOString().slice(0, 10);
-		// A day of slack lets shoppers west of UTC pick their own "today".
-		const fieldErrors = validateCheckoutDetails(data.details, serverToday, {
-			allowYesterday: true,
-		});
+		const fieldErrors = validateCheckoutDetails(data.details, shopNow());
 
-		const method = data.paymentMethod;
-		let proofBytes: Uint8Array | undefined;
-		let proofExtension: string | undefined;
-		if (!isPaymentMethod(method)) {
+		const method =
+			isPaymentMethod(data.paymentMethod) &&
+			getPaymentAccount(data.paymentMethod)?.enabled
+				? data.paymentMethod
+				: null;
+		if (!method) {
 			fieldErrors.paymentMethod = "Choose how you’d like to pay.";
 		} else if (isQrPayment(method)) {
 			const referenceError = validateReferenceNumber(data.referenceNumber);
 			if (referenceError) fieldErrors.referenceNumber = referenceError;
 			const proofError = validateProofFile(data.proof);
 			if (proofError) fieldErrors.paymentProof = proofError;
-			else if (data.proof) {
-				proofBytes = new Uint8Array(await data.proof.arrayBuffer());
-				proofExtension = sniffImageType(proofBytes.subarray(0, 12));
-				if (!proofExtension)
-					fieldErrors.paymentProof = "That file isn’t a readable image.";
-			}
 		} else if (
 			!(data.cardBrand in CARD_BRAND_LABELS) ||
 			!/^\d{4}$/.test(data.cardLast4)
 		) {
 			return { ok: false, message: "Please re-enter your card details." };
 		}
-
-		if (hasErrors(fieldErrors)) {
+		if (!method || hasErrors(fieldErrors)) {
 			return {
 				ok: false,
 				message: "Please check the highlighted fields.",
@@ -124,7 +104,8 @@ export const placeOrder = createServerFn({ method: "POST" })
 			};
 		}
 
-		const cart = priceCart(data.lines);
+		// Prices and availability always come from the database, never the client.
+		const cart = priceCart(data.lines, listPublicProducts());
 		if (cart.lines.length === 0) {
 			return { ok: false, message: "Your bag is empty." };
 		}
@@ -140,14 +121,22 @@ export const placeOrder = createServerFn({ method: "POST" })
 		}
 
 		const id = crypto.randomUUID();
-		const paymentMethod = method as PaymentMethod;
-		let payment: OrderPayment;
-		if (isQrPayment(paymentMethod)) {
-			const proofFile = `${id}.${proofExtension}`;
-			await saveProof(proofFile, proofBytes as Uint8Array);
+		let payment: NewOrder["payment"];
+		if (isQrPayment(method)) {
+			let proofFile: string;
+			try {
+				proofFile = await saveImage("proofs", data.proof as File, id);
+			} catch (error) {
+				if (!(error instanceof UploadError)) throw error;
+				return {
+					ok: false,
+					message: "Please check the highlighted fields.",
+					fieldErrors: { paymentProof: "That file isn’t a readable image." },
+				};
+			}
 			payment = {
-				method: paymentMethod,
-				status: "pending-verification",
+				method,
+				status: "pending",
 				referenceNumber: normalizeReferenceNumber(data.referenceNumber),
 				proofFile,
 			};
@@ -155,36 +144,50 @@ export const placeOrder = createServerFn({ method: "POST" })
 			// Card details are checked in the browser and only brand + last 4
 			// digits arrive here. Charge through a gateway (e.g. PayMongo) before launch.
 			payment = {
-				method: paymentMethod,
+				method: "card",
 				status: "paid",
 				cardBrand: data.cardBrand as CardBrand,
 				cardLast4: data.cardLast4,
 			};
 		}
 
-		orders.set(id, {
-			...cart,
-			id,
-			number: id.slice(0, 8).toUpperCase(),
-			createdAt: new Date().toISOString(),
-			details: data.details,
-			payment,
-		});
+		try {
+			// Signed-in shoppers can track the order from their account.
+			const customer = await getSessionUser();
+			createOrder({
+				id,
+				details: data.details,
+				cart,
+				payment,
+				customerId: customer?.id,
+			});
+		} catch (error) {
+			if (payment.proofFile) await deleteUpload("proofs", payment.proofFile);
+			if (error instanceof OrderRuleError) {
+				return { ok: false, message: error.message };
+			}
+			throw error;
+		}
 		return { ok: true, orderId: id };
 	});
 
-async function saveProof(filename: string, bytes: Uint8Array) {
-	// Imported lazily so Node built-ins stay out of the client bundle.
-	const { mkdir, writeFile } = await import("node:fs/promises");
-	const { join } = await import("node:path");
-	const dir = join(process.cwd(), ".data", "payment-proofs");
-	await mkdir(dir, { recursive: true });
-	await writeFile(join(dir, filename), bytes);
-}
-
+/** The shopper's view of an order: no staff notes or stored file names. */
 export const getOrder = createServerFn({ method: "GET" })
 	.validator((orderId: unknown) => {
 		if (typeof orderId !== "string") throw new Error("Invalid order id");
 		return orderId;
 	})
-	.handler(async ({ data }) => orders.get(data) ?? null);
+	.handler(
+		async ({
+			data,
+		}): Promise<(CustomerOrder & { ownedByViewer: boolean }) | null> => {
+			const order = getOrderById(data);
+			if (!order) return null;
+			const viewer = await getSessionUser();
+			return {
+				...toCustomerOrder(order),
+				// Lets the page offer "Track this order" only to its owner.
+				ownedByViewer: !!viewer && order.customerId === viewer.id,
+			};
+		},
+	);

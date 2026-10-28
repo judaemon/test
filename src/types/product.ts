@@ -9,6 +9,7 @@ export interface ProductVariant {
 	swatchImage?: string;
 	/** Overrides `Product.basePrice` when set. */
 	price?: number;
+	/** Purchasable right now: switched on by staff and with units left. */
 	inStock: boolean;
 	/** Units left; drives the low-stock message and quantity cap. */
 	stockQuantity?: number;
@@ -23,4 +24,16 @@ export interface Product {
 	basePrice: number;
 	currency: string;
 	variants: ProductVariant[];
+}
+
+/** What staff see and edit; the shop only ever receives `Product`. */
+export interface AdminVariant extends ProductVariant {
+	stockQuantity: number;
+	/** Staff switch to pause a color without losing its stock count. */
+	isAvailable: boolean;
+}
+
+export interface AdminProduct extends Omit<Product, "variants"> {
+	isVisible: boolean;
+	variants: AdminVariant[];
 }

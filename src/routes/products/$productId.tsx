@@ -14,9 +14,9 @@ import {
 	BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { buttonVariants } from "~/components/ui/button";
-import { getProduct } from "~/data/products";
 import { resolveVariant } from "~/lib/product";
 import { cn } from "~/lib/utils";
+import { getProduct } from "~/server/catalog";
 import type { ProductVariant } from "~/types/product";
 
 interface ProductSearch {
@@ -27,8 +27,8 @@ export const Route = createFileRoute("/products/$productId")({
 	validateSearch: (search: Record<string, unknown>): ProductSearch => ({
 		variant: typeof search.variant === "string" ? search.variant : undefined,
 	}),
-	loader: ({ params }) => {
-		const product = getProduct(params.productId);
+	loader: async ({ params }) => {
+		const product = await getProduct({ data: params.productId });
 		if (!product) throw notFound();
 		return product;
 	},
