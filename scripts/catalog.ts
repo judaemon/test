@@ -7,12 +7,17 @@
  *   bun run catalog:import           restore them (refuses if the shop has orders)
  *   bun run catalog:import --force   restore anyway; replaces products and stock
  *
+ * `catalog.json` is what the import reads. `products.json` and
+ * `custom-bouquets.json` are the same data laid out to read (product, then
+ * style, then color), with each photo pointing at its file in `photos/`.
+ *
  * Orders, accounts and payment settings are never read or changed.
  * Safe to run while the dev server is running.
  */
 import { copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
+import { flowerCodeKey } from "~/lib/product";
 import { getDb } from "~/server/db";
 
 const SNAPSHOT_DIR = "catalog-snapshot";
@@ -37,6 +42,87 @@ function insertRow(table: string, row: Row) {
 			 VALUES (${columns.map((column) => `$${column}`).join(", ")})`,
 		)
 		.run(row);
+}
+
+/** The same catalog laid out for people, not for the import. */
+async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
+	const photoPath = (url: unknown) => {
+		const name = /\/uploads\/products\/([a-z0-9-]+)/.exec(String(url))?.[1];
+		const file = photos.find((photo) => photo.split(".")[0] === name);
+		return file ? `photos/${file}` : url ? String(url) : null;
+	};
+
+	const products = snapshot.products.map((product) => {
+		const styles = new Map<string, Row[]>();
+		for (const variant of snapshot.variants) {
+			if (variant.product_id !== product.id) continue;
+			const key = flowerCodeKey(String(variant.sku));
+			styles.set(key, [...(styles.get(key) ?? []), variant]);
+		}
+		return {
+			product: product.title,
+			description: product.description,
+			shownInShop: product.is_visible === 1,
+			styles: [...styles.values()].map((colors) => ({
+				style: colors[0]?.sku,
+				colors: colors.map((color) => ({
+					color: color.color_name,
+					swatches: [color.color_hex, color.color_hex2].filter(Boolean),
+					size: color.size || null,
+					price: Number(color.price_cents) / 100,
+					stock: color.stock_quantity,
+					selling: color.is_available === 1,
+					recipe: JSON.parse(String(color.recipe)),
+					wrapperColor: color.wrapper_color || null,
+					aiPhotoNote: color.ai_photos === 1,
+					photos: (JSON.parse(String(color.images)) as string[]).map(photoPath),
+				})),
+			})),
+		};
+	});
+	await Bun.write(
+		join(SNAPSHOT_DIR, "products.json"),
+		`${JSON.stringify(products, null, "\t")}\n`,
+	);
+
+	const value = snapshot.settings[0]?.value;
+	if (!value) return;
+	const custom = JSON.parse(String(value));
+	await Bun.write(
+		join(SNAPSHOT_DIR, "custom-bouquets.json"),
+		`${JSON.stringify(
+			{
+				builderShownInShop: custom.enabled,
+				baseFee: custom.baseFee,
+				flowers: custom.flowers.map((flower: any) => ({
+					flower: flower.name,
+					soldAs: flower.kind.counted ? "stem" : "cluster",
+					offered: flower.enabled,
+					price: flower.price,
+					colors: flower.colors,
+					note: flower.kind.hint ?? null,
+					photo: flower.image ? photoPath(flower.image) : null,
+					colorPhotos: Object.fromEntries(
+						Object.entries(flower.colorImages ?? {}).map(([color, url]) => [
+							color,
+							photoPath(url),
+						]),
+					),
+				})),
+				wrappers: custom.wrappers.map((wrapper: any) => ({
+					wrapper: wrapper.name,
+					color: wrapper.colorHex,
+					offered: wrapper.enabled,
+					price: wrapper.price,
+					stock: wrapper.stock ?? null,
+					photo: wrapper.image ? photoPath(wrapper.image) : null,
+				})),
+				moneyBouquets: custom.money,
+			},
+			null,
+			"\t",
+		)}\n`,
+	);
 }
 
 async function exportCatalog() {
@@ -70,6 +156,7 @@ async function exportCatalog() {
 	await Bun.write(SNAPSHOT_FILE, `${json}\n`);
 	for (const file of photos)
 		await copyFile(join(UPLOAD_PHOTOS, file), join(SNAPSHOT_PHOTOS, file));
+	await writeReadableFiles(snapshot, photos);
 
 	console.log(
 		`Saved ${snapshot.products.length} products, ${snapshot.variants.length} colors and ${photos.length} photos to ${SNAPSHOT_DIR}/.`,

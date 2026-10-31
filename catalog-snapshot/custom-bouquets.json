@@ -1,0 +1,360 @@
+{
+	"builderShownInShop": false,
+	"baseFee": 300,
+	"flowers": [
+		{
+			"flower": "Sunflower",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 120,
+			"colors": [],
+			"note": null,
+			"photo": "photos/7a7d6065-b648-42c9-9862-258687d14436.jpg",
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Roses",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 90,
+			"colors": [
+				"Red",
+				"Pink",
+				"White",
+				"Yellow",
+				"Peach",
+				"Blue",
+				"Fuschia"
+			],
+			"note": null,
+			"photo": "photos/07bbf139-4c2c-4b16-8ef8-22fab7801f0f.jpg",
+			"colorPhotos": {
+				"Red": "photos/719c2811-3c01-48a0-8953-ba4650d3f591.jpg",
+				"Pink": "photos/4995eb23-e050-489a-a7f5-6216708e0d27.jpg",
+				"White": "photos/f8d8c797-e594-4926-96e7-8a36c8fb9656.jpg",
+				"Yellow": "photos/efaa1d71-2e04-4a3b-8d40-daaab484d375.jpg",
+				"Peach": "photos/d4321713-812b-4326-9aee-cb13cebc3293.jpg",
+				"Blue": "photos/46f98f42-8908-417a-a76d-3ba04a48546e.jpg",
+				"Fuschia": "photos/62104a6f-c36c-4d04-b556-43390819838a.jpg"
+			}
+		},
+		{
+			"flower": "Carnations",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 60,
+			"colors": [
+				"Red",
+				"Pink",
+				"White",
+				"Peach"
+			],
+			"note": null,
+			"photo": "photos/61b2fb93-fbb6-47ff-9bb4-7222bfab6a47.jpg",
+			"colorPhotos": {
+				"Pink": "photos/19375161-74d2-4ecb-90e7-e9af20fce43b.jpg",
+				"White": "photos/d19ef465-4c7b-4279-9ee7-0abd18212081.jpg",
+				"Peach": "photos/d4b73fd9-4ef9-4e98-b961-72e35829ebc1.jpg"
+			}
+		},
+		{
+			"flower": "Gerbera",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 70,
+			"colors": [
+				"Red",
+				"Pink",
+				"Yellow",
+				"Orange",
+				"White"
+			],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Tulips",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": "photos/c67c9a08-bdab-41e3-904f-2e13de394e89.jpg",
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Stargazer",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 250,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Amaranthus",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 80,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Lily",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 200,
+			"colors": [
+				"Pink",
+				"White",
+				"Unopened"
+			],
+			"note": null,
+			"photo": "photos/df78d722-17a3-41d6-8a1d-8709fc9ff69a.jpg",
+			"colorPhotos": {
+				"Pink": "photos/953433cf-266d-4de4-ae2e-e7f450247013.jpg",
+				"White": "photos/f5f93b63-1bd9-4af2-b82a-f96d4c75906f.jpg",
+				"Unopened": "photos/eaacc374-a886-46a7-b530-4ebb2d753a87.jpg"
+			}
+		},
+		{
+			"flower": "Chrysanthemum",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 60,
+			"colors": [
+				"Pink",
+				"White",
+				"Blue"
+			],
+			"note": null,
+			"photo": "photos/ea54f954-ba60-48c6-9a40-5ff05ed9d7b5.jpg",
+			"colorPhotos": {
+				"White": "photos/9db8e9d3-c759-420c-b4c3-892a9d256635.jpg",
+				"Blue": "photos/e9d7cb8d-cbcf-4c16-a0ff-3414167e4420.jpg"
+			}
+		},
+		{
+			"flower": "Sunlight",
+			"soldAs": "stem",
+			"offered": true,
+			"price": 80,
+			"colors": [],
+			"note": "big yellow chrysanthemum",
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Gypsophila",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": "photos/07093b6a-fe29-4dc9-8bd2-ca3fe19655d2.jpg",
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Aster",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [
+				"White",
+				"Violet"
+			],
+			"note": null,
+			"photo": "photos/3e24879a-ee5c-4b2f-9595-b03ae4bba90c.jpg",
+			"colorPhotos": {
+				"White": "photos/c6cfd91c-1f2a-43d1-b574-2cd2f1d846c8.jpg",
+				"Violet": "photos/0919f7d9-c277-4c03-ba7c-0b68a7d43210.jpg"
+			}
+		},
+		{
+			"flower": "Alstroemeria",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [
+				"White",
+				"Pink",
+				"Purple",
+				"Blue",
+				"Yellow"
+			],
+			"note": null,
+			"photo": "photos/d503b1dd-7dd8-4204-9787-eca487b1b680.jpg",
+			"colorPhotos": {
+				"White": "photos/186da976-5a97-4a5f-ab6f-682569310cce.jpg",
+				"Pink": "photos/2f9b3e19-b69e-42dc-a61d-f4a63396d0f2.jpg",
+				"Purple": "photos/66e5a086-676d-4f03-8058-b5667653ba5b.jpg",
+				"Blue": "photos/e592875e-ccd4-4bca-882d-367b360b5f5f.jpg",
+				"Yellow": "photos/273574d8-23b8-4701-a871-3d0ac835f906.jpg"
+			}
+		},
+		{
+			"flower": "Eucalyptus",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": "photos/90a38605-4c5e-4699-8908-44b1ebf40fdd.jpg",
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Misty",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [
+				"Violet",
+				"White"
+			],
+			"note": null,
+			"photo": "photos/46c54e04-9a4b-4760-af22-38713914b97a.jpg",
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Radus",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Hydrangeas",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Malaysian mums",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Lisianthus / Paper roses",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Snapdragon",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Statice",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Chamomile",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Ornamental asparagus",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 150,
+			"colors": [],
+			"note": null,
+			"photo": null,
+			"colorPhotos": {}
+		},
+		{
+			"flower": "Goldenrod",
+			"soldAs": "cluster",
+			"offered": true,
+			"price": 3333,
+			"colors": [],
+			"note": null,
+			"photo": "photos/6acce9e3-8893-4d78-8e96-c9ba3ed1656a.jpg",
+			"colorPhotos": {}
+		}
+	],
+	"wrappers": [
+		{
+			"wrapper": "Kraft brown",
+			"color": "#c9a77c",
+			"offered": true,
+			"price": 50,
+			"stock": null,
+			"photo": null
+		},
+		{
+			"wrapper": "Black",
+			"color": "#1f1a1c",
+			"offered": true,
+			"price": 80,
+			"stock": null,
+			"photo": null
+		},
+		{
+			"wrapper": "White",
+			"color": "#f7f4ee",
+			"offered": true,
+			"price": 80,
+			"stock": null,
+			"photo": null
+		},
+		{
+			"wrapper": "Blush pink",
+			"color": "#f2c4ce",
+			"offered": true,
+			"price": 80,
+			"stock": null,
+			"photo": null
+		}
+	],
+	"moneyBouquets": {
+		"enabled": true,
+		"feePerBill": 10,
+		"denominations": [
+			20,
+			50,
+			100,
+			200,
+			500,
+			1000
+		],
+		"maxBills": 100
+	}
+}

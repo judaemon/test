@@ -1,0 +1,962 @@
+[
+	{
+		"product": "Roses",
+		"description": "Premium long-stem roses, hand-tied by our florists and wrapped in textured paper with a satin ribbon.",
+		"shownInShop": true,
+		"styles": [
+			{
+				"style": "Althea",
+				"colors": [
+					{
+						"color": "White",
+						"swatches": [
+							"#ffffff"
+						],
+						"size": "grand",
+						"price": 1200,
+						"stock": 23,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "White",
+								"count": 8
+							},
+							{
+								"flower": "Gypsophila"
+							}
+						],
+						"wrapperColor": "Blue",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/0ed9d9cf-6498-41fd-845b-0b186d249769.jpg",
+							"photos/d536ecbf-8706-4f75-a5cf-6c2b40e5bc1b.jpg",
+							"photos/81244c61-73b8-48f2-ae1d-a6ea4e84fc5e.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Andrea",
+				"colors": [
+					{
+						"color": "Peach",
+						"swatches": [
+							"#de9786"
+						],
+						"size": "grand",
+						"price": 1000,
+						"stock": 5,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 14
+							},
+							{
+								"flower": "Chrysanthemum",
+								"color": "White",
+								"count": 8
+							},
+							{
+								"flower": "Gypsophila"
+							}
+						],
+						"wrapperColor": "Pink",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/8751e0d7-35af-48fd-9c67-3db824c68c55.jpg",
+							"photos/217163d0-4c91-43f4-962f-bf86e7b260a6.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Sophia",
+				"colors": [
+					{
+						"color": "Pink and White",
+						"swatches": [
+							"#f2a6b8",
+							"#ffffff"
+						],
+						"size": "impressive",
+						"price": 800,
+						"stock": 6,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Pink",
+								"count": 14
+							},
+							{
+								"flower": "Misty",
+								"color": "Violet"
+							}
+						],
+						"wrapperColor": "Pink",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/a7b7bb44-07f2-4f4f-8ffa-ba3088198512.jpg",
+							"photos/7c4904af-40f8-410b-8187-e991c8422b5e.jpg",
+							"photos/d0655ec0-7fda-4bb8-98fc-806200ac440d.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Luna",
+				"colors": [
+					{
+						"color": "Moody Rose",
+						"swatches": [
+							"#7077b2",
+							"#76335a"
+						],
+						"size": "impressive",
+						"price": 1300,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Blue",
+								"count": 18
+							},
+							{
+								"flower": "Chrysanthemum",
+								"color": "Blue",
+								"count": 1
+							}
+						],
+						"wrapperColor": "Blue",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/78a0fe78-1b72-4f55-8864-a89cf54b2e9d.jpg",
+							"photos/bc0b33bb-8861-401d-b193-3e5c76f6708b.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Bianca",
+				"colors": [
+					{
+						"color": "Peach",
+						"swatches": [
+							"#dea077"
+						],
+						"size": "impressive",
+						"price": 1100,
+						"stock": 5,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 14
+							},
+							{
+								"flower": "Misty",
+								"color": "Violet"
+							}
+						],
+						"wrapperColor": "Light Purple",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/b2dd9349-97fd-4bb4-9ae7-ef61aa3409a5.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Summer",
+				"colors": [
+					{
+						"color": "Pink and Peach",
+						"swatches": [
+							"#f2a6b8",
+							"#f7a67a"
+						],
+						"size": "impressive",
+						"price": 800,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Pink",
+								"count": 1
+							}
+						],
+						"wrapperColor": "Pink",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/f543bf84-a3b7-4c6d-a189-4841cc5d0477.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Isabella",
+				"colors": [
+					{
+						"color": "Fuschia Pink",
+						"swatches": [
+							"#e595ae",
+							"#c43b68"
+						],
+						"size": "impressive",
+						"price": 1200,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Pink",
+								"count": 1
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/b8d67184-e84f-4912-8342-4b491bf71786.jpg",
+							"photos/cb8285cc-7367-4d3e-b966-eaf8861007f7.jpg",
+							"photos/a9e97764-9a07-4469-8312-f3450490b781.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Hannah",
+				"colors": [
+					{
+						"color": "White and Light Pink",
+						"swatches": [
+							"#eab8bf",
+							"#ffffff"
+						],
+						"size": null,
+						"price": 1000,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Pink",
+								"count": 6
+							},
+							{
+								"flower": "Roses",
+								"color": "White",
+								"count": 6
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "White"
+							},
+							{
+								"flower": "Misty",
+								"color": "Violet"
+							}
+						],
+						"wrapperColor": "Pink",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/7d916c36-28b2-4356-b246-c09b1f7ed5fd.jpg",
+							"photos/079f7a00-16ab-4f7c-b10d-0045dd73c5b4.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Eleanor",
+				"colors": [
+					{
+						"color": "Fuschia and Peach",
+						"swatches": [
+							"#e6407b",
+							"#ebaa82"
+						],
+						"size": "impressive",
+						"price": 1200,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 6
+							},
+							{
+								"flower": "Roses",
+								"color": "Fuschia",
+								"count": 10
+							},
+							{
+								"flower": "Misty",
+								"color": "White"
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Peach",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/d7295f79-e373-473f-b8cb-d3455571a566.jpg",
+							"photos/ae355bf0-f316-446b-9dc1-2ae30466be62.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Elizabeth",
+				"colors": [
+					{
+						"color": "Red",
+						"swatches": [
+							"#ec0038"
+						],
+						"size": "impressive",
+						"price": 950,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Red",
+								"count": 18
+							},
+							{
+								"flower": "Misty",
+								"color": "Violet"
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/3639454a-a747-4ad7-9951-3c70532058a6.jpg",
+							"photos/0844bedf-0711-443a-a4e1-2d7d8d994d37.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Vivian",
+				"colors": [
+					{
+						"color": "Fuschia and Pink",
+						"swatches": [
+							"#f2a6b8",
+							"#df1059"
+						],
+						"size": "impressive",
+						"price": 1200,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Fuschia",
+								"count": 24
+							}
+						],
+						"wrapperColor": "Black and Red",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/c59b0702-d666-49a7-9bc6-4f36fee9e99e.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Serena",
+				"colors": [
+					{
+						"color": "Soft Pink / Peach",
+						"swatches": [
+							"#f4c6b0"
+						],
+						"size": "impressive",
+						"price": 11111,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 10
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "White"
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Purple",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/e19fc0b3-46f5-41bc-bc8e-d78de4f095cd.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Joanna",
+				"colors": [
+					{
+						"color": "Blush Peach",
+						"swatches": [
+							"#eccaac"
+						],
+						"size": "classic",
+						"price": 1111,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 10
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "White"
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							},
+							{
+								"flower": "Goldenrod"
+							}
+						],
+						"wrapperColor": "Peach",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/713144bb-fb8e-44ec-98ed-967a43e6dc0e.jpg",
+							"photos/6bc59ac0-1545-4539-be9a-c9bc6188d116.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Lisa",
+				"colors": [
+					{
+						"color": "Peach",
+						"swatches": [
+							"#ebab88"
+						],
+						"size": "impressive",
+						"price": 900,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 10
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "Pink"
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Red",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/d0020c1a-bd9c-4148-8b3c-adf7cfadfd65.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Bella",
+				"colors": [
+					{
+						"color": "Peach",
+						"swatches": [
+							"#f6cfb1"
+						],
+						"size": "classic",
+						"price": 900,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 10
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "White"
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/5552ed51-2e88-49f7-b40e-091a3aa3fb54.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Edelyn",
+				"colors": [
+					{
+						"color": "Red",
+						"swatches": [
+							"#a20a21"
+						],
+						"size": "impressive",
+						"price": 1100,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Red",
+								"count": 18
+							},
+							{
+								"flower": "Eucalyptus"
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/59c62a27-e71c-4826-9fab-11fc9a27e870.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Cecilia",
+				"colors": [
+					{
+						"color": "Red",
+						"swatches": [
+							"#951829"
+						],
+						"size": "impressive",
+						"price": 1200,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Red",
+								"count": 18
+							},
+							{
+								"flower": "Gypsophila"
+							},
+							{
+								"flower": "Eucalyptus"
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/07c1563b-0918-4f9a-8b4c-9d96b94d8b9d.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Edith",
+				"colors": [
+					{
+						"color": "Maroon",
+						"swatches": [
+							"#660b1a"
+						],
+						"size": "impressive",
+						"price": 1111,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Red",
+								"count": 12
+							}
+						],
+						"wrapperColor": "Red",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/1d405717-0a80-4dc0-93a8-f6ea6e84fc17.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Patricia",
+				"colors": [
+					{
+						"color": "White",
+						"swatches": [
+							"#ffffff"
+						],
+						"size": "impressive",
+						"price": 1111,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "White",
+								"count": 10
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "Yellow"
+							},
+							{
+								"flower": "Goldenrod"
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Green",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/e76b6b42-dec7-4b91-af32-92e1a068a92a.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Nina",
+				"colors": [
+					{
+						"color": "Pink",
+						"swatches": [
+							"#f2a6b8"
+						],
+						"size": "impressive",
+						"price": 1111,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Roses",
+								"color": "Pink",
+								"count": 1
+							}
+						],
+						"wrapperColor": "Purple",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/0455259e-8099-4455-9aa4-ff088c11ef04.jpg"
+						]
+					}
+				]
+			}
+		]
+	},
+	{
+		"product": "Chrysanthemum",
+		"description": "This floral arrangement features standard chrysanthemums surrounded by asters and delicate filler, creating a rich contrast in textures.",
+		"shownInShop": true,
+		"styles": [
+			{
+				"style": "Olivia",
+				"colors": [
+					{
+						"color": "Purplish Blue",
+						"swatches": [
+							"#bec3f1",
+							"#9889b8"
+						],
+						"size": "impressive",
+						"price": 1100,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Chrysanthemum",
+								"color": "Blue",
+								"count": 6
+							},
+							{
+								"flower": "Misty",
+								"color": "Violet"
+							},
+							{
+								"flower": "Aster",
+								"color": "Violet"
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/8ee17873-2da7-44ce-a7e7-1f90e4fa2ca1.jpg",
+							"photos/09ecca62-34f9-48ea-a7ec-9266b13097e9.jpg",
+							"photos/588dc01c-faf9-4cf9-8fe5-7323ac1cdfe2.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Charlotte",
+				"colors": [
+					{
+						"color": "Blue and Purple",
+						"swatches": [
+							"#87ace7",
+							"#8671a3"
+						],
+						"size": "impressive",
+						"price": 1300,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Chrysanthemum",
+								"color": "Blue",
+								"count": 6
+							},
+							{
+								"flower": "Aster",
+								"color": "Violet"
+							},
+							{
+								"flower": "Misty",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Blue",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/484f3123-8515-4edb-8cb2-024a032ba5d6.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Chrys",
+				"colors": [
+					{
+						"color": "Blue",
+						"swatches": [
+							"#89a2e9"
+						],
+						"size": "impressive",
+						"price": 1300,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Chrysanthemum",
+								"color": "Blue",
+								"count": 1
+							},
+							{
+								"flower": "Aster",
+								"color": "Violet"
+							},
+							{
+								"flower": "Misty",
+								"color": "Violet"
+							},
+							{
+								"flower": "Gypsophila"
+							}
+						],
+						"wrapperColor": "Blue",
+						"aiPhotoNote": true,
+						"photos": [
+							"photos/4bc49ebb-b8b8-4682-9da6-d2c1dd009148.jpg"
+						]
+					}
+				]
+			}
+		]
+	},
+	{
+		"product": "Sunflower",
+		"description": "Bring a splash of pure sunshine into someone’s day! Our signature Sunflower Bouquet features vibrant, golden sunflowers wrapped thoughtfully. Symbolic of adoration, loyalty, and warmth, these long-lasting blooms are the ultimate gesture to celebrate a milestone, say thank you, or simply brighten someone’s mood.",
+		"shownInShop": true,
+		"styles": [
+			{
+				"style": "Alina",
+				"colors": [
+					{
+						"color": "Yellow",
+						"swatches": [
+							"#f3bb12"
+						],
+						"size": null,
+						"price": 1000,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Sunflower",
+								"count": 5
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "White",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/5e4464ef-cd60-4f5b-bd43-96360b53cbac.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Nora",
+				"colors": [
+					{
+						"color": "Dandelion",
+						"swatches": [
+							"#f69a00"
+						],
+						"size": "classic",
+						"price": 800,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Sunflower",
+								"count": 3
+							},
+							{
+								"flower": "Aster",
+								"color": "Violet"
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Black",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/6dd30fbf-2730-48b4-ab5a-f65e95ccb1fe.jpg"
+						]
+					}
+				]
+			},
+			{
+				"style": "Irene",
+				"colors": [
+					{
+						"color": "Yellow and Red",
+						"swatches": [
+							"#fab300",
+							"#910219"
+						],
+						"size": "impressive",
+						"price": 11111,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Sunflower",
+								"count": 1
+							},
+							{
+								"flower": "Roses",
+								"color": "Red",
+								"count": 7
+							},
+							{
+								"flower": "Alstroemeria",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Light Purple",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/ff03f4f8-42a6-4ad4-ae7e-bf8cfd7bcf60.jpg",
+							"photos/25320605-89bf-43f7-b7ba-466b7f1ab016.jpg"
+						]
+					}
+				]
+			}
+		]
+	},
+	{
+		"product": "Mixed",
+		"description": "A stunning mixed floral arrangement crafted to make a lasting impression. Featuring a graceful focal combination.",
+		"shownInShop": true,
+		"styles": [
+			{
+				"style": "Amanda",
+				"colors": [
+					{
+						"color": "Pink",
+						"swatches": [
+							"#f2a6b8"
+						],
+						"size": "classic",
+						"price": 950,
+						"stock": 10,
+						"selling": true,
+						"recipe": [
+							{
+								"flower": "Lily",
+								"color": "Unopened",
+								"count": 2
+							},
+							{
+								"flower": "Lily",
+								"color": "Pink",
+								"count": 2
+							},
+							{
+								"flower": "Carnations",
+								"color": "Pink",
+								"count": 6
+							},
+							{
+								"flower": "Roses",
+								"color": "Fuschia",
+								"count": 2
+							},
+							{
+								"flower": "Roses",
+								"color": "Peach",
+								"count": 5
+							},
+							{
+								"flower": "Aster",
+								"color": "White"
+							}
+						],
+						"wrapperColor": "Purple",
+						"aiPhotoNote": false,
+						"photos": [
+							"photos/9ace105d-efe2-4cd3-b750-1f191bc47874.jpg"
+						]
+					}
+				]
+			}
+		]
+	}
+]
