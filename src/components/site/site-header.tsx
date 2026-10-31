@@ -9,7 +9,7 @@ import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { FlowerMark } from "./brand";
 
 const navLink =
-	"rounded-full px-3 py-1.5 text-sm text-petal-900/80 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
+	"whitespace-nowrap rounded-full px-2 py-2.5 text-sm sm:px-3 text-petal-900/80 sm:py-1.5 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
 
 export function SiteHeader() {
 	const cart = usePricedCart();
@@ -24,8 +24,8 @@ export function SiteHeader() {
 					aria-label="ORAIA home"
 					class="group flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 				>
-					<FlowerMark class="size-8 transition-transform duration-500 group-hover:rotate-[72deg]" />
-					<span class="font-display type-soft text-xl font-semibold tracking-[0.25em] text-petal-700">
+					<FlowerMark class="size-9" />
+					<span class="hidden font-display type-soft text-xl font-semibold tracking-[0.25em] text-black min-[440px]:inline">
 						ORAIA
 					</span>
 				</Link>
@@ -38,11 +38,19 @@ export function SiteHeader() {
 					>
 						Shop
 					</Link>
-					<Link to="/" hash="colors" class={`${navLink} hidden sm:inline-flex`}>
-						Colors
+					<Link
+						to="/active-orders"
+						class={navLink}
+						activeProps={{ "aria-current": "page" }}
+					>
+						Active orders
 					</Link>
-					<Link to="/" hash="about" class={`${navLink} hidden sm:inline-flex`}>
-						About
+					<Link
+						to="/custom"
+						class={`${navLink} hidden sm:inline-flex`}
+						activeProps={{ "aria-current": "page" }}
+					>
+						Build your bouquet
 					</Link>
 					<Show
 						when={user()}

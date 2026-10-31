@@ -1,15 +1,5 @@
 import type { JSX } from "solid-js";
-import {
-	createEffect,
-	createSignal,
-	createUniqueId,
-	For,
-	Match,
-	on,
-	onCleanup,
-	Show,
-	Switch,
-} from "solid-js";
+import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
 
 import {
 	TextField,
@@ -26,8 +16,8 @@ import {
 	detectCardBrand,
 	formatCardNumber,
 	formatExpiry,
+	ON_HOLD_NOTICE,
 	type PaymentMethod,
-	PROOF_MIME_TYPES,
 	type QrPaymentMethod,
 } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
@@ -43,30 +33,32 @@ interface PaymentSectionProps {
 	onMethodChange: (method: PaymentMethod) => void;
 	card: CardInput;
 	onCardChange: (patch: Partial<CardInput>) => void;
-	proof: File | null;
-	onProofChange: (file: File | null) => void;
 	errors: FieldErrors;
 	clearError: (field: PaymentField) => void;
+	/** "To follow": the shopper will send the reference number later. */
+	referenceLater?: boolean;
+	/** Leave out where the reference number can't wait, like the pay page. */
+	onReferenceLaterChange?: (later: boolean) => void;
 }
 
 const METHOD_DISPLAY: Record<
 	PaymentMethod,
-	{ hint: string; badge: () => JSX.Element }
+	{ hint: (account: PaymentAccount) => string; badge: () => JSX.Element }
 > = {
 	card: {
-		hint: "Visa, Mastercard, JCB, Amex",
+		hint: () => "Visa, Mastercard, JCB, Amex",
 		badge: () => <CardIcon class="size-5" />,
 	},
 	gcash: {
-		hint: "Scan to pay",
+		hint: (account) => (account.qrImage ? "Scan to pay" : "Send money"),
 		badge: () => <Monogram letter="G" class="bg-[#007dfe]" />,
 	},
 	maya: {
-		hint: "Scan to pay",
+		hint: (account) => (account.qrImage ? "Scan to pay" : "Send money"),
 		badge: () => <Monogram letter="M" class="bg-[#00a85a]" />,
 	},
 	bank: {
-		hint: "InstaPay / QR Ph",
+		hint: (account) => account.bankName || "InstaPay / QR Ph",
 		badge: () => <BankIcon class="size-5" />,
 	},
 };
@@ -102,7 +94,7 @@ export function PaymentSection(props: PaymentSectionProps) {
 									<span class="flex flex-col">
 										<span class="font-medium">{account.label}</span>
 										<span class="text-xs text-petal-900/60">
-											{METHOD_DISPLAY[account.method].hint}
+											{METHOD_DISPLAY[account.method].hint(account)}
 										</span>
 									</span>
 								</span>
@@ -137,10 +129,10 @@ export function PaymentSection(props: PaymentSectionProps) {
 							}
 							total={props.total}
 							currency={props.currency}
-							proof={props.proof}
-							onProofChange={props.onProofChange}
 							errors={props.errors}
 							clearError={props.clearError}
+							referenceLater={props.referenceLater}
+							onReferenceLaterChange={props.onReferenceLaterChange}
 						/>
 					)}
 				</Match>
@@ -255,32 +247,40 @@ function QrPayment(props: {
 	account: PaymentAccount;
 	total: number;
 	currency: string;
-	proof: File | null;
-	onProofChange: (file: File | null) => void;
 	errors: FieldErrors;
 	clearError: (field: PaymentField) => void;
+	referenceLater?: boolean;
+	onReferenceLaterChange?: (later: boolean) => void;
 }) {
 	const account = () => props.account;
 
 	return (
 		<div class="flex flex-col gap-5">
-			<div class="grid gap-5 rounded-2xl bg-petal-50 p-5 sm:grid-cols-[180px_minmax(0,1fr)]">
-				<div class="flex flex-col items-center gap-2">
-					<img
-						src={account().qrImage}
-						alt={`${account().label} QR code for ${account().accountName}`}
-						width={180}
-						height={180}
-						class="w-44 rounded-2xl border border-petal-100 bg-white p-3 sm:w-full"
-					/>
-					<a
-						href={account().qrImage}
-						download={`oraia-${props.method}-qr.${account().qrImage.split(".").pop()}`}
-						class="rounded-full px-3 py-1 text-sm font-medium text-petal-700 underline-offset-4 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-					>
-						Save QR image
-					</a>
-				</div>
+			<div
+				class={cn(
+					"grid gap-5 rounded-2xl bg-petal-50 p-5",
+					account().qrImage && "sm:grid-cols-[180px_minmax(0,1fr)]",
+				)}
+			>
+				{/* Without a QR code the account details below are enough to pay. */}
+				<Show when={account().qrImage}>
+					<div class="flex flex-col items-center gap-2">
+						<img
+							src={account().qrImage}
+							alt={`${account().label} QR code for ${account().accountName}`}
+							width={180}
+							height={180}
+							class="w-44 rounded-2xl border border-petal-100 bg-white p-3 sm:w-full"
+						/>
+						<a
+							href={account().qrImage}
+							download={`oraia-${props.method}-qr.${account().qrImage.split(".").pop()}`}
+							class="rounded-full px-3 py-1 text-sm font-medium text-petal-700 underline-offset-4 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							Save QR image
+						</a>
+					</div>
+				</Show>
 
 				<div class="flex min-w-0 flex-col gap-4">
 					<div>
@@ -318,181 +318,62 @@ function QrPayment(props: {
 				</div>
 			</div>
 
-			<TextField
-				name="referenceNumber"
-				validationState={props.errors.referenceNumber ? "invalid" : "valid"}
-				class="gap-2"
-			>
-				<TextFieldLabel class="text-petal-900">Reference number</TextFieldLabel>
-				<TextFieldInput
-					autocomplete="off"
-					autocapitalize="characters"
-					spellcheck={false}
-					placeholder="e.g. 1234 567 891011"
-					onInput={() => props.clearError("referenceNumber")}
-					class={cn(inputClass, "tabular-nums")}
-				/>
-				<Show when={!props.errors.referenceNumber}>
-					<TextFieldDescription class="text-xs text-petal-900/55">
-						Shown on your {account().label} receipt as “Ref No.”
-					</TextFieldDescription>
-				</Show>
-				<TextFieldErrorMessage>
-					{props.errors.referenceNumber}
-				</TextFieldErrorMessage>
-			</TextField>
-
-			<ProofUpload
-				file={props.proof}
-				error={props.errors.paymentProof}
-				onChange={(file) => {
-					props.onProofChange(file);
-					props.clearError("paymentProof");
-				}}
-			/>
-		</div>
-	);
-}
-
-function ProofUpload(props: {
-	file: File | null;
-	error?: string;
-	onChange: (file: File | null) => void;
-}) {
-	const inputId = createUniqueId();
-	const labelId = createUniqueId();
-	const hintId = createUniqueId();
-	const errorId = createUniqueId();
-	const [preview, setPreview] = createSignal<string>();
-	const [dragging, setDragging] = createSignal(false);
-
-	createEffect(
-		on(
-			() => props.file,
-			(file) => {
-				if (!file) return setPreview(undefined);
-				const url = URL.createObjectURL(file);
-				setPreview(url);
-				onCleanup(() => URL.revokeObjectURL(url));
-			},
-		),
-	);
-
-	const pick = (files: FileList | null | undefined) => {
-		const file = files?.[0];
-		if (file) props.onChange(file);
-	};
-
-	const dropzone =
-		"flex cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed px-4 py-7 text-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2";
-
-	return (
-		<div class="flex flex-col gap-2">
-			<p id={labelId} class="text-sm font-medium">
-				Payment screenshot
-			</p>
-			<input
-				id={inputId}
-				type="file"
-				accept={PROOF_MIME_TYPES.join(",")}
-				aria-labelledby={labelId}
-				aria-describedby={props.error ? errorId : hintId}
-				aria-invalid={props.error ? "true" : undefined}
-				onChange={(event) => {
-					pick(event.currentTarget.files);
-					// Allow choosing the same file again after removing it.
-					event.currentTarget.value = "";
-				}}
-				class="peer sr-only"
-			/>
-			<Show
-				when={props.file}
-				fallback={
-					<label
-						for={inputId}
-						onDragOver={(event) => {
-							event.preventDefault();
-							setDragging(true);
+			<Show when={props.onReferenceLaterChange}>
+				<label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-petal-200 px-4 py-3 text-sm has-[:checked]:border-petal-700 has-[:checked]:bg-petal-50">
+					<input
+						type="checkbox"
+						checked={props.referenceLater ?? false}
+						onChange={(e) => {
+							props.onReferenceLaterChange?.(e.currentTarget.checked);
+							props.clearError("referenceNumber");
 						}}
-						onDragLeave={() => setDragging(false)}
-						onDrop={(event) => {
-							event.preventDefault();
-							setDragging(false);
-							pick(event.dataTransfer?.files);
-						}}
-						class={cn(
-							dropzone,
-							dragging()
-								? "border-petal-500 bg-petal-50"
-								: props.error
-									? "border-error-foreground/60 bg-error/40"
-									: "border-petal-200 bg-white hover:border-petal-300 hover:bg-petal-50/60",
-						)}
-					>
-						<UploadIcon class="size-7 text-petal-500" />
-						<span class="font-medium text-petal-900">Upload screenshot</span>
-						<span class="text-xs text-petal-900/55">
-							Tap to choose, or drag it here · PNG, JPG or WEBP up to 5 MB
+						class="mt-0.5 size-5 shrink-0 accent-petal-700"
+					/>
+					<span>
+						<span class="block font-medium">Reference number to follow</span>
+						<span class="text-petal-900/65">
+							Pay later and send it from Active orders or by signing in.
 						</span>
-					</label>
-				}
-			>
-				{(file) => (
-					<div class="flex items-center gap-3 rounded-2xl border border-petal-200 bg-white p-3">
-						<Show when={preview()}>
-							{(src) => (
-								<img
-									src={src()}
-									alt="Your payment screenshot"
-									class="size-16 shrink-0 rounded-xl bg-petal-50 object-cover"
-								/>
-							)}
-						</Show>
-						<span class="min-w-0 flex-1">
-							<span class="block truncate text-sm font-medium">
-								{file().name}
-							</span>
-							<span class="block text-xs text-petal-900/55">
-								{formatFileSize(file().size)}
-							</span>
-						</span>
-						<label
-							for={inputId}
-							class="cursor-pointer rounded-full px-3 py-1 text-sm font-medium text-petal-700 hover:bg-petal-50"
-						>
-							Change
-						</label>
-						<button
-							type="button"
-							onClick={() => props.onChange(null)}
-							aria-label="Remove screenshot"
-							class="rounded-full px-3 py-1 text-sm text-petal-900/60 hover:bg-petal-50 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-						>
-							Remove
-						</button>
-					</div>
-				)}
+					</span>
+				</label>
 			</Show>
+
 			<Show
-				when={props.error}
+				when={!props.referenceLater}
 				fallback={
-					<p id={hintId} class="text-xs text-petal-900/55">
-						Make sure the amount and reference number are visible.
+					<p class="rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
+						{ON_HOLD_NOTICE}
 					</p>
 				}
 			>
-				<p id={errorId} class="text-xs text-destructive">
-					{props.error}
-				</p>
+				<TextField
+					name="referenceNumber"
+					validationState={props.errors.referenceNumber ? "invalid" : "valid"}
+					class="gap-2"
+				>
+					<TextFieldLabel class="text-petal-900">
+						Reference number
+					</TextFieldLabel>
+					<TextFieldInput
+						autocomplete="off"
+						autocapitalize="characters"
+						spellcheck={false}
+						placeholder="e.g. 1234 567 891011"
+						onInput={() => props.clearError("referenceNumber")}
+						class={cn(inputClass, "tabular-nums")}
+					/>
+					<Show when={!props.errors.referenceNumber}>
+						<TextFieldDescription class="text-xs text-petal-900/55">
+							Shown on your {account().label} receipt as “Ref No.”
+						</TextFieldDescription>
+					</Show>
+					<TextFieldErrorMessage>
+						{props.errors.referenceNumber}
+					</TextFieldErrorMessage>
+				</TextField>
 			</Show>
 		</div>
 	);
-}
-
-function formatFileSize(bytes: number) {
-	return bytes < 1024 * 1024
-		? `${Math.max(1, Math.round(bytes / 1024))} KB`
-		: `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function CopyButton(props: { value: string; label: string }) {
@@ -558,14 +439,6 @@ function BankIcon(props: { class?: string }) {
 	return (
 		<svg aria-hidden="true" {...iconBase} class={props.class}>
 			<path d="M3 21h18M5 21v-9M19 21v-9M9.5 21v-9M14.5 21v-9M3 9l9-6 9 6Z" />
-		</svg>
-	);
-}
-
-function UploadIcon(props: { class?: string }) {
-	return (
-		<svg aria-hidden="true" {...iconBase} class={props.class}>
-			<path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
 		</svg>
 	);
 }

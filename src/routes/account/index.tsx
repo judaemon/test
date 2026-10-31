@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { createMemo, For, Show } from "solid-js";
 
-import { deliverySortKey, formatSlot, getSlot } from "~/lib/checkout";
+import { orderDay, orderFor } from "~/lib/checkout";
 import { sortByNext } from "~/lib/occasions";
 import { formatDate, shopNow } from "~/lib/time";
 import {
@@ -36,9 +36,8 @@ function Overview() {
 		() =>
 			data()
 				.orders.filter((order) => ACTIVE_STAGES.includes(order.stage))
-				.sort((a, b) =>
-					deliverySortKey(a.details).localeCompare(deliverySortKey(b.details)),
-				)[0],
+				// Oldest first: it's the one we'll finish next.
+				.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0],
 	);
 	const activeCount = () =>
 		data().orders.filter((order) => ACTIVE_STAGES.includes(order.stage)).length;
@@ -75,7 +74,6 @@ function Overview() {
 						const step = () =>
 							TRACKER_STEPS.find((s) => s.stage === order().stage)?.label ??
 							"Placed";
-						const slot = () => getSlot(order().details.deliverySlot);
 						return (
 							<div class="mt-3 flex flex-wrap items-center gap-4">
 								<img
@@ -85,11 +83,10 @@ function Overview() {
 								/>
 								<div class="min-w-0 flex-1">
 									<p class="font-medium">
-										{step()} · for {order().details.recipientName}
+										{step()} · for {orderFor(order().details)}
 									</p>
 									<p class="text-sm text-petal-900/60">
-										{formatDate(order().details.deliveryDate)}
-										<Show when={slot()}>{(s) => <>, {formatSlot(s())}</>}</Show>
+										Placed {formatDate(orderDay(order().createdAt))}
 									</p>
 								</div>
 								<Link to="/account/orders" class={cardLink}>

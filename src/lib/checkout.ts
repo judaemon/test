@@ -1,99 +1,49 @@
-import { addDays, formatClock, type ShopClock, toMinutes } from "~/lib/time";
+import { companyColor, isCadetClass, isClassOption } from "~/lib/cadets";
+import { shopNow } from "~/lib/time";
 
 export interface CheckoutDetails {
-	email: string;
-	phone: string;
-	recipientName: string;
-	address: string;
-	city: string;
-	postalCode: string;
-	/** Shop-local calendar date, `YYYY-MM-DD`. */
-	deliveryDate: string;
-	deliverySlot: string;
-	giftMessage: string;
+	/** The buyer's name, both parts required. */
+	firstName: string;
+	lastName: string;
+	/** `firstName lastName`, derived; older orders only have this. */
+	fullName: string;
+	/** Cadet company, e.g. "Alfa"; empty for civilians. */
+	company: string;
+	/** "1CL"–"4CL", or "Civilian". */
+	className: string;
+	/** Optional notes for the shop. */
+	notes: string;
+	/** When set, the bouquet carries a dedication card. */
+	addDedication: boolean;
+	/** The receiver named on the card ("To: …"). */
+	dedicationFor: string;
+	dedicationMessage: string;
 }
 
 export type CheckoutField = keyof CheckoutDetails;
 export type PaymentField =
 	| "paymentMethod"
 	| "referenceNumber"
-	| "paymentProof"
 	| "cardNumber"
 	| "cardName"
 	| "cardExpiry"
 	| "cardCvc";
 export type FieldErrors = Partial<Record<CheckoutField | PaymentField, string>>;
 
-export const GIFT_MESSAGE_MAX = 200;
-export const DELIVERY_WINDOW_DAYS = 7;
-/** A slot closes this long before it starts, leaving time to arrange the bouquet. */
-export const SLOT_PREP_MINUTES = 60;
+export const NAME_MAX = 80;
+export const NOTES_MAX = 300;
+/** About as much as fits on half an A5 card (148 × 105 mm) at a readable size. */
+export const DEDICATION_MESSAGE_MAX = 600;
 
-export interface DeliverySlot {
-	id: string;
-	/** Shop-local `HH:MM`; also the time the courier must leave by. */
-	start: string;
-	end: string;
-}
-
-export const DELIVERY_SLOTS: DeliverySlot[] = [
-	{ id: "morning", start: "09:00", end: "12:00" },
-	{ id: "afternoon", start: "12:00", end: "15:00" },
-	{ id: "evening", start: "15:00", end: "18:00" },
-];
-
-export function getSlot(id: string) {
-	return DELIVERY_SLOTS.find((slot) => slot.id === id);
-}
-
-/** Sort key for "soonest first": date, then the slot's place in the day. */
-export function deliverySortKey(details: {
-	deliveryDate: string;
-	deliverySlot: string;
-}) {
-	const index = DELIVERY_SLOTS.findIndex(
-		(slot) => slot.id === details.deliverySlot,
-	);
-	return `${details.deliveryDate}#${index}`;
-}
-
-export function formatSlot(slot: DeliverySlot) {
-	return `${formatClock(slot.start)} – ${formatClock(slot.end)}`;
-}
-
-/** Whether a slot on `date` can still be booked at shop time `now`. */
-export function isSlotOpen(slot: DeliverySlot, date: string, now: ShopClock) {
-	if (date < now.date) return false;
-	if (date > now.date) return true;
-	return now.minutes <= toMinutes(slot.start) - SLOT_PREP_MINUTES;
-}
-
-/** Bookable days: today while any slot is open, then the following days. */
-export function getDeliveryDays(now: ShopClock) {
-	const todayOpen = DELIVERY_SLOTS.some((slot) =>
-		isSlotOpen(slot, now.date, now),
-	);
-	const start = todayOpen ? 0 : 1;
-	return Array.from({ length: DELIVERY_WINDOW_DAYS }, (_, i) => {
-		const offset = start + i;
-		return { date: addDays(now.date, offset), offset };
-	});
-}
-
-const FIELDS: CheckoutField[] = [
-	"email",
-	"phone",
-	"recipientName",
-	"address",
-	"city",
-	"postalCode",
-	"deliveryDate",
-	"deliverySlot",
-	"giftMessage",
-];
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TEXT_FIELDS = [
+	"firstName",
+	"lastName",
+	"company",
+	"className",
+	"notes",
+	"dedicationFor",
+	"dedicationMessage",
+] as const;
 
 export function readCheckoutForm(form: FormData): CheckoutDetails {
 	return parseCheckoutDetails(Object.fromEntries(form.entries()));
@@ -105,70 +55,77 @@ export function parseCheckoutDetails(raw: unknown): CheckoutDetails {
 		typeof raw === "object" && raw !== null
 			? (raw as Record<string, unknown>)
 			: {};
-	const details = {} as CheckoutDetails;
-	for (const field of FIELDS) {
+	const text = (field: (typeof TEXT_FIELDS)[number]) => {
 		const value = source[field];
-		details[field] = typeof value === "string" ? value.trim() : "";
-	}
-	return details;
+		return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+	};
+	const flag = source.addDedication;
+	const addDedication = flag === true || flag === "true" || flag === "on";
+	const firstName = text("firstName");
+	const lastName = text("lastName");
+	return {
+		firstName,
+		lastName,
+		fullName: [firstName, lastName].filter(Boolean).join(" "),
+		// Civilians have no company, whatever the form sent.
+		company: isCadetClass(text("className")) ? text("company") : "",
+		className: text("className"),
+		// Keep the line breaks people type into notes and card messages.
+		notes: typeof source.notes === "string" ? source.notes.trim() : "",
+		addDedication,
+		// A switched-off dedication never reaches the order.
+		dedicationFor: addDedication ? text("dedicationFor") : "",
+		dedicationMessage:
+			addDedication && typeof source.dedicationMessage === "string"
+				? source.dedicationMessage.trim()
+				: "",
+	};
 }
 
-/**
- * Field-level validation shared by the checkout form and the order handler.
- * Both sides pass the shop clock, so "today" and slot cut-offs always agree.
- */
-export function validateCheckoutDetails(
-	details: CheckoutDetails,
-	now: ShopClock,
-): FieldErrors {
+/** Field-level validation shared by the checkout form and the order handler. */
+export function validateCheckoutDetails(details: CheckoutDetails): FieldErrors {
 	const errors: FieldErrors = {};
 
-	if (!details.email) errors.email = "Enter your email for order updates.";
-	else if (!EMAIL_PATTERN.test(details.email) || details.email.length > 254)
-		errors.email = "That email doesn’t look quite right.";
+	if (!details.firstName) errors.firstName = "Enter your first name.";
+	else if (details.firstName.length > NAME_MAX)
+		errors.firstName = `Keep it under ${NAME_MAX} characters.`;
 
-	const phoneDigits = details.phone.replace(/\D/g, "");
-	if (!details.phone)
-		errors.phone = "Enter a mobile number so the courier can reach you.";
-	else if (
-		!/^\+?[\d\s().-]+$/.test(details.phone) ||
-		phoneDigits.length < 10 ||
-		phoneDigits.length > 15
-	)
-		errors.phone = "Use a mobile number like 0917 123 4567.";
+	if (!details.lastName) errors.lastName = "Enter your last name.";
+	else if (details.lastName.length > NAME_MAX)
+		errors.lastName = `Keep it under ${NAME_MAX} characters.`;
 
-	if (!details.recipientName) errors.recipientName = "Who are the flowers for?";
-	else if (details.recipientName.length > 80)
-		errors.recipientName = "Keep the name under 80 characters.";
+	if (!isClassOption(details.className))
+		errors.className = "Choose your class.";
+	else if (isCadetClass(details.className) && !companyColor(details.company))
+		errors.company = "Choose your company.";
 
-	if (!details.address) errors.address = "Enter a street address.";
-	else if (details.address.length > 160)
-		errors.address = "Keep the address under 160 characters.";
+	if (details.notes.length > NOTES_MAX)
+		errors.notes = `Keep notes under ${NOTES_MAX} characters.`;
 
-	if (!details.city) errors.city = "Enter a city.";
-	if (!details.postalCode) errors.postalCode = "Enter a postal code.";
-	else if (!/^[A-Za-z0-9 -]{3,10}$/.test(details.postalCode))
-		errors.postalCode = "That postal code doesn’t look right.";
-
-	if (!DATE_PATTERN.test(details.deliveryDate))
-		errors.deliveryDate = "Pick a delivery day.";
-	else if (
-		details.deliveryDate < now.date ||
-		details.deliveryDate > addDays(now.date, DELIVERY_WINDOW_DAYS)
-	)
-		errors.deliveryDate = "Pick a delivery day from the list.";
-
-	const slot = getSlot(details.deliverySlot);
-	if (!slot) errors.deliverySlot = "Pick a delivery time.";
-	else if (!errors.deliveryDate && !isSlotOpen(slot, details.deliveryDate, now))
-		errors.deliverySlot = "That time has closed — pick a later one.";
-
-	if (details.giftMessage.length > GIFT_MESSAGE_MAX)
-		errors.giftMessage = `Keep the card under ${GIFT_MESSAGE_MAX} characters.`;
+	if (details.addDedication) {
+		if (!details.dedicationFor)
+			errors.dedicationFor = "Who is the card addressed to?";
+		else if (details.dedicationFor.length > NAME_MAX)
+			errors.dedicationFor = `Keep the name under ${NAME_MAX} characters.`;
+		if (!details.dedicationMessage)
+			errors.dedicationMessage = "Write the message for the card.";
+		else if (details.dedicationMessage.length > DEDICATION_MESSAGE_MAX)
+			errors.dedicationMessage = `That’s too long for the card — keep it under ${DEDICATION_MESSAGE_MAX} characters.`;
+	}
 
 	return errors;
 }
 
 export function hasErrors(errors: FieldErrors) {
 	return Object.keys(errors).length > 0;
+}
+
+/** Who the bouquet is for: the dedication's receiver, else the buyer. */
+export function orderFor(details: CheckoutDetails) {
+	return details.dedicationFor || details.fullName;
+}
+
+/** Shop-local calendar date an order was placed, `YYYY-MM-DD`. */
+export function orderDay(createdAt: string) {
+	return shopNow(new Date(createdAt)).date;
 }

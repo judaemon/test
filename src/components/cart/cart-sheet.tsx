@@ -14,8 +14,10 @@ import {
 	setCartOpen,
 	setLineQuantity,
 } from "~/lib/cart-store";
+import { CUSTOM_PRODUCT_ID, formatBills } from "~/lib/custom-bouquet";
+import { formatRecipeItem } from "~/lib/flowers";
 import type { PricedLine } from "~/lib/pricing";
-import { formatPrice } from "~/lib/product";
+import { formatPrice, styleLabel, swatchBackground } from "~/lib/product";
 import { usePricedCart } from "~/lib/use-catalog";
 
 import { QuantityStepper } from "./quantity-stepper";
@@ -104,7 +106,7 @@ export function CartSheet() {
 						<button
 							type="button"
 							onClick={close}
-							class="mt-2 w-full rounded-full py-2 text-sm text-petal-900/70 underline-offset-4 hover:text-petal-900 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+							class="mt-1 w-full rounded-full py-3 text-sm text-petal-900/70 underline-offset-4 hover:text-petal-900 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 						>
 							Continue shopping
 						</button>
@@ -122,25 +124,45 @@ function BagLine(props: {
 	onRemove: (line: PricedLine) => void;
 }) {
 	const line = () => props.line;
-	const label = () => `${line().title}, ${line().colorName}`;
+	const label = () => `${line().title}, ${styleLabel(line())}`;
 
 	return (
 		<li class="flex gap-4 py-5">
-			<Link
-				to="/products/$productId"
-				params={{ productId: line().productId }}
-				search={{ variant: line().variantId }}
-				onClick={props.onNavigate}
-				class="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+			<Show
+				when={line().productId !== CUSTOM_PRODUCT_ID}
+				fallback={
+					<Link
+						to="/custom"
+						search={{ edit: line().variantId }}
+						onClick={props.onNavigate}
+						class="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+					>
+						<img
+							src={line().image}
+							alt={label()}
+							width={88}
+							height={88}
+							class="size-22 rounded-2xl bg-petal-50 object-cover"
+						/>
+					</Link>
+				}
 			>
-				<img
-					src={line().image}
-					alt={label()}
-					width={88}
-					height={88}
-					class="size-22 rounded-2xl bg-petal-50 object-cover"
-				/>
-			</Link>
+				<Link
+					to="/products/$productId"
+					params={{ productId: line().productId }}
+					search={{ variant: line().variantId }}
+					onClick={props.onNavigate}
+					class="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+				>
+					<img
+						src={line().image}
+						alt={label()}
+						width={88}
+						height={88}
+						class="size-22 rounded-2xl bg-petal-50 object-cover"
+					/>
+				</Link>
+			</Show>
 			<div class="flex min-w-0 flex-1 flex-col">
 				<div class="flex items-start justify-between gap-3">
 					<p class="font-medium leading-snug">{line().title}</p>
@@ -152,21 +174,42 @@ function BagLine(props: {
 					<span
 						aria-hidden="true"
 						class="size-3 rounded-full border border-black/10"
-						style={{ "background-color": line().colorHex }}
+						style={{
+							background: swatchBackground(line().colorHex, line().colorHex2),
+						}}
 					/>
-					{line().colorName} · {formatPrice(line().unitPrice, props.currency)}
+					{styleLabel(line())} · {formatPrice(line().unitPrice, props.currency)}
 				</p>
+				<Show when={line().custom}>
+					<p class="mt-1 text-xs text-petal-900/60">
+						{[
+							line().recipe?.map(formatRecipeItem).join(", "),
+							line().custom?.bills?.length
+								? `Cash: ${formatBills(line().custom?.bills)}`
+								: "",
+						]
+							.filter(Boolean)
+							.join(" · ")}
+					</p>
+				</Show>
 				<Show when={line().problem}>
 					{(problem) => (
 						<p class="mt-1 text-sm text-error-foreground">
-							{problem() === "sold-out"
-								? "Sold out — please remove"
-								: `Only ${line().maxQuantity} available`}
+							{problem() === "unavailable"
+								? `${line().problemText} Please remove it.`
+								: problem() === "sold-out"
+									? "Sold out — please remove"
+									: `Only ${line().maxQuantity} available`}
 						</p>
 					)}
 				</Show>
 				<div class="mt-3 flex items-center justify-between">
-					<Show when={line().problem !== "sold-out"} fallback={<span />}>
+					<Show
+						when={
+							line().problem !== "sold-out" && line().problem !== "unavailable"
+						}
+						fallback={<span />}
+					>
 						<QuantityStepper
 							value={line().quantity}
 							max={line().maxQuantity}
@@ -181,14 +224,27 @@ function BagLine(props: {
 							}
 						/>
 					</Show>
-					<button
-						type="button"
-						onClick={() => props.onRemove(line())}
-						aria-label={`Remove ${label()} from bag`}
-						class="rounded-full px-2 py-1 text-sm text-petal-900/60 underline-offset-4 hover:text-petal-900 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-					>
-						Remove
-					</button>
+					<span class="flex items-center gap-1">
+						<Show when={line().productId === CUSTOM_PRODUCT_ID}>
+							<Link
+								to="/custom"
+								search={{ edit: line().variantId }}
+								onClick={props.onNavigate}
+								aria-label={`Edit ${label()}`}
+								class="rounded-full px-2 py-1 text-sm font-medium text-petal-700 underline-offset-4 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+							>
+								Edit
+							</Link>
+						</Show>
+						<button
+							type="button"
+							onClick={() => props.onRemove(line())}
+							aria-label={`Remove ${label()} from bag`}
+							class="rounded-full px-2 py-2.5 text-sm text-petal-900/60 underline-offset-4 hover:text-petal-900 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							Remove
+						</button>
+					</span>
 				</div>
 			</div>
 		</li>

@@ -1,6 +1,7 @@
 import { addToCart } from "~/lib/cart-store";
+import { CUSTOM_PRODUCT_ID, designKey } from "~/lib/custom-bouquet";
 import { findVariant, type PricedLine } from "~/lib/pricing";
-import { getMaxQuantity } from "~/lib/product";
+import { getMaxQuantity, MAX_PER_ORDER } from "~/lib/product";
 import type { Product } from "~/types/product";
 
 export interface ReorderResult {
@@ -21,6 +22,20 @@ export function reorderToCart(
 	let added = 0;
 	const unavailable: string[] = [];
 	for (const line of lines) {
+		// Built bouquets go back in as designed; the bag re-prices them and
+		// flags any flower or wrapper that's no longer offered.
+		if (line.custom) {
+			added += addToCart(
+				{
+					productId: CUSTOM_PRODUCT_ID,
+					variantId: designKey(line.custom),
+					quantity: line.quantity,
+					custom: line.custom,
+				},
+				MAX_PER_ORDER,
+			);
+			continue;
+		}
 		const match = findVariant(catalog, line.productId, line.variantId);
 		if (!match?.variant.inStock) {
 			unavailable.push(line.colorName);

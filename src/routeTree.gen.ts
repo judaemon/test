@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as ActiveOrdersRouteImport } from './routes/active-orders'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as CustomRouteImport } from './routes/custom'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AccountIndexRouteImport } from './routes/account/index'
@@ -21,11 +23,15 @@ import { Route as AccountOrdersRouteImport } from './routes/account/orders'
 import { Route as AdminDashboardRouteImport } from './routes/admin/_dashboard'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as OrderOrderIdRouteImport } from './routes/order/$orderId'
+import { Route as PayOrderNumberRouteImport } from './routes/pay.$orderNumber'
 import { Route as ProductsProductIdRouteImport } from './routes/products/$productId'
 import { Route as UploadsSplatRouteImport } from './routes/uploads/$'
 import { Route as AdminDashboardIndexRouteImport } from './routes/admin/_dashboard/index'
+import { Route as AdminDashboardCustomRouteImport } from './routes/admin/_dashboard/custom'
 import { Route as AdminDashboardPaymentsRouteImport } from './routes/admin/_dashboard/payments'
+import { Route as AdminDashboardReportsRouteImport } from './routes/admin/_dashboard/reports'
 import { Route as AdminDashboardStaffRouteImport } from './routes/admin/_dashboard/staff'
+import { Route as AdminCardOrderIdRouteImport } from './routes/admin/card.$orderId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AdminDashboardOrdersIndexRouteImport } from './routes/admin/_dashboard/orders/index'
 import { Route as AdminDashboardOrdersOrderIdRouteImport } from './routes/admin/_dashboard/orders/$orderId'
@@ -44,9 +50,19 @@ const AccountRoute = AccountRouteImport.update({
   path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActiveOrdersRoute = ActiveOrdersRouteImport.update({
+  id: '/active-orders',
+  path: '/active-orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CheckoutRoute = CheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomRoute = CustomRouteImport.update({
+  id: '/custom',
+  path: '/custom',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShopRoute = ShopRouteImport.update({
@@ -94,6 +110,11 @@ const OrderOrderIdRoute = OrderOrderIdRouteImport.update({
   path: '/order/$orderId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PayOrderNumberRoute = PayOrderNumberRouteImport.update({
+  id: '/pay/$orderNumber',
+  path: '/pay/$orderNumber',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   id: '/products/$productId',
   path: '/products/$productId',
@@ -109,15 +130,30 @@ const AdminDashboardIndexRoute = AdminDashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
+const AdminDashboardCustomRoute = AdminDashboardCustomRouteImport.update({
+  id: '/custom',
+  path: '/custom',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
 const AdminDashboardPaymentsRoute = AdminDashboardPaymentsRouteImport.update({
   id: '/payments',
   path: '/payments',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardReportsRoute = AdminDashboardReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
 const AdminDashboardStaffRoute = AdminDashboardStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
   getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminCardOrderIdRoute = AdminCardOrderIdRouteImport.update({
+  id: '/admin/card/$orderId',
+  path: '/admin/card/$orderId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -163,7 +199,9 @@ const ApiOrdersOrderIdDeliveryPhotoRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRouteWithChildren
+  '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
+  '/custom': typeof CustomRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
   '/account/addresses': typeof AccountAddressesRoute
@@ -172,11 +210,15 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/order/$orderId': typeof OrderOrderIdRoute
+  '/pay/$orderNumber': typeof PayOrderNumberRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
+  '/admin/custom': typeof AdminDashboardCustomRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/reports': typeof AdminDashboardReportsRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
+  '/admin/card/$orderId': typeof AdminCardOrderIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin/': typeof AdminDashboardIndexRoute
   '/admin/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
@@ -188,7 +230,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
+  '/custom': typeof CustomRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
   '/account/addresses': typeof AccountAddressesRoute
@@ -196,11 +240,15 @@ export interface FileRoutesByTo {
   '/account/orders': typeof AccountOrdersRoute
   '/admin/login': typeof AdminLoginRoute
   '/order/$orderId': typeof OrderOrderIdRoute
+  '/pay/$orderNumber': typeof PayOrderNumberRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/uploads/$': typeof UploadsSplatRoute
   '/account': typeof AccountIndexRoute
+  '/admin/custom': typeof AdminDashboardCustomRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/reports': typeof AdminDashboardReportsRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
+  '/admin/card/$orderId': typeof AdminCardOrderIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin': typeof AdminDashboardIndexRoute
   '/admin/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
@@ -214,7 +262,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRouteWithChildren
+  '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
+  '/custom': typeof CustomRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
   '/account/addresses': typeof AccountAddressesRoute
@@ -223,11 +273,15 @@ export interface FileRoutesById {
   '/admin/_dashboard': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/order/$orderId': typeof OrderOrderIdRoute
+  '/pay/$orderNumber': typeof PayOrderNumberRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
+  '/admin/_dashboard/custom': typeof AdminDashboardCustomRoute
   '/admin/_dashboard/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/_dashboard/reports': typeof AdminDashboardReportsRoute
   '/admin/_dashboard/staff': typeof AdminDashboardStaffRoute
+  '/admin/card/$orderId': typeof AdminCardOrderIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin/_dashboard/': typeof AdminDashboardIndexRoute
   '/admin/_dashboard/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
@@ -242,7 +296,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/active-orders'
     | '/checkout'
+    | '/custom'
     | '/shop'
     | '/sign-in'
     | '/account/addresses'
@@ -251,11 +307,15 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin/login'
     | '/order/$orderId'
+    | '/pay/$orderNumber'
     | '/products/$productId'
     | '/uploads/$'
     | '/account/'
+    | '/admin/custom'
     | '/admin/payments'
+    | '/admin/reports'
     | '/admin/staff'
+    | '/admin/card/$orderId'
     | '/api/auth/$'
     | '/admin/'
     | '/admin/orders/$orderId'
@@ -267,7 +327,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/active-orders'
     | '/checkout'
+    | '/custom'
     | '/shop'
     | '/sign-in'
     | '/account/addresses'
@@ -275,11 +337,15 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/login'
     | '/order/$orderId'
+    | '/pay/$orderNumber'
     | '/products/$productId'
     | '/uploads/$'
     | '/account'
+    | '/admin/custom'
     | '/admin/payments'
+    | '/admin/reports'
     | '/admin/staff'
+    | '/admin/card/$orderId'
     | '/api/auth/$'
     | '/admin'
     | '/admin/orders/$orderId'
@@ -292,7 +358,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
+    | '/active-orders'
     | '/checkout'
+    | '/custom'
     | '/shop'
     | '/sign-in'
     | '/account/addresses'
@@ -301,11 +369,15 @@ export interface FileRouteTypes {
     | '/admin/_dashboard'
     | '/admin/login'
     | '/order/$orderId'
+    | '/pay/$orderNumber'
     | '/products/$productId'
     | '/uploads/$'
     | '/account/'
+    | '/admin/_dashboard/custom'
     | '/admin/_dashboard/payments'
+    | '/admin/_dashboard/reports'
     | '/admin/_dashboard/staff'
+    | '/admin/card/$orderId'
     | '/api/auth/$'
     | '/admin/_dashboard/'
     | '/admin/_dashboard/orders/$orderId'
@@ -319,14 +391,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRouteWithChildren
+  ActiveOrdersRoute: typeof ActiveOrdersRoute
   CheckoutRoute: typeof CheckoutRoute
+  CustomRoute: typeof CustomRoute
   ShopRoute: typeof ShopRoute
   SignInRoute: typeof SignInRoute
   AdminDashboardRoute: typeof AdminDashboardRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   OrderOrderIdRoute: typeof OrderOrderIdRoute
+  PayOrderNumberRoute: typeof PayOrderNumberRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   UploadsSplatRoute: typeof UploadsSplatRoute
+  AdminCardOrderIdRoute: typeof AdminCardOrderIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAdminProofsSplatRoute: typeof ApiAdminProofsSplatRoute
   ApiOrdersOrderIdDeliveryPhotoRoute: typeof ApiOrdersOrderIdDeliveryPhotoRoute
@@ -348,11 +424,25 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/active-orders': {
+      id: '/active-orders'
+      path: '/active-orders'
+      fullPath: '/active-orders'
+      preLoaderRoute: typeof ActiveOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/checkout': {
       id: '/checkout'
       path: '/checkout'
       fullPath: '/checkout'
       preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/custom': {
+      id: '/custom'
+      path: '/custom'
+      fullPath: '/custom'
+      preLoaderRoute: typeof CustomRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shop': {
@@ -418,6 +508,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof OrderOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pay/$orderNumber': {
+      id: '/pay/$orderNumber'
+      path: '/pay/$orderNumber'
+      fullPath: '/pay/$orderNumber'
+      preLoaderRoute: typeof PayOrderNumberRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/products/$productId': {
       id: '/products/$productId'
       path: '/products/$productId'
@@ -439,11 +536,25 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AdminDashboardIndexRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
+    '/admin/_dashboard/custom': {
+      id: '/admin/_dashboard/custom'
+      path: '/custom'
+      fullPath: '/admin/custom'
+      preLoaderRoute: typeof AdminDashboardCustomRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
     '/admin/_dashboard/payments': {
       id: '/admin/_dashboard/payments'
       path: '/payments'
       fullPath: '/admin/payments'
       preLoaderRoute: typeof AdminDashboardPaymentsRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/reports': {
+      id: '/admin/_dashboard/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminDashboardReportsRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
     '/admin/_dashboard/staff': {
@@ -452,6 +563,13 @@ declare module '@tanstack/solid-router' {
       fullPath: '/admin/staff'
       preLoaderRoute: typeof AdminDashboardStaffRouteImport
       parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/card/$orderId': {
+      id: '/admin/card/$orderId'
+      path: '/admin/card/$orderId'
+      fullPath: '/admin/card/$orderId'
+      preLoaderRoute: typeof AdminCardOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -523,7 +641,9 @@ const AccountRouteWithChildren =
   AccountRoute._addFileChildren(AccountRouteChildren)
 
 interface AdminDashboardRouteChildren {
+  AdminDashboardCustomRoute: typeof AdminDashboardCustomRoute
   AdminDashboardPaymentsRoute: typeof AdminDashboardPaymentsRoute
+  AdminDashboardReportsRoute: typeof AdminDashboardReportsRoute
   AdminDashboardStaffRoute: typeof AdminDashboardStaffRoute
   AdminDashboardIndexRoute: typeof AdminDashboardIndexRoute
   AdminDashboardOrdersOrderIdRoute: typeof AdminDashboardOrdersOrderIdRoute
@@ -533,7 +653,9 @@ interface AdminDashboardRouteChildren {
 }
 
 const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
+  AdminDashboardCustomRoute: AdminDashboardCustomRoute,
   AdminDashboardPaymentsRoute: AdminDashboardPaymentsRoute,
+  AdminDashboardReportsRoute: AdminDashboardReportsRoute,
   AdminDashboardStaffRoute: AdminDashboardStaffRoute,
   AdminDashboardIndexRoute: AdminDashboardIndexRoute,
   AdminDashboardOrdersOrderIdRoute: AdminDashboardOrdersOrderIdRoute,
@@ -549,14 +671,18 @@ const AdminDashboardRouteWithChildren = AdminDashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRouteWithChildren,
+  ActiveOrdersRoute: ActiveOrdersRoute,
   CheckoutRoute: CheckoutRoute,
+  CustomRoute: CustomRoute,
   ShopRoute: ShopRoute,
   SignInRoute: SignInRoute,
   AdminDashboardRoute: AdminDashboardRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   OrderOrderIdRoute: OrderOrderIdRoute,
+  PayOrderNumberRoute: PayOrderNumberRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
   UploadsSplatRoute: UploadsSplatRoute,
+  AdminCardOrderIdRoute: AdminCardOrderIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAdminProofsSplatRoute: ApiAdminProofsSplatRoute,
   ApiOrdersOrderIdDeliveryPhotoRoute: ApiOrdersOrderIdDeliveryPhotoRoute,

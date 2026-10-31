@@ -1,0 +1,9 @@
+.data
+.env
+.env.*
+.git
+.output
+.tanstack
+.vscode
+node_modules
+*.local

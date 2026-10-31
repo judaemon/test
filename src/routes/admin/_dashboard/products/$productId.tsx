@@ -4,9 +4,10 @@ import {
 	notFound,
 	useNavigate,
 } from "@tanstack/solid-router";
-import { createSignal, For, Index, Show } from "solid-js";
+import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-
+import { FlowerSelect } from "~/components/admin/flower-select";
+import { createCropper } from "~/components/admin/image-cropper";
 import {
 	adminButton,
 	adminCard,
@@ -19,20 +20,42 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { findFlowerKind, flowerKinds } from "~/lib/custom-bouquet";
+import { randomFlowerCode } from "~/lib/flower-codes";
+import {
+	flowerCodeKey,
+	PHOTO_TAGS,
+	photoTag,
+	swatchBackground,
+} from "~/lib/product";
+import { BOUQUET_SIZES, type BouquetSize } from "~/lib/sizes";
+import { useCustomSettings, useFlowerPhotos } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import {
+	deleteProductFn,
 	getAdminProductFn,
+	listFlowerCodes,
 	saveProductFn,
 	uploadProductImage,
 } from "~/server/admin/catalog";
-import type { AdminProduct } from "~/types/product";
+import type { AdminProduct, PhotoTag } from "~/types/product";
+
+interface EditorSearch {
+	/** Opens scrolled to this color, from a row on Products & stock. */
+	color?: string;
+}
 
 export const Route = createFileRoute("/admin/_dashboard/products/$productId")({
+	validateSearch: (search: Record<string, unknown>): EditorSearch => ({
+		color: typeof search.color === "string" ? search.color : undefined,
+	}),
 	loader: async ({ params }) => {
-		if (params.productId === "new") return null;
+		const codes = await listFlowerCodes();
+		if (params.productId === "new") return { product: null, codes };
 		const product = await getAdminProductFn({ data: params.productId });
 		if (!product) throw notFound();
-		return product;
+		return { product, codes };
 	},
 	component: ProductEditor,
 });
@@ -43,41 +66,62 @@ interface VariantDraft {
 	id?: string;
 	colorName: string;
 	colorHex: string;
+	/** Empty for a single color. */
+	colorHex2: string;
 	sku: string;
-	/** Empty means "use the product price". */
+	/** Required; set per color. */
 	price: string;
 	stockQuantity: string;
 	isAvailable: boolean;
 	images: string[];
-	/** Once staff edit the SKU we stop generating it from the name. */
-	skuTouched: boolean;
+	/** Kept in step with `images`. */
+	imageTags: PhotoTag[];
+	recipe: RecipeDraft[];
+	wrapperColor: string;
+	/** Shows the AI background note under this color's photos. */
+	aiPhotos: boolean;
+	size: BouquetSize | "";
 }
+
+interface RecipeDraft {
+	key: string;
+	flower: string;
+	count: string;
+	color: string;
+}
+
+const newRecipeRow = (): RecipeDraft => ({
+	key: crypto.randomUUID(),
+	flower: "",
+	count: "1",
+	color: "",
+});
 
 interface ProductDraft {
 	title: string;
 	description: string;
-	basePrice: string;
 	isVisible: boolean;
 	variants: VariantDraft[];
 }
 
-const skuFor = (colorName: string) =>
-	`ORA-${colorName
-		.toUpperCase()
-		.replace(/[^A-Z0-9]+/g, "-")
-		.replace(/^-|-$/g, "")
-		.slice(0, 24)}`;
+/** Keeps all four buttons of the bottom bar on one line on phones. */
+const barButton = "px-3 sm:px-4";
 
 const newVariant = (): VariantDraft => ({
 	key: crypto.randomUUID(),
 	colorName: "",
 	colorHex: "#f2a6b8",
+	colorHex2: "",
 	sku: "",
 	price: "",
 	stockQuantity: "0",
 	isAvailable: true,
 	images: [],
-	skuTouched: false,
+	imageTags: [],
+	recipe: [newRecipeRow()],
+	wrapperColor: "",
+	aiPhotos: true,
+	size: "",
 });
 
 function toDraft(product: AdminProduct | null): ProductDraft {
@@ -85,7 +129,6 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 		return {
 			title: "",
 			description: "",
-			basePrice: "",
 			isVisible: true,
 			variants: [newVariant()],
 		};
@@ -93,25 +136,68 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 	return {
 		title: product.title,
 		description: product.description,
-		basePrice: String(product.basePrice),
 		isVisible: product.isVisible,
 		variants: product.variants.map((v) => ({
 			key: v.id,
 			id: v.id,
 			colorName: v.colorName,
 			colorHex: v.colorHex ?? "#f2a6b8",
+			colorHex2: v.colorHex2 ?? "",
 			sku: v.sku,
-			price: v.price === undefined ? "" : String(v.price),
+			// Colors that used the product price start with it filled in.
+			price: String(v.price ?? product.basePrice),
 			stockQuantity: String(v.stockQuantity),
 			isAvailable: v.isAvailable,
 			images: [...v.images],
-			skuTouched: true,
+			imageTags: v.images.map((_, i) => photoTag(v, i)),
+			recipe: v.recipe.map((item) => ({
+				key: crypto.randomUUID(),
+				flower: item.flower,
+				count: String(item.count ?? 1),
+				color: item.color ?? "",
+			})),
+			wrapperColor: v.wrapperColor,
+			aiPhotos: v.aiPhotos ?? true,
+			size: v.size ?? "",
 		})),
 	};
 }
 
 function ProductEditor() {
-	const loaded = Route.useLoaderData();
+	// The flower list includes any flowers staff added in Custom bouquets.
+	const custom = useCustomSettings();
+	const flowerKind = (name: string) => findFlowerKind(name, custom());
+	const isCountedFlower = (name: string) => !!flowerKind(name)?.counted;
+	const flowerPhoto = useFlowerPhotos();
+	/** For the picker, where no color is chosen yet: any photo of the flower. */
+	const listPhoto = (name: string) =>
+		flowerPhoto(name) ??
+		Object.values(
+			custom().flowers.find((f) => f.name === name)?.colorImages ?? {},
+		).find(Boolean);
+	/** The flower picker's groups, counted flowers first. */
+	const flowerGroups = () => {
+		const kinds = flowerKinds(custom());
+		return [
+			{ label: "Counted", kinds: kinds.filter((kind) => kind.counted) },
+			{
+				label: "Cluster (no count)",
+				kinds: kinds.filter((kind) => !kind.counted),
+			},
+		];
+	};
+	/** Live total while editing; only counted flowers add to it. */
+	const recipeStems = (recipe: RecipeDraft[]) =>
+		recipe.reduce(
+			(sum, item) =>
+				sum +
+				(isCountedFlower(item.flower)
+					? Math.max(0, Number(item.count) || 0)
+					: 0),
+			0,
+		);
+	const data = Route.useLoaderData();
+	const loaded = () => data().product;
 	const params = Route.useParams();
 	const navigate = useNavigate();
 	const isNew = () => params().productId === "new";
@@ -126,13 +212,151 @@ function ProductEditor() {
 	const updateVariant = (index: number, patch: Partial<VariantDraft>) =>
 		setDraft("variants", index, patch);
 
+	const smoothly = (): ScrollBehavior =>
+		window.matchMedia("(prefers-reduced-motion: reduce)").matches
+			? "auto"
+			: "smooth";
+
+	/** "Top" only shows once there's somewhere to go back to. */
+	const [scrolled, setScrolled] = createSignal(false);
+	onMount(() => {
+		const update = () => setScrolled(window.scrollY > 400);
+		update();
+		window.addEventListener("scroll", update, { passive: true });
+		onCleanup(() => window.removeEventListener("scroll", update));
+	});
+
+	// Coming from a color's row: go to its card and mark it for a moment.
+	const search = Route.useSearch();
+	const [openedColor, setOpenedColor] = createSignal(search().color);
+	onMount(() => {
+		const id = search().color;
+		if (!id) return;
+		// After the router has finished resetting the scroll for the new page.
+		const scrollTimer = setTimeout(() => {
+			document
+				.querySelector(`[data-color-id="${CSS.escape(id)}"]`)
+				?.scrollIntoView({ behavior: smoothly(), block: "start" });
+		}, 100);
+		const markTimer = setTimeout(() => setOpenedColor(undefined), 4000);
+		onCleanup(() => {
+			clearTimeout(scrollTimer);
+			clearTimeout(markTimer);
+		});
+	});
+
+	/** Adds a style and brings its card into view, ready to type its color. */
+	const addStyle = () => {
+		setDraft("variants", (list) => [...list, newVariant()]);
+		requestAnimationFrame(() => {
+			const card = [
+				...document.querySelectorAll<HTMLElement>("[data-color-card]"),
+			].at(-1);
+			card?.scrollIntoView({ behavior: smoothly(), block: "start" });
+			card?.querySelector("input")?.focus({ preventScroll: true });
+		});
+	};
+
+	/** The same style as a card: its code, ignoring capitals and spaces. */
+	const sameStyle = (index: number, other: number) => {
+		const key = flowerCodeKey(draft.variants[index]?.sku ?? "");
+		return !!key && key === flowerCodeKey(draft.variants[other]?.sku ?? "");
+	};
+	/** "color 2 of 3": where this card sits among its style's colors. */
+	const styleCount = (index: number) =>
+		draft.variants.filter((_, i) => i === index || sameStyle(index, i)).length;
+	const stylePlace = (index: number) =>
+		draft.variants
+			.slice(0, index + 1)
+			.filter((_, i) => i === index || sameStyle(index, i)).length;
+
+	/** Adds a color under this style, right after the style's last color. */
+	const addColorToStyle = (index: number) => {
+		const source = draft.variants[index];
+		if (!source) return;
+		const after = draft.variants.reduce(
+			(last, _, i) => (sameStyle(index, i) ? i : last),
+			index,
+		);
+		// Same style, so it starts with the same details; photos are its own.
+		const color: VariantDraft = {
+			...newVariant(),
+			sku: source.sku,
+			price: source.price,
+			size: source.size,
+			wrapperColor: source.wrapperColor,
+			aiPhotos: source.aiPhotos,
+			recipe: source.recipe.map((item) => ({
+				...item,
+				key: crypto.randomUUID(),
+			})),
+		};
+		setDraft("variants", (list) => [
+			...list.slice(0, after + 1),
+			color,
+			...list.slice(after + 1),
+		]);
+		requestAnimationFrame(() => {
+			const card =
+				document.querySelectorAll<HTMLElement>("[data-color-card]")[after + 1];
+			card?.scrollIntoView({ behavior: smoothly(), block: "start" });
+			card?.querySelector("input")?.focus({ preventScroll: true });
+		});
+	};
+
+	/** Fills in a name no other bouquet uses, nor this color's current one. */
+	const pickFlowerCode = (index: number) => {
+		const sku = randomFlowerCode([
+			...draft.variants.map((variant) => variant.sku),
+			...data()
+				.codes.filter((entry) => entry.productId !== params().productId)
+				.map((entry) => entry.code),
+		]);
+		if (sku) updateVariant(index, { sku });
+		else toastError(new Error("Every name is in use. Type a new one instead."));
+	};
+
+	/** Who already has this color's flower code; each one names one bouquet. */
+	const codeTakenBy = (index: number) => {
+		const key = flowerCodeKey(draft.variants[index]?.sku ?? "");
+		if (!key) return undefined;
+		const name = draft.variants[index]?.colorName.trim().toLowerCase();
+		const repeat = draft.variants.some(
+			(variant, i) =>
+				i !== index &&
+				sameStyle(index, i) &&
+				!!name &&
+				variant.colorName.trim().toLowerCase() === name,
+		);
+		if (repeat)
+			return `This style already has a color called ${draft.variants[index]?.colorName.trim()}.`;
+		const elsewhere = data().codes.find(
+			(entry) =>
+				entry.productId !== params().productId &&
+				flowerCodeKey(entry.code) === key,
+		);
+		return elsewhere ? `Already used by ${elsewhere.owner}.` : undefined;
+	};
+
+	const cropper = createCropper();
+
 	const uploadImages = async (index: number, files: FileList | null) => {
 		if (!files?.length) return;
 		const variant = draft.variants[index];
 		if (!variant) return;
+		const chosen = Array.from(files);
 		setUploading(variant.key);
 		try {
-			for (const file of Array.from(files)) {
+			for (const [n, original] of chosen.entries()) {
+				// Square photos keep the shop grid tidy; staff crop each one here.
+				const file = await cropper.crop(original, {
+					aspect: 1,
+					title:
+						chosen.length > 1
+							? `Crop photo ${n + 1} of ${chosen.length}`
+							: "Crop photo",
+				});
+				if (!file) continue;
 				const body = new FormData();
 				body.set("file", file);
 				const result = await uploadProductImage({ data: body });
@@ -140,10 +364,19 @@ function ProductEditor() {
 					toastError(new Error(`${file.name}: ${result.message}`));
 					continue;
 				}
-				setDraft("variants", index, "images", (images) => [
-					...images,
-					result.url,
-				]);
+				setDraft(
+					"variants",
+					index,
+					produce((variant) => {
+						// Suggest the first view this color doesn't have a photo of yet.
+						const tag =
+							PHOTO_TAGS.find(
+								(t) => t.value && !variant.imageTags.includes(t.value),
+							)?.value ?? "";
+						variant.images.push(result.url);
+						variant.imageTags.push(tag);
+					}),
+				);
 			}
 		} catch (error) {
 			toastError(error);
@@ -156,15 +389,38 @@ function ProductEditor() {
 		setDraft(
 			"variants",
 			index,
-			"images",
-			produce((images) => {
-				const [image] = images.splice(from, 1);
-				if (image) images.splice(to, 0, image);
+			produce((variant) => {
+				const [image] = variant.images.splice(from, 1);
+				const [tag] = variant.imageTags.splice(from, 1);
+				if (image) {
+					variant.images.splice(to, 0, image);
+					variant.imageTags.splice(to, 0, tag ?? "");
+				}
+			}),
+		);
+
+	const removeImage = (index: number, at: number) =>
+		setDraft(
+			"variants",
+			index,
+			produce((variant) => {
+				variant.images.splice(at, 1);
+				variant.imageTags.splice(at, 1);
 			}),
 		);
 
 	const save = async (event: SubmitEvent) => {
 		event.preventDefault();
+		const repeated = draft.variants.findIndex((_, i) => codeTakenBy(i));
+		if (repeated !== -1) {
+			toastError(
+				new Error(
+					`Style “${draft.variants[repeated]?.sku.trim()}”: ${codeTakenBy(repeated)}`,
+				),
+			);
+			document.querySelector<HTMLElement>('[data-code-taken="true"]')?.focus();
+			return;
+		}
 		setSaving(true);
 		try {
 			const saved = await saveProductFn({
@@ -173,17 +429,32 @@ function ProductEditor() {
 					product: {
 						title: draft.title,
 						description: draft.description,
-						basePrice: Number(draft.basePrice),
 						isVisible: draft.isVisible,
 						variants: draft.variants.map((v) => ({
 							id: v.id,
 							colorName: v.colorName,
 							colorHex: v.colorHex,
+							colorHex2: v.colorHex2,
 							sku: v.sku,
-							price: v.price.trim() === "" ? null : Number(v.price),
+							price: Number(v.price),
 							stockQuantity: Number(v.stockQuantity),
 							isAvailable: v.isAvailable,
 							images: v.images,
+							imageTags: v.imageTags,
+							// Blank rows are left out rather than rejected.
+							recipe: v.recipe
+								.filter((item) => item.flower)
+								.map((item) => {
+									const kind = flowerKind(item.flower);
+									return {
+										flower: item.flower,
+										...(kind?.counted ? { count: Number(item.count) } : {}),
+										...(kind?.colors ? { color: item.color.trim() } : {}),
+									};
+								}),
+							wrapperColor: v.wrapperColor,
+							aiPhotos: v.aiPhotos,
+							size: v.size,
 						})),
 					},
 				},
@@ -208,6 +479,17 @@ function ProductEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-4xl pb-24">
+			{cropper.element()}
+			{/* Color suggestions for recipe flowers, from Custom bouquets. */}
+			<For each={custom().flowers.filter((f) => f.kind.colors)}>
+				{(flower) => (
+					<datalist id={`flower-colors-${flower.name}`}>
+						<For each={flower.colors}>
+							{(color) => <option value={color} />}
+						</For>
+					</datalist>
+				)}
+			</For>
 			<Link to="/admin/products" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
 				← Products & stock
 			</Link>
@@ -252,21 +534,6 @@ function ProductEditor() {
 						class={cn(adminInput, "h-auto py-2 leading-relaxed")}
 					/>
 				</Field>
-				<Field
-					label="Price (₱)"
-					hint="Colors use this unless they set their own."
-				>
-					<input
-						type="number"
-						min="1"
-						step="0.01"
-						inputMode="decimal"
-						value={draft.basePrice}
-						onInput={(e) => setDraft("basePrice", e.currentTarget.value)}
-						required
-						class={adminInput}
-					/>
-				</Field>
 				<div class="flex flex-col justify-center gap-1">
 					<Toggle
 						label="Show in shop"
@@ -279,46 +546,51 @@ function ProductEditor() {
 				</div>
 			</section>
 
-			<div class="mb-3 flex items-center justify-between">
-				<h2 class="text-lg font-semibold">Colors</h2>
-				<button
-					type="button"
-					class={adminButton.secondary}
-					onClick={() =>
-						setDraft("variants", (list) => [...list, newVariant()])
-					}
-				>
-					+ Add color
-				</button>
-			</div>
+			<h2 class="mb-3 text-lg font-semibold">Styles</h2>
 
 			<div class="flex flex-col gap-4">
 				<Index each={draft.variants}>
 					{(variant, index) => (
 						<section
-							class={cn(adminCard, "p-5")}
+							data-color-card
+							data-color-id={variant().id}
+							class={cn(
+								adminCard,
+								"scroll-mt-32 p-5 transition-shadow duration-500 lg:scroll-mt-6",
+								openedColor() &&
+									openedColor() === variant().id &&
+									"ring-2 ring-petal-500",
+								// Further colors of a style sit under its first one.
+								index > 0 &&
+									sameStyle(index, index - 1) &&
+									"ml-4 border-l-4 border-l-petal-300 sm:ml-8",
+							)}
 							aria-label={variant().colorName || `Color ${index + 1}`}
 						>
+							<p class="mb-4 font-semibold">
+								{variant().sku.trim()
+									? `Style ${variant().sku.trim()}`
+									: "New style"}
+								<span class="font-normal text-petal-900/55">
+									{" "}
+									· color {stylePlace(index)} of {styleCount(index)}
+								</span>
+							</p>
 							<div class="grid gap-4 sm:grid-cols-6">
 								<Field label="Color name" class="sm:col-span-2">
 									<input
 										value={variant().colorName}
-										onInput={(e) => {
-											const colorName = e.currentTarget.value;
-											updateVariant(index, {
-												colorName,
-												...(variant().skuTouched
-													? {}
-													: { sku: skuFor(colorName) }),
-											});
-										}}
+										onInput={(e) =>
+											updateVariant(index, { colorName: e.currentTarget.value })
+										}
 										maxLength={40}
 										required
 										placeholder="e.g. Lavender Mist"
 										class={adminInput}
 									/>
 								</Field>
-								<Field label="Swatch">
+								<div class="flex flex-col gap-1.5">
+									<span class="text-sm font-medium">Swatch</span>
 									<span class="flex items-center gap-2">
 										<input
 											type="color"
@@ -331,30 +603,85 @@ function ProductEditor() {
 											aria-label={`Swatch color for ${variant().colorName || "this color"}`}
 											class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
 										/>
-										<span class="font-mono text-xs text-petal-900/60">
-											{variant().colorHex}
-										</span>
+										<Show when={variant().colorHex2}>
+											<input
+												type="color"
+												value={variant().colorHex2}
+												onInput={(e) =>
+													updateVariant(index, {
+														colorHex2: e.currentTarget.value,
+													})
+												}
+												aria-label={`Second swatch color for ${variant().colorName || "this color"}`}
+												class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+											/>
+										</Show>
+										<span
+											aria-hidden="true"
+											class="size-7 shrink-0 rounded-full border border-black/10"
+											style={{
+												background: swatchBackground(
+													variant().colorHex,
+													variant().colorHex2,
+												),
+											}}
+										/>
 									</span>
-								</Field>
-								<Field label="SKU" class="sm:col-span-3">
-									<input
-										value={variant().sku}
-										onInput={(e) =>
-											updateVariant(index, {
-												sku: e.currentTarget.value,
-												skuTouched: true,
-											})
-										}
-										maxLength={40}
-										required
-										class={cn(adminInput, "font-mono")}
-									/>
-								</Field>
+									<label class="flex items-center gap-1.5 text-xs text-petal-900/70">
+										<input
+											type="checkbox"
+											checked={!!variant().colorHex2}
+											onChange={(e) =>
+												updateVariant(index, {
+													colorHex2: e.currentTarget.checked ? "#ffffff" : "",
+												})
+											}
+											class="accent-petal-700"
+										/>
+										Two colors
+									</label>
+								</div>
 								<Field
-									label="Own price (₱)"
-									hint="Leave empty to use the product price."
-									class="sm:col-span-2"
+									label="Style (flower code)"
+									hint="A girl’s name. Colors of the same style share it."
+									class="sm:col-span-3"
 								>
+									<span class="flex gap-2">
+										<input
+											value={variant().sku}
+											onInput={(e) =>
+												updateVariant(index, { sku: e.currentTarget.value })
+											}
+											maxLength={30}
+											required
+											placeholder="e.g. Bianca"
+											aria-invalid={codeTakenBy(index) ? "true" : undefined}
+											data-code-taken={codeTakenBy(index) ? "true" : undefined}
+											class={cn(
+												adminInput,
+												"min-w-0 flex-1",
+												codeTakenBy(index) &&
+													"border-destructive focus-visible:border-destructive",
+											)}
+										/>
+										<button
+											type="button"
+											aria-label="Pick a random style name"
+											onClick={() => pickFlowerCode(index)}
+											class={cn(adminButton.secondary, "shrink-0 px-3")}
+										>
+											Random
+										</button>
+									</span>
+									<Show when={codeTakenBy(index)}>
+										{(message) => (
+											<p role="alert" class="text-xs text-destructive">
+												{message()}
+											</p>
+										)}
+									</Show>
+								</Field>
+								<Field label="Price (₱)" class="sm:col-span-2">
 									<input
 										type="number"
 										min="1"
@@ -364,7 +691,7 @@ function ProductEditor() {
 										onInput={(e) =>
 											updateVariant(index, { price: e.currentTarget.value })
 										}
-										placeholder={draft.basePrice || "—"}
+										required
 										class={adminInput}
 									/>
 								</Field>
@@ -395,13 +722,217 @@ function ProductEditor() {
 								</div>
 							</div>
 
+							<div class="mt-5 grid gap-4 sm:grid-cols-6">
+								<fieldset class="sm:col-span-4">
+									<legend class="mb-2 text-sm font-medium">
+										Recipe{" "}
+										<span class="font-normal text-petal-900/55">
+											— {recipeStems(variant().recipe)} flowers in total
+										</span>
+									</legend>
+									<ul class="flex flex-col gap-2">
+										<Index each={variant().recipe}>
+											{(item, row) => (
+												<li class="flex flex-wrap items-center gap-2 border-b border-petal-50 pb-2 sm:flex-nowrap sm:border-0 sm:pb-0">
+													<Show
+														when={flowerPhoto(item().flower, item().color)}
+														fallback={
+															<span
+																title="No photo yet. Add one in Custom bouquets."
+																class="size-10 shrink-0 rounded-lg border-2 border-dashed border-petal-200"
+															/>
+														}
+													>
+														{(src) => (
+															<ZoomableImage
+																src={src()}
+																alt={item().flower}
+																caption={item().flower}
+																hoverPreview
+																class="size-10 shrink-0 rounded-lg border border-black/10 object-cover"
+															/>
+														)}
+													</Show>
+													<FlowerSelect
+														label={`Kind of flower ${row + 1}`}
+														groups={flowerGroups()}
+														value={item().flower}
+														photo={listPhoto}
+														onChange={(flower) =>
+															setDraft("variants", index, "recipe", row, {
+																flower,
+																// Keep the color only if the new flower has colors.
+																color: flowerKind(flower)?.colors
+																	? item().color
+																	: "",
+															})
+														}
+													/>
+													<Show when={flowerKind(item().flower)?.colors}>
+														{/* Suggests the colors listed in Custom bouquets; any color can be typed. */}
+														<input
+															value={item().color}
+															onInput={(e) =>
+																setDraft(
+																	"variants",
+																	index,
+																	"recipe",
+																	row,
+																	"color",
+																	e.currentTarget.value,
+																)
+															}
+															list={`flower-colors-${item().flower}`}
+															maxLength={30}
+															placeholder="Color, e.g. Red"
+															aria-label={`${item().flower} color`}
+															class={cn(
+																adminInput,
+																"min-w-0 flex-1 sm:w-36 sm:flex-none",
+															)}
+														/>
+													</Show>
+													<Show
+														when={isCountedFlower(item().flower)}
+														fallback={
+															<span class="flex-1 text-center text-xs text-petal-900/55 sm:w-24 sm:flex-none">
+																{item().flower ? "Cluster" : ""}
+															</span>
+														}
+													>
+														<span aria-hidden="true" class="text-petal-900/50">
+															×
+														</span>
+														<input
+															type="number"
+															min="1"
+															max="500"
+															step="1"
+															inputMode="numeric"
+															value={item().count}
+															onInput={(e) =>
+																setDraft(
+																	"variants",
+																	index,
+																	"recipe",
+																	row,
+																	"count",
+																	e.currentTarget.value,
+																)
+															}
+															aria-label={`How many ${item().flower}`}
+															class={cn(adminInput, "w-20 tabular-nums")}
+														/>
+													</Show>
+													<button
+														type="button"
+														class={cn(
+															adminButton.ghost,
+															"text-error-foreground",
+														)}
+														onClick={() =>
+															setDraft("variants", index, "recipe", (list) =>
+																list.filter((_, i) => i !== row),
+															)
+														}
+														aria-label={`Remove flower ${row + 1}`}
+													>
+														✕
+													</button>
+												</li>
+											)}
+										</Index>
+									</ul>
+									<button
+										type="button"
+										class={cn(adminButton.ghost, "mt-1")}
+										onClick={() =>
+											setDraft("variants", index, "recipe", (list) => [
+												...list,
+												newRecipeRow(),
+											])
+										}
+									>
+										+ Add flower
+									</button>
+								</fieldset>
+								<Field
+									label="Wrapper color"
+									hint="Shown to staff on each order."
+									class="sm:col-span-2"
+								>
+									<input
+										value={variant().wrapperColor}
+										onInput={(e) =>
+											updateVariant(index, {
+												wrapperColor: e.currentTarget.value,
+											})
+										}
+										maxLength={40}
+										placeholder="e.g. Kraft brown"
+										class={adminInput}
+									/>
+								</Field>
+							</div>
+
+							<fieldset class="mt-5">
+								<legend class="mb-2 text-sm font-medium">
+									Size{" "}
+									<span class="font-normal text-petal-900/55">
+										— shown with the size guide when shoppers pick this color
+									</span>
+								</legend>
+								<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+									<For each={BOUQUET_SIZES}>
+										{(size) => (
+											<label class="cursor-pointer">
+												<input
+													type="radio"
+													name={`size-${variant().key}`}
+													value={size.id}
+													checked={variant().size === size.id}
+													onChange={() =>
+														updateVariant(index, { size: size.id })
+													}
+													class="peer sr-only"
+												/>
+												<span class="flex h-full flex-col rounded-xl border border-petal-200 bg-white px-3 py-2 text-sm transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
+													<span class="font-semibold">{size.name}</span>
+													<span class="text-xs text-petal-900/60">
+														{size.description}
+													</span>
+												</span>
+											</label>
+										)}
+									</For>
+								</div>
+								<Show when={!variant().size}>
+									<p class="mt-1.5 text-xs text-petal-900/55">
+										No size chosen yet; this color won’t show a size.
+									</p>
+								</Show>
+							</fieldset>
+
 							<div class="mt-5">
 								<p class="mb-2 text-sm font-medium">
 									Photos{" "}
 									<span class="font-normal text-petal-900/55">
-										— the first one is the main photo
+										— tag what each one shows; the first is the cover
 									</span>
 								</p>
+								<div class="mb-3">
+									<Toggle
+										label="Backgrounds enhanced with AI"
+										checked={variant().aiPhotos}
+										onChange={(checked) =>
+											updateVariant(index, { aiPhotos: checked })
+										}
+									/>
+									<p class="mt-1 text-xs text-petal-900/55">
+										When on, the shop shows a note under this color’s photos.
+										Turn it off if the photos weren’t edited with AI.
+									</p>
+								</div>
 								<ul class="flex flex-wrap gap-3">
 									<For each={variant().images}>
 										{(image, imageIndex) => (
@@ -411,6 +942,33 @@ function ProductEditor() {
 													alt=""
 													class="size-24 rounded-xl border border-petal-100 bg-petal-50 object-cover"
 												/>
+												<select
+													onChange={(e) =>
+														setDraft(
+															"variants",
+															index,
+															"imageTags",
+															imageIndex(),
+															e.currentTarget.value as PhotoTag,
+														)
+													}
+													aria-label={`What photo ${imageIndex() + 1} shows`}
+													class="mt-1 h-10 w-full rounded-lg border border-petal-200 bg-white px-1 text-base font-medium text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:h-7 sm:text-[11px]"
+												>
+													<For each={PHOTO_TAGS}>
+														{(tag) => (
+															<option
+																value={tag.value}
+																selected={
+																	(variant().imageTags[imageIndex()] ?? "") ===
+																	tag.value
+																}
+															>
+																{tag.short}
+															</option>
+														)}
+													</For>
+												</select>
 												<div class="mt-1 flex justify-between">
 													<button
 														type="button"
@@ -429,13 +987,7 @@ function ProductEditor() {
 															adminButton.ghost,
 															"text-error-foreground",
 														)}
-														onClick={() =>
-															updateVariant(index, {
-																images: variant().images.filter(
-																	(_, i) => i !== imageIndex(),
-																),
-															})
-														}
+														onClick={() => removeImage(index, imageIndex())}
 														aria-label={`Remove photo ${imageIndex() + 1}`}
 													>
 														✕
@@ -484,7 +1036,14 @@ function ProductEditor() {
 								</ul>
 							</div>
 
-							<div class="mt-4 flex justify-end border-t border-petal-100 pt-3">
+							<div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-petal-100 pt-3">
+								<button
+									type="button"
+									class={adminButton.secondary}
+									onClick={() => addColorToStyle(index)}
+								>
+									+ Add color to this style
+								</button>
 								<Show
 									when={draft.variants.length > 1}
 									fallback={
@@ -530,17 +1089,65 @@ function ProductEditor() {
 				</Index>
 			</div>
 
+			<Show when={scrolled()}>
+				<button
+					type="button"
+					aria-label="Back to top"
+					onClick={() => window.scrollTo({ top: 0, behavior: smoothly() })}
+					class="fixed bottom-20 right-4 z-30 inline-flex h-11 items-center gap-1 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium text-petal-900 shadow-md transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+				>
+					<span aria-hidden="true">↑</span> Top
+				</button>
+			</Show>
+
 			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[240px]">
-				<div class="mx-auto flex max-w-4xl items-center justify-end gap-2">
-					<Link to="/admin/products" class={adminButton.secondary}>
+				<div class="mx-auto flex max-w-4xl items-center justify-end gap-1.5 sm:gap-2">
+					<Show when={!isNew()}>
+						<ConfirmButton
+							class={cn(adminButton.danger, barButton)}
+							title={`Delete ${draft.title || "this product"}?`}
+							description="This removes the product and all its colors from the shop for good. Past orders keep their details."
+							confirmLabel="Delete product"
+							onConfirm={async () => {
+								try {
+									await deleteProductFn({
+										data: { productId: params().productId },
+									});
+									toastSuccess("Product deleted.");
+									await navigate({ to: "/admin/products" });
+								} catch (error) {
+									toastError(error);
+								}
+							}}
+						>
+							Delete<span class="hidden sm:inline"> product</span>
+						</ConfirmButton>
+					</Show>
+					<button
+						type="button"
+						class={cn(adminButton.secondary, barButton, "mr-auto")}
+						onClick={addStyle}
+					>
+						+ <span class="hidden sm:inline">Add style</span>
+						<span class="sm:hidden">Style</span>
+					</button>
+					<Link
+						to="/admin/products"
+						class={cn(adminButton.secondary, barButton)}
+					>
 						Cancel
 					</Link>
 					<button
 						type="submit"
-						class={adminButton.primary}
+						class={cn(adminButton.primary, barButton, "sm:px-5")}
 						disabled={saving() || uploading() !== null}
 					>
-						{saving() ? "Saving…" : isNew() ? "Create product" : "Save changes"}
+						<Show when={!saving()} fallback="Saving…">
+							{isNew() ? "Create" : "Save"}
+							<span class="hidden sm:inline">
+								{isNew() ? " product" : " changes"}
+							</span>
+						</Show>
 					</button>
 				</div>
 			</div>

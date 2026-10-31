@@ -1,8 +1,10 @@
-import { type CheckoutDetails, DELIVERY_SLOTS } from "~/lib/checkout";
+import type { CheckoutDetails } from "~/lib/checkout";
+import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import type { CardBrand, PaymentMethod } from "~/lib/payment";
 import type { PricedCart, PricedLine } from "~/lib/pricing";
 import {
 	type CustomerOrder,
+	isPaymentDue,
 	isPaymentSettled,
 	type Order,
 	type OrderEvent,
@@ -10,6 +12,7 @@ import {
 	type OrderStage,
 	type PaymentStatus,
 } from "~/types/order";
+import { adjustWrapperStock } from "./custom-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 
 interface OrderRow {
@@ -18,14 +21,14 @@ interface OrderRow {
 	created_at: string;
 	stage: OrderStage;
 	stage_updated_at: string;
-	email: string;
-	phone: string;
-	recipient_name: string;
-	address: string;
-	city: string;
-	postal_code: string;
-	delivery_date: string;
-	delivery_slot: string;
+	first_name: string;
+	last_name: string;
+	full_name: string;
+	company: string;
+	class_name: string;
+	notes: string;
+	dedication_for: string;
+	/** The dedication message (the card message on older orders). */
 	gift_message: string;
 	lines: string;
 	subtotal_cents: number;
@@ -45,6 +48,7 @@ interface OrderRow {
 	rider_phone: string | null;
 	delivery_photo: string | null;
 	delivered_at: string | null;
+	cancel_reason: string | null;
 }
 
 function loadEvents(ids: string[]): Map<string, OrderEvent[]> {
@@ -77,15 +81,15 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 		stage: row.stage,
 		stageUpdatedAt: row.stage_updated_at,
 		details: {
-			email: row.email,
-			phone: row.phone,
-			recipientName: row.recipient_name,
-			address: row.address,
-			city: row.city,
-			postalCode: row.postal_code,
-			deliveryDate: row.delivery_date,
-			deliverySlot: row.delivery_slot,
-			giftMessage: row.gift_message,
+			firstName: row.first_name,
+			lastName: row.last_name,
+			fullName: row.full_name,
+			company: row.company,
+			className: row.class_name,
+			notes: row.notes,
+			addDedication: !!(row.dedication_for || row.gift_message),
+			dedicationFor: row.dedication_for,
+			dedicationMessage: row.gift_message,
 		},
 		lines,
 		subtotal: fromCents(row.subtotal_cents),
@@ -111,6 +115,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 			deliveredAt: row.delivered_at ?? undefined,
 		},
 		events,
+		cancelReason: row.cancel_reason ?? undefined,
 	};
 }
 
@@ -158,6 +163,8 @@ export function createOrder(order: NewOrder): Order {
 	);
 	db.transaction(() => {
 		for (const line of order.cart.lines) {
+			// Built bouquets are made to order; there's no stock to take.
+			if (line.productId === CUSTOM_PRODUCT_ID) continue;
 			const result = takeStock.run({
 				quantity: line.quantity,
 				productId: line.productId,
@@ -169,20 +176,41 @@ export function createOrder(order: NewOrder): Order {
 				);
 			}
 		}
+		const outOfWrapper = adjustWrapperStock(order.cart.lines, -1);
+		if (outOfWrapper)
+			throw new OrderRuleError(
+				`There aren’t enough ${outOfWrapper} wrappers left. Edit your custom bouquet to pick another, or lower the quantity.`,
+			);
 		const now = nowIso();
+		// Orders are numbered #1, #2, … in the order they were placed. Inside the
+		// transaction, so two checkouts can never take the same number.
+		const { nextNumber } = db
+			.query(
+				"SELECT COALESCE(MAX(CAST(number AS INTEGER)), 0) + 1 AS nextNumber FROM orders",
+			)
+			.get() as { nextNumber: number };
+		// The v1 address and delivery columns are NOT NULL, so new orders fill them with ''.
 		db.query(
 			`INSERT INTO orders (id, number, created_at, stage, stage_updated_at, email, phone, recipient_name,
-			   address, city, postal_code, delivery_date, delivery_slot, gift_message, lines, subtotal_cents,
-			   delivery_fee_cents, total_cents, currency, payment_method, payment_status, reference_number,
-			   proof_file, card_brand, card_last4, customer_id)
-			 VALUES ($id, $number, $now, 'new', $now, $email, $phone, $recipientName, $address, $city,
-			   $postalCode, $deliveryDate, $deliverySlot, $giftMessage, $lines, $subtotal, $deliveryFee,
-			   $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4, $customerId)`,
+			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, class_name, notes,
+			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
+			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id)
+			 VALUES ($id, $number, $now, 'new', $now, '', '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
+			   $company, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
+			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
+			   $customerId)`,
 		).run({
 			id: order.id,
-			number: order.id.slice(0, 8).toUpperCase(),
+			number: String(nextNumber),
 			now,
-			...order.details,
+			firstName: order.details.firstName,
+			lastName: order.details.lastName,
+			fullName: order.details.fullName,
+			company: order.details.company,
+			className: order.details.className,
+			notes: order.details.notes,
+			dedicationFor: order.details.dedicationFor,
+			dedicationMessage: order.details.dedicationMessage,
 			lines: JSON.stringify(order.cart.lines),
 			subtotal: toCents(order.cart.subtotal),
 			deliveryFee: toCents(order.cart.deliveryFee),
@@ -208,6 +236,13 @@ export function getOrderById(id: string): Order | undefined {
 	return row ? toOrders([row])[0] : undefined;
 }
 
+export function getOrderByNumber(number: string): Order | undefined {
+	const row = getDb()
+		.query("SELECT * FROM orders WHERE number = $number")
+		.get({ number }) as OrderRow | null;
+	return row ? toOrders([row])[0] : undefined;
+}
+
 /** Everything a customer has ordered while signed in, newest first. */
 export function listCustomerOrders(customerId: string): Order[] {
 	const rows = getDb()
@@ -219,29 +254,30 @@ export function listCustomerOrders(customerId: string): Order[] {
 }
 
 export interface OrderFilter {
-	/** Exact shop-local delivery date. */
+	/** Exact shop-local date the order was placed. */
 	date?: string;
-	/** Delivery date on or after. */
+	/** Placed on or after this shop-local date. */
 	fromDate?: string;
 	stages?: OrderStage[];
 	needsVerification?: boolean;
+	onHold?: boolean;
 	search?: string;
 	limit?: number;
 }
 
-const slotOrder = new Map(
-	DELIVERY_SLOTS.map((slot, index) => [slot.id, index]),
-);
+/** Shop-local (Asia/Manila, UTC+8 with no DST) date an order was placed. */
+const PLACED_DAY = "date(created_at, '+8 hours')";
 
+/** Newest first. */
 export function listOrders(filter: OrderFilter = {}): Order[] {
 	const where: string[] = [];
 	const params: Record<string, string | number> = {};
 	if (filter.date) {
-		where.push("delivery_date = $date");
+		where.push(`${PLACED_DAY} = $date`);
 		params.date = filter.date;
 	}
 	if (filter.fromDate) {
-		where.push("delivery_date >= $fromDate");
+		where.push(`${PLACED_DAY} >= $fromDate`);
 		params.fromDate = filter.fromDate;
 	}
 	if (filter.stages?.length) {
@@ -254,9 +290,13 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
 	if (filter.needsVerification) {
 		where.push("payment_status = 'pending' AND stage != 'cancelled'");
 	}
+	if (filter.onHold) {
+		where.push("payment_status = 'on_hold' AND stage != 'cancelled'");
+	}
 	if (filter.search) {
 		where.push(
-			`(number LIKE $q OR recipient_name LIKE $q OR email LIKE $q OR phone LIKE $q OR reference_number LIKE $q)`,
+			`(number LIKE $q OR full_name LIKE $q OR company LIKE $q OR class_name LIKE $q
+			  OR dedication_for LIKE $q OR reference_number LIKE $q)`,
 		);
 		params.q = `%${filter.search.replace(/[%_]/g, "")}%`;
 	}
@@ -264,17 +304,10 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
 	const rows = getDb()
 		.query(
 			`SELECT * FROM orders ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-			 ORDER BY delivery_date, created_at LIMIT $limit`,
+			 ORDER BY created_at DESC LIMIT $limit`,
 		)
 		.all(params) as OrderRow[];
-	// Soonest departure first: by date, then slot, then when it was placed.
-	return toOrders(rows).sort(
-		(a, b) =>
-			a.details.deliveryDate.localeCompare(b.details.deliveryDate) ||
-			(slotOrder.get(a.details.deliverySlot) ?? 0) -
-				(slotOrder.get(b.details.deliverySlot) ?? 0) ||
-			a.createdAt.localeCompare(b.createdAt),
-	);
+	return toOrders(rows);
 }
 
 /**
@@ -310,6 +343,7 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 					variantId: line.variantId,
 				});
 			}
+			adjustWrapperStock(order.lines, 1);
 		}
 		const now = nowIso();
 		db.query(
@@ -319,6 +353,38 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 		).run({ id, stage, now });
 		addEvent(id, stage, now);
 	})();
+	return getOrderById(id) as Order;
+}
+
+/**
+ * The shopper sends the payment for an order that's on hold or wasn't matched,
+ * which puts it back in front of staff. Signing in links a guest order.
+ */
+export function submitPayment(
+	id: string,
+	payment: {
+		method: PaymentMethod;
+		referenceNumber: string;
+		customerId?: string;
+	},
+): Order {
+	const order = getOrderById(id);
+	if (!order) throw new OrderRuleError("Order not found.");
+	if (order.stage !== "new" || !isPaymentDue(order.payment.status))
+		throw new OrderRuleError("This order doesn’t need a payment right now.");
+	getDb()
+		.query(
+			`UPDATE orders SET payment_method = $method, payment_status = 'pending',
+			   reference_number = $reference, payment_reviewed_by = NULL, payment_reviewed_at = NULL,
+			   customer_id = COALESCE(customer_id, $customerId)
+			 WHERE id = $id`,
+		)
+		.run({
+			id,
+			method: payment.method,
+			reference: payment.referenceNumber,
+			customerId: payment.customerId ?? null,
+		});
 	return getOrderById(id) as Order;
 }
 
@@ -363,10 +429,8 @@ export function setRider(
 export function setDeliveryPhoto(id: string, fileName: string) {
 	const order = getOrderById(id);
 	if (!order) throw new OrderRuleError("Order not found.");
-	if (order.stage !== "delivering" && order.stage !== "done")
-		throw new OrderRuleError(
-			"Add the delivery photo once the order is out for delivery.",
-		);
+	if (order.stage !== "done")
+		throw new OrderRuleError("Add the delivery photo once the order is done.");
 	getDb()
 		.query("UPDATE orders SET delivery_photo = $file WHERE id = $id")
 		.run({ id, file: fileName });

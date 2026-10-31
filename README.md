@@ -45,6 +45,8 @@ Owners add staff from **Admin → Staff**. Staff can run the board, orders and s
 
 Back up `.data/` regularly. The database is created and seeded with the starter catalog and sample payment accounts on first run; replace the sample QR codes from **Admin → Payments** before taking real orders.
 
+**Catalog snapshot.** `.data/` is never committed, because it also holds orders, accounts and payment details. To keep the catalog in git, run `bun run catalog:export` before committing: it saves products, stock, custom bouquet settings and their photos to `catalog-snapshot/`. On a fresh install, `bun run catalog:import` restores them. It refuses if the shop already has orders, since its stock may be newer; `--force` replaces the catalog anyway and leaves orders alone.
+
 ## Styling
 
 This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.

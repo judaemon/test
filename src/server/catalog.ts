@@ -5,10 +5,15 @@ import {
 	listPublicProducts,
 	toPublicProduct,
 } from "./catalog-repo";
+import { getCustomSettings } from "./custom-repo";
 
 /** Everything the shop shows; loaded once per navigation by the root route. */
-export const getCatalog = createServerFn({ method: "GET" }).handler(async () =>
-	listPublicProducts(),
+export const getCatalog = createServerFn({ method: "GET" }).handler(
+	async () => ({
+		products: listPublicProducts(),
+		// The builder's prices are public anyway; the bag needs them to show totals.
+		custom: getCustomSettings(),
+	}),
 );
 
 export const getProduct = createServerFn({ method: "GET" })

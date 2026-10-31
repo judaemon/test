@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
-import { createMemo } from "solid-js";
+import { createMemo, Show } from "solid-js";
 
 import { ProductGallery } from "~/components/product/product-gallery";
 import { ProductInfo } from "~/components/product/product-info";
@@ -14,7 +14,7 @@ import {
 	BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { buttonVariants } from "~/components/ui/button";
-import { resolveVariant } from "~/lib/product";
+import { bouquetPhotos, flowerCodeKey, resolveVariant } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { getProduct } from "~/server/catalog";
 import type { ProductVariant } from "~/types/product";
@@ -65,6 +65,14 @@ function ProductPage() {
 		resolveVariant(product(), search().variant),
 	);
 
+	// Only the colors of the style that was opened.
+	const styleColors = createMemo(() =>
+		product().variants.filter(
+			(variant) =>
+				flowerCodeKey(variant.sku) === flowerCodeKey(activeVariant().sku),
+		),
+	);
+
 	const selectVariant = (variant: ProductVariant) => {
 		if (variant.id === activeVariant().id) return;
 		navigate({
@@ -82,8 +90,8 @@ function ProductPage() {
 				<Breadcrumb class="mb-4">
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<BreadcrumbLink as={Link} to="/">
-								Home
+							<BreadcrumbLink as={Link} to="/shop">
+								Shop
 							</BreadcrumbLink>
 						</BreadcrumbItem>
 						<BreadcrumbSeparator />
@@ -94,14 +102,22 @@ function ProductPage() {
 				</Breadcrumb>
 
 				<div class="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12">
-					<ProductGallery
-						images={activeVariant().images}
-						label={`${product().title} in ${activeVariant().colorName}`}
-						class="lg:sticky lg:top-20 lg:self-start"
-					/>
+					<div class="lg:sticky lg:top-20 lg:self-start">
+						<ProductGallery
+							photos={bouquetPhotos(activeVariant())}
+							label={`${product().title} in ${activeVariant().colorName}`}
+						/>
+						<Show when={activeVariant().aiPhotos}>
+							<p class="mt-3 text-xs leading-relaxed text-petal-900/65">
+								<span class="font-medium">Note:</span> Photos feature our
+								actual, real flower arrangements. Backgrounds have been
+								digitally enhanced using AI for a professional studio aesthetic.
+							</p>
+						</Show>
+					</div>
 					<ProductInfo product={product()} variant={activeVariant()}>
 						<VariantSelector
-							variants={product().variants}
+							variants={styleColors()}
 							selectedId={activeVariant().id}
 							onSelect={selectVariant}
 							onPreview={preloadVariantImages}
@@ -126,7 +142,7 @@ function ProductNotFound() {
 					It may have sold out for the season or the link is mistyped.
 				</p>
 				<Link
-					to="/"
+					to="/shop"
 					class={cn(
 						buttonVariants(),
 						"rounded-full bg-petal-700 px-6 text-white hover:bg-petal-900",

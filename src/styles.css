@@ -190,3 +190,61 @@ code {
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Wide tables read as a list of cards on phones. Cells take half the row;
+ * `data-wide` makes one full width and `data-label` names what's in it.
+ */
+@media screen and (width < 48rem) {
+	.stack-table,
+	.stack-table > tbody {
+		display: block;
+	}
+	.stack-table > thead {
+		display: none;
+	}
+	.stack-table > tbody > tr {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-auto-flow: dense;
+	}
+	.stack-table > tbody > tr > td {
+		display: block;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.stack-table > tbody > tr > td[data-wide] {
+		grid-column: 1 / -1;
+	}
+	.stack-table > tbody > tr > td[data-label]::before {
+		content: attr(data-label);
+		display: block;
+		margin-bottom: 0.125rem;
+		font-size: 0.6875rem;
+		font-weight: 500;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		opacity: 0.55;
+	}
+}
+
+/* Paper: an open report list prints alone, and colors stay on. */
+@media print {
+	* {
+		print-color-adjust: exact;
+		-webkit-print-color-adjust: exact;
+	}
+	html,
+	body {
+		height: auto !important;
+		overflow: visible !important;
+		background: #fff;
+	}
+	body:has([data-print-sheet]) > :not(:has([data-print-sheet])) {
+		display: none !important;
+	}
+	.TanStackRouterDevtools,
+	.tsqd-parent-container {
+		display: none !important;
+	}
+}

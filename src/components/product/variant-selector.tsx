@@ -5,6 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { swatchBackground } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import type { ProductVariant } from "~/types/product";
 
@@ -112,7 +113,12 @@ export function VariantSelector(props: VariantSelectorProps) {
 													"block size-full rounded-full border border-black/10",
 													!variant.inStock && "opacity-50",
 												)}
-												style={{ "background-color": variant.colorHex }}
+												style={{
+													background: swatchBackground(
+														variant.colorHex,
+														variant.colorHex2,
+													),
+												}}
 											/>
 										}
 									>

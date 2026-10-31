@@ -16,12 +16,16 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
+import { printDedicationCard } from "~/components/order/print-card";
 import { PrivateImage } from "~/components/order/private-image";
-import { formatSlot, getSlot } from "~/lib/checkout";
+import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { cashTotal, formatBills } from "~/lib/custom-bouquet";
+import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
-import { formatDate } from "~/lib/time";
+import { useFlowerPhotos } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import {
 	assignRider,
@@ -38,6 +42,9 @@ import {
 	type OrderStage,
 	STAGE_LABELS,
 } from "~/types/order";
+
+/** Rider details and proof of delivery are switched off for now; set to true to bring them back. */
+const SHOW_DELIVERY = false;
 
 /** Proof URLs leave off the extension (see `publicUploadUrl`). */
 const proofId = (fileName: string) => fileName.replace(/\.(png|jpg|webp)$/, "");
@@ -67,8 +74,8 @@ function OrderDetail() {
 	const [busy, setBusy] = createSignal(false);
 
 	const details = () => order().details;
+	const flowerPhoto = useFlowerPhotos();
 	const payment = () => order().payment;
-	const slot = () => getSlot(details().deliverySlot);
 	const cancelled = () => order().stage === "cancelled";
 
 	const run = async (
@@ -105,9 +112,9 @@ function OrderDetail() {
 	return (
 		<div>
 			<Link
-				to="/admin"
+				to="/admin/orders"
 				onClick={(event) => {
-					// Back to the board as it was (same day, filters and scroll).
+					// Back to the list as it was (filters and scroll).
 					if (router.history.canGoBack()) {
 						event.preventDefault();
 						router.history.back();
@@ -133,6 +140,13 @@ function OrderDetail() {
 					</span>
 				}
 			/>
+
+			<Show when={order().cancelReason}>
+				<p class="mb-5 rounded-2xl border border-error-foreground/25 bg-error px-4 py-3 text-sm text-error-foreground">
+					<strong class="font-semibold">Cancelled by the customer.</strong>{" "}
+					Reason: {order().cancelReason}
+				</p>
+			</Show>
 
 			<div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
 				<div class="flex flex-col gap-5">
@@ -181,11 +195,13 @@ function OrderDetail() {
 						<ul class="flex flex-col gap-3">
 							<For each={order().lines}>
 								{(line) => (
-									<li class="flex items-center gap-3">
-										<img
-											src={line.image}
-											alt=""
-											class="size-14 rounded-xl bg-petal-50 object-cover"
+									<li class="flex items-start gap-3">
+										<ZoomableImage
+											src={line.image ?? ""}
+											alt={`${line.title}, ${line.colorName}`}
+											caption={line.sku}
+											hoverPreview
+											class="size-24 rounded-xl bg-petal-50 object-cover"
 										/>
 										<span class="min-w-0 flex-1">
 											<span class="block font-medium">
@@ -194,6 +210,57 @@ function OrderDetail() {
 											<span class="block text-xs text-petal-900/55">
 												{line.title} · {line.sku}
 											</span>
+											<Show when={line.recipe?.length}>
+												<Show when={stemCount(line.recipe)}>
+													{(count) => (
+														<span class="mt-2 block text-sm font-medium">
+															{count()} flowers
+														</span>
+													)}
+												</Show>
+												<span class="mt-1 flex flex-wrap gap-2">
+													<For each={line.recipe}>
+														{(item) => (
+															<span class="flex items-center gap-1.5 rounded-lg border border-petal-100 bg-white py-1 pl-1 pr-2.5 text-sm">
+																<Show
+																	when={flowerPhoto(item.flower, item.color)}
+																	fallback={<span class="w-1" />}
+																>
+																	{(src) => (
+																		<ZoomableImage
+																			src={src()}
+																			alt={item.flower}
+																			caption={item.flower}
+																			hoverPreview
+																			class="size-9 rounded-md object-cover"
+																		/>
+																	)}
+																</Show>
+																{formatRecipeItem(item)}
+															</span>
+														)}
+													</For>
+												</span>
+											</Show>
+											<Show when={line.custom?.bills?.length}>
+												<span class="mt-1 block text-sm">
+													<span class="font-medium">
+														Cash{" "}
+														{formatPrice(
+															cashTotal(line.custom?.bills),
+															order().currency,
+														)}
+														:
+													</span>{" "}
+													{formatBills(line.custom?.bills)}
+												</span>
+											</Show>
+											<Show when={line.wrapperColor}>
+												<span class="block text-sm">
+													<span class="font-medium">Wrapper:</span>{" "}
+													{line.wrapperColor}
+												</span>
+											</Show>
 										</span>
 										<span class="text-sm tabular-nums">
 											{formatPrice(line.lineTotal, order().currency)}
@@ -203,8 +270,10 @@ function OrderDetail() {
 							</For>
 						</ul>
 						<dl class="mt-4 grid grid-cols-[1fr_auto] gap-y-1 border-t border-petal-100 pt-3 text-sm">
-							<dt class="text-petal-900/65">Delivery</dt>
-							<dd class="text-right">Free</dd>
+							<Show when={SHOW_DELIVERY}>
+								<dt class="text-petal-900/65">Delivery</dt>
+								<dd class="text-right">Free</dd>
+							</Show>
 							<dt class="font-semibold">Total</dt>
 							<dd class="text-right font-semibold tabular-nums">
 								{formatPrice(order().total, order().currency)}
@@ -212,56 +281,52 @@ function OrderDetail() {
 						</dl>
 					</section>
 
-					<section class={cn(adminCard, "grid gap-5 p-5 sm:grid-cols-2")}>
-						<div>
-							<h2 class="mb-2 font-semibold">Deliver to</h2>
-							<address class="text-sm not-italic leading-relaxed">
-								<strong class="font-medium">{details().recipientName}</strong>
-								<br />
-								{details().address}
-								<br />
-								{details().city} {details().postalCode}
-							</address>
-							<p class="mt-2 text-sm">
-								<strong class="font-medium">
-									{formatDate(details().deliveryDate)}
-								</strong>
-								<br />
-								<Show when={slot()} fallback="—">
-									{(s) => formatSlot(s())}
+					<section class={cn(adminCard, "p-5")}>
+						<h2 class="mb-2 font-semibold">Customer</h2>
+						<dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+							<dt class="text-petal-900/60">Name</dt>
+							<dd class="font-medium">{details().fullName}</dd>
+							<dt class="text-petal-900/60">Company</dt>
+							<dd>
+								<Show when={details().company} fallback="—">
+									<CompanyLabel company={details().company} className="" />
 								</Show>
-							</p>
-						</div>
-						<div>
-							<h2 class="mb-2 font-semibold">Customer</h2>
-							<p class="flex flex-col gap-1 text-sm">
-								<a
-									href={`tel:${details().phone.replace(/[^\d+]/g, "")}`}
-									class="text-petal-700 underline-offset-2 hover:underline"
-								>
-									{details().phone}
-								</a>
-								<a
-									href={`mailto:${details().email}`}
-									class="break-all text-petal-700 underline-offset-2 hover:underline"
-								>
-									{details().email}
-								</a>
-							</p>
-						</div>
+							</dd>
+							<dt class="text-petal-900/60">Class</dt>
+							<dd>{details().className || "—"}</dd>
+						</dl>
+						<Show when={details().notes}>
+							<h3 class="mt-4 mb-1 text-sm font-semibold">Notes</h3>
+							<p class="whitespace-pre-line text-sm">{details().notes}</p>
+						</Show>
 					</section>
 
 					<section class={cn(adminCard, "p-5")}>
-						<h2 class="mb-2 font-semibold">Card message</h2>
+						<h2 class="mb-2 font-semibold">Dedication</h2>
 						<Show
-							when={details().giftMessage}
+							when={details().addDedication}
 							fallback={
-								<p class="text-sm text-petal-900/55">No card message.</p>
+								<p class="text-sm text-petal-900/55">No dedication message.</p>
 							}
 						>
-							<blockquote class="rounded-xl bg-petal-50 px-4 py-3 font-display text-lg italic">
-								“{details().giftMessage}”
-							</blockquote>
+							<button
+								type="button"
+								onClick={() => printDedicationCard(order().id)}
+								title="Print this dedication card (A5)"
+								class="block w-full rounded-xl bg-petal-50 px-4 py-3 text-left transition-colors outline-none hover:bg-petal-100 focus-visible:ring-2 focus-visible:ring-petal-500"
+							>
+								<Show when={details().dedicationFor}>
+									<span class="block text-sm font-medium">
+										To: {details().dedicationFor}
+									</span>
+								</Show>
+								<span class="mt-1 block whitespace-pre-line font-display text-lg italic">
+									“{details().dedicationMessage}”
+								</span>
+								<span class="mt-2 block text-sm font-medium text-petal-700">
+									🖨 Click to print the card (A5)
+								</span>
+							</button>
 						</Show>
 					</section>
 				</div>
@@ -333,6 +398,7 @@ function OrderDetail() {
 									disabled={
 										busy() ||
 										payment().status === "rejected" ||
+										payment().status === "on_hold" ||
 										order().stage !== "new"
 									}
 									onClick={() => review("rejected")}
@@ -343,7 +409,7 @@ function OrderDetail() {
 						</Show>
 					</section>
 
-					<Show when={!cancelled()}>
+					<Show when={SHOW_DELIVERY && !cancelled()}>
 						<DeliveryPanel order={order()} onChange={setOrder} />
 					</Show>
 
@@ -380,8 +446,7 @@ function DeliveryPanel(props: {
 	const [uploading, setUploading] = createSignal(false);
 	// Bumped after each upload so the photo reloads.
 	const [photoVersion, setPhotoVersion] = createSignal(0);
-	const canAddPhoto = () =>
-		props.order.stage === "delivering" || props.order.stage === "done";
+	const canAddPhoto = () => props.order.stage === "done";
 
 	const handle = async (
 		action: () => Promise<OrderActionResult>,

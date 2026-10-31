@@ -1,6 +1,14 @@
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
-import { createEffect, createSignal, Match, on, Show, Switch } from "solid-js";
+import {
+	createEffect,
+	createSignal,
+	For,
+	Match,
+	on,
+	Show,
+	Switch,
+} from "solid-js";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -14,22 +22,31 @@ import {
 } from "~/components/ui/number-field";
 import { Separator } from "~/components/ui/separator";
 import { showToast } from "~/components/ui/toast";
+import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import {
 	addToCart,
 	cartStore,
 	getLineQuantity,
 	setCartOpen,
 } from "~/lib/cart-store";
+import { stemCount } from "~/lib/flowers";
 import {
 	formatPrice,
 	getMaxQuantity,
 	getStockStatus,
 	getVariantPrice,
 } from "~/lib/product";
+import {
+	BOUQUET_SIZES,
+	type BouquetSize,
+	bouquetSize,
+	SIZE_GUIDE_IMAGE,
+} from "~/lib/sizes";
+import { useFlowerPhotos } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
-import { BagIcon, LeafIcon, MinusIcon, PlusIcon, TruckIcon } from "./icons";
+import { BagIcon, MinusIcon, PlusIcon } from "./icons";
 
 // Stand-in for a cart API round trip so the pending state is visible.
 const ADD_TO_CART_LATENCY_MS = 450;
@@ -47,6 +64,8 @@ export function ProductInfo(props: ProductInfoProps) {
 	const [isAdding, setIsAdding] = createSignal(false);
 
 	const price = () => getVariantPrice(props.product, props.variant);
+	const size = () => bouquetSize(props.variant.size);
+	const flowerPhoto = useFlowerPhotos();
 	const stockStatus = () => getStockStatus(props.variant);
 	const bagLines = useSelector(cartStore, (state) => state.lines);
 	const inBag = () =>
@@ -103,9 +122,17 @@ export function ProductInfo(props: ProductInfoProps) {
 				<h1 class="font-display type-soft text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
 					{props.product.title}
 				</h1>
-				<p class="text-xs text-muted-foreground">
-					SKU: <span class="font-mono tabular-nums">{props.variant.sku}</span>
+				<p class="text-sm text-muted-foreground">
+					Style:{" "}
+					<span class="font-display type-soft text-lg font-semibold text-foreground">
+						{props.variant.sku}
+					</span>
 				</p>
+				<Show when={props.product.description}>
+					<p class="mt-1 text-sm leading-relaxed text-muted-foreground">
+						{props.product.description}
+					</p>
+				</Show>
 			</header>
 
 			<div
@@ -139,6 +166,87 @@ export function ProductInfo(props: ProductInfoProps) {
 			<Separator />
 
 			{props.children}
+
+			<section
+				aria-labelledby="recipe-heading"
+				class="flex flex-col gap-3 rounded-lg border p-4"
+			>
+				<div class="flex items-baseline justify-between gap-3">
+					<h2 id="recipe-heading" class="text-sm font-semibold">
+						What’s in this bouquet
+					</h2>
+					<Show when={stemCount(props.variant.recipe)}>
+						{(count) => (
+							<span class="text-sm font-semibold tabular-nums">
+								{count()} flowers
+							</span>
+						)}
+					</Show>
+				</div>
+				<Show
+					when={props.variant.recipe.length > 0}
+					fallback={
+						<p class="text-sm text-muted-foreground">
+							Ask us about the flowers in this bouquet.
+						</p>
+					}
+				>
+					<ul class="flex flex-col gap-1.5 text-sm">
+						<For each={props.variant.recipe}>
+							{(item) => (
+								<li class="flex items-center justify-between gap-3">
+									<span class="flex items-center gap-2.5">
+										<Show
+											when={flowerPhoto(item.flower, item.color)}
+											fallback={<span class="size-10 shrink-0" />}
+										>
+											{(src) => (
+												<ZoomableImage
+													src={src()}
+													alt={item.flower}
+													caption={item.flower}
+													class="size-10 shrink-0 rounded-md border object-cover"
+												/>
+											)}
+										</Show>
+										<span>
+											{item.flower}
+											<Show when={item.color}>
+												<span class="text-muted-foreground">
+													{" "}
+													· {item.color}
+												</span>
+											</Show>
+										</span>
+									</span>
+									<span class="shrink-0 tabular-nums text-muted-foreground">
+										{item.count ? `× ${item.count}` : "cluster"}
+									</span>
+								</li>
+							)}
+						</For>
+					</ul>
+				</Show>
+				<dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 border-t pt-3 text-sm">
+					<Show when={props.variant.wrapperColor}>
+						<dt class="text-muted-foreground">Wrapper</dt>
+						<dd>{props.variant.wrapperColor}</dd>
+					</Show>
+					<Show when={size()}>
+						{(s) => (
+							<>
+								<dt class="text-muted-foreground">Size</dt>
+								<dd>
+									<span class="font-medium">{s().name}</span> ·{" "}
+									{s().description.toLowerCase()}
+								</dd>
+							</>
+						)}
+					</Show>
+				</dl>
+			</section>
+
+			<Show when={size()}>{(s) => <SizeGuide current={s().id} />}</Show>
 
 			<Show when={props.variant.inStock && !isMaxedOut()}>
 				<NumberField
@@ -214,24 +322,64 @@ export function ProductInfo(props: ProductInfoProps) {
 					</p>
 				</Show>
 			</div>
-
-			<ul class="grid gap-3 rounded-lg bg-muted/60 p-4 text-sm">
-				<li class="flex items-center gap-3">
-					<TruckIcon class="size-5 shrink-0 text-muted-foreground" />
-					<span>Free same-day delivery on orders placed before 2pm</span>
-				</li>
-				<li class="flex items-center gap-3">
-					<LeafIcon class="size-5 shrink-0 text-muted-foreground" />
-					<span>7-day freshness guarantee</span>
-				</li>
-			</ul>
-
-			<section class="flex flex-col gap-2">
-				<h2 class="text-sm font-semibold">Description</h2>
-				<p class="text-sm leading-relaxed text-muted-foreground">
-					{props.product.description}
-				</p>
-			</section>
 		</div>
+	);
+}
+
+/** Where each size sits in the guide picture, as a share of its width. */
+const GUIDE_COLUMNS: Record<BouquetSize, { left: number; width: number }> = {
+	petite: { left: 6, width: 21 },
+	classic: { left: 27.5, width: 18.5 },
+	impressive: { left: 47, width: 23 },
+	grand: { left: 71, width: 22 },
+};
+
+/** The size guide picture, with this bouquet's size highlighted. */
+function SizeGuide(props: { current: BouquetSize }) {
+	const column = () => GUIDE_COLUMNS[props.current];
+	return (
+		<section aria-labelledby="size-guide-heading" class="flex flex-col gap-3">
+			<h2 id="size-guide-heading" class="text-sm font-semibold">
+				Size guide
+			</h2>
+			<div class="relative overflow-hidden rounded-lg border">
+				<img
+					src={SIZE_GUIDE_IMAGE}
+					alt="Bouquet sizes from smallest to largest: Petite, Classic, Impressive and Grand, each held by the same person."
+					width={1179}
+					height={938}
+					loading="lazy"
+					class="block w-full"
+				/>
+				<span
+					aria-hidden="true"
+					class="pointer-events-none absolute inset-y-[4%] rounded-xl ring-2 ring-foreground"
+					style={{ left: `${column().left}%`, width: `${column().width}%` }}
+				/>
+			</div>
+			<ul class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+				<For each={BOUQUET_SIZES}>
+					{(size) => (
+						<li
+							aria-current={size.id === props.current ? "true" : undefined}
+							class={cn(
+								"rounded-md border px-2 py-1.5",
+								size.id === props.current
+									? "border-foreground bg-muted font-medium"
+									: "text-muted-foreground",
+							)}
+						>
+							<span class="block font-semibold uppercase tracking-wide">
+								{size.name}
+							</span>
+							{size.description}
+							<Show when={size.id === props.current}>
+								<span class="sr-only"> (this bouquet)</span>
+							</Show>
+						</li>
+					)}
+				</For>
+			</ul>
+		</section>
 	);
 }

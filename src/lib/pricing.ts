@@ -1,10 +1,21 @@
-import { getMaxQuantity, getVariantPrice } from "~/lib/product";
-import type { Product, ProductVariant } from "~/types/product";
+import {
+	CUSTOM_IMAGE,
+	CUSTOM_PRODUCT_ID,
+	type CustomBouquetSettings,
+	type CustomDesign,
+	designKey,
+	normalizeDesign,
+	priceDesign,
+} from "~/lib/custom-bouquet";
+import { getMaxQuantity, getVariantPrice, MAX_PER_ORDER } from "~/lib/product";
+import type { Product, ProductVariant, RecipeItem } from "~/types/product";
 
 export interface CartLine {
 	productId: string;
 	variantId: string;
 	quantity: number;
+	/** Set on built bouquets (productId `CUSTOM_PRODUCT_ID`). */
+	custom?: CustomDesign;
 }
 
 export interface PricedLine {
@@ -13,14 +24,22 @@ export interface PricedLine {
 	title: string;
 	colorName: string;
 	colorHex?: string;
+	colorHex2?: string;
 	sku: string;
 	image?: string;
+	/** Snapshot of the bouquet's recipe; missing on orders placed before recipes. */
+	recipe?: RecipeItem[];
+	wrapperColor?: string;
+	/** The design, for built bouquets, so they can be ordered again. */
+	custom?: CustomDesign;
 	quantity: number;
 	unitPrice: number;
 	lineTotal: number;
 	maxQuantity: number;
 	/** Why this line can't be ordered as-is, if anything. */
-	problem?: "sold-out" | "over-stock";
+	problem?: "sold-out" | "over-stock" | "unavailable";
+	/** Shopper-facing reason, for `unavailable`. */
+	problemText?: string;
 }
 
 export interface PricedCart {
@@ -47,15 +66,25 @@ export function findVariant(
 }
 
 /**
- * Prices a bag from the catalog, never from client-supplied amounts. Shared by
- * the cart drawer and the server-side order handler so totals always agree.
- * Lines for products that no longer exist are dropped.
+ * Prices a bag from the catalog and the builder's settings, never from
+ * client-supplied amounts. Shared by the cart drawer and the server-side
+ * order handler so totals always agree. Lines for products that no longer
+ * exist are dropped.
  */
-export function priceCart(lines: CartLine[], catalog: Product[]): PricedCart {
+export function priceCart(
+	lines: CartLine[],
+	catalog: Product[],
+	custom?: CustomBouquetSettings,
+): PricedCart {
 	const priced: PricedLine[] = [];
 	let currency = DEFAULT_CURRENCY;
 
 	for (const line of lines) {
+		if (line.productId === CUSTOM_PRODUCT_ID) {
+			if (!line.custom || !custom) continue;
+			priced.push(priceCustomLine(line, line.custom, custom));
+			continue;
+		}
 		const match = findVariant(catalog, line.productId, line.variantId);
 		if (!match) continue;
 		const { product, variant } = match;
@@ -68,8 +97,11 @@ export function priceCart(lines: CartLine[], catalog: Product[]): PricedCart {
 			title: product.title,
 			colorName: variant.colorName,
 			colorHex: variant.colorHex,
+			colorHex2: variant.colorHex2,
 			sku: variant.sku,
 			image: variant.images[0],
+			recipe: variant.recipe,
+			wrapperColor: variant.wrapperColor,
 			quantity: line.quantity,
 			unitPrice,
 			lineTotal: roundMoney(unitPrice * line.quantity),
@@ -95,6 +127,38 @@ export function priceCart(lines: CartLine[], catalog: Product[]): PricedCart {
 	};
 }
 
+/** A built bouquet: made to order, limited only by wrappers left. */
+function priceCustomLine(
+	line: CartLine,
+	design: CustomDesign,
+	settings: CustomBouquetSettings,
+): PricedLine {
+	const { unitPrice, wrapper, problem } = priceDesign(design, settings);
+	const maxQuantity = Math.min(MAX_PER_ORDER, wrapper?.stock ?? MAX_PER_ORDER);
+	return {
+		productId: CUSTOM_PRODUCT_ID,
+		variantId: line.variantId,
+		title: design.bills?.length ? "Money bouquet" : "Custom bouquet",
+		colorName: wrapper ? `${wrapper.name} wrapper` : "Custom",
+		colorHex: wrapper?.colorHex,
+		sku: "Custom",
+		image: CUSTOM_IMAGE,
+		recipe: design.items,
+		wrapperColor: wrapper?.name,
+		custom: design,
+		quantity: line.quantity,
+		unitPrice,
+		lineTotal: roundMoney(unitPrice * line.quantity),
+		maxQuantity,
+		problem: problem
+			? "unavailable"
+			: line.quantity > maxQuantity
+				? "over-stock"
+				: undefined,
+		problemText: problem,
+	};
+}
+
 /**
  * Coerces untrusted data (localStorage, request bodies) into valid cart lines:
  * drops malformed entries, merges duplicates and clamps quantities to 1–99.
@@ -104,10 +168,19 @@ export function sanitizeCartLines(raw: unknown): CartLine[] {
 	const merged = new Map<string, CartLine>();
 	for (const entry of raw) {
 		if (typeof entry !== "object" || entry === null) continue;
-		const { productId, variantId, quantity } = entry as Record<string, unknown>;
-		if (typeof productId !== "string" || typeof variantId !== "string")
-			continue;
+		const source = entry as Record<string, unknown>;
+		const { productId, quantity } = source;
+		let { variantId } = source;
+		if (typeof productId !== "string") continue;
 		if (typeof quantity !== "number" || !Number.isFinite(quantity)) continue;
+		let custom: CustomDesign | undefined;
+		if (productId === CUSTOM_PRODUCT_ID) {
+			custom = normalizeDesign(source.custom) ?? undefined;
+			if (!custom) continue;
+			// The id always follows the design, so it can't be spoofed.
+			variantId = designKey(custom);
+		}
+		if (typeof variantId !== "string") continue;
 		const qty = Math.floor(quantity);
 		if (qty < 1) continue;
 		const key = `${productId}::${variantId}`;
@@ -116,6 +189,7 @@ export function sanitizeCartLines(raw: unknown): CartLine[] {
 			productId,
 			variantId,
 			quantity: Math.min(99, (existing?.quantity ?? 0) + qty),
+			...(custom ? { custom } : {}),
 		});
 	}
 	return [...merged.values()];

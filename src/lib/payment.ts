@@ -13,13 +13,14 @@ export function isPaymentMethod(value: unknown): value is PaymentMethod {
 	return PAYMENT_METHODS.includes(value as PaymentMethod);
 }
 
-/** QR methods are settled outside the site, so they need proof of payment. */
+/** Shown wherever a shopper chooses to send their reference number later. */
+export const ON_HOLD_NOTICE =
+	"Your order is confirmed. To keep things moving, please complete your payment as soon as possible.";
+
+/** QR methods are settled outside the site, so they need a reference number. */
 export function isQrPayment(method: PaymentMethod): method is QrPaymentMethod {
 	return method !== "card";
 }
-
-export const PROOF_MAX_BYTES = 5 * 1024 * 1024;
-export const PROOF_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 export function validateReferenceNumber(value: string): string | undefined {
 	const compact = normalizeReferenceNumber(value);
@@ -32,17 +33,6 @@ export function validateReferenceNumber(value: string): string | undefined {
 /** Strips the spaces and dashes apps insert for readability. */
 export function normalizeReferenceNumber(value: string) {
 	return value.replace(/[\s-]/g, "");
-}
-
-export function validateProofFile(
-	file: { type: string; size: number } | null | undefined,
-): string | undefined {
-	if (!file || file.size === 0)
-		return "Upload a screenshot of your payment receipt.";
-	if (!PROOF_MIME_TYPES.includes(file.type))
-		return "Use a PNG, JPG or WEBP image.";
-	if (file.size > PROOF_MAX_BYTES) return "Keep the image under 5 MB.";
-	return undefined;
 }
 
 /**

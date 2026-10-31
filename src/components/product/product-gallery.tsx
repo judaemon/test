@@ -1,14 +1,23 @@
 import { createEffect, createSignal, For, on, Show } from "solid-js";
 
 import { Button } from "~/components/ui/button";
+import { Lightbox } from "~/components/zoom/zoomable-image";
 import { cn } from "~/lib/utils";
 
 import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
 
 const SWIPE_THRESHOLD_PX = 40;
 
+export interface GalleryPhoto {
+	src: string;
+	/** What the photo shows, e.g. "Top view". */
+	label: string;
+	/** Extra line shown over the photo, e.g. the holder's height. */
+	caption?: string;
+}
+
 interface ProductGalleryProps {
-	images: string[];
+	photos: GalleryPhoto[];
 	/** Product + color description, used to build each image's alt text. */
 	label: string;
 	class?: string;
@@ -17,21 +26,24 @@ interface ProductGalleryProps {
 export function ProductGallery(props: ProductGalleryProps) {
 	const [selectedIndex, setSelectedIndex] = createSignal(0);
 	let touchStartX: number | null = null;
+	/** Where the magnifier is aimed (CSS transform-origin), while the mouse is over the photo. */
+	const [lens, setLens] = createSignal<string | null>(null);
+	const [viewing, setViewing] = createSignal(false);
 
 	// A new variant brings a new image set; always open on its hero shot.
 	createEffect(
 		on(
-			() => props.images,
+			() => props.photos,
 			() => setSelectedIndex(0),
 			{ defer: true },
 		),
 	);
 
-	const count = () => props.images.length;
+	const count = () => props.photos.length;
 	const activeIndex = () => Math.min(selectedIndex(), count() - 1);
 	const hasMultiple = () => count() > 1;
 	const altFor = (index: number) =>
-		`${props.label}, image ${index + 1} of ${count()}`;
+		`${props.label}, ${props.photos[index]?.label ?? `image ${index + 1}`}`;
 
 	const go = (delta: number) =>
 		setSelectedIndex((activeIndex() + delta + count()) % count());
@@ -73,12 +85,26 @@ export function ProductGallery(props: ProductGalleryProps) {
 				onKeyDown={handleKeyDown}
 				onTouchStart={handleTouchStart}
 				onTouchEnd={handleTouchEnd}
-				class="group relative aspect-square w-full touch-pan-y overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:flex-1"
+				// Magnifying glass: on a mouse, the photo enlarges under the pointer.
+				onPointerMove={(event) => {
+					if (event.pointerType !== "mouse") return;
+					const box = event.currentTarget.getBoundingClientRect();
+					setLens(
+						`${((event.clientX - box.left) / box.width) * 100}% ${((event.clientY - box.top) / box.height) * 100}%`,
+					);
+				}}
+				onPointerLeave={() => setLens(null)}
+				onClick={(event) => {
+					// The arrow buttons sit on top; only clicks on the photo open it.
+					if ((event.target as HTMLElement).closest("button")) return;
+					setViewing(true);
+				}}
+				class="group relative aspect-square w-full cursor-zoom-in touch-pan-y overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:flex-1"
 			>
-				<For each={props.images}>
-					{(src, index) => (
+				<For each={props.photos}>
+					{(photo, index) => (
 						<img
-							src={src}
+							src={photo.src}
 							alt={index() === activeIndex() ? altFor(index()) : ""}
 							aria-hidden={index() !== activeIndex()}
 							width={800}
@@ -87,12 +113,55 @@ export function ProductGallery(props: ProductGalleryProps) {
 							decoding="async"
 							draggable={false}
 							class={cn(
-								"absolute inset-0 size-full object-cover transition-opacity duration-300 ease-out select-none",
+								"absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 ease-out select-none",
 								index() === activeIndex() ? "opacity-100" : "opacity-0",
 							)}
+							style={
+								index() === activeIndex() && lens()
+									? {
+											transform: "scale(2)",
+											"transform-origin": lens() as string,
+										}
+									: undefined
+							}
 						/>
 					)}
 				</For>
+
+				<button
+					type="button"
+					onClick={() => setViewing(true)}
+					class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+				>
+					<span aria-hidden="true">🔍</span> Zoom
+				</button>
+				<Show when={props.photos[activeIndex()]}>
+					{(photo) => (
+						<Lightbox
+							open={viewing()}
+							onOpenChange={setViewing}
+							src={photo().src}
+							alt={altFor(activeIndex())}
+							caption={photo().label}
+						/>
+					)}
+				</Show>
+
+				{/* Which view this is, so shoppers know what they're looking at. */}
+				<Show when={props.photos[activeIndex()]}>
+					{(photo) => (
+						<div class="pointer-events-none absolute left-3 top-3 flex flex-col items-start gap-1">
+							<span class="rounded-full bg-background/90 px-3 py-1 text-xs font-semibold shadow-sm">
+								{photo().label}
+							</span>
+							<Show when={photo().caption}>
+								<span class="rounded-full bg-background/90 px-3 py-1 text-xs shadow-sm">
+									{photo().caption}
+								</span>
+							</Show>
+						</div>
+					)}
+				</Show>
 
 				<Show when={hasMultiple()}>
 					<Button
@@ -134,12 +203,13 @@ export function ProductGallery(props: ProductGalleryProps) {
 					aria-label="Choose an image"
 					class="flex gap-2 overflow-x-auto pb-1 lg:w-20 lg:shrink-0 lg:flex-col lg:overflow-visible lg:pb-0"
 				>
-					<For each={props.images}>
-						{(src, index) => (
+					<For each={props.photos}>
+						{(photo, index) => (
 							<li class="shrink-0">
 								<button
 									type="button"
-									aria-label={`Show image ${index() + 1} of ${count()}`}
+									aria-label={`Show ${photo.label}`}
+									title={photo.label}
 									aria-current={index() === activeIndex() ? "true" : undefined}
 									onClick={() => setSelectedIndex(index())}
 									class={cn(
@@ -150,7 +220,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 									)}
 								>
 									<img
-										src={src}
+										src={photo.src}
 										alt=""
 										width={80}
 										height={80}
