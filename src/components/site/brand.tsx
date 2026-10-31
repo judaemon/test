@@ -1,26 +1,23 @@
 import type { ComponentProps } from "solid-js";
 
+import { cn } from "~/lib/utils";
+
 type SvgProps = ComponentProps<"svg">;
 
-/** Five-petal flower used as the ORAIA logo mark. */
-export function FlowerMark(props: SvgProps) {
+/**
+ * The ORAIA logo mark: traced from the brand logo into a sharp, transparent
+ * vector (public/images/brand/logo.svg). Decorative wherever it sits next to
+ * the name, so it's hidden from screen readers.
+ */
+export function FlowerMark(props: { class?: string }) {
 	return (
-		<svg aria-hidden="true" viewBox="0 0 32 32" {...props}>
-			<g transform="translate(16 16)">
-				{[0, 72, 144, 216, 288].map((angle) => (
-					<ellipse
-						cx="0"
-						cy="-7.5"
-						rx="5.5"
-						ry="7.5"
-						transform={`rotate(${angle})`}
-						class="fill-petal-300"
-					/>
-				))}
-				<circle r="4.2" class="fill-butter" />
-				<circle r="4.2" fill="none" class="stroke-petal-500" stroke-width="1" />
-			</g>
-		</svg>
+		<img
+			src="/images/brand/logo.svg"
+			alt=""
+			aria-hidden="true"
+			draggable={false}
+			class={cn("object-contain", props.class)}
+		/>
 	);
 }
 

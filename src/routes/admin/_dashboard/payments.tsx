@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-
+import { createCropper } from "~/components/admin/image-cropper";
 import {
 	adminButton,
 	adminCard,
@@ -79,8 +79,16 @@ function AccountEditor(props: { account: PaymentAccount }) {
 		}
 	};
 
+	const cropper = createCropper();
+
 	const uploadQr = async (files: FileList | null) => {
-		const file = files?.[0];
+		const chosen = files?.[0];
+		if (!chosen) return;
+		// Handy for trimming a QR code out of a screenshot.
+		const file = await cropper.crop(chosen, {
+			aspect: 1,
+			title: "Crop the QR code",
+		});
 		if (!file) return;
 		setUploading(true);
 		try {
@@ -102,6 +110,7 @@ function AccountEditor(props: { account: PaymentAccount }) {
 			class={cn(adminCard, "p-5")}
 			aria-label={`${props.account.label} settings`}
 		>
+			{cropper.element()}
 			<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 				<h2 class="text-lg font-semibold">{props.account.label}</h2>
 				<Toggle

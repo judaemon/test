@@ -17,7 +17,6 @@ import { asRecord, InputError, oneOf, text } from "../validate";
 const ALL_STAGES = [
 	"new",
 	"making",
-	"delivering",
 	"done",
 	"cancelled",
 ] as const satisfies readonly OrderStage[];
@@ -40,6 +39,7 @@ export const listAdminOrders = createServerFn({ method: "GET" })
 				? source.stages.map((stage) => oneOf(stage, ALL_STAGES, "Stage"))
 				: undefined,
 			needsVerification: source.needsVerification === true,
+			onHold: source.onHold === true,
 			search:
 				typeof source.search === "string"
 					? source.search.trim().slice(0, 80) || undefined

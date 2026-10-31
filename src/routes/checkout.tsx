@@ -1,11 +1,13 @@
+import * as Dialog from "@kobalte/core/dialog";
 import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
 import { createSignal, For, Match, Show, Switch } from "solid-js";
-import { createStore } from "solid-js/store";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
+import { ChoiceSelect } from "~/components/checkout/choice-select";
 import { PaymentSection } from "~/components/checkout/payment-section";
+import { ColorSwatch } from "~/components/order/company-label";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
@@ -17,49 +19,46 @@ import {
 	TextFieldLabel,
 	TextFieldTextArea,
 } from "~/components/ui/text-field";
+import {
+	CIVILIAN,
+	CLASS_LABELS,
+	CLASS_OPTIONS,
+	COMPANIES,
+	companyColor,
+} from "~/lib/cadets";
 import { cartStore, clearCart, setCartOpen } from "~/lib/cart-store";
 import {
 	type CheckoutField,
-	DELIVERY_SLOTS,
-	type DeliverySlot,
+	DEDICATION_MESSAGE_MAX,
 	type FieldErrors,
-	formatSlot,
-	GIFT_MESSAGE_MAX,
-	getDeliveryDays,
 	hasErrors,
-	isSlotOpen,
+	NAME_MAX,
+	NOTES_MAX,
 	type PaymentField,
 	readCheckoutForm,
 	validateCheckoutDetails,
 } from "~/lib/checkout";
+import { rememberOrder } from "~/lib/my-orders";
 import {
 	type CardInput,
 	cardDigits,
 	detectCardBrand,
 	isQrPayment,
+	ON_HOLD_NOTICE,
+	PAYMENT_METHOD_LABELS,
 	type PaymentMethod,
 	validateCard,
-	validateProofFile,
 	validateReferenceNumber,
 } from "~/lib/payment";
 import type { PricedCart } from "~/lib/pricing";
 import { formatPrice } from "~/lib/product";
-import { formatDate, shopNow } from "~/lib/time";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
-import { listMyAddresses } from "~/server/account";
 import { getCheckoutConfig, placeOrder } from "~/server/orders";
-import type { SavedAddress } from "~/types/account";
 import type { PaymentAccount } from "~/types/payment";
 
 export const Route = createFileRoute("/checkout")({
-	loader: async ({ context }) => {
-		const [config, savedAddresses] = await Promise.all([
-			getCheckoutConfig(),
-			context.user ? listMyAddresses() : Promise.resolve([]),
-		]);
-		return { ...config, savedAddresses };
-	},
+	loader: () => getCheckoutConfig(),
 	head: () => ({ meta: [{ title: "Checkout · ORAIA" }] }),
 	component: CheckoutPage,
 });
@@ -82,7 +81,7 @@ function CheckoutPage() {
 						when={user()}
 						fallback={
 							<p class="text-sm text-petal-900/65">
-								Have an account?{" "}
+								No account needed. Have one?{" "}
 								<Link
 									to="/sign-in"
 									search={{ redirect: "/checkout" }}
@@ -90,7 +89,7 @@ function CheckoutPage() {
 								>
 									Sign in
 								</Link>{" "}
-								to use saved addresses and track this order.
+								to track this order.
 							</p>
 						}
 					>
@@ -121,8 +120,7 @@ function CheckoutPage() {
 						<CheckoutForm
 							cart={cart()}
 							paymentAccounts={config().paymentAccounts}
-							savedAddresses={config().savedAddresses}
-							email={user()?.email}
+							name={user()?.name}
 						/>
 					</Match>
 				</Switch>
@@ -133,35 +131,35 @@ function CheckoutPage() {
 }
 
 const chip =
-	"flex h-full flex-col items-center rounded-2xl border border-petal-200 bg-white px-2 py-3 text-center transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2";
+	"flex h-full items-center justify-center rounded-2xl border border-petal-200 bg-white px-4 py-3 text-center text-sm font-medium transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2";
+
+const textAreaClass =
+	"rounded-xl border-petal-200 bg-white text-base placeholder:text-petal-900/35 focus-visible:ring-petal-500 sm:text-sm";
 
 function CheckoutForm(props: {
 	cart: PricedCart;
 	paymentAccounts: PaymentAccount[];
-	savedAddresses: SavedAddress[];
-	/** Signed-in shopper's email, used to prefill the contact field. */
-	email?: string;
+	/** Signed-in shopper's name, used to prefill the name field. */
+	name?: string;
 }) {
-	// Controlled so picking a saved address can fill them in.
-	const fromAddress = (address?: SavedAddress) => ({
-		recipientName: address?.recipientName ?? "",
-		address: address?.address ?? "",
-		city: address?.city ?? "",
-		postalCode: address?.postalCode ?? "",
-	});
-	const [recipient, setRecipient] = createStore(
-		fromAddress(props.savedAddresses.find((a) => a.isDefault)),
-	);
-	const isPicked = (address: SavedAddress) =>
-		recipient.recipientName === address.recipientName &&
-		recipient.address === address.address &&
-		recipient.city === address.city &&
-		recipient.postalCode === address.postalCode;
 	const navigate = useNavigate();
 	const [errors, setErrors] = createSignal<FieldErrors>({});
 	const [formError, setFormError] = createSignal<string | null>(null);
 	const [submitting, setSubmitting] = createSignal(false);
-	const [giftLength, setGiftLength] = createSignal(0);
+	const [className, setClassName] = createSignal("");
+	const [company, setCompany] = createSignal("");
+	const [addDedication, setAddDedication] = createSignal(false);
+	// Controlled, so the review step edits the same text as the form.
+	const [notes, setNotes] = createSignal("");
+	const [dedicationFor, setDedicationFor] = createSignal("");
+	const [dedicationMessage, setDedicationMessage] = createSignal("");
+	/** Open once the form is valid: a last look (and edit) before placing. */
+	const [reviewing, setReviewing] = createSignal(false);
+	/** Ticked in the review: orders can't be cancelled once placed. */
+	const [noCancelAccepted, setNoCancelAccepted] = createSignal(false);
+	/** "To follow": order now, send the reference number later. */
+	const [referenceLater, setReferenceLater] = createSignal(false);
+	let formRef!: HTMLFormElement;
 	const [paymentMethod, setPaymentMethod] = createSignal<PaymentMethod | null>(
 		null,
 	);
@@ -171,30 +169,27 @@ function CheckoutForm(props: {
 		expiry: "",
 		cvc: "",
 	});
-	const [proof, setProof] = createSignal<File | null>(null);
-
-	// Rendered client-side only (after the bag loads), so the clock can't
-	// differ between server and browser markup.
-	const clock = shopNow();
-	const deliveryDays = getDeliveryDays(clock);
-	const [deliveryDate, setDeliveryDate] = createSignal(
-		deliveryDays[0]?.date ?? clock.date,
-	);
-	const slotOpen = (slot: DeliverySlot) =>
-		isSlotOpen(slot, deliveryDate(), clock);
-	const firstOpenSlot = () => DELIVERY_SLOTS.find(slotOpen)?.id ?? "";
-	const [deliverySlot, setDeliverySlot] = createSignal(firstOpenSlot());
-	const chooseDay = (date: string) => {
-		setDeliveryDate(date);
-		clearError("deliveryDate");
-		const current = DELIVERY_SLOTS.find((slot) => slot.id === deliverySlot());
-		if (!current || !slotOpen(current)) setDeliverySlot(firstOpenSlot());
-	};
 	const hasProblem = () => props.cart.lines.some((line) => line.problem);
+	/** Only QR payments can wait; the choice is ignored if they switch to card. */
+	const onHold = () => {
+		const method = paymentMethod();
+		return referenceLater() && !!method && isQrPayment(method);
+	};
+	/** Best guess from the account name: first word, then the rest. */
+	const nameParts = () => {
+		const [first = "", ...rest] = (props.name ?? "").trim().split(/\s+/);
+		return { first, last: rest.join(" ") };
+	};
 
 	const clearError = (field: CheckoutField | PaymentField) => {
 		if (!errors()[field]) return;
 		setErrors(({ [field]: _, ...rest }) => rest);
+	};
+
+	const chooseDedication = (on: boolean) => {
+		setAddDedication(on);
+		clearError("dedicationFor");
+		clearError("dedicationMessage");
 	};
 
 	const focusFirstInvalid = (form: HTMLFormElement) =>
@@ -206,12 +201,12 @@ function CheckoutForm(props: {
 		const method = paymentMethod();
 		if (!method) return { paymentMethod: "Choose how you’d like to pay." };
 		if (isQrPayment(method)) {
+			if (referenceLater()) return {};
 			const reference = form.get("referenceNumber");
 			return {
 				referenceNumber: validateReferenceNumber(
 					typeof reference === "string" ? reference : "",
 				),
-				paymentProof: validateProofFile(proof()),
 			};
 		}
 		const cardErrors = validateCard(card(), new Date());
@@ -223,22 +218,46 @@ function CheckoutForm(props: {
 		};
 	};
 
-	const handleSubmit = async (event: SubmitEvent) => {
-		event.preventDefault();
-		if (submitting() || hasProblem()) return;
-		const form = event.currentTarget as HTMLFormElement;
-		const formData = new FormData(form);
+	/** Checks the whole form; returns its data when everything is valid. */
+	const validateForm = () => {
+		const formData = new FormData(formRef);
 		const details = readCheckoutForm(formData);
 		const fieldErrors = withoutEmpty({
-			...validateCheckoutDetails(details, shopNow()),
+			...validateCheckoutDetails(details),
 			...validatePayment(formData),
 		});
 		setErrors(fieldErrors);
 		setFormError(null);
-		if (hasErrors(fieldErrors)) {
-			focusFirstInvalid(form);
+		return hasErrors(fieldErrors) ? null : { formData, details };
+	};
+
+	// "Place order" on the form opens the review; nothing is saved yet.
+	const handleSubmit = (event: SubmitEvent) => {
+		event.preventDefault();
+		if (submitting() || hasProblem()) return;
+		if (validateForm()) {
+			setNoCancelAccepted(false);
+			setReviewing(true);
+		} else focusFirstInvalid(formRef);
+	};
+
+	/** Places the order from the review dialog, with any edits made there. */
+	const placeNow = async () => {
+		if (submitting() || hasProblem() || !noCancelAccepted()) return;
+		const valid = validateForm();
+		if (!valid) {
+			// Notes and dedication problems can be fixed right in the review.
+			const inReview = Object.keys(errors()).every((field) =>
+				["notes", "dedicationFor", "dedicationMessage"].includes(field),
+			);
+			if (!inReview) {
+				setReviewing(false);
+				focusFirstInvalid(formRef);
+			}
 			return;
 		}
+		const { formData, details } = valid;
+		const form = formRef;
 
 		setSubmitting(true);
 		try {
@@ -247,19 +266,19 @@ function CheckoutForm(props: {
 			// expiry and CVC must never leave the browser.
 			const payload = new FormData();
 			for (const [field, value] of Object.entries(details)) {
-				payload.set(field, value);
+				payload.set(field, String(value));
 			}
 			payload.set("lines", JSON.stringify(cartStore.state.lines));
+			payload.set("noCancellationAccepted", String(noCancelAccepted()));
 			const method = paymentMethod() as PaymentMethod;
 			payload.set("paymentMethod", method);
-			const screenshot = proof();
-			if (isQrPayment(method) && screenshot) {
+			if (isQrPayment(method)) {
+				payload.set("referenceLater", String(referenceLater()));
 				const reference = formData.get("referenceNumber");
 				payload.set(
 					"referenceNumber",
 					typeof reference === "string" ? reference : "",
 				);
-				payload.set("paymentProof", screenshot);
 			} else if (method === "card") {
 				const digits = cardDigits(card().number);
 				payload.set("cardBrand", detectCardBrand(digits));
@@ -270,10 +289,12 @@ function CheckoutForm(props: {
 				setFormError(result.message);
 				if (result.fieldErrors) {
 					setErrors(result.fieldErrors);
+					setReviewing(false);
 					focusFirstInvalid(form);
 				}
 				return;
 			}
+			rememberOrder(result.number, result.orderId);
 			// Leave the page before emptying the bag so it never flashes "empty".
 			await navigate({
 				to: "/order/$orderId",
@@ -291,255 +312,187 @@ function CheckoutForm(props: {
 
 	return (
 		<form
+			ref={formRef}
 			noValidate
 			onSubmit={handleSubmit}
 			class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]"
 		>
 			<div class="flex flex-col gap-6">
-				<Section title="Contact" step={1}>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<Field
-							name="email"
-							label="Email"
-							type="email"
-							autocomplete="email"
-							placeholder="you@example.com"
-							defaultValue={props.email}
-							error={errors().email}
-							onInput={() => clearError("email")}
+				<Section title="Your details" step={1}>
+					<div class="flex flex-col gap-4">
+						<ChoiceSelect
+							name="className"
+							label="Class"
+							placeholder="Choose your class"
+							options={CLASS_OPTIONS}
+							optionLabel={(value) =>
+								CLASS_LABELS[value as keyof typeof CLASS_LABELS] ?? value
+							}
+							value={className()}
+							onChange={(value) => {
+								setClassName(value);
+								// Civilians don't belong to a company.
+								if (value === CIVILIAN) setCompany("");
+								clearError("className");
+								clearError("company");
+							}}
+							error={errors().className}
+						/>
+						<ChoiceSelect
+							name="company"
+							label="Company"
+							placeholder={
+								className() === CIVILIAN
+									? "Not needed for civilians"
+									: "Choose your company"
+							}
+							options={COMPANIES.map((company) => company.name)}
+							optionPrefix={(value) => (
+								<ColorSwatch color={companyColor(value)} />
+							)}
+							value={company()}
+							onChange={(value) => {
+								setCompany(value);
+								clearError("company");
+							}}
+							disabled={className() === CIVILIAN}
+							error={errors().company}
 						/>
 						<Field
-							name="phone"
-							label="Mobile number"
-							type="tel"
-							autocomplete="tel"
-							placeholder="0917 123 4567"
-							description="For delivery and payment updates."
-							error={errors().phone}
-							onInput={() => clearError("phone")}
+							name="lastName"
+							label="Last name"
+							autocomplete="family-name"
+							maxLength={NAME_MAX}
+							defaultValue={nameParts().last}
+							error={errors().lastName}
+							onInput={() => clearError("lastName")}
+						/>
+						<Field
+							name="firstName"
+							label="First name"
+							autocomplete="given-name"
+							maxLength={NAME_MAX}
+							defaultValue={nameParts().first}
+							error={errors().firstName}
+							onInput={() => clearError("firstName")}
 						/>
 					</div>
 				</Section>
 
-				<Section title="Who are they for?" step={2}>
-					<Show when={props.savedAddresses.length > 0}>
-						<fieldset class="mb-4">
+				<Section title="Notes & dedication card" step={2}>
+					<div class="flex flex-col gap-5">
+						<TextField
+							name="notes"
+							value={notes()}
+							onChange={setNotes}
+							validationState={errors().notes ? "invalid" : "valid"}
+							class="gap-2"
+						>
+							<TextFieldLabel class="text-petal-900">
+								Notes{" "}
+								<span class="font-normal text-petal-900/50">(optional)</span>
+							</TextFieldLabel>
+							<TextFieldTextArea
+								maxLength={NOTES_MAX}
+								rows={2}
+								placeholder="Anything we should know about your order"
+								onInput={() => clearError("notes")}
+								class={textAreaClass}
+							/>
+							<TextFieldErrorMessage>{errors().notes}</TextFieldErrorMessage>
+						</TextField>
+
+						<fieldset>
 							<legend class="mb-2 text-sm font-medium">
-								Use a saved address
+								Free dedication card
 							</legend>
-							<div class="flex flex-wrap gap-2">
-								<For each={props.savedAddresses}>
-									{(address) => (
-										<button
-											type="button"
-											aria-pressed={isPicked(address)}
-											onClick={() => {
-												setRecipient(fromAddress(address));
-												for (const field of [
-													"recipientName",
-													"address",
-													"city",
-													"postalCode",
-												] as const)
-													clearError(field);
-											}}
-											class={cn(
-												"rounded-full border px-3.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
-												isPicked(address)
-													? "border-petal-700 bg-petal-50 font-medium"
-													: "border-petal-200 bg-white hover:bg-petal-50",
-											)}
-										>
-											{address.label}
-											<span class="text-petal-900/55">
-												{" "}
-												· {address.recipientName}
-											</span>
-										</button>
+							<p class="-mt-1 mb-2 text-sm text-petal-900/60">
+								We print your message on a card and tuck it into the bouquet, at
+								no extra cost.
+							</p>
+							<input
+								type="hidden"
+								name="addDedication"
+								value={String(addDedication())}
+							/>
+							<div class="grid grid-cols-2 gap-2">
+								<For
+									each={
+										[
+											[false, "No card"],
+											[true, "Add a free card"],
+										] as const
+									}
+								>
+									{([value, label]) => (
+										<label class="cursor-pointer">
+											<input
+												type="radio"
+												name="dedicationChoice"
+												checked={addDedication() === value}
+												onChange={() => chooseDedication(value)}
+												class="peer sr-only"
+											/>
+											<span class={chip}>{label}</span>
+										</label>
 									)}
 								</For>
 							</div>
 						</fieldset>
-					</Show>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<Field
-							name="recipientName"
-							label="Recipient’s name"
-							autocomplete="shipping name"
-							class="sm:col-span-2"
-							value={recipient.recipientName}
-							onValueChange={(value) => setRecipient("recipientName", value)}
-							error={errors().recipientName}
-							onInput={() => clearError("recipientName")}
-						/>
-						<Field
-							name="address"
-							label="Street address"
-							autocomplete="shipping street-address"
-							placeholder="House number, street, apartment"
-							class="sm:col-span-2"
-							value={recipient.address}
-							onValueChange={(value) => setRecipient("address", value)}
-							error={errors().address}
-							onInput={() => clearError("address")}
-						/>
-						<Field
-							name="city"
-							label="City"
-							autocomplete="shipping address-level2"
-							value={recipient.city}
-							onValueChange={(value) => setRecipient("city", value)}
-							error={errors().city}
-							onInput={() => clearError("city")}
-						/>
-						<Field
-							name="postalCode"
-							label="Postal code"
-							autocomplete="shipping postal-code"
-							value={recipient.postalCode}
-							onValueChange={(value) => setRecipient("postalCode", value)}
-							error={errors().postalCode}
-							onInput={() => clearError("postalCode")}
-						/>
+
+						<Show when={addDedication()}>
+							<div class="flex flex-col gap-4 rounded-2xl bg-petal-50 p-5">
+								<Field
+									name="dedicationFor"
+									label="To"
+									placeholder="Who the card is addressed to"
+									autocomplete="off"
+									maxLength={NAME_MAX}
+									value={dedicationFor()}
+									onValueChange={setDedicationFor}
+									error={errors().dedicationFor}
+									onInput={() => clearError("dedicationFor")}
+								/>
+								<TextField
+									name="dedicationMessage"
+									value={dedicationMessage()}
+									onChange={setDedicationMessage}
+									validationState={
+										errors().dedicationMessage ? "invalid" : "valid"
+									}
+									class="gap-2"
+								>
+									<TextFieldLabel class="text-petal-900">
+										Message
+									</TextFieldLabel>
+									<TextFieldTextArea
+										maxLength={DEDICATION_MESSAGE_MAX}
+										rows={5}
+										placeholder="Happy birthday, sunshine! 🌷"
+										onInput={() => clearError("dedicationMessage")}
+										class={textAreaClass}
+									/>
+									<div class="flex justify-between gap-4">
+										<TextFieldDescription class="text-petal-900/60">
+											Printed on a card tucked into the bouquet.
+										</TextFieldDescription>
+										<span
+											class="shrink-0 text-xs tabular-nums text-petal-900/50"
+											aria-hidden="true"
+										>
+											{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
+										</span>
+									</div>
+									<TextFieldErrorMessage>
+										{errors().dedicationMessage}
+									</TextFieldErrorMessage>
+								</TextField>
+							</div>
+						</Show>
 					</div>
 				</Section>
 
-				<Section title="Delivery day & time" step={3}>
-					<fieldset aria-describedby="delivery-hint delivery-error">
-						<legend class="sr-only">Choose a delivery day</legend>
-						<p id="delivery-hint" class="mb-3 text-sm text-petal-900/65">
-							{deliveryDays[0]?.offset === 0
-								? "Order before 2pm for free same-day delivery."
-								: "Same-day delivery closes at 2pm, so the earliest is tomorrow."}
-						</p>
-						<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-							<For each={deliveryDays}>
-								{(day) => (
-									<label class="cursor-pointer">
-										<input
-											type="radio"
-											name="deliveryDate"
-											value={day.date}
-											checked={deliveryDate() === day.date}
-											aria-invalid={errors().deliveryDate ? "true" : undefined}
-											onChange={() => chooseDay(day.date)}
-											class="peer sr-only"
-										/>
-										<span class={chip}>
-											<span class="text-[11px] font-medium uppercase tracking-wide text-petal-900/60">
-												{day.offset === 0
-													? "Today"
-													: day.offset === 1
-														? "Tomorrow"
-														: formatDate(day.date, { weekday: "short" })}
-											</span>
-											<span class="font-display type-soft text-lg font-semibold">
-												{formatDate(day.date, { day: "numeric" })}
-											</span>
-											<span class="text-xs text-petal-900/60">
-												{formatDate(day.date, { month: "short" })}
-											</span>
-										</span>
-									</label>
-								)}
-							</For>
-						</div>
-						<Show when={errors().deliveryDate}>
-							<p id="delivery-error" class="mt-2 text-xs text-destructive">
-								{errors().deliveryDate}
-							</p>
-						</Show>
-					</fieldset>
-
-					<fieldset class="mt-5" aria-describedby="slot-error">
-						<legend class="mb-3 text-sm font-medium">Delivery time</legend>
-						<div class="grid gap-2 sm:grid-cols-3">
-							<For each={DELIVERY_SLOTS}>
-								{(slot) => (
-									<label
-										class={cn(
-											"cursor-pointer",
-											!slotOpen(slot) && "cursor-not-allowed",
-										)}
-									>
-										<input
-											type="radio"
-											name="deliverySlot"
-											value={slot.id}
-											checked={deliverySlot() === slot.id}
-											disabled={!slotOpen(slot)}
-											aria-invalid={errors().deliverySlot ? "true" : undefined}
-											onChange={() => {
-												setDeliverySlot(slot.id);
-												clearError("deliverySlot");
-											}}
-											class="peer sr-only"
-										/>
-										<span
-											class={cn(
-												chip,
-												"py-2.5 peer-disabled:border-dashed peer-disabled:bg-transparent peer-disabled:opacity-50",
-											)}
-										>
-											<span class="text-sm font-medium">
-												{formatSlot(slot)}
-											</span>
-											<span class="text-xs text-petal-900/60">
-												{slotOpen(slot) ? "Available" : "Closed for today"}
-											</span>
-										</span>
-									</label>
-								)}
-							</For>
-						</div>
-						<Show when={errors().deliverySlot}>
-							<p id="slot-error" class="mt-2 text-xs text-destructive">
-								{errors().deliverySlot}
-							</p>
-						</Show>
-					</fieldset>
-				</Section>
-
-				<Section title="Add a little note" step={4}>
-					<TextField
-						name="giftMessage"
-						validationState={errors().giftMessage ? "invalid" : "valid"}
-						class="gap-2"
-					>
-						<TextFieldLabel class="text-petal-900">
-							Card message{" "}
-							<span class="font-normal text-petal-900/50">(optional)</span>
-						</TextFieldLabel>
-						<TextFieldTextArea
-							maxLength={GIFT_MESSAGE_MAX}
-							rows={3}
-							placeholder="Happy birthday, sunshine! 🌷"
-							onInput={(event: InputEvent) => {
-								setGiftLength(
-									(event.currentTarget as HTMLTextAreaElement).value.length,
-								);
-								clearError("giftMessage");
-							}}
-							class="rounded-xl border-petal-200 bg-white text-base focus-visible:ring-petal-500 sm:text-sm"
-						/>
-						<div class="flex justify-between gap-4">
-							<TextFieldDescription class="text-petal-900/60">
-								Handwritten on a card tucked into the bouquet.
-							</TextFieldDescription>
-							<span
-								class="shrink-0 text-xs tabular-nums text-petal-900/50"
-								aria-hidden="true"
-							>
-								{giftLength()}/{GIFT_MESSAGE_MAX}
-							</span>
-						</div>
-						<TextFieldErrorMessage>
-							{errors().giftMessage}
-						</TextFieldErrorMessage>
-					</TextField>
-				</Section>
-
-				<Section title="Payment" step={5}>
+				<Section title="Payment" step={3}>
 					<PaymentSection
 						accounts={props.paymentAccounts}
 						total={props.cart.total}
@@ -550,10 +503,10 @@ function CheckoutForm(props: {
 						onCardChange={(patch) =>
 							setCard((current) => ({ ...current, ...patch }))
 						}
-						proof={proof()}
-						onProofChange={setProof}
 						errors={errors()}
 						clearError={clearError}
+						referenceLater={referenceLater()}
+						onReferenceLaterChange={setReferenceLater}
 					/>
 				</Section>
 			</div>
@@ -572,7 +525,7 @@ function CheckoutForm(props: {
 					<button
 						type="button"
 						onClick={() => setCartOpen(true)}
-						class="rounded-full px-2 py-1 text-sm text-petal-700 underline-offset-4 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						class="rounded-full px-2 py-2.5 text-sm text-petal-700 underline-offset-4 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:py-1"
 					>
 						Edit bag
 					</button>
@@ -604,9 +557,11 @@ function CheckoutForm(props: {
 									</span>
 									<Show when={line.problem}>
 										<span class="block text-sm text-error-foreground">
-											{line.problem === "sold-out"
-												? "Sold out — remove to continue"
-												: `Only ${line.maxQuantity} available`}
+											{line.problem === "unavailable"
+												? `${line.problemText} Remove it to continue.`
+												: line.problem === "sold-out"
+													? "Sold out — remove to continue"
+													: `Only ${line.maxQuantity} available`}
 										</span>
 									</Show>
 								</span>
@@ -623,13 +578,21 @@ function CheckoutForm(props: {
 					<dd class="text-right tabular-nums">
 						{formatPrice(props.cart.subtotal, props.cart.currency)}
 					</dd>
-					<dt class="text-petal-900/70">Delivery</dt>
-					<dd class="text-right font-medium text-sage-600">Free</dd>
+					<Show when={addDedication()}>
+						<dt class="text-petal-900/70">Dedication card</dt>
+						<dd class="text-right font-medium text-sage-600">Free</dd>
+					</Show>
 					<dt class="pt-2 text-base font-semibold">Total</dt>
 					<dd class="pt-2 text-right text-base font-semibold tabular-nums">
 						{formatPrice(props.cart.total, props.cart.currency)}
 					</dd>
 				</dl>
+
+				<Show when={onHold()}>
+					<p class="rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
+						{ON_HOLD_NOTICE}
+					</p>
+				</Show>
 
 				<Show when={formError()}>
 					<p
@@ -651,7 +614,270 @@ function CheckoutForm(props: {
 						: `Place order · ${formatPrice(props.cart.total, props.cart.currency)}`}
 				</button>
 			</aside>
+
+			<Dialog.Root
+				open={reviewing()}
+				onOpenChange={(open) => !submitting() && setReviewing(open)}
+			>
+				<Dialog.Portal>
+					<Dialog.Overlay class="fixed inset-0 z-50 bg-petal-900/40 backdrop-blur-sm" />
+					<div class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+						<Dialog.Content class="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white text-petal-900 shadow-xl outline-none sm:rounded-3xl">
+							<div class="overflow-y-auto p-6">
+								<Dialog.Title class="font-display type-soft text-2xl font-semibold">
+									Review your order
+								</Dialog.Title>
+								<Dialog.Description class="mt-1 text-sm text-petal-900/65">
+									Check your notes and card message. You can still change them
+									before placing the order.
+								</Dialog.Description>
+
+								<ReviewSummary
+									form={formRef}
+									cart={props.cart}
+									paymentMethod={paymentMethod()}
+									referenceLater={onHold()}
+								/>
+								<Show when={onHold()}>
+									<div class="mt-3">
+										<p class="rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
+											{ON_HOLD_NOTICE}
+										</p>
+									</div>
+								</Show>
+
+								<div class="mt-5 flex flex-col gap-4">
+									<label class="flex flex-col gap-2">
+										<span class="text-sm font-medium">
+											Notes{" "}
+											<span class="font-normal text-petal-900/50">
+												(optional)
+											</span>
+										</span>
+										<textarea
+											value={notes()}
+											onInput={(e) => {
+												setNotes(e.currentTarget.value);
+												clearError("notes");
+											}}
+											maxLength={NOTES_MAX}
+											rows={2}
+											placeholder="Anything we should know about your order"
+											aria-invalid={errors().notes ? "true" : undefined}
+											class={cn(reviewInput, "py-2")}
+										/>
+										<Show when={errors().notes}>
+											<span class="text-xs text-destructive">
+												{errors().notes}
+											</span>
+										</Show>
+									</label>
+
+									<Show
+										when={addDedication()}
+										fallback={
+											<div class="flex items-center justify-between gap-3 rounded-2xl bg-petal-50 px-4 py-3 text-sm">
+												<span class="text-petal-900/65">
+													No dedication card.
+												</span>
+												<button
+													type="button"
+													onClick={() => chooseDedication(true)}
+													class="font-medium text-petal-700 underline-offset-2 hover:underline"
+												>
+													Add a free card
+												</button>
+											</div>
+										}
+									>
+										<div class="flex flex-col gap-3 rounded-2xl bg-petal-50 p-4">
+											<div class="flex items-center justify-between">
+												<span class="text-sm font-semibold">
+													Dedication card{" "}
+													<span class="font-medium text-sage-600">· Free</span>
+												</span>
+												<button
+													type="button"
+													onClick={() => chooseDedication(false)}
+													class="text-xs text-petal-900/60 underline-offset-2 hover:underline"
+												>
+													Remove
+												</button>
+											</div>
+											<label class="flex flex-col gap-1.5">
+												<span class="text-sm font-medium">To</span>
+												<input
+													value={dedicationFor()}
+													onInput={(e) => {
+														setDedicationFor(e.currentTarget.value);
+														clearError("dedicationFor");
+													}}
+													maxLength={NAME_MAX}
+													placeholder="Who the card is addressed to"
+													aria-invalid={
+														errors().dedicationFor ? "true" : undefined
+													}
+													class={cn(reviewInput, "h-11")}
+												/>
+												<Show when={errors().dedicationFor}>
+													<span class="text-xs text-destructive">
+														{errors().dedicationFor}
+													</span>
+												</Show>
+											</label>
+											<label class="flex flex-col gap-1.5">
+												<span class="flex justify-between text-sm font-medium">
+													Message
+													<span
+														class="text-xs font-normal tabular-nums text-petal-900/50"
+														aria-hidden="true"
+													>
+														{dedicationMessage().length}/
+														{DEDICATION_MESSAGE_MAX}
+													</span>
+												</span>
+												<textarea
+													value={dedicationMessage()}
+													onInput={(e) => {
+														setDedicationMessage(e.currentTarget.value);
+														clearError("dedicationMessage");
+													}}
+													maxLength={DEDICATION_MESSAGE_MAX}
+													rows={5}
+													aria-invalid={
+														errors().dedicationMessage ? "true" : undefined
+													}
+													class={cn(
+														reviewInput,
+														"py-2 font-display text-base italic",
+													)}
+												/>
+												<Show when={errors().dedicationMessage}>
+													<span class="text-xs text-destructive">
+														{errors().dedicationMessage}
+													</span>
+												</Show>
+											</label>
+										</div>
+									</Show>
+								</div>
+
+								<Show when={formError()}>
+									<p
+										role="alert"
+										class="mt-4 rounded-xl bg-error px-3 py-2 text-sm text-error-foreground"
+									>
+										{formError()}
+									</p>
+								</Show>
+							</div>
+
+							<div class="border-t border-petal-100 px-4 pt-4 text-center">
+								<p class="text-xl font-extrabold tracking-wide text-error-foreground">
+									NO CANCELLATION OF ORDERS
+								</p>
+								<label class="mx-auto mt-2 flex max-w-sm cursor-pointer items-start gap-3 py-1 text-left text-sm font-medium">
+									<input
+										type="checkbox"
+										checked={noCancelAccepted()}
+										onChange={(e) =>
+											setNoCancelAccepted(e.currentTarget.checked)
+										}
+										class="mt-0.5 size-5 shrink-0 accent-petal-700"
+									/>
+									I understand that my order can’t be cancelled once it’s
+									placed.
+								</label>
+							</div>
+							<div class="flex flex-col-reverse gap-2 p-4 sm:flex-row sm:justify-end">
+								<Dialog.CloseButton
+									disabled={submitting()}
+									class="h-12 rounded-full border border-petal-200 bg-white px-6 text-base font-medium transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									Back to checkout
+								</Dialog.CloseButton>
+								<button
+									type="button"
+									onClick={placeNow}
+									disabled={submitting() || hasProblem() || !noCancelAccepted()}
+									aria-busy={submitting()}
+									class={cn(pillPrimary, "sm:w-auto sm:px-8")}
+								>
+									{submitting()
+										? "Placing your order…"
+										: `Place order · ${formatPrice(props.cart.total, props.cart.currency)}`}
+								</button>
+							</div>
+						</Dialog.Content>
+					</div>
+				</Dialog.Portal>
+			</Dialog.Root>
 		</form>
+	);
+}
+
+const reviewInput =
+	"w-full rounded-xl border border-petal-200 bg-white px-3 text-base placeholder:text-petal-900/35 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 aria-[invalid=true]:border-destructive sm:text-sm";
+
+/** The parts of the order that can't change in the review: who, what, how. */
+function ReviewSummary(props: {
+	form: HTMLFormElement;
+	cart: PricedCart;
+	paymentMethod: PaymentMethod | null;
+	referenceLater: boolean;
+}) {
+	// Read once when the review opens; these fields stay on the form.
+	const data = new FormData(props.form);
+	const details = readCheckoutForm(data);
+	const reference = data.get("referenceNumber");
+	return (
+		<dl class="mt-5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 rounded-2xl border border-petal-100 p-4 text-sm">
+			<dt class="text-petal-900/60">Name</dt>
+			<dd class="font-medium">
+				{details.lastName}, {details.firstName}
+			</dd>
+			<dt class="text-petal-900/60">Class</dt>
+			<dd>
+				{CLASS_LABELS[details.className as keyof typeof CLASS_LABELS] ??
+					details.className}
+			</dd>
+			<Show when={details.company}>
+				<dt class="text-petal-900/60">Company</dt>
+				<dd class="flex items-center gap-1.5">
+					<ColorSwatch color={companyColor(details.company)} />
+					{details.company}
+				</dd>
+			</Show>
+			<dt class="text-petal-900/60">Bouquets</dt>
+			<dd>
+				{props.cart.lines
+					.map((line) => `${line.quantity} × ${line.title} (${line.colorName})`)
+					.join(", ")}
+			</dd>
+			<Show when={props.paymentMethod}>
+				{(method) => (
+					<>
+						<dt class="text-petal-900/60">Payment</dt>
+						<dd>
+							{PAYMENT_METHOD_LABELS[method()]}
+							<Show
+								when={!props.referenceLater}
+								fallback=" · Reference number to follow"
+							>
+								<Show when={typeof reference === "string" && reference}>
+									{" "}
+									· Ref {String(reference)}
+								</Show>
+							</Show>
+						</dd>
+					</>
+				)}
+			</Show>
+			<dt class="font-semibold">Total</dt>
+			<dd class="font-semibold tabular-nums">
+				{formatPrice(props.cart.total, props.cart.currency)}
+			</dd>
+		</dl>
 	);
 }
 
@@ -679,39 +905,33 @@ function Section(props: {
 function Field(props: {
 	name: CheckoutField;
 	label: string;
-	type?: "text" | "email" | "tel";
 	autocomplete?: string;
 	placeholder?: string;
 	description?: string;
-	optional?: boolean;
+	maxLength?: number;
 	error?: string;
 	class?: string;
+	defaultValue?: string;
 	/** Controlled value; leave unset for an uncontrolled field. */
 	value?: string;
 	onValueChange?: (value: string) => void;
-	defaultValue?: string;
 	onInput: () => void;
 }) {
 	return (
 		<TextField
 			name={props.name}
+			defaultValue={props.defaultValue}
 			value={props.value}
 			onChange={props.onValueChange}
-			defaultValue={props.defaultValue}
 			validationState={props.error ? "invalid" : "valid"}
 			class={cn("gap-2", props.class)}
 		>
-			<TextFieldLabel class="text-petal-900">
-				{props.label}
-				<Show when={props.optional}>
-					{" "}
-					<span class="font-normal text-petal-900/50">(optional)</span>
-				</Show>
-			</TextFieldLabel>
+			<TextFieldLabel class="text-petal-900">{props.label}</TextFieldLabel>
 			<TextFieldInput
-				type={props.type ?? "text"}
+				type="text"
 				autocomplete={props.autocomplete}
 				placeholder={props.placeholder}
+				maxLength={props.maxLength}
 				onInput={props.onInput}
 				class="h-11 rounded-xl border-petal-200 bg-white text-base placeholder:text-petal-900/35 focus-visible:ring-petal-500 sm:text-sm"
 			/>

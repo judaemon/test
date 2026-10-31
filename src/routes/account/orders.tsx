@@ -13,7 +13,7 @@ import {
 	ReorderButton,
 } from "~/components/account/order-tracker";
 import { pillPrimary } from "~/components/cart/cart-sheet";
-import { deliverySortKey } from "~/lib/checkout";
+import { orderDay, orderFor } from "~/lib/checkout";
 import { formatPrice } from "~/lib/product";
 import { formatDate } from "~/lib/time";
 import { listMyOrders } from "~/server/account";
@@ -34,10 +34,8 @@ function OrdersPage() {
 	const active = createMemo(() =>
 		orders()
 			.filter((order) => ACTIVE_STAGES.includes(order.stage))
-			// Soonest delivery first.
-			.sort((a, b) =>
-				deliverySortKey(a.details).localeCompare(deliverySortKey(b.details)),
-			),
+			// Oldest first: it's the one we'll finish next.
+			.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
 	);
 	const past = createMemo(() =>
 		orders().filter((order) => !ACTIVE_STAGES.includes(order.stage)),
@@ -115,13 +113,13 @@ function PastOrder(props: { order: CustomerOrder }) {
 					</p>
 					<p class="text-sm text-petal-900/60">
 						{order().stage === "cancelled" ? "Cancelled" : "Delivered"} ·{" "}
-						{formatDate(order().details.deliveryDate, {
+						{formatDate(orderDay(order().createdAt), {
 							month: "short",
 							day: "numeric",
 							year: "numeric",
 						})}{" "}
-						· {formatPrice(order().total, order().currency)} · to{" "}
-						{order().details.recipientName}
+						· {formatPrice(order().total, order().currency)} · for{" "}
+						{orderFor(order().details)}
 						<Show when={order().delivery.hasPhoto}> · Photo available</Show>
 					</p>
 				</div>

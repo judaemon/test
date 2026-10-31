@@ -12,7 +12,8 @@ const UPLOAD_ROOT = process.env.UPLOAD_DIR ?? ".data/uploads";
 export type UploadKind = "products" | "payments" | "proofs" | "delivery";
 export const PUBLIC_UPLOAD_KINDS: UploadKind[] = ["products", "payments"];
 
-export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+/** Phone photos can be large; cropped uploads come in far smaller. */
+export const IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 const FILE_NAME = /^[a-z0-9-]+\.(png|jpg|webp)$/;
 const FILE_ID = /^[a-z0-9-]+$/;
 const CONTENT_TYPES = {
@@ -34,7 +35,7 @@ export async function saveImage(
 ) {
 	if (file.size === 0) throw new UploadError("The file is empty.");
 	if (file.size > IMAGE_MAX_BYTES)
-		throw new UploadError("Keep images under 5 MB.");
+		throw new UploadError("Keep images under 20 MB.");
 	const bytes = new Uint8Array(await file.arrayBuffer());
 	const extension = sniffImageType(bytes.subarray(0, 12));
 	if (!extension) throw new UploadError("Use a PNG, JPG or WEBP image.");

@@ -2,18 +2,19 @@ import { Link } from "@tanstack/solid-router";
 import { createMemo, For, Show } from "solid-js";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
+import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { PrivateImage } from "~/components/order/private-image";
 import { showToast } from "~/components/ui/toast";
 import { setCartOpen } from "~/lib/cart-store";
-import { formatSlot, getSlot } from "~/lib/checkout";
+import { orderDay } from "~/lib/checkout";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { reorderToCart } from "~/lib/reorder";
 import { formatDate, SHOP_TIME_ZONE } from "~/lib/time";
 import { useCatalog } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
-import { type CustomerOrder, TRACKER_STEPS } from "~/types/order";
+import { type CustomerOrder, isPaymentDue, TRACKER_STEPS } from "~/types/order";
 
 const formatTime = (iso: string) =>
 	new Date(iso).toLocaleString("en-PH", {
@@ -59,14 +60,13 @@ export function ReorderButton(props: { order: CustomerOrder; class?: string }) {
 	);
 }
 
-/** Placed → Preparing → Out for delivery → Delivered, with times and rider. */
+/** Placed → Preparing → Delivered, with times and rider. */
 export function OrderTracker(props: {
 	order: CustomerOrder;
 	/** Off when embedded somewhere that already offers Re-order. */
 	showActions?: boolean;
 }) {
 	const order = () => props.order;
-	const slot = () => getSlot(order().details.deliverySlot);
 	const currentIndex = () =>
 		TRACKER_STEPS.findIndex((step) => step.stage === order().stage);
 	// Latest time each stage was reached (an order can move back and forth).
@@ -76,8 +76,9 @@ export function OrderTracker(props: {
 		return times;
 	});
 	const awaitingPayment = () =>
-		order().payment.status === "pending" ||
-		order().payment.status === "rejected";
+		order().payment.status === "pending" || paymentDue();
+	const paymentDue = () =>
+		order().stage === "new" && isPaymentDue(order().payment.status);
 
 	return (
 		<article
@@ -175,8 +176,10 @@ export function OrderTracker(props: {
 										>
 											<span class="block text-xs text-warning-foreground">
 												{order().payment.status === "rejected"
-													? "We couldn’t match your payment — we’ll be in touch."
-													: `Checking your ${PAYMENT_METHOD_LABELS[order().payment.method]} payment`}
+													? "We couldn’t match your payment. Please send it again."
+													: order().payment.status === "on_hold"
+														? "Confirmed, and on hold until we receive your payment."
+														: `Checking your ${PAYMENT_METHOD_LABELS[order().payment.method]} payment`}
 											</span>
 										</Show>
 										<span class="sr-only">
@@ -196,25 +199,23 @@ export function OrderTracker(props: {
 
 			<div class="mt-5 grid gap-4 border-t border-petal-100 pt-5 sm:grid-cols-2">
 				<div class="text-sm">
-					<p class="font-medium">
-						{order().stage === "done" ? "Delivered to" : "Delivering to"}
-					</p>
+					<p class="font-medium">Ordered by</p>
 					<p class="mt-1 text-petal-900/70">
-						{order().details.recipientName}
+						{order().details.fullName}
 						<br />
-						{order().details.address}, {order().details.city}
+						<CompanyLabel
+							company={order().details.company}
+							className={order().details.className}
+						/>
 					</p>
 					<p class="mt-2 text-petal-900/70">
-						{formatDate(order().details.deliveryDate)}
-						<Show when={slot()}>{(s) => <>, {formatSlot(s())}</>}</Show>
+						Placed {formatDate(orderDay(order().createdAt))}
+						<Show when={order().details.dedicationFor}>
+							{(name) => <> · for {name()}</>}
+						</Show>
 					</p>
 				</div>
-				<Show
-					when={
-						order().delivery.riderName &&
-						(order().stage === "delivering" || order().stage === "done")
-					}
-				>
+				<Show when={order().delivery.riderName && order().stage === "done"}>
 					<div class="rounded-2xl bg-sage-100 px-4 py-3 text-sm text-sage-600">
 						<p class="font-medium">Your rider</p>
 						<p class="mt-1 text-petal-900">{order().delivery.riderName}</p>
@@ -269,6 +270,16 @@ export function OrderTracker(props: {
 
 			<Show when={props.showActions ?? true}>
 				<div class="mt-5 flex flex-wrap items-center gap-3">
+					<Show when={paymentDue()}>
+						<Link
+							to="/pay/$orderNumber"
+							params={{ orderNumber: order().number }}
+							search={{ key: order().id }}
+							class={cn(pillPrimary, "h-10 w-auto px-5 text-sm")}
+						>
+							Pay now
+						</Link>
+					</Show>
 					<ReorderButton order={order()} />
 					<Link
 						to="/order/$orderId"

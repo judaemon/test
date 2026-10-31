@@ -1,5 +1,13 @@
-import type { AdminProduct, AdminVariant, Product } from "~/types/product";
+import { type BouquetSize, isBouquetSize } from "~/lib/sizes";
+import type {
+	AdminProduct,
+	AdminVariant,
+	PhotoTag,
+	Product,
+	RecipeItem,
+} from "~/types/product";
 import { fromCents, getDb, nowIso, toCents } from "./db";
+import { InputError } from "./validate";
 
 interface ProductRow {
 	id: string;
@@ -16,11 +24,17 @@ interface VariantRow {
 	sku: string;
 	color_name: string;
 	color_hex: string | null;
+	color_hex2: string | null;
 	swatch_image: string | null;
 	price_cents: number | null;
 	stock_quantity: number;
 	is_available: number;
 	images: string;
+	image_tags: string;
+	recipe: string;
+	wrapper_color: string;
+	size: string;
+	ai_photos: number;
 }
 
 function toVariant(row: VariantRow): AdminVariant {
@@ -30,12 +44,18 @@ function toVariant(row: VariantRow): AdminVariant {
 		sku: row.sku,
 		colorName: row.color_name,
 		colorHex: row.color_hex ?? undefined,
+		colorHex2: row.color_hex2 ?? undefined,
 		swatchImage: row.swatch_image ?? undefined,
 		price: row.price_cents === null ? undefined : fromCents(row.price_cents),
 		stockQuantity: row.stock_quantity,
 		isAvailable,
 		inStock: isAvailable && row.stock_quantity > 0,
 		images: JSON.parse(row.images) as string[],
+		imageTags: JSON.parse(row.image_tags) as PhotoTag[],
+		recipe: JSON.parse(row.recipe) as RecipeItem[],
+		wrapperColor: row.wrapper_color,
+		aiPhotos: row.ai_photos === 1,
+		size: isBouquetSize(row.size) ? row.size : "",
 	};
 }
 
@@ -90,10 +110,19 @@ export interface VariantInput {
 	sku: string;
 	colorName: string;
 	colorHex: string;
-	price: number | null;
+	/** Missing or empty for a single color. */
+	colorHex2?: string;
+	price: number;
 	stockQuantity: number;
 	isAvailable: boolean;
 	images: string[];
+	/** Missing means "by position". */
+	imageTags?: PhotoTag[];
+	recipe: RecipeItem[];
+	wrapperColor: string;
+	size: BouquetSize | "";
+	/** Starts on when left out. */
+	aiPhotos?: boolean;
 }
 
 export interface ProductInput {
@@ -189,12 +218,15 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 			input.variants.flatMap((v) => (v.id && existing.has(v.id) ? [v.id] : [])),
 		);
 		const upsert = db.query(
-			`INSERT INTO variants (product_id, id, sku, color_name, color_hex, price_cents, stock_quantity, is_available, images, sort)
-			 VALUES ($productId, $id, $sku, $colorName, $colorHex, $price, $stock, $available, $images, $sort)
+			`INSERT INTO variants (product_id, id, sku, color_name, color_hex, color_hex2, price_cents, stock_quantity, is_available,
+			   images, image_tags, recipe, wrapper_color, size, ai_photos, sort)
+			 VALUES ($productId, $id, $sku, $colorName, $colorHex, $colorHex2, $price, $stock, $available, $images, $imageTags, $recipe,
+			   $wrapperColor, $size, $aiPhotos, $sort)
 			 ON CONFLICT (product_id, id) DO UPDATE SET sku = excluded.sku, color_name = excluded.color_name,
-			   color_hex = excluded.color_hex, price_cents = excluded.price_cents,
+			   color_hex = excluded.color_hex, color_hex2 = excluded.color_hex2, price_cents = excluded.price_cents,
 			   stock_quantity = excluded.stock_quantity, is_available = excluded.is_available,
-			   images = excluded.images, sort = excluded.sort`,
+			   images = excluded.images, image_tags = excluded.image_tags, recipe = excluded.recipe, wrapper_color = excluded.wrapper_color, size = excluded.size, ai_photos = excluded.ai_photos,
+			   sort = excluded.sort`,
 		);
 		input.variants.forEach((variant, index) => {
 			const variantId =
@@ -208,10 +240,16 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				sku: variant.sku,
 				colorName: variant.colorName,
 				colorHex: variant.colorHex,
-				price: variant.price === null ? null : toCents(variant.price),
+				colorHex2: variant.colorHex2 || null,
+				price: toCents(variant.price),
 				stock: variant.stockQuantity,
 				available: variant.isAvailable ? 1 : 0,
 				images: JSON.stringify(variant.images),
+				imageTags: JSON.stringify(variant.imageTags ?? []),
+				recipe: JSON.stringify(variant.recipe),
+				wrapperColor: variant.wrapperColor,
+				size: variant.size,
+				aiPhotos: variant.aiPhotos === false ? 0 : 1,
 				sort: index,
 			});
 		});
@@ -251,4 +289,66 @@ export function updateVariantStock(
 		id: productId,
 		now: nowIso(),
 	});
+}
+
+export interface Rename {
+	from: string;
+	to: string;
+}
+
+/** Follows flower renames in every bouquet's recipe (past orders keep theirs). */
+export function renameRecipeFlowers(renames: Rename[]) {
+	if (renames.length === 0) return;
+	const db = getDb();
+	const to = new Map(renames.map((r) => [r.from, r.to]));
+	const rows = db
+		.query("SELECT product_id, id, recipe FROM variants")
+		.all() as { product_id: string; id: string; recipe: string }[];
+	const update = db.query(
+		"UPDATE variants SET recipe = $recipe WHERE product_id = $productId AND id = $id",
+	);
+	db.transaction(() => {
+		for (const row of rows) {
+			const recipe = JSON.parse(row.recipe) as RecipeItem[];
+			if (!recipe.some((item) => to.has(item.flower))) continue;
+			update.run({
+				productId: row.product_id,
+				id: row.id,
+				recipe: JSON.stringify(
+					recipe.map((item) => ({
+						...item,
+						flower: to.get(item.flower) ?? item.flower,
+					})),
+				),
+			});
+		}
+	})();
+}
+
+/**
+ * Deletes a product and all its colors. Past orders keep their own copy of
+ * what was bought, so they're unaffected.
+ */
+export function deleteProduct(productId: string) {
+	const { changes } = getDb()
+		.query("DELETE FROM products WHERE id = $id")
+		.run({ id: productId });
+	return changes > 0;
+}
+
+/** Deletes one color of a product; a product keeps at least one color. */
+export function deleteVariant(productId: string, variantId: string) {
+	const db = getDb();
+	return db.transaction(() => {
+		const { count } = db
+			.query("SELECT COUNT(*) AS count FROM variants WHERE product_id = $id")
+			.get({ id: productId }) as { count: number };
+		if (count <= 1)
+			throw new InputError(
+				"This is the product’s only color. Delete the whole product instead.",
+			);
+		db.query(
+			"DELETE FROM variants WHERE product_id = $productId AND id = $variantId",
+		).run({ productId, variantId });
+	})();
 }

@@ -79,7 +79,8 @@ export const savePaymentAccount = createServerFn({ method: "POST" })
 					max: 60,
 					required: enabled && method === "bank",
 				}),
-				qrImage: enabled || source.qrImage ? imageUrl(source.qrImage) : "",
+				// Optional: without a QR, checkout shows the account details only.
+				qrImage: source.qrImage ? imageUrl(source.qrImage) : "",
 				steps,
 			},
 		};

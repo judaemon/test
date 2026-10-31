@@ -11,7 +11,7 @@ interface QuantityStepperProps {
 }
 
 const stepButton =
-	"flex size-8 items-center justify-center rounded-full text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 disabled:pointer-events-none disabled:opacity-35 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
+	"flex size-10 items-center justify-center rounded-full text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 disabled:pointer-events-none disabled:opacity-35 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:size-8";
 
 /** Compact −/+ control for bag lines. Going below 1 is left to "Remove". */
 export function QuantityStepper(props: QuantityStepperProps) {

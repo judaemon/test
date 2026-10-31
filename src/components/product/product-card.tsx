@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 
-import { formatPrice, getVariantPrice } from "~/lib/product";
+import { formatPrice, getVariantPrice, swatchBackground } from "~/lib/product";
 import type { Product } from "~/types/product";
 
 const MAX_DOTS = 5;
@@ -48,7 +48,12 @@ export function ProductCard(props: { product: Product }) {
 								<span
 									aria-hidden="true"
 									class="size-3.5 rounded-full border border-black/10"
-									style={{ "background-color": variant.colorHex }}
+									style={{
+										background: swatchBackground(
+											variant.colorHex,
+											variant.colorHex2,
+										),
+									}}
 								/>
 							)}
 						</For>

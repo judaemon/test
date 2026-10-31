@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <title>Custom bouquet</title>
+  <rect width="400" height="400" fill="#fbf1ee"/>
+  <ellipse cx="200" cy="360" rx="80" ry="10" fill="#000" opacity="0.06"/>
+  <!-- Leaves -->
+  <g fill="#7fa36b">
+    <path d="M120 170 Q80 150 70 120 Q110 120 140 160 Z"/>
+    <path d="M280 170 Q320 150 330 120 Q290 120 260 160 Z"/>
+    <path d="M150 130 Q140 90 160 70 Q175 100 170 135 Z"/>
+  </g>
+  <!-- Mixed flowers -->
+  <g>
+    <circle cx="160" cy="165" r="34" fill="#f5c542"/>
+    <circle cx="160" cy="165" r="13" fill="#7a4a1f"/>
+    <circle cx="225" cy="150" r="30" fill="#e8607d"/>
+    <circle cx="225" cy="150" r="12" fill="#b8344f"/>
+    <circle cx="255" cy="200" r="26" fill="#f4ecd9"/>
+    <circle cx="255" cy="200" r="9" fill="#e0cfa8"/>
+    <circle cx="190" cy="205" r="24" fill="#a77bd1"/>
+    <circle cx="190" cy="205" r="8" fill="#7b4fa8"/>
+    <circle cx="140" cy="215" r="20" fill="#f28c6b"/>
+    <circle cx="140" cy="215" r="7" fill="#c55a3c"/>
+  </g>
+  <g fill="#ffffff" opacity="0.9">
+    <circle cx="205" cy="115" r="6"/><circle cx="270" cy="160" r="5"/>
+    <circle cx="125" cy="180" r="5"/><circle cx="230" cy="230" r="5"/>
+  </g>
+  <!-- Wrapper -->
+  <path d="M120 225 L200 355 L280 225 Z" fill="#e9d2bd"/>
+  <path d="M200 225 L200 355" stroke="#d4b89e" stroke-width="3"/>
+  <path d="M180 300 Q200 290 220 300 Q200 315 180 300 Z" fill="#c25b74"/>
+  <!-- Sparkle -->
+  <path d="M310 80 l6 14 14 6 -14 6 -6 14 -6 -14 -14 -6 14 -6 Z" fill="#f5c542"/>
+</svg>

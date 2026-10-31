@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/solid-start";
-
+import { findFlowerKind } from "~/lib/custom-bouquet";
+import { flowerCodeKey, isPhotoTag } from "~/lib/product";
+import { BOUQUET_SIZES } from "~/lib/sizes";
+import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
 import {
+	deleteProduct,
+	deleteVariant,
 	getAdminProduct,
 	listAdminProducts,
 	type ProductInput,
@@ -9,6 +14,7 @@ import {
 	updateVariantStock,
 	type VariantInput,
 } from "../catalog-repo";
+import { getCustomSettings } from "../custom-repo";
 import { publicUploadUrl, saveImage, UploadError } from "../uploads";
 import {
 	asRecord,
@@ -17,6 +23,7 @@ import {
 	imageUrl,
 	integer,
 	money,
+	oneOf,
 	text,
 } from "../validate";
 
@@ -24,6 +31,20 @@ export const listInventory = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
 		return listAdminProducts();
+	},
+);
+
+/** Every flower code in the shop, so the editor can warn about repeats. */
+export const listFlowerCodes = createServerFn({ method: "GET" }).handler(
+	async () => {
+		await requireStaff();
+		return listAdminProducts().flatMap((product) =>
+			product.variants.map((variant) => ({
+				code: variant.sku,
+				owner: `${product.title} · ${variant.colorName}`,
+				productId: product.id,
+			})),
+		);
 	},
 );
 
@@ -68,31 +89,103 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 	});
 	if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
 		throw new InputError(`${label} swatch must be a color like #f2a6b8.`);
+	// Optional second color for two-color choices.
+	const colorHex2 = text(source, "colorHex2", {
+		label: `${label} second swatch`,
+		max: 7,
+		required: false,
+	});
+	if (colorHex2 && !/^#[0-9a-fA-F]{6}$/.test(colorHex2))
+		throw new InputError(
+			`${label} second swatch must be a color like #ffffff.`,
+		);
 	const images = Array.isArray(source.images)
 		? source.images.map(imageUrl)
 		: [];
 	if (images.length === 0)
 		throw new InputError(`${label} needs at least one photo.`);
 	if (images.length > 12) throw new InputError(`${label} has too many photos.`);
+	const rawTags = Array.isArray(source.imageTags) ? source.imageTags : [];
+	const imageTags = images.map((_, i) =>
+		isPhotoTag(rawTags[i]) ? rawTags[i] : "",
+	);
 	return {
 		id:
 			typeof source.id === "string" && source.id
 				? source.id.slice(0, 80)
 				: undefined,
 		colorName: text(source, "colorName", { label: `${label} name`, max: 40 }),
-		sku: text(source, "sku", { label: `${label} SKU`, max: 40 }),
+		sku: flowerCode(source, label),
 		colorHex,
-		price:
-			source.price === null || source.price === undefined
-				? null
-				: money(source, "price", { label: `${label} price` }),
+		colorHex2,
+		price: money(source, "price", { label: `${label} price` }),
 		stockQuantity: integer(source, "stockQuantity", {
 			label: `${label} stock`,
 			max: 100_000,
 		}),
 		isAvailable: bool(source, "isAvailable"),
+		aiPhotos: bool(source, "aiPhotos"),
 		images,
+		imageTags,
+		recipe: parseRecipe(source.recipe, label),
+		wrapperColor: text(source, "wrapperColor", {
+			label: `${label} wrapper color`,
+			max: 40,
+			required: false,
+		}),
+		size: source.size
+			? oneOf(
+					source.size,
+					BOUQUET_SIZES.map((s) => s.id),
+					`${label} size`,
+				)
+			: "",
 	};
+}
+
+/** Flower codes are girls' names, e.g. "Bianca" or "Mary Ann". */
+function flowerCode(source: Record<string, unknown>, label: string) {
+	const code = text(source, "sku", { label: `${label} flower code`, max: 30 });
+	if (!/^\p{L}[\p{L} '.-]*$/u.test(code))
+		throw new InputError(
+			`${label} flower code should be a name, like Bianca — letters only.`,
+		);
+	return code;
+}
+
+function parseRecipe(raw: unknown, label: string): RecipeItem[] {
+	// Includes flowers staff added in Custom bouquets.
+	const settings = getCustomSettings();
+	const rows = Array.isArray(raw) ? raw : [];
+	if (rows.length > 20)
+		throw new InputError(`${label} recipe has too many flowers.`);
+	return rows.map((row) => {
+		const item = asRecord(row);
+		const flower = text(item, "flower", { label: `${label} flower`, max: 40 });
+		const kind = findFlowerKind(flower, settings);
+		if (!kind)
+			throw new InputError(`${label}: “${flower}” isn’t in the flower list.`);
+		const parsed: RecipeItem = { flower };
+		if (kind.colors) {
+			const color = text(item, "color", {
+				label: `${label} ${flower} color`,
+				max: 30,
+			});
+			if (kind.colors !== true && !kind.colors.includes(color))
+				throw new InputError(
+					`${label} ${flower} color must be ${kind.colors.join(" or ")}.`,
+				);
+			parsed.color = color;
+		}
+		// Cluster flowers (Gypsophila and the like) are never counted.
+		if (kind.counted)
+			parsed.count = integer(item, "count", {
+				label: `${label} ${flower} count`,
+				min: 1,
+				max: 500,
+			});
+		return parsed;
+	});
 }
 
 export const saveProductFn = createServerFn({ method: "POST" })
@@ -102,7 +195,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
 		const rawVariants = Array.isArray(product.variants) ? product.variants : [];
 		if (rawVariants.length === 0)
 			throw new InputError("Add at least one color.");
-		if (rawVariants.length > 20) throw new InputError("Too many colors.");
+		const variants = rawVariants.map(parseVariant);
 		const parsed: ProductInput = {
 			title: text(product, "title", { label: "Name", max: 120 }),
 			description: text(product, "description", {
@@ -110,13 +203,11 @@ export const saveProductFn = createServerFn({ method: "POST" })
 				max: 2000,
 				required: false,
 			}),
-			basePrice: money(product, "basePrice", { label: "Price" }),
+			// Prices are set per color; the product's is its cheapest ("From …").
+			basePrice: Math.min(...variants.map((v) => v.price)),
 			isVisible: bool(product, "isVisible"),
-			variants: rawVariants.map(parseVariant),
+			variants,
 		};
-		const names = parsed.variants.map((v) => v.colorName.toLowerCase());
-		if (new Set(names).size !== names.length)
-			throw new InputError("Each color needs a different name.");
 		return {
 			productId: typeof source.productId === "string" ? source.productId : null,
 			product: parsed,
@@ -124,6 +215,25 @@ export const saveProductFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
+		// A flower code names exactly one bouquet across the whole shop.
+		const taken = new Map<string, string>();
+		for (const product of listAdminProducts()) {
+			if (product.id === data.productId) continue;
+			for (const variant of product.variants)
+				taken.set(
+					flowerCodeKey(variant.sku),
+					`${product.title} · ${variant.colorName}`,
+				);
+		}
+		for (const variant of data.product.variants) {
+			const key = flowerCodeKey(variant.sku);
+			const owner = taken.get(key);
+			if (owner)
+				throw new InputError(
+					`The flower code “${variant.sku}” is already used by ${owner}.`,
+				);
+			taken.set(key, `${data.product.title} · ${variant.colorName}`);
+		}
 		const id = saveProduct(data.productId, data.product);
 		return getAdminProduct(id);
 	});
@@ -145,4 +255,29 @@ export const uploadProductImage = createServerFn({ method: "POST" })
 				return { ok: false as const, message: error.message };
 			throw error;
 		}
+	});
+
+export const deleteProductFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => ({
+		productId: text(asRecord(input), "productId", { max: 80 }),
+	}))
+	.handler(async ({ data }) => {
+		await requireStaff();
+		if (!deleteProduct(data.productId))
+			throw new InputError("That product was already deleted.");
+		return { ok: true as const };
+	});
+
+export const deleteVariantFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			productId: text(source, "productId", { max: 80 }),
+			variantId: text(source, "variantId", { max: 80 }),
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		deleteVariant(data.productId, data.variantId);
+		return getAdminProduct(data.productId) ?? null;
 	});

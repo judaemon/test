@@ -9,6 +9,7 @@
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
+import { CADET_CLASSES, CIVILIAN, COMPANIES } from "~/lib/cadets";
 import { priceCart } from "~/lib/pricing";
 import { addDays, shopNow } from "~/lib/time";
 import { getAuth } from "~/server/auth";
@@ -42,7 +43,6 @@ if (process.env.NODE_ENV === "production") {
 
 const RESET = process.argv.includes("--reset");
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? ".data/uploads";
-const RECEIPT = join(import.meta.dir, "fixtures", "sample-receipt.png");
 const REVIEWER = "Olivia Owner";
 
 const DEMO_ACCOUNTS = [
@@ -89,21 +89,27 @@ const DEMO_PRODUCTS: Array<{ id: string; input: ProductInput }> = [
 			variants: [
 				{
 					colorName: "Blush Pink",
-					sku: "ORA-POSY-BLUSH",
+					sku: "Bella",
 					colorHex: "#f2a6b8",
-					price: null,
+					price: 1499,
 					stockQuantity: 15,
 					isAvailable: true,
 					images: gallery("pastel-pink"),
+					recipe: [{ flower: "Roses", count: 6, color: "Pink" }, { flower: "Gypsophila" }],
+					wrapperColor: "White",
+					size: "petite",
 				},
 				{
 					colorName: "Ruby",
-					sku: "ORA-POSY-RUBY",
+					sku: "Ruby",
 					colorHex: "#a51c34",
 					price: 1599,
 					stockQuantity: 8,
 					isAvailable: true,
 					images: gallery("red-velvet"),
+					recipe: [{ flower: "Sunflower", count: 3 }, { flower: "Aster", color: "Violet" }],
+					wrapperColor: "Kraft brown",
+					size: "petite",
 				},
 			],
 		},
@@ -120,27 +126,26 @@ const DEMO_PRODUCTS: Array<{ id: string; input: ProductInput }> = [
 			variants: [
 				{
 					colorName: "Ivory",
-					sku: "ORA-BOX-IVORY",
+					sku: "Ivy",
 					colorHex: "#f4ecd9",
-					price: null,
+					price: 4999,
 					stockQuantity: 4,
 					isAvailable: true,
 					images: gallery("cream-white"),
+					recipe: [{ flower: "Stargazer", count: 5 }, { flower: "Roses", count: 12, color: "Cream" }],
+					wrapperColor: "Gold box",
+					size: "grand",
 				},
 			],
 		},
 	},
 ];
 
-type Slot = "morning" | "afternoon" | "evening";
 type Method = "card" | "gcash" | "maya" | "bank";
 
 interface DemoOrder {
-	/** Delivery day relative to today (shop time). */
-	day: number;
-	slot: Slot;
+	/** The buyer's full name. */
 	recipient: string;
-	city: string;
 	items: Array<[productId: string, variantId: string, quantity: number]>;
 	method: Method;
 	/** QR payments only; card orders are always paid. */
@@ -157,43 +162,25 @@ const POSY = "petite-rose-posy";
 
 // A spread that fills every board column, payment state and filter.
 const DEMO_ORDERS: DemoOrder[] = [
-	{ day: -2, slot: "afternoon", recipient: "Miguel Tan", city: "Makati", items: [[ROSES, "pastel-pink", 2]], method: "card", stage: "done", placedHoursAgo: 60, customer: true },
-	{ day: -1, slot: "morning", recipient: "Lea Ramos", city: "Taguig", items: [[POSY, "blush-pink", 1]], method: "maya", review: "verified", stage: "done", placedHoursAgo: 40 },
-	{ day: -1, slot: "evening", recipient: "Rosa Villanueva", city: "Pasig", items: [[ROSES, "red-velvet", 1]], method: "gcash", review: "verified", stage: "making", gift: "Sorry I missed your recital. So proud of you!", placedHoursAgo: 30 },
-	{ day: 0, slot: "morning", recipient: "Gina Flores", city: "Manila", items: [[ROSES, "red-velvet", 1]], method: "card", stage: "done", placedHoursAgo: 20 },
-	{ day: 0, slot: "morning", recipient: "Ana Reyes", city: "Quezon City", items: [[ROSES, "red-velvet", 2]], method: "card", stage: "delivering", gift: "Happy anniversary, mahal! Ten years and counting.", placedHoursAgo: 18, customer: true },
-	{ day: 0, slot: "morning", recipient: "Bea Santos", city: "Makati", items: [[ROSES, "pastel-pink", 1]], method: "gcash", review: "verified", stage: "making", gift: "Get well soon, Lola. We love you!", placedHoursAgo: 16, customer: true },
-	{ day: 0, slot: "afternoon", recipient: "Carlo Mendoza", city: "Mandaluyong", items: [[ROSES, "cream-white", 1]], method: "bank", review: "verified", stage: "making", placedHoursAgo: 14 },
-	{ day: 0, slot: "afternoon", recipient: "Dani Cruz", city: "Pasig", items: [[POSY, "ruby", 1]], method: "gcash", stage: "new", placedHoursAgo: 5 },
-	{ day: 0, slot: "afternoon", recipient: "Mark Uy", city: "Quezon City", items: [[ROSES, "pastel-pink", 1]], method: "card", stage: "cancelled", placedHoursAgo: 12 },
-	{ day: 0, slot: "evening", recipient: "Ella Garcia", city: "San Juan", items: [[ROSES, "red-velvet", 1], [POSY, "blush-pink", 1]], method: "card", stage: "new", gift: "Congratulations on the new job!", placedHoursAgo: 4 },
-	{ day: 0, slot: "evening", recipient: "Felix Lim", city: "Taguig", items: [[ROSES, "pastel-pink", 1]], method: "maya", review: "rejected", stage: "new", placedHoursAgo: 6 },
-	{ day: 1, slot: "morning", recipient: "Hana Aquino", city: "Quezon City", items: [[ROSES, "pastel-pink", 1]], method: "gcash", stage: "new", placedHoursAgo: 3, customer: true },
-	{ day: 1, slot: "afternoon", recipient: "Ivan Bautista", city: "Makati", items: [[ROSES, "red-velvet", 3]], method: "card", stage: "new", gift: "Happy birthday, Ma! Love, Ivan and Pia", placedHoursAgo: 2 },
-	{ day: 1, slot: "evening", recipient: "Joy Navarro", city: "Parañaque", items: [[POSY, "blush-pink", 2]], method: "bank", stage: "new", placedHoursAgo: 1 },
-	{ day: 2, slot: "morning", recipient: "Karl Dizon", city: "Pasig", items: [[ROSES, "red-velvet", 1]], method: "card", stage: "new", placedHoursAgo: 1 },
-	{ day: 3, slot: "afternoon", recipient: "Lia Morales", city: "Makati", items: [[ROSES, "cream-white", 1]], method: "maya", review: "verified", stage: "new", placedHoursAgo: 0.5 },
+	{ recipient: "Miguel Tan", items: [[ROSES, "pastel-pink", 2]], method: "card", stage: "done", placedHoursAgo: 60, customer: true },
+	{ recipient: "Lea Ramos", items: [[POSY, "blush-pink", 1]], method: "maya", review: "verified", stage: "done", placedHoursAgo: 40 },
+	{ recipient: "Rosa Villanueva", items: [[ROSES, "red-velvet", 1]], method: "gcash", review: "verified", stage: "making", gift: "Sorry I missed your recital. So proud of you!", placedHoursAgo: 30 },
+	{ recipient: "Gina Flores", items: [[ROSES, "red-velvet", 1]], method: "card", stage: "done", placedHoursAgo: 20 },
+	{ recipient: "Ana Reyes", items: [[ROSES, "red-velvet", 2]], method: "card", stage: "making", gift: "Happy anniversary, mahal! Ten years and counting.", placedHoursAgo: 18, customer: true },
+	{ recipient: "Bea Santos", items: [[ROSES, "pastel-pink", 1]], method: "gcash", review: "verified", stage: "making", gift: "Get well soon, Lola. We love you!", placedHoursAgo: 16, customer: true },
+	{ recipient: "Carlo Mendoza", items: [[ROSES, "cream-white", 1]], method: "bank", review: "verified", stage: "making", placedHoursAgo: 14 },
+	{ recipient: "Dani Cruz", items: [[POSY, "ruby", 1]], method: "gcash", stage: "new", placedHoursAgo: 5 },
+	{ recipient: "Mark Uy", items: [[ROSES, "pastel-pink", 1]], method: "card", stage: "cancelled", placedHoursAgo: 12 },
+	{ recipient: "Ella Garcia", items: [[ROSES, "red-velvet", 1], [POSY, "blush-pink", 1]], method: "card", stage: "new", gift: "Congratulations on the new job!", placedHoursAgo: 4 },
+	{ recipient: "Felix Lim", items: [[ROSES, "pastel-pink", 1]], method: "maya", review: "rejected", stage: "new", placedHoursAgo: 6 },
+	{ recipient: "Hana Aquino", items: [[ROSES, "pastel-pink", 1]], method: "gcash", stage: "new", placedHoursAgo: 3, customer: true },
+	{ recipient: "Ivan Bautista", items: [[ROSES, "red-velvet", 3]], method: "card", stage: "new", gift: "Happy birthday, Ma! Love, Ivan and Pia", placedHoursAgo: 2 },
+	{ recipient: "Joy Navarro", items: [[POSY, "blush-pink", 2]], method: "bank", stage: "new", placedHoursAgo: 1 },
+	{ recipient: "Karl Dizon", items: [[ROSES, "red-velvet", 1]], method: "card", stage: "new", placedHoursAgo: 1 },
+	{ recipient: "Lia Morales", items: [[ROSES, "cream-white", 1]], method: "maya", review: "verified", stage: "new", placedHoursAgo: 0.5 },
 ];
 
-const POSTAL_CODES: Record<string, string> = {
-	Makati: "1200",
-	Taguig: "1630",
-	Pasig: "1600",
-	Manila: "1000",
-	"Quezon City": "1100",
-	Mandaluyong: "1550",
-	"San Juan": "1500",
-	Parañaque: "1700",
-};
-
-const STREETS = [
-	"12 Sampaguita St",
-	"88 Ilang-Ilang Ave",
-	"5 Dama de Noche St",
-	"21 Camia Lane",
-	"7 Rosal St, Unit 3B",
-	"140 Gumamela Rd",
-];
+const DEDICATED_TO = ["Rosa", "Mahal", "Lola", "Ella", "Ma"];
 
 function userIdFor(email: string) {
 	const row = getDb()
@@ -347,8 +334,6 @@ async function main() {
 			`  · ${orderCount} orders already exist; skipping demo orders (use --reset to start over)`,
 		);
 	} else {
-		const today = shopNow().date;
-		await mkdir(join(UPLOAD_DIR, "proofs"), { recursive: true });
 		await mkdir(join(UPLOAD_DIR, "delivery"), { recursive: true });
 		let created = 0;
 		for (const [index, demo] of toCreate.entries()) {
@@ -368,7 +353,6 @@ async function main() {
 			}
 
 			const id = crypto.randomUUID();
-			const first = demo.recipient.split(" ")[0]?.toLowerCase() ?? "guest";
 			let payment: NewOrder["payment"];
 			if (demo.method === "card") {
 				payment = {
@@ -378,13 +362,10 @@ async function main() {
 					cardLast4: String(4242 + index * 37).slice(-4),
 				};
 			} else {
-				const proofFile = `${id}.png`;
-				await copyFile(RECEIPT, join(UPLOAD_DIR, "proofs", proofFile));
 				payment = {
 					method: demo.method,
 					status: "pending",
 					referenceNumber: String(1_000_000_000_000 + index * 7_654_321_987),
-					proofFile,
 				};
 			}
 
@@ -394,15 +375,18 @@ async function main() {
 				payment,
 				customerId: demo.customer ? customerId : undefined,
 				details: {
-					email: demo.customer ? DEMO_CUSTOMER : `${first}@example.com`,
-					phone: `0917 ${String(100 + index * 37).padStart(3, "0")} ${String(4000 + index * 211).slice(-4)}`,
-					recipientName: demo.recipient,
-					address: STREETS[index % STREETS.length] as string,
-					city: demo.city,
-					postalCode: POSTAL_CODES[demo.city] ?? "1000",
-					deliveryDate: addDays(today, demo.day),
-					deliverySlot: demo.slot,
-					giftMessage: demo.gift ?? "",
+					firstName: demo.recipient.split(" ")[0] as string,
+					lastName: demo.recipient.split(" ").slice(1).join(" "),
+					fullName: demo.recipient,
+					// Every fifth buyer is a civilian, who has no company.
+					className: index % 5 === 4 ? CIVILIAN : (CADET_CLASSES[index % CADET_CLASSES.length] as string),
+					company: index % 5 === 4 ? "" : COMPANIES[index % COMPANIES.length]?.name ?? "",
+					notes: index % 4 === 1 ? "Please wrap it in kraft paper." : "",
+					addDedication: !!demo.gift,
+					dedicationFor: demo.gift
+						? (DEDICATED_TO[index % DEDICATED_TO.length] as string)
+						: "",
+					dedicationMessage: demo.gift ?? "",
 				},
 			});
 			if (demo.review) reviewPayment(id, demo.review, REVIEWER);
@@ -412,7 +396,7 @@ async function main() {
 					? (["cancelled"] as const)
 					: BOARD_STAGES.slice(1, BOARD_STAGES.indexOf(demo.stage) + 1);
 			for (const stage of path) setOrderStage(id, stage);
-			if (demo.stage === "delivering" || demo.stage === "done") {
+			if (demo.stage === "done") {
 				setRider(id, RIDERS[index % RIDERS.length] as (typeof RIDERS)[number]);
 			}
 			if (demo.stage === "done") {

@@ -26,17 +26,17 @@ import { showToast } from "~/components/ui/toast";
 import { cn } from "~/lib/utils";
 
 export const adminInput =
-	"h-10 w-full rounded-xl border border-petal-200 bg-white px-3 text-sm text-petal-900 placeholder:text-petal-900/35 outline-none transition-colors focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30 disabled:opacity-50";
+	"h-11 w-full rounded-xl border border-petal-200 bg-white px-3 text-base text-petal-900 placeholder:text-petal-900/35 outline-none transition-colors focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30 disabled:opacity-50 sm:h-10 sm:text-sm";
 
 export const adminButton = {
 	primary:
-		"inline-flex h-10 items-center justify-center gap-2 rounded-full bg-petal-700 px-5 text-sm font-medium text-white transition-colors hover:bg-petal-900 disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2",
+		"inline-flex h-11 items-center justify-center gap-2 rounded-full bg-petal-700 px-5 text-sm font-medium text-white transition-colors hover:bg-petal-900 disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 sm:h-10",
 	secondary:
-		"inline-flex h-10 items-center justify-center gap-2 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium text-petal-900 transition-colors hover:bg-petal-50 disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+		"inline-flex h-11 items-center justify-center gap-2 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium text-petal-900 transition-colors hover:bg-petal-50 disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:h-10",
 	danger:
-		"inline-flex h-10 items-center justify-center gap-2 rounded-full border border-error-foreground/30 bg-white px-4 text-sm font-medium text-error-foreground transition-colors hover:bg-error disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-error-foreground/40",
+		"inline-flex h-11 items-center justify-center gap-2 rounded-full border border-error-foreground/30 bg-white px-4 text-sm font-medium text-error-foreground transition-colors hover:bg-error disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-error-foreground/40 sm:h-10",
 	ghost:
-		"inline-flex h-8 items-center justify-center gap-1 rounded-full px-2.5 text-sm text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 disabled:pointer-events-none disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+		"inline-flex h-10 items-center justify-center gap-1 rounded-full px-2.5 text-sm text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 disabled:pointer-events-none disabled:opacity-40 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:h-8",
 };
 
 export const adminCard = "rounded-2xl border border-petal-100 bg-white";
@@ -245,6 +245,19 @@ export const AdminIcons = {
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<circle cx="12" cy="8" r="4" />
 			<path d="M12 12v9M8 17c-2 0-4-1-4-3 2 0 4 1 4 3ZM16 17c2 0 4-1 4-3-2 0-4 1-4 3Z" />
+		</svg>
+	),
+	reports: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+		</svg>
+	),
+	custom: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M7 10 12 21l5-11" />
+			<circle cx="9" cy="7" r="3" />
+			<circle cx="15" cy="7" r="3" />
+			<path d="M19 3v4M17 5h4" />
 		</svg>
 	),
 	payments: (p: { class?: string }) => (

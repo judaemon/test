@@ -120,6 +120,121 @@ const MIGRATIONS = [
 	);
 	CREATE INDEX customer_occasions_by_user ON customer_occasions (user_id);
 	`,
+	// v3: checkout asks for name, company and class plus an optional dedication
+	// instead of a delivery address and time. The old columns stay for history.
+	// Payments move to the shop's Maribank and GCash accounts only.
+	`
+	ALTER TABLE orders ADD COLUMN first_name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE orders ADD COLUMN last_name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE orders ADD COLUMN full_name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE orders ADD COLUMN company TEXT NOT NULL DEFAULT '';
+	ALTER TABLE orders ADD COLUMN class_name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE orders ADD COLUMN notes TEXT NOT NULL DEFAULT '';
+	ALTER TABLE orders ADD COLUMN dedication_for TEXT NOT NULL DEFAULT '';
+	UPDATE orders SET full_name = recipient_name,
+		dedication_for = CASE WHEN gift_message != '' THEN recipient_name ELSE '' END;
+	CREATE INDEX orders_by_created ON orders (created_at);
+	UPDATE payment_accounts SET enabled = 0 WHERE method IN ('card', 'maya');
+	UPDATE payment_accounts SET enabled = 1, sort = 0, label = 'Bank transfer',
+		bank_name = 'Maribank', account_name = 'Lennie Lou Judaya',
+		account_number = '11114626063', qr_image = '',
+		steps = '["Open your banking app and transfer to the Maribank account below.","Send the exact amount, then screenshot the confirmation."]'
+		WHERE method = 'bank';
+	UPDATE payment_accounts SET enabled = 1, sort = 1, label = 'GCash',
+		account_name = 'Lennie Lou Judaya', account_number = '0976 037 6638',
+		qr_image = '',
+		steps = '["Open GCash and tap Send Money.","Send to the GCash number below.","Pay the exact amount, then screenshot the receipt."]'
+		WHERE method = 'gcash';
+	`,
+	// v4: checkout no longer takes a payment screenshot, only the reference number.
+	`
+	UPDATE payment_accounts SET steps = replace(replace(steps,
+		'then screenshot the confirmation.', 'then enter the reference number below.'),
+		'then screenshot the receipt.', 'then enter the reference number below.');
+	`,
+	// v5: orders are numbered #1, #2, … in the order they were placed.
+	`
+	UPDATE orders SET number = (
+		SELECT COUNT(*) FROM orders AS earlier
+		WHERE earlier.created_at < orders.created_at
+		   OR (earlier.created_at = orders.created_at AND earlier.id <= orders.id)
+	);
+	`,
+	// v6: each bouquet color has a recipe (flowers and counts) and a wrapper color.
+	`
+	ALTER TABLE variants ADD COLUMN recipe TEXT NOT NULL DEFAULT '[]';
+	ALTER TABLE variants ADD COLUMN wrapper_color TEXT NOT NULL DEFAULT '';
+	`,
+	// v7: flower codes are girls' names. Renames the starter codes; anything
+	// staff already changed is left alone.
+	`
+	UPDATE variants SET sku = CASE sku
+		WHEN 'BQ-ROSE-18-RED' THEN 'Scarlett'
+		WHEN 'BQ-ROSE-18-PNK' THEN 'Rosie'
+		WHEN 'BQ-ROSE-18-CRM' THEN 'Bianca'
+		WHEN 'BQ-ROSE-18-CRL' THEN 'Coral'
+		WHEN 'ORA-POSY-BLUSH' THEN 'Bella'
+		WHEN 'ORA-POSY-RUBY' THEN 'Ruby'
+		WHEN 'ORA-BOX-IVORY' THEN 'Ivy'
+		ELSE sku END;
+	`,
+	// v8: the "On the delivery bike" stage is gone. Orders that were in it go
+	// back to "Being made" so staff can mark them done themselves.
+	`
+	UPDATE orders SET stage = 'making' WHERE stage = 'delivering';
+	`,
+	// v9: a size-reference photo per product (someone holding the bouquet) and
+	// the holder's height, shown so shoppers can judge the size.
+	`
+	ALTER TABLE products ADD COLUMN size_reference_image TEXT NOT NULL DEFAULT '';
+	ALTER TABLE products ADD COLUMN holder_height_cm INTEGER;
+	UPDATE products SET size_reference_image = '/images/bouquets/size-reference.svg',
+		holder_height_cm = 165 WHERE id = 'signature-rose-bouquet';
+	`,
+	// v10: shop-wide settings stored as JSON, starting with the bouquet builder.
+	`
+	CREATE TABLE settings (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	`,
+	// v11: a size from the size guide (petite, classic, impressive, grand)
+	// replaces the size-reference photo and holder height, which go unused.
+	`
+	ALTER TABLE products ADD COLUMN size TEXT NOT NULL DEFAULT '';
+	UPDATE products SET size = 'classic' WHERE id = 'signature-rose-bouquet';
+	`,
+	// v12: two-color choices (a second swatch color) and why a shopper
+	// cancelled their own order.
+	`
+	ALTER TABLE variants ADD COLUMN color_hex2 TEXT;
+	ALTER TABLE orders ADD COLUMN cancel_reason TEXT;
+	`,
+	// v13: what each bouquet photo shows (front, side, top, size reference),
+	// tagged by staff. Empty means "by position", as before.
+	`
+	ALTER TABLE variants ADD COLUMN image_tags TEXT NOT NULL DEFAULT '[]';
+	`,
+	// v14: the size moves from the product to each color, which starts with
+	// its product's size. products.size stays but is no longer used.
+	`
+	ALTER TABLE variants ADD COLUMN size TEXT NOT NULL DEFAULT '';
+	UPDATE variants SET size = (SELECT size FROM products WHERE products.id = variants.product_id);
+	`,
+	// v15: every color has its own price; colors that used the product price
+	// get it written in. products.base_price_cents becomes the cheapest color.
+	`
+	UPDATE variants SET price_cents = (SELECT base_price_cents FROM products WHERE products.id = variants.product_id)
+	 WHERE price_cents IS NULL;
+	UPDATE products SET base_price_cents = (SELECT MIN(price_cents) FROM variants WHERE variants.product_id = products.id)
+	 WHERE EXISTS (SELECT 1 FROM variants WHERE variants.product_id = products.id);
+	`,
+	// v16: whether a color's photos have AI-enhanced backgrounds. Most do, so it
+	// starts on; staff switch it off for colors with untouched photos.
+	`
+	ALTER TABLE variants ADD COLUMN ai_photos INTEGER NOT NULL DEFAULT 1;
+	`,
 ];
 
 declare global {
@@ -163,12 +278,15 @@ export function seedStarterData(db: Database) {
 
 	if (count("products") === 0) {
 		const insertProduct = db.query(
-			`INSERT INTO products (id, title, description, base_price_cents, currency, is_visible, sort, created_at, updated_at)
-			 VALUES ($id, $title, $description, $price, $currency, $visible, $sort, $now, $now)`,
+			`INSERT INTO products (id, title, description, base_price_cents, currency, is_visible, size, sort,
+			   created_at, updated_at)
+			 VALUES ($id, $title, $description, $price, $currency, $visible, $size, $sort, $now, $now)`,
 		);
 		const insertVariant = db.query(
-			`INSERT INTO variants (product_id, id, sku, color_name, color_hex, price_cents, stock_quantity, is_available, images, sort)
-			 VALUES ($productId, $id, $sku, $colorName, $colorHex, $price, $stock, $available, $images, $sort)`,
+			`INSERT INTO variants (product_id, id, sku, color_name, color_hex, price_cents, stock_quantity, is_available,
+			   images, recipe, wrapper_color, size, sort)
+			 VALUES ($productId, $id, $sku, $colorName, $colorHex, $price, $stock, $available, $images, $recipe,
+			   $wrapperColor, $size, $sort)`,
 		);
 		db.transaction(() => {
 			seedProducts.forEach((product, productIndex) => {
@@ -179,6 +297,8 @@ export function seedStarterData(db: Database) {
 					price: toCents(product.basePrice),
 					currency: product.currency,
 					visible: product.isVisible ? 1 : 0,
+					// Sizes are set per color now.
+					size: "",
 					sort: productIndex,
 					now: nowIso(),
 				});
@@ -189,10 +309,13 @@ export function seedStarterData(db: Database) {
 						sku: variant.sku,
 						colorName: variant.colorName,
 						colorHex: variant.colorHex ?? null,
-						price: variant.price === undefined ? null : toCents(variant.price),
+						price: toCents(variant.price ?? product.basePrice),
 						stock: variant.stockQuantity,
 						available: variant.isAvailable ? 1 : 0,
 						images: JSON.stringify(variant.images),
+						recipe: JSON.stringify(variant.recipe),
+						wrapperColor: variant.wrapperColor,
+						size: variant.size ?? "",
 						sort: index,
 					});
 				});
