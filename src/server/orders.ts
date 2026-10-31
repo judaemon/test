@@ -15,6 +15,7 @@ import {
 	validateReferenceNumber,
 } from "~/lib/payment";
 import { type CartLine, priceCart, sanitizeCartLines } from "~/lib/pricing";
+import { styleLabel } from "~/lib/product";
 import {
 	type ActiveOrder,
 	type CustomerOrder,
@@ -220,7 +221,7 @@ export const listActiveOrders = createServerFn({ method: "GET" }).handler(
 			company: order.details.company,
 			fullName: order.details.fullName,
 			items: order.lines.map(
-				(line) => `${line.quantity} × ${line.title} · ${line.colorName}`,
+				(line) => `${line.quantity} × ${line.title} · ${styleLabel(line)}`,
 			),
 			total: order.total,
 			currency: order.currency,
@@ -296,7 +297,7 @@ export const getPayableOrder = createServerFn({ method: "GET" })
 			total: order.total,
 			currency: order.currency,
 			items: order.lines.map(
-				(line) => `${line.quantity} × ${line.title} · ${line.colorName}`,
+				(line) => `${line.quantity} × ${line.title} · ${styleLabel(line)}`,
 			),
 			status: orderStatus(order.stage, order.payment.status),
 			due,

@@ -119,7 +119,7 @@ function InventoryPage() {
 						type="search"
 						value={query()}
 						onInput={(e) => updateQuery(e.currentTarget.value)}
-						placeholder="Search flower code, color or product"
+						placeholder="Search style, color or product"
 						class={adminInput}
 					/>
 				</label>
@@ -201,7 +201,7 @@ function InventoryPage() {
 								<table class="stack-table w-full text-left text-sm md:min-w-[640px]">
 									<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 										<tr>
-											<th class="px-5 py-2.5 font-medium">Color</th>
+											<th class="px-5 py-2.5 font-medium">Style & color</th>
 											<th class="px-3 py-2.5 font-medium">Price</th>
 											<th class="px-3 py-2.5 font-medium">In stock</th>
 											<th class="px-3 py-2.5 font-medium">Selling</th>
@@ -342,7 +342,17 @@ function VariantRow(props: {
 						class="size-10 rounded-lg bg-petal-50 object-cover"
 					/>
 					<div>
-						<p class="flex items-center gap-1.5 font-medium">
+						<p class="font-semibold">
+							<Link
+								to="/admin/products/$productId"
+								params={{ productId: props.product.id }}
+								search={{ color: props.variant.id }}
+								class="underline-offset-2 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+							>
+								{props.variant.sku}
+							</Link>
+						</p>
+						<p class="flex items-center gap-1.5 text-petal-900/75">
 							<span
 								aria-hidden="true"
 								class="size-3 rounded-full border border-black/10"
@@ -353,17 +363,9 @@ function VariantRow(props: {
 									),
 								}}
 							/>
-							<Link
-								to="/admin/products/$productId"
-								params={{ productId: props.product.id }}
-								search={{ color: props.variant.id }}
-								class="underline-offset-2 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-							>
-								{props.variant.colorName}
-							</Link>
+							{props.variant.colorName}
 						</p>
 						<p class="text-xs text-petal-900/50">
-							Code: {props.variant.sku} ·{" "}
 							{bouquetSize(props.variant.size)?.name ?? "No size set"}
 						</p>
 						<Show

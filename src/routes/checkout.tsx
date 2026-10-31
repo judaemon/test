@@ -51,7 +51,7 @@ import {
 	validateReferenceNumber,
 } from "~/lib/payment";
 import type { PricedCart } from "~/lib/pricing";
-import { formatPrice } from "~/lib/product";
+import { formatPrice, styleLabel } from "~/lib/product";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { getCheckoutConfig, placeOrder } from "~/server/orders";
@@ -553,7 +553,7 @@ function CheckoutForm(props: {
 										{line.title}
 									</span>
 									<span class="block text-sm text-petal-900/60">
-										{line.colorName}
+										{styleLabel(line)}
 									</span>
 									<Show when={line.problem}>
 										<span class="block text-sm text-error-foreground">
@@ -851,7 +851,9 @@ function ReviewSummary(props: {
 			<dt class="text-petal-900/60">Bouquets</dt>
 			<dd>
 				{props.cart.lines
-					.map((line) => `${line.quantity} × ${line.title} (${line.colorName})`)
+					.map(
+						(line) => `${line.quantity} × ${line.title} (${styleLabel(line)})`,
+					)
 					.join(", ")}
 			</dd>
 			<Show when={props.paymentMethod}>

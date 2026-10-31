@@ -173,7 +173,7 @@ function OrdersPage() {
 							<th class="px-3 py-3 font-medium">Company</th>
 							<th class="px-3 py-3 font-medium">Class</th>
 							<th class="px-3 py-3 font-medium">Name</th>
-							<th class="px-3 py-3 font-medium">Flower code</th>
+							<th class="px-3 py-3 font-medium">Style</th>
 							<th class="px-3 py-3 font-medium">Photo</th>
 							<th class="px-3 py-3 text-right font-medium">Price</th>
 							<th class="px-3 py-3 font-medium">Payment</th>
@@ -285,10 +285,7 @@ function OrdersPage() {
 												? `${details.lastName}, ${details.firstName}`
 												: details.fullName}
 										</td>
-										<td
-											data-label="Flower code"
-											class="px-5 py-2 md:px-3 md:py-3"
-										>
+										<td data-label="Style" class="px-5 py-2 md:px-3 md:py-3">
 											<span class="font-semibold">{line.sku}</span>
 											<Show when={line.quantity > 1}>
 												<span class="ml-1 text-xs font-semibold">

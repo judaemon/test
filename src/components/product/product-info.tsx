@@ -123,7 +123,7 @@ export function ProductInfo(props: ProductInfoProps) {
 					{props.product.title}
 				</h1>
 				<p class="text-sm text-muted-foreground">
-					Flower code:{" "}
+					Style:{" "}
 					<span class="font-display type-soft text-lg font-semibold text-foreground">
 						{props.variant.sku}
 					</span>

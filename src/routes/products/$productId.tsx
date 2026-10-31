@@ -14,7 +14,7 @@ import {
 	BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { buttonVariants } from "~/components/ui/button";
-import { bouquetPhotos, resolveVariant } from "~/lib/product";
+import { bouquetPhotos, flowerCodeKey, resolveVariant } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { getProduct } from "~/server/catalog";
 import type { ProductVariant } from "~/types/product";
@@ -65,6 +65,14 @@ function ProductPage() {
 		resolveVariant(product(), search().variant),
 	);
 
+	// Only the colors of the style that was opened.
+	const styleColors = createMemo(() =>
+		product().variants.filter(
+			(variant) =>
+				flowerCodeKey(variant.sku) === flowerCodeKey(activeVariant().sku),
+		),
+	);
+
 	const selectVariant = (variant: ProductVariant) => {
 		if (variant.id === activeVariant().id) return;
 		navigate({
@@ -109,7 +117,7 @@ function ProductPage() {
 					</div>
 					<ProductInfo product={product()} variant={activeVariant()}>
 						<VariantSelector
-							variants={product().variants}
+							variants={styleColors()}
 							selectedId={activeVariant().id}
 							onSelect={selectVariant}
 							onPreview={preloadVariantImages}

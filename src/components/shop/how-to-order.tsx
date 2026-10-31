@@ -8,7 +8,8 @@ import { cn } from "~/lib/utils";
 const STEPS: { title: string; body: () => JSX.Element }[] = [
 	{
 		title: "Pick your bouquet",
-		body: () => "Tap a pre-made bouquet, or build your own. No account needed.",
+		body: () =>
+			"Tap a pre-made bouquet and choose its color, or build your own. No account needed.",
 	},
 	{
 		title: "Add it to your bag",

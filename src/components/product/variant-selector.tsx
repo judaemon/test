@@ -32,16 +32,6 @@ export function VariantSelector(props: VariantSelectorProps) {
 	const displayed = () =>
 		props.variants.find((variant) => variant.id === hoveredId()) ?? selected();
 
-	/** Two styles can share a color; the flower code tells them apart. */
-	const labelOf = (variant: ProductVariant) => {
-		const name = variant.colorName.toLowerCase();
-		const shared = props.variants.some(
-			(other) =>
-				other.id !== variant.id && other.colorName.toLowerCase() === name,
-		);
-		return shared ? `${variant.colorName} · ${variant.sku}` : variant.colorName;
-	};
-
 	const selectAt = (index: number) => {
 		const variant = props.variants[index];
 		if (!variant) return;
@@ -65,9 +55,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 		<div class={cn("flex flex-col gap-3", props.class)}>
 			<p id={labelId} class="text-sm">
 				<span class="text-muted-foreground">Color: </span>
-				<span class="font-semibold">
-					{displayed() ? labelOf(displayed() as ProductVariant) : ""}
-				</span>
+				<span class="font-semibold">{displayed()?.colorName}</span>
 				<Show when={displayed() && !displayed()?.inStock}>
 					<span class="text-muted-foreground"> (sold out)</span>
 				</Show>
@@ -94,8 +82,8 @@ export function VariantSelector(props: VariantSelectorProps) {
 									aria-checked={isSelected()}
 									aria-label={
 										variant.inStock
-											? labelOf(variant)
-											: `${labelOf(variant)}, sold out`
+											? variant.colorName
+											: `${variant.colorName}, sold out`
 									}
 									tabindex={isSelected() ? 0 : -1}
 									data-variant-id={variant.id}
@@ -155,7 +143,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 									</Show>
 								</TooltipTrigger>
 								<TooltipContent class="px-2.5 py-1 text-xs">
-									{labelOf(variant)}
+									{variant.colorName}
 									<Show when={!variant.inStock}>
 										<span class="text-muted-foreground"> · Sold out</span>
 									</Show>

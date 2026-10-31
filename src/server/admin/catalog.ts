@@ -34,7 +34,7 @@ export const listInventory = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-/** Every flower code in the shop, so the editor can warn about repeats. */
+/** Every style in the shop, so the editor can warn about repeats. */
 export const listFlowerCodes = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
@@ -145,10 +145,10 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 
 /** Flower codes are girls' names, e.g. "Bianca" or "Mary Ann". */
 function flowerCode(source: Record<string, unknown>, label: string) {
-	const code = text(source, "sku", { label: `${label} flower code`, max: 30 });
+	const code = text(source, "sku", { label: `${label} style`, max: 30 });
 	if (!/^\p{L}[\p{L} '.-]*$/u.test(code))
 		throw new InputError(
-			`${label} flower code should be a name, like Bianca — letters only.`,
+			`${label} style should be a name, like Bianca — letters only.`,
 		);
 	return code;
 }
@@ -215,7 +215,8 @@ export const saveProductFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
-		// A flower code names exactly one bouquet across the whole shop.
+		// A style (flower code) belongs to one product; colors sharing it within
+		// that product are the style's colors, and each can only appear once.
 		const taken = new Map<string, string>();
 		for (const product of listAdminProducts()) {
 			if (product.id === data.productId) continue;
@@ -225,14 +226,20 @@ export const saveProductFn = createServerFn({ method: "POST" })
 					`${product.title} · ${variant.colorName}`,
 				);
 		}
+		const seen = new Set<string>();
 		for (const variant of data.product.variants) {
 			const key = flowerCodeKey(variant.sku);
 			const owner = taken.get(key);
 			if (owner)
 				throw new InputError(
-					`The flower code “${variant.sku}” is already used by ${owner}.`,
+					`The style “${variant.sku}” is already used by ${owner}.`,
 				);
-			taken.set(key, `${data.product.title} · ${variant.colorName}`);
+			const color = `${key}::${variant.colorName.trim().toLowerCase()}`;
+			if (seen.has(color))
+				throw new InputError(
+					`Style “${variant.sku}” already has a color called “${variant.colorName}”.`,
+				);
+			seen.add(color);
 		}
 		const id = saveProduct(data.productId, data.product);
 		return getAdminProduct(id);

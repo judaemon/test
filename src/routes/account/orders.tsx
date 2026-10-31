@@ -14,7 +14,7 @@ import {
 } from "~/components/account/order-tracker";
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { orderDay, orderFor } from "~/lib/checkout";
-import { formatPrice } from "~/lib/product";
+import { formatPrice, styleLabel } from "~/lib/product";
 import { formatDate } from "~/lib/time";
 import { listMyOrders } from "~/server/account";
 import { ACTIVE_STAGES, type CustomerOrder } from "~/types/order";
@@ -108,7 +108,7 @@ function PastOrder(props: { order: CustomerOrder }) {
 				<div class="min-w-0 flex-1">
 					<p class="font-medium">
 						{order()
-							.lines.map((line) => `${line.quantity} × ${line.colorName}`)
+							.lines.map((line) => `${line.quantity} × ${styleLabel(line)}`)
 							.join(", ")}
 					</p>
 					<p class="text-sm text-petal-900/60">

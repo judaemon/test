@@ -8,6 +8,13 @@ export const MAX_PER_ORDER = 10;
 export const flowerCodeKey = (code: string) =>
 	code.trim().replace(/\s+/g, " ").toLowerCase();
 
+/** "Bianca · White" for a line; built bouquets have no style to name. */
+export function styleLabel(line: { sku: string; colorName: string }) {
+	return line.sku && line.sku !== "Custom"
+		? `${line.sku} · ${line.colorName}`
+		: line.colorName;
+}
+
 export function getMaxQuantity(variant: ProductVariant) {
 	if (!variant.inStock) return 0;
 	return Math.min(MAX_PER_ORDER, variant.stockQuantity ?? MAX_PER_ORDER);

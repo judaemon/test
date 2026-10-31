@@ -245,13 +245,60 @@ function ProductEditor() {
 		});
 	});
 
-	/** Adds a color and brings its card into view, ready to type its name. */
-	const addColor = () => {
+	/** Adds a style and brings its card into view, ready to type its color. */
+	const addStyle = () => {
 		setDraft("variants", (list) => [...list, newVariant()]);
 		requestAnimationFrame(() => {
 			const card = [
 				...document.querySelectorAll<HTMLElement>("[data-color-card]"),
 			].at(-1);
+			card?.scrollIntoView({ behavior: smoothly(), block: "start" });
+			card?.querySelector("input")?.focus({ preventScroll: true });
+		});
+	};
+
+	/** The same style as a card: its code, ignoring capitals and spaces. */
+	const sameStyle = (index: number, other: number) => {
+		const key = flowerCodeKey(draft.variants[index]?.sku ?? "");
+		return !!key && key === flowerCodeKey(draft.variants[other]?.sku ?? "");
+	};
+	/** "color 2 of 3": where this card sits among its style's colors. */
+	const styleCount = (index: number) =>
+		draft.variants.filter((_, i) => i === index || sameStyle(index, i)).length;
+	const stylePlace = (index: number) =>
+		draft.variants
+			.slice(0, index + 1)
+			.filter((_, i) => i === index || sameStyle(index, i)).length;
+
+	/** Adds a color under this style, right after the style's last color. */
+	const addColorToStyle = (index: number) => {
+		const source = draft.variants[index];
+		if (!source) return;
+		const after = draft.variants.reduce(
+			(last, _, i) => (sameStyle(index, i) ? i : last),
+			index,
+		);
+		// Same style, so it starts with the same details; photos are its own.
+		const color: VariantDraft = {
+			...newVariant(),
+			sku: source.sku,
+			price: source.price,
+			size: source.size,
+			wrapperColor: source.wrapperColor,
+			aiPhotos: source.aiPhotos,
+			recipe: source.recipe.map((item) => ({
+				...item,
+				key: crypto.randomUUID(),
+			})),
+		};
+		setDraft("variants", (list) => [
+			...list.slice(0, after + 1),
+			color,
+			...list.slice(after + 1),
+		]);
+		requestAnimationFrame(() => {
+			const card =
+				document.querySelectorAll<HTMLElement>("[data-color-card]")[after + 1];
 			card?.scrollIntoView({ behavior: smoothly(), block: "start" });
 			card?.querySelector("input")?.focus({ preventScroll: true });
 		});
@@ -273,11 +320,16 @@ function ProductEditor() {
 	const codeTakenBy = (index: number) => {
 		const key = flowerCodeKey(draft.variants[index]?.sku ?? "");
 		if (!key) return undefined;
-		const sameBouquet = draft.variants.find(
-			(variant, i) => i !== index && flowerCodeKey(variant.sku) === key,
+		const name = draft.variants[index]?.colorName.trim().toLowerCase();
+		const repeat = draft.variants.some(
+			(variant, i) =>
+				i !== index &&
+				sameStyle(index, i) &&
+				!!name &&
+				variant.colorName.trim().toLowerCase() === name,
 		);
-		if (sameBouquet)
-			return `Already used by ${sameBouquet.colorName || "another color"} in this bouquet.`;
+		if (repeat)
+			return `This style already has a color called ${draft.variants[index]?.colorName.trim()}.`;
 		const elsewhere = data().codes.find(
 			(entry) =>
 				entry.productId !== params().productId &&
@@ -363,7 +415,7 @@ function ProductEditor() {
 		if (repeated !== -1) {
 			toastError(
 				new Error(
-					`Flower code “${draft.variants[repeated]?.sku.trim()}”: ${codeTakenBy(repeated)}`,
+					`Style “${draft.variants[repeated]?.sku.trim()}”: ${codeTakenBy(repeated)}`,
 				),
 			);
 			document.querySelector<HTMLElement>('[data-code-taken="true"]')?.focus();
@@ -494,7 +546,7 @@ function ProductEditor() {
 				</div>
 			</section>
 
-			<h2 class="mb-3 text-lg font-semibold">Colors</h2>
+			<h2 class="mb-3 text-lg font-semibold">Styles</h2>
 
 			<div class="flex flex-col gap-4">
 				<Index each={draft.variants}>
@@ -508,9 +560,22 @@ function ProductEditor() {
 								openedColor() &&
 									openedColor() === variant().id &&
 									"ring-2 ring-petal-500",
+								// Further colors of a style sit under its first one.
+								index > 0 &&
+									sameStyle(index, index - 1) &&
+									"ml-4 border-l-4 border-l-petal-300 sm:ml-8",
 							)}
 							aria-label={variant().colorName || `Color ${index + 1}`}
 						>
+							<p class="mb-4 font-semibold">
+								{variant().sku.trim()
+									? `Style ${variant().sku.trim()}`
+									: "New style"}
+								<span class="font-normal text-petal-900/55">
+									{" "}
+									· color {stylePlace(index)} of {styleCount(index)}
+								</span>
+							</p>
 							<div class="grid gap-4 sm:grid-cols-6">
 								<Field label="Color name" class="sm:col-span-2">
 									<input
@@ -577,8 +642,8 @@ function ProductEditor() {
 									</label>
 								</div>
 								<Field
-									label="Flower code"
-									hint="A girl’s name, different for every bouquet."
+									label="Style (flower code)"
+									hint="A girl’s name. Colors of the same style share it."
 									class="sm:col-span-3"
 								>
 									<span class="flex gap-2">
@@ -601,7 +666,7 @@ function ProductEditor() {
 										/>
 										<button
 											type="button"
-											aria-label="Pick a random flower code"
+											aria-label="Pick a random style name"
 											onClick={() => pickFlowerCode(index)}
 											class={cn(adminButton.secondary, "shrink-0 px-3")}
 										>
@@ -971,7 +1036,14 @@ function ProductEditor() {
 								</ul>
 							</div>
 
-							<div class="mt-4 flex justify-end border-t border-petal-100 pt-3">
+							<div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-petal-100 pt-3">
+								<button
+									type="button"
+									class={adminButton.secondary}
+									onClick={() => addColorToStyle(index)}
+								>
+									+ Add color to this style
+								</button>
 								<Show
 									when={draft.variants.length > 1}
 									fallback={
@@ -1054,10 +1126,10 @@ function ProductEditor() {
 					<button
 						type="button"
 						class={cn(adminButton.secondary, barButton, "mr-auto")}
-						onClick={addColor}
+						onClick={addStyle}
 					>
-						+ <span class="hidden sm:inline">Add color</span>
-						<span class="sm:hidden">Color</span>
+						+ <span class="hidden sm:inline">Add style</span>
+						<span class="sm:hidden">Style</span>
 					</button>
 					<Link
 						to="/admin/products"

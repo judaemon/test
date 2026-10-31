@@ -17,7 +17,7 @@ import {
 import { CUSTOM_PRODUCT_ID, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem } from "~/lib/flowers";
 import type { PricedLine } from "~/lib/pricing";
-import { formatPrice, swatchBackground } from "~/lib/product";
+import { formatPrice, styleLabel, swatchBackground } from "~/lib/product";
 import { usePricedCart } from "~/lib/use-catalog";
 
 import { QuantityStepper } from "./quantity-stepper";
@@ -124,7 +124,7 @@ function BagLine(props: {
 	onRemove: (line: PricedLine) => void;
 }) {
 	const line = () => props.line;
-	const label = () => `${line().title}, ${line().colorName}`;
+	const label = () => `${line().title}, ${styleLabel(line())}`;
 
 	return (
 		<li class="flex gap-4 py-5">
@@ -178,7 +178,7 @@ function BagLine(props: {
 							background: swatchBackground(line().colorHex, line().colorHex2),
 						}}
 					/>
-					{line().colorName} · {formatPrice(line().unitPrice, props.currency)}
+					{styleLabel(line())} · {formatPrice(line().unitPrice, props.currency)}
 				</p>
 				<Show when={line().custom}>
 					<p class="mt-1 text-xs text-petal-900/60">

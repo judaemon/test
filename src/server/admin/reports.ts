@@ -161,10 +161,7 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 					line.sku === "Custom" ? line.title : `${line.sku}::${line.title}`;
 				const row = bouquets.get(key) ?? {
 					code: line.sku,
-					name:
-						line.sku === "Custom"
-							? line.title
-							: `${line.title} · ${line.colorName}`,
+					name: line.title,
 					image: line.image,
 					orders: 0,
 					orderIds: [],

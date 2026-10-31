@@ -6,16 +6,29 @@ import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT, TAGLINE } from "~/lib/contact";
+import { flowerCodeKey } from "~/lib/product";
 import { useCatalog } from "~/lib/use-catalog";
+import type { ProductVariant } from "~/types/product";
 
 /** The storefront: Battalion Hop launch header, the builder, then the catalog. */
 export function ShopPage() {
 	const catalog = useCatalog();
-	// Every color of every bouquet is its own card, named by its flower code.
+	// One card per style (its flower code); its colors are on the bouquet's
+	// page. The card leads with a color that's in stock.
 	const bouquets = () =>
-		catalog().flatMap((product) =>
-			product.variants.map((variant) => ({ product, variant })),
-		);
+		catalog().flatMap((product) => {
+			const styles = new Map<string, ProductVariant[]>();
+			for (const variant of product.variants) {
+				const key = flowerCodeKey(variant.sku);
+				styles.set(key, [...(styles.get(key) ?? []), variant]);
+			}
+			return [...styles.values()].map((colors) => ({
+				product,
+				variant:
+					colors.find((color) => color.inStock) ??
+					(colors[0] as ProductVariant),
+			}));
+		});
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">

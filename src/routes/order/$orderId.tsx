@@ -10,7 +10,7 @@ import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT } from "~/lib/contact";
 import { rememberOrder } from "~/lib/my-orders";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { formatPrice } from "~/lib/product";
+import { formatPrice, styleLabel } from "~/lib/product";
 import { useSessionUser } from "~/lib/use-catalog";
 import { getOrder } from "~/server/orders";
 import { isPaymentDue, type OrderPayment } from "~/types/order";
@@ -212,7 +212,7 @@ function OrderConfirmation() {
 									<span class="min-w-0 flex-1">
 										<span class="block font-medium">{line.title}</span>
 										<span class="block text-sm text-petal-900/60">
-											{line.colorName} · Qty {line.quantity}
+											{styleLabel(line)} · Qty {line.quantity}
 										</span>
 									</span>
 									<span class="text-sm font-medium tabular-nums">
