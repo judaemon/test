@@ -8,7 +8,7 @@ export const SHOP_HEAD = {
 		{
 			name: "description",
 			content:
-				"ORAIA's soft launch for Battalion Hop 2027: pre-made bouquets and custom orders.",
+				"ORAIA's soft launch for Battalion Hop 2027: signature bouquets and custom orders.",
 		},
 	],
 };

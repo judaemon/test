@@ -185,7 +185,7 @@ export const saveCustomSettingsFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
-		// A renamed flower keeps working in the pre-made bouquets that use it.
+		// A renamed flower keeps working in the signature bouquets that use it.
 		renameRecipeFlowers(data.renames);
 		return saveCustomSettings(data.settings);
 	});

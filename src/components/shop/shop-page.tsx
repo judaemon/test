@@ -99,7 +99,7 @@ export function ShopPage() {
 						</section>
 
 						<h2 class="mt-14 font-display type-soft text-2xl font-semibold">
-							Pre-made bouquets
+							Signature bouquets
 						</h2>
 						<Show
 							when={bouquets().length > 0}
