@@ -7,14 +7,26 @@ import {
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 
 import { CompanyLabel } from "~/components/order/company-label";
-import { OrderStatusPill } from "~/components/order/payment-status";
+import {
+	OrderStatusPill,
+	PaymentStatusPill,
+} from "~/components/order/payment-status";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
+import { orderDay } from "~/lib/checkout";
 import { rememberedOrderId } from "~/lib/my-orders";
+import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
+import { formatDate } from "~/lib/time";
+import { cn } from "~/lib/utils";
 import { findOrdersFn } from "~/server/orders";
-import { type ActiveOrder, ORDER_STATUS_LABELS } from "~/types/order";
+import {
+	type ActiveOrder,
+	ORDER_STATUS_LABELS,
+	type OrderStage,
+	TRACKER_STEPS,
+} from "~/types/order";
 
 /** Keeps statuses moving without a reload. */
 const REFRESH_MS = 60_000;
@@ -71,19 +83,26 @@ function OrderLookupPage() {
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
 			<SiteHeader />
-			<main class="mx-auto w-full max-w-2xl flex-1 px-4 pb-20 pt-12 sm:px-6 sm:pt-16">
+			{/* Centered until there are results to make room for. */}
+			<main
+				class={cn(
+					"mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 sm:px-6",
+					search().q ? "pb-20 pt-12 sm:pt-16" : "justify-center pb-24 pt-12",
+				)}
+			>
 				<header class="text-center">
 					<h1 class="font-display type-soft text-4xl font-semibold tracking-tight sm:text-5xl">
 						Check your order
 					</h1>
 					<p class="mt-3 text-petal-900/70">
-						Enter your name, email or serial number to see your orders.
+						Enter your name, email, serial number or payment reference number to
+						see your orders.
 					</p>
 				</header>
 
 				<form onSubmit={submit} class="mt-8 flex flex-col gap-2 sm:flex-row">
 					<label class="min-w-0 flex-1">
-						<span class="sr-only">Name, email or serial number</span>
+						<span class="sr-only">Name, email, serial or reference number</span>
 						<input
 							type="search"
 							value={query()}
@@ -91,7 +110,7 @@ function OrderLookupPage() {
 								setQuery(e.currentTarget.value);
 								setTooShort(false);
 							}}
-							placeholder="Name, email or serial number"
+							placeholder="Name, email, serial or reference number"
 							autocomplete="off"
 							aria-invalid={tooShort() ? "true" : undefined}
 							aria-describedby={tooShort() ? "lookup-error" : undefined}
@@ -126,8 +145,8 @@ function OrderLookupPage() {
 										No orders found
 									</p>
 									<p class="max-w-sm text-sm text-petal-900/65">
-										Check the spelling, or try your full email or serial number.
-										Still can’t find it?{" "}
+										Check the spelling, or try your full email, serial number or
+										reference number. Still can’t find it?{" "}
 										<Link
 											to="/shop"
 											class="font-medium text-petal-700 underline underline-offset-2"
@@ -168,49 +187,147 @@ function OrderCard(props: { order: ActiveOrder }) {
 			<div class="flex flex-wrap items-start justify-between gap-2">
 				<div class="min-w-0">
 					<p class="text-xs font-medium uppercase tracking-wide text-petal-900/55">
-						Order #{order().number}
+						Order #{order().number} · {formatDate(orderDay(order().createdAt))}
 					</p>
 					<p class="mt-0.5 font-semibold">{order().fullName}</p>
+					<div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-petal-900/65">
+						<Show when={order().className}>
+							<span>{order().className}</span>
+						</Show>
+						<Show when={order().company}>
+							<span aria-hidden="true">·</span>
+							<CompanyLabel
+								company={order().company}
+								className={order().className}
+								companyOnly
+							/>
+						</Show>
+					</div>
 				</div>
-				<OrderStatusPill status={order().status} />
-			</div>
-			<div class="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-petal-900/65">
-				<Show when={order().className}>
-					<span>{order().className}</span>
-				</Show>
-				<Show when={order().company}>
-					<span aria-hidden="true">·</span>
-					<CompanyLabel
-						company={order().company}
-						className={order().className}
-						companyOnly
-					/>
+				<Show when={order().stage === "cancelled"}>
+					<OrderStatusPill status="cancelled" />
 				</Show>
 			</div>
-			<div class="mt-3 border-t border-petal-50 pt-3 text-sm">
-				<For each={order().items}>{(item) => <p>{item}</p>}</For>
-			</div>
-			<div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-				<p class="font-semibold tabular-nums">
+
+			<Show when={order().stage !== "cancelled"}>
+				<Tracker stage={order().stage} />
+			</Show>
+
+			<ul class="mt-4 flex flex-col gap-3 border-t border-petal-50 pt-4 text-sm">
+				<For each={order().items}>
+					{(item) => (
+						<li class="flex items-center gap-3">
+							<Show
+								when={item.image}
+								fallback={
+									<span class="size-12 shrink-0 rounded-lg bg-petal-50" />
+								}
+							>
+								{(src) => (
+									<img
+										src={src()}
+										alt=""
+										loading="lazy"
+										class="size-12 shrink-0 rounded-lg bg-petal-50 object-cover"
+									/>
+								)}
+							</Show>
+							<span class="min-w-0 flex-1">
+								{item.name}
+								<span class="block text-xs text-petal-900/55">
+									Qty {item.quantity}
+								</span>
+							</span>
+							<span class="shrink-0 tabular-nums">
+								{formatPrice(item.total, order().currency)}
+							</span>
+						</li>
+					)}
+				</For>
+			</ul>
+
+			<dl class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 border-t border-petal-50 pt-4 text-sm">
+				<dt class="text-petal-900/60">Payment</dt>
+				<dd class="flex flex-wrap items-center justify-end gap-2">
+					{PAYMENT_METHOD_LABELS[order().paymentMethod]}
+					<Show when={order().stage !== "cancelled"}>
+						<PaymentStatusPill status={order().paymentStatus} />
+					</Show>
+				</dd>
+				<dt class="font-semibold">Total</dt>
+				<dd class="text-right font-semibold tabular-nums">
 					{formatPrice(order().total, order().currency)}
-				</p>
-				<Show when={payable()}>
-					<button
-						type="button"
-						onClick={() =>
-							navigate({
-								to: "/pay/$orderNumber",
-								params: { orderNumber: order().number },
-								search: { key: rememberedOrderId(order().number) },
-							})
-						}
-						aria-label={`${ORDER_STATUS_LABELS[order().status]}: pay for order ${order().number}`}
-						class="inline-flex h-10 items-center rounded-full bg-petal-700 px-5 text-sm font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2"
-					>
-						Pay now
-					</button>
-				</Show>
-			</div>
+				</dd>
+			</dl>
+
+			<Show when={payable()}>
+				<button
+					type="button"
+					onClick={() =>
+						navigate({
+							to: "/pay/$orderNumber",
+							params: { orderNumber: order().number },
+							search: { key: rememberedOrderId(order().number) },
+						})
+					}
+					aria-label={`${ORDER_STATUS_LABELS[order().status]}: pay for order ${order().number}`}
+					class="mt-4 inline-flex h-11 w-full items-center justify-center rounded-full bg-petal-700 px-5 text-sm font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2"
+				>
+					Pay now
+				</button>
+			</Show>
 		</li>
+	);
+}
+
+/** How far along the order is. */
+function Tracker(props: { stage: OrderStage }) {
+	const current = () =>
+		TRACKER_STEPS.findIndex((step) => step.stage === props.stage);
+	return (
+		<ol
+			class="mt-4 grid grid-cols-3 text-center text-xs"
+			aria-label="Order progress"
+		>
+			<For each={TRACKER_STEPS}>
+				{(step, index) => {
+					const reached = () => index() <= current();
+					return (
+						<li
+							aria-current={index() === current() ? "step" : undefined}
+							class="relative flex flex-col items-center gap-1.5"
+						>
+							<Show when={index() > 0}>
+								<span
+									aria-hidden="true"
+									class={cn(
+										"absolute right-1/2 top-[5px] h-0.5 w-full",
+										reached() ? "bg-petal-700" : "bg-petal-100",
+									)}
+								/>
+							</Show>
+							<span
+								aria-hidden="true"
+								class={cn(
+									"relative z-10 size-3 rounded-full",
+									reached() ? "bg-petal-700" : "bg-petal-100",
+								)}
+							/>
+							<span
+								class={cn(
+									index() === current()
+										? "font-semibold text-petal-900"
+										: reached()
+											? "text-petal-900/70"
+											: "text-petal-900/45",
+								)}
+							>
+								{step.label}
+							</span>
+						</li>
+					);
+				}}
+			</For>
+		</ol>
 	);
 }

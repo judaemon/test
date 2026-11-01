@@ -119,15 +119,25 @@ export interface CustomerOrder
  * One row of the public Active orders page. It only carries what that page
  * shows: no order id (that's the private link), notes or reference number.
  */
+/** An order as the public "Check your order" search shows it. */
 export interface ActiveOrder {
 	number: string;
+	createdAt: string;
 	className: string;
 	company: string;
 	fullName: string;
-	items: string[];
+	items: {
+		name: string;
+		quantity: number;
+		image?: string;
+		total: number;
+	}[];
 	total: number;
 	currency: string;
+	stage: OrderStage;
 	status: OrderStatus;
+	paymentMethod: PaymentMethod;
+	paymentStatus: PaymentStatus;
 }
 
 /** The customer-facing tracker, in order. Cancelled orders skip it. */

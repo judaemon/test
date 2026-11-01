@@ -1,6 +1,10 @@
 import type { CheckoutDetails } from "~/lib/checkout";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
-import type { CardBrand, PaymentMethod } from "~/lib/payment";
+import {
+	type CardBrand,
+	normalizeReferenceNumber,
+	type PaymentMethod,
+} from "~/lib/payment";
 import type { PricedCart, PricedLine } from "~/lib/pricing";
 import { lineName } from "~/lib/product";
 import {
@@ -259,15 +263,21 @@ export const ORDER_SEARCH_MIN = 3;
 
 /**
  * Orders for the public "Check your order" page, newest first: a whole email,
- * a whole serial number (with or without "C-"), or a name, where each word
- * typed starts a word of the name. Order numbers aren't searched: they run
- * 1, 2, 3…, so anyone could read through every order.
+ * a whole serial number (with or without "C-"), a whole payment reference
+ * number, or a name, where each word typed starts a word of the name. Order
+ * numbers aren't searched: they run 1, 2, 3…, so anyone could read through
+ * every order.
  */
 export function findOrders(query: string): Order[] {
 	const text = query.trim().toLowerCase();
 	if (text.length < ORDER_SEARCH_MIN) return [];
 	const params: Record<string, string> = { email: text };
 	const matches = ["lower(email) = $email"];
+	const reference = normalizeReferenceNumber(text);
+	if (reference.length >= ORDER_SEARCH_MIN) {
+		matches.push("upper(reference_number) = upper($reference)");
+		params.reference = reference;
+	}
 	const serial = /^(?:c\s*-?\s*)?(\d+)$/.exec(text)?.[1];
 	if (serial) {
 		matches.push("serial_number = $serial");

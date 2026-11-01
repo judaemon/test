@@ -216,13 +216,22 @@ export const findOrdersFn = createServerFn({ method: "GET" })
 	.handler(async ({ data }): Promise<ActiveOrder[]> => {
 		const rows = findOrders(data).map((order) => ({
 			number: order.number,
+			createdAt: order.createdAt,
 			className: order.details.className,
 			company: order.details.company,
 			fullName: order.details.fullName,
-			items: order.lines.map((line) => `${line.quantity} × ${lineName(line)}`),
+			items: order.lines.map((line) => ({
+				name: lineName(line),
+				quantity: line.quantity,
+				image: line.image,
+				total: line.lineTotal,
+			})),
 			total: order.total,
 			currency: order.currency,
+			stage: order.stage,
 			status: orderStatus(order.stage, order.payment.status),
+			paymentMethod: order.payment.method,
+			paymentStatus: order.payment.status,
 		}));
 		// Orders still in progress first; the rest stay newest first.
 		const finished = (row: ActiveOrder) =>
