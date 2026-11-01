@@ -35,7 +35,7 @@ export function SiteFooter() {
 							to="/active-orders"
 							class="py-2 text-sm font-medium text-petal-700 underline underline-offset-2"
 						>
-							Active orders
+							Check your order
 						</Link>
 					</div>
 				</div>

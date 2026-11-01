@@ -21,6 +21,7 @@ import { PaymentStatusPill } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
 import { PrivateImage } from "~/components/order/private-image";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
@@ -296,6 +297,12 @@ function OrderDetail() {
 							</dd>
 							<dt class="text-petal-900/60">Class</dt>
 							<dd>{details().className || "—"}</dd>
+							<Show when={details().serialNumber}>
+								<dt class="text-petal-900/60">Serial number</dt>
+								<dd class="tabular-nums">
+									{formatSerialNumber(details().serialNumber)}
+								</dd>
+							</Show>
 							<Show when={details().email}>
 								<dt class="text-petal-900/60">Email</dt>
 								<dd class="min-w-0 break-words">

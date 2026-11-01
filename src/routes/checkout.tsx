@@ -12,6 +12,11 @@ import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import {
+	InputGroup,
+	InputGroupAddon,
+	inputGroupControl,
+} from "~/components/ui/input-group";
+import {
 	TextField,
 	TextFieldDescription,
 	TextFieldErrorMessage,
@@ -32,11 +37,14 @@ import {
 	DEDICATION_MESSAGE_MAX,
 	EMAIL_MAX,
 	type FieldErrors,
+	formatSerialNumber,
 	hasErrors,
 	NAME_MAX,
 	NOTES_MAX,
 	type PaymentField,
 	readCheckoutForm,
+	SERIAL_NUMBER_MAX,
+	serialDigits,
 	validateCheckoutDetails,
 } from "~/lib/checkout";
 import { rememberOrder } from "~/lib/my-orders";
@@ -149,6 +157,7 @@ function CheckoutForm(props: {
 	const [submitting, setSubmitting] = createSignal(false);
 	const [className, setClassName] = createSignal("");
 	const [company, setCompany] = createSignal("");
+	const [serialNumber, setSerialNumber] = createSignal("");
 	// Controlled, so the review step edits the same text as the form.
 	const [notes, setNotes] = createSignal("");
 	const [dedicationFor, setDedicationFor] = createSignal("");
@@ -327,10 +336,14 @@ function CheckoutForm(props: {
 							value={className()}
 							onChange={(value) => {
 								setClassName(value);
-								// Civilians don't belong to a company.
-								if (value === CIVILIAN) setCompany("");
+								// Civilians don't have a company or a serial number.
+								if (value === CIVILIAN) {
+									setCompany("");
+									setSerialNumber("");
+								}
 								clearError("className");
 								clearError("company");
+								clearError("serialNumber");
 							}}
 							error={errors().className}
 						/>
@@ -354,6 +367,36 @@ function CheckoutForm(props: {
 							disabled={className() === CIVILIAN}
 							error={errors().company}
 						/>
+						<TextField
+							name="serialNumber"
+							value={serialNumber()}
+							onChange={(value) => setSerialNumber(serialDigits(value))}
+							disabled={className() === CIVILIAN}
+							validationState={errors().serialNumber ? "invalid" : "valid"}
+							class="gap-2"
+						>
+							<TextFieldLabel class="text-petal-900">
+								Serial number
+							</TextFieldLabel>
+							<InputGroup>
+								<TextFieldInput
+									inputMode="numeric"
+									autocomplete="off"
+									maxLength={SERIAL_NUMBER_MAX}
+									placeholder={
+										className() === CIVILIAN
+											? "Not needed for civilians"
+											: "numbers"
+									}
+									onInput={() => clearError("serialNumber")}
+									class={cn(inputGroupControl, "text-base sm:text-sm")}
+								/>
+								<InputGroupAddon>C-</InputGroupAddon>
+							</InputGroup>
+							<TextFieldErrorMessage>
+								{errors().serialNumber}
+							</TextFieldErrorMessage>
+						</TextField>
 						<Field
 							name="lastName"
 							label="Last name"
@@ -791,6 +834,10 @@ function ReviewSummary(props: {
 					<ColorSwatch color={companyColor(details.company)} />
 					{details.company}
 				</dd>
+			</Show>
+			<Show when={details.serialNumber}>
+				<dt class="text-petal-900/60">Serial number</dt>
+				<dd class="tabular-nums">{formatSerialNumber(details.serialNumber)}</dd>
 			</Show>
 			<dt class="text-petal-900/60">Bouquets</dt>
 			<dd>

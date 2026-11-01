@@ -28,6 +28,7 @@ interface OrderRow {
 	last_name: string;
 	full_name: string;
 	company: string;
+	serial_number: string;
 	class_name: string;
 	notes: string;
 	dedication_for: string;
@@ -88,6 +89,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 			lastName: row.last_name,
 			fullName: row.full_name,
 			company: row.company,
+			serialNumber: row.serial_number,
 			className: row.class_name,
 			email: row.email,
 			notes: row.notes,
@@ -199,11 +201,11 @@ export function createOrder(order: NewOrder): Order {
 		// The v1 address and delivery columns are NOT NULL, so new orders fill them with ''.
 		db.query(
 			`INSERT INTO orders (id, number, created_at, stage, stage_updated_at, email, phone, recipient_name,
-			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, class_name, notes,
+			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, serial_number, class_name, notes,
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
 			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id)
 			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
-			   $company, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
+			   $company, $serialNumber, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
 			   $customerId)`,
 		).run({
@@ -214,6 +216,7 @@ export function createOrder(order: NewOrder): Order {
 			lastName: order.details.lastName,
 			fullName: order.details.fullName,
 			company: order.details.company,
+			serialNumber: order.details.serialNumber,
 			className: order.details.className,
 			email: order.details.email,
 			notes: order.details.notes,
@@ -249,6 +252,45 @@ export function getOrderByNumber(number: string): Order | undefined {
 		.query("SELECT * FROM orders WHERE number = $number")
 		.get({ number }) as OrderRow | null;
 	return row ? toOrders([row])[0] : undefined;
+}
+
+/** Shortest thing the public order search will look up. */
+export const ORDER_SEARCH_MIN = 3;
+
+/**
+ * Orders for the public "Check your order" page, newest first: a whole email,
+ * a whole serial number (with or without "C-"), or a name, where each word
+ * typed starts a word of the name. Order numbers aren't searched: they run
+ * 1, 2, 3…, so anyone could read through every order.
+ */
+export function findOrders(query: string): Order[] {
+	const text = query.trim().toLowerCase();
+	if (text.length < ORDER_SEARCH_MIN) return [];
+	const params: Record<string, string> = { email: text };
+	const matches = ["lower(email) = $email"];
+	const serial = /^(?:c\s*-?\s*)?(\d+)$/.exec(text)?.[1];
+	if (serial) {
+		matches.push("serial_number = $serial");
+		params.serial = serial;
+	}
+	const words = text.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+	if (!text.includes("@") && !serial) {
+		matches.push(
+			`(${words
+				.map((word, i) => {
+					params[`word${i}`] = `% ${word.replace(/[\\%_]/g, "\\$&")}%`;
+					return `' ' || lower(full_name) LIKE $word${i} ESCAPE '\\'`;
+				})
+				.join(" AND ")})`,
+		);
+	}
+	const rows = getDb()
+		.query(
+			`SELECT * FROM orders WHERE ${matches.join(" OR ")}
+			 ORDER BY created_at DESC LIMIT 30`,
+		)
+		.all(params) as OrderRow[];
+	return toOrders(rows);
 }
 
 /** Everything a customer has ordered while signed in, newest first. */

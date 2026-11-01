@@ -161,70 +161,75 @@ function InventoryPage() {
 
 	return (
 		<div>
-			<PageHeader
-				title="Signature bouquets"
-				description="Each bouquet and its styles. Change a price or switch a style off right here; it saves straight away. A style that’s off stays in the shop but can’t be ordered."
-				actions={
-					<Link
-						to="/admin/signature-bouquets/$productId"
-						params={{ productId: "new" }}
-						class={adminButton.primary}
-					>
-						+ New bouquet
-					</Link>
-				}
-			/>
-			<ListToolbar
-				query={search().q ?? ""}
-				onQuery={(q) => setSearch({ q: q || undefined })}
-				placeholder="Bouquet or style name"
-				filters={[
-					filterOf("size", "Size", [
-						...sizes().map((size) => ({ key: size.id, label: size.name })),
-						{ key: "none", label: "No size set" },
-					]),
-					filterOf(
-						"flower",
-						"Flower",
-						flowerNames().map((name) => ({ key: name, label: name })),
-					),
-					filterOf("status", "In the shop", [
-						{ key: "shown", label: "Shown" },
-						{ key: "hidden", label: "Hidden" },
-					]),
-					filterOf("themes", "Styles", [
-						{ key: "all-available", label: "All available" },
-						{ key: "some-unavailable", label: "Some not available" },
-					]),
-				]}
-				sort={{
-					value: search().sort ?? "",
-					options: [
-						{ value: "", label: "Shop order" },
-						{ value: "name", label: "Name, A–Z" },
-						{ value: "name-desc", label: "Name, Z–A" },
-						{ value: "price", label: "Price, low to high" },
-						{ value: "price-desc", label: "Price, high to low" },
-					],
-					onChange: (sort) =>
-						setSearch({ sort: (sort || undefined) as InventorySearch["sort"] }),
-				}}
-				summary={
-					filtered()
-						? `${visible().length} of ${products.length} bouquets`
-						: `${products.length} bouquets`
-				}
-				filtered={filtered()}
-				onClear={() =>
-					setSearch({
-						q: undefined,
-						size: undefined,
-						status: undefined,
-						themes: undefined,
-						flower: undefined,
-					})
-				}
-			/>
+			{/* Stays in view on wider screens; on phones it would fill the screen. */}
+			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
+				<PageHeader
+					title="Signature bouquets"
+					description="Each bouquet and its styles. Change a price or switch a style off right here; it saves straight away. A style that’s off stays in the shop but can’t be ordered."
+					actions={
+						<Link
+							to="/admin/signature-bouquets/$productId"
+							params={{ productId: "new" }}
+							class={adminButton.primary}
+						>
+							+ New bouquet
+						</Link>
+					}
+				/>
+				<ListToolbar
+					query={search().q ?? ""}
+					onQuery={(q) => setSearch({ q: q || undefined })}
+					placeholder="Bouquet or style name"
+					filters={[
+						filterOf("size", "Size", [
+							...sizes().map((size) => ({ key: size.id, label: size.name })),
+							{ key: "none", label: "No size set" },
+						]),
+						filterOf(
+							"flower",
+							"Flower",
+							flowerNames().map((name) => ({ key: name, label: name })),
+						),
+						filterOf("status", "In the shop", [
+							{ key: "shown", label: "Shown" },
+							{ key: "hidden", label: "Hidden" },
+						]),
+						filterOf("themes", "Styles", [
+							{ key: "all-available", label: "All available" },
+							{ key: "some-unavailable", label: "Some not available" },
+						]),
+					]}
+					sort={{
+						value: search().sort ?? "",
+						options: [
+							{ value: "", label: "Shop order" },
+							{ value: "name", label: "Name, A–Z" },
+							{ value: "name-desc", label: "Name, Z–A" },
+							{ value: "price", label: "Price, low to high" },
+							{ value: "price-desc", label: "Price, high to low" },
+						],
+						onChange: (sort) =>
+							setSearch({
+								sort: (sort || undefined) as InventorySearch["sort"],
+							}),
+					}}
+					summary={
+						filtered()
+							? `${visible().length} of ${products.length} bouquets`
+							: `${products.length} bouquets`
+					}
+					filtered={filtered()}
+					onClear={() =>
+						setSearch({
+							q: undefined,
+							size: undefined,
+							status: undefined,
+							themes: undefined,
+							flower: undefined,
+						})
+					}
+				/>
+			</div>
 			<div class="flex flex-col gap-6">
 				<For
 					each={visible()}

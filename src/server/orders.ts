@@ -30,9 +30,9 @@ import { getCustomSettings } from "./custom-repo";
 import { getSessionUser } from "./customer-auth";
 import {
 	createOrder,
+	findOrders,
 	getOrderById,
 	getOrderByNumber,
-	listOrders,
 	type NewOrder,
 	OrderRuleError,
 	submitPayment,
@@ -206,16 +206,15 @@ export const getOrder = createServerFn({ method: "GET" })
 	);
 
 /**
- * Every order that isn't cancelled, for the public Active orders page. Rows
- * carry the public order number only, never the private order id.
+ * The public "Check your order" search. Rows carry the public order number
+ * only, never the private order id, and no contact details.
  */
-export const listActiveOrders = createServerFn({ method: "GET" }).handler(
-	async (): Promise<ActiveOrder[]> => {
-		const orders = listOrders({
-			stages: ["new", "making", "done"],
-			limit: 2000,
-		});
-		const rows = orders.map((order) => ({
+export const findOrdersFn = createServerFn({ method: "GET" })
+	.validator((query: unknown) =>
+		typeof query === "string" ? query.slice(0, 120) : "",
+	)
+	.handler(async ({ data }): Promise<ActiveOrder[]> => {
+		const rows = findOrders(data).map((order) => ({
 			number: order.number,
 			className: order.details.className,
 			company: order.details.company,
@@ -225,17 +224,16 @@ export const listActiveOrders = createServerFn({ method: "GET" }).handler(
 			currency: order.currency,
 			status: orderStatus(order.stage, order.payment.status),
 		}));
-		// Finished orders drop to the bottom; the rest stay newest first.
-		return rows.sort(
-			(a, b) => Number(a.status === "done") - Number(b.status === "done"),
-		);
-	},
-);
+		// Orders still in progress first; the rest stay newest first.
+		const finished = (row: ActiveOrder) =>
+			Number(row.status === "done" || row.status === "cancelled");
+		return rows.sort((a, b) => finished(a) - finished(b));
+	});
 
 type PayAccess = "allowed" | "sign-in" | "not-yours";
 
 /**
- * The public list shows every order, so paying needs more than a number: the
+ * Anyone who knows a name can find an order, so paying needs more: the
  * private link (kept by the device that ordered), or the matching account. An
  * unlinked guest order can be claimed by an account with the same surname.
  */

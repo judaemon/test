@@ -43,7 +43,7 @@ export function SiteHeader() {
 						class={navLink}
 						activeProps={{ "aria-current": "page" }}
 					>
-						Active orders
+						Check your order
 					</Link>
 					<Link
 						to="/custom"

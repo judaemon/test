@@ -34,12 +34,12 @@ const STEPS: { title: string; body: () => JSX.Element }[] = [
 		title: "Follow your order",
 		body: () => (
 			<>
-				Find your name in{" "}
+				Enter your name, email or serial number in{" "}
 				<Link
 					to="/active-orders"
 					class="font-medium text-petal-700 underline underline-offset-2"
 				>
-					Active orders
+					Check your order
 				</Link>{" "}
 				to see its status. If it’s on hold, tap the status to pay.
 			</>

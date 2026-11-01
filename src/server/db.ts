@@ -460,6 +460,10 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 			ALTER TABLE signature_bouquets DROP COLUMN size;
 		`);
 	},
+	// v23: cadets give their serial number at checkout (digits only).
+	`
+	ALTER TABLE orders ADD COLUMN serial_number TEXT NOT NULL DEFAULT '';
+	`,
 ];
 
 declare global {

@@ -96,7 +96,7 @@ function PayPage() {
 						</h2>
 						<p class="mt-2 text-sm text-petal-900/70">
 							Use an account with the same surname as the order. If you ordered
-							on this phone or computer, open this order from Active orders
+							on this phone or computer, open this order from Check your order
 							there and you won’t need to sign in.
 						</p>
 						<Link
@@ -189,7 +189,7 @@ function PayForm(props: { order: PayableOrder; orderKey?: string }) {
 						Thanks! We’re checking your payment
 					</h2>
 					<p class="mt-1 text-sm">
-						Your order now shows as Verifying payment in Active orders.
+						Your order now shows as Verifying payment in Check your order.
 					</p>
 					<BackToOrders />
 				</section>
@@ -241,7 +241,7 @@ function BackToOrders() {
 			to="/active-orders"
 			class="mt-4 inline-block py-2 font-medium text-petal-700 underline underline-offset-2"
 		>
-			Back to Active orders
+			Back to Check your order
 		</Link>
 	);
 }

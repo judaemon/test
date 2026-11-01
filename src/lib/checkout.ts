@@ -11,6 +11,8 @@ export interface CheckoutDetails {
 	company: string;
 	/** "1CL"–"4CL", or "Civilian". */
 	className: string;
+	/** A cadet's serial number, digits only (shown as C-12345); empty otherwise. */
+	serialNumber: string;
 	/** Where the order's details are sent; older orders have none. */
 	email: string;
 	/** Optional note for the florist. */
@@ -34,6 +36,7 @@ export type FieldErrors = Partial<Record<CheckoutField | PaymentField, string>>;
 
 export const NAME_MAX = 80;
 export const EMAIL_MAX = 254;
+export const SERIAL_NUMBER_MAX = 12;
 export const NOTES_MAX = 300;
 /** About as much as fits on half an A5 card (148 × 105 mm) at a readable size. */
 export const DEDICATION_MESSAGE_MAX = 600;
@@ -43,11 +46,18 @@ const TEXT_FIELDS = [
 	"lastName",
 	"company",
 	"className",
+	"serialNumber",
 	"email",
 	"notes",
 	"dedicationFor",
 	"dedicationMessage",
 ] as const;
+
+/** The digits of a serial number, as typed or pasted. */
+export const serialDigits = (value: string) => value.replace(/\D/g, "");
+
+/** "12345" → "C-12345". */
+export const formatSerialNumber = (digits: string) => `C-${digits}`;
 
 export function readCheckoutForm(form: FormData): CheckoutDetails {
 	return parseCheckoutDetails(Object.fromEntries(form.entries()));
@@ -77,6 +87,11 @@ export function parseCheckoutDetails(raw: unknown): CheckoutDetails {
 		// Civilians have no company, whatever the form sent.
 		company: isCadetClass(text("className")) ? text("company") : "",
 		className: text("className"),
+		// Civilians have no serial number. Only the digits are kept, so a pasted
+		// "C-12345" is fine too.
+		serialNumber: isCadetClass(text("className"))
+			? serialDigits(text("serialNumber"))
+			: "",
 		email: text("email").toLowerCase(),
 		// Keep the line breaks people type into notes and card messages.
 		notes: typeof source.notes === "string" ? source.notes.trim() : "",
@@ -102,6 +117,13 @@ export function validateCheckoutDetails(details: CheckoutDetails): FieldErrors {
 		errors.className = "Choose your class.";
 	else if (isCadetClass(details.className) && !companyColor(details.company))
 		errors.company = "Choose your company.";
+
+	if (isCadetClass(details.className)) {
+		if (!details.serialNumber)
+			errors.serialNumber = "Enter your serial number.";
+		else if (details.serialNumber.length > SERIAL_NUMBER_MAX)
+			errors.serialNumber = `Keep it under ${SERIAL_NUMBER_MAX} digits.`;
+	}
 
 	if (!details.email) errors.email = "Enter your email.";
 	else if (

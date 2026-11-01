@@ -383,6 +383,7 @@ async function main() {
 					// Every fifth buyer is a civilian, who has no company.
 					className: index % 5 === 4 ? CIVILIAN : (CADET_CLASSES[index % CADET_CLASSES.length] as string),
 					company: index % 5 === 4 ? "" : COMPANIES[index % COMPANIES.length]?.name ?? "",
+					serialNumber: index % 5 === 4 ? "" : String(10000 + index),
 					email: `${demo.recipient.split(" ")[0]?.toLowerCase()}@example.com`,
 					notes: index % 4 === 1 ? "Please wrap it in kraft paper." : "",
 					addDedication: !!demo.gift,

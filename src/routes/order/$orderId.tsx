@@ -34,7 +34,7 @@ function OrderConfirmation() {
 	const paymentDue = () =>
 		order().stage === "new" && isPaymentDue(order().payment.status);
 	const user = useSessionUser();
-	// This link proves the order is theirs; Active orders uses it to let them pay.
+	// This link proves the order is theirs; Check your order uses it to let them pay.
 	onMount(() => rememberOrder(order().number, order().id));
 
 	return (
@@ -110,7 +110,7 @@ function OrderConfirmation() {
 						</h2>
 						<p class="mt-1 text-sm">
 							{isOnHold()
-								? "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Active orders."
+								? "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Check your order."
 								: "Check your reference number and send it again."}
 						</p>
 						<Link

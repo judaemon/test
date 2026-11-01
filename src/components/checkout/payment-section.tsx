@@ -332,7 +332,7 @@ function QrPayment(props: {
 					<span>
 						<span class="block font-medium">Reference number to follow</span>
 						<span class="text-petal-900/65">
-							Pay later and send it from Active orders or by signing in.
+							Pay later and send it from Check your order or by signing in.
 						</span>
 					</span>
 				</label>
