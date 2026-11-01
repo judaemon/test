@@ -452,6 +452,7 @@ export function submitPayment(
 	payment: {
 		method: PaymentMethod;
 		referenceNumber: string;
+		proofFile?: string;
 		customerId?: string;
 	},
 ): Order {
@@ -462,7 +463,8 @@ export function submitPayment(
 	getDb()
 		.query(
 			`UPDATE orders SET payment_method = $method, payment_status = 'pending',
-			   reference_number = $reference, payment_reviewed_by = NULL, payment_reviewed_at = NULL,
+			   reference_number = $reference, proof_file = $proof,
+			   payment_reviewed_by = NULL, payment_reviewed_at = NULL,
 			   customer_id = COALESCE(customer_id, $customerId)
 			 WHERE id = $id`,
 		)
@@ -470,6 +472,7 @@ export function submitPayment(
 			id,
 			method: payment.method,
 			reference: payment.referenceNumber,
+			proof: payment.proofFile ?? null,
 			customerId: payment.customerId ?? null,
 		});
 	return getOrderById(id) as Order;

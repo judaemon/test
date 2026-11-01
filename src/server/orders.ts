@@ -39,6 +39,7 @@ import {
 	toCustomerOrder,
 } from "./orders-repo";
 import { getPaymentAccount, listPaymentAccounts } from "./payments-repo";
+import { deleteUpload, saveImage, UploadError } from "./uploads";
 
 export type PlaceOrderResult =
 	| { ok: true; orderId: string; number: string }
@@ -239,26 +240,12 @@ export const findOrdersFn = createServerFn({ method: "GET" })
 		return rows.sort((a, b) => finished(a) - finished(b));
 	});
 
-type PayAccess = "allowed" | "sign-in" | "not-yours";
-
-/**
- * Anyone who knows a name can find an order, so paying needs more: the
- * private link (kept by the device that ordered), or the matching account. An
- * unlinked guest order can be claimed by an account with the same surname.
- */
-async function payAccess(order: Order, key?: string): Promise<PayAccess> {
-	if (key && key === order.id) return "allowed";
-	const viewer = await getSessionUser();
-	if (!viewer) return "sign-in";
-	if (order.customerId) {
-		return order.customerId === viewer.id ? "allowed" : "not-yours";
-	}
+/** A signed-in shopper can claim a guest order that has their surname. */
+function claimsOrder(order: Order, viewerName: string) {
 	const surname = (
 		order.details.lastName || order.details.fullName
 	).toLowerCase();
-	return surname && viewer.name.toLowerCase().includes(surname)
-		? "allowed"
-		: "not-yours";
+	return !!surname && viewerName.toLowerCase().includes(surname);
 }
 
 export interface PayableOrder {
@@ -269,9 +256,8 @@ export interface PayableOrder {
 	status: OrderStatus;
 	/** Whether a payment can be sent at all. */
 	due: boolean;
-	access: PayAccess;
 	method: PaymentAccount["method"];
-	/** Filled in only for someone allowed to pay. */
+	/** Filled in only while a payment is due. */
 	paymentAccounts: PaymentAccount[];
 }
 
@@ -281,22 +267,22 @@ const qrAccounts = () =>
 		(account) => account.enabled && isQrPayment(account.method),
 	);
 
-function payInput(input: unknown) {
-	if (typeof input !== "object" || input === null)
-		throw new Error("Invalid request");
-	const { number, key } = input as Record<string, unknown>;
-	if (typeof number !== "string" || !/^\d{1,9}$/.test(number))
-		throw new Error("Invalid order number");
-	return { number, key: typeof key === "string" ? key : undefined };
-}
+const isOrderNumber = (value: unknown): value is string =>
+	typeof value === "string" && /^\d{1,9}$/.test(value);
 
+/**
+ * Anyone who finds an order can send a payment for it: staff check every
+ * reference number against the money received before it counts.
+ */
 export const getPayableOrder = createServerFn({ method: "GET" })
-	.validator(payInput)
+	.validator((number: unknown) => {
+		if (!isOrderNumber(number)) throw new Error("Invalid order number");
+		return number;
+	})
 	.handler(async ({ data }): Promise<PayableOrder | null> => {
-		const order = getOrderByNumber(data.number);
+		const order = getOrderByNumber(data);
 		if (!order || order.stage === "cancelled") return null;
 		const due = order.stage === "new" && isPaymentDue(order.payment.status);
-		const access = due ? await payAccess(order, data.key) : "not-yours";
 		return {
 			number: order.number,
 			total: order.total,
@@ -304,9 +290,8 @@ export const getPayableOrder = createServerFn({ method: "GET" })
 			items: order.lines.map((line) => `${line.quantity} × ${lineName(line)}`),
 			status: orderStatus(order.stage, order.payment.status),
 			due,
-			access,
 			method: order.payment.method,
-			paymentAccounts: access === "allowed" ? qrAccounts() : [],
+			paymentAccounts: due ? qrAccounts() : [],
 		};
 	});
 
@@ -314,23 +299,27 @@ export type SubmitPaymentResult =
 	| { ok: true }
 	| { ok: false; message: string; fieldErrors?: FieldErrors };
 
-/** The shopper sends the reference number for an order on hold. */
+/** The shopper sends a reference number, and a screenshot if they like. */
 export const submitOrderPayment = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
-		const { method, referenceNumber } = input as Record<string, unknown>;
+		if (!(input instanceof FormData)) throw new Error("Expected form data");
+		const number = input.get("number");
+		if (!isOrderNumber(number)) throw new Error("Invalid order number");
+		const text = (key: string) => {
+			const value = input.get(key);
+			return typeof value === "string" ? value : "";
+		};
+		const proof = input.get("proof");
 		return {
-			...payInput(input),
-			method: typeof method === "string" ? method : "",
-			referenceNumber:
-				typeof referenceNumber === "string" ? referenceNumber : "",
+			number,
+			method: text("method"),
+			referenceNumber: text("referenceNumber"),
+			proof: proof instanceof File && proof.size > 0 ? proof : undefined,
 		};
 	})
 	.handler(async ({ data }): Promise<SubmitPaymentResult> => {
 		const order = getOrderByNumber(data.number);
 		if (!order) return { ok: false, message: "Order not found." };
-		const access = await payAccess(order, data.key);
-		if (access !== "allowed")
-			return { ok: false, message: "Sign in to pay for this order." };
 		const account = qrAccounts().find((a) => a.method === data.method);
 		if (!account)
 			return {
@@ -345,16 +334,29 @@ export const submitOrderPayment = createServerFn({ method: "POST" })
 				message: "Please check the highlighted fields.",
 				fieldErrors: { referenceNumber: referenceError },
 			};
+		if (order.stage !== "new" || !isPaymentDue(order.payment.status))
+			return { ok: false, message: "This order doesn’t need a payment now." };
+		let proofFile: string | undefined;
 		try {
+			if (data.proof) proofFile = await saveImage("proofs", data.proof);
 			const viewer = await getSessionUser();
+			const customerId =
+				viewer && !order.customerId && claimsOrder(order, viewer.name)
+					? viewer.id
+					: undefined;
 			submitPayment(order.id, {
 				method: account.method,
 				referenceNumber: normalizeReferenceNumber(data.referenceNumber),
-				customerId: viewer?.id,
+				proofFile,
+				customerId,
 			});
+			// A new payment replaces one that didn't match.
+			if (order.payment.proofFile)
+				await deleteUpload("proofs", order.payment.proofFile);
 			return { ok: true };
 		} catch (error) {
-			if (error instanceof OrderRuleError)
+			if (proofFile) await deleteUpload("proofs", proofFile);
+			if (error instanceof OrderRuleError || error instanceof UploadError)
 				return { ok: false, message: error.message };
 			throw error;
 		}

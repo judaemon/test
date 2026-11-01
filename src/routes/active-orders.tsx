@@ -15,7 +15,6 @@ import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { orderDay } from "~/lib/checkout";
-import { rememberedOrderId } from "~/lib/my-orders";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { formatDate } from "~/lib/time";
@@ -39,12 +38,13 @@ interface LookupSearch {
 }
 
 export const Route = createFileRoute("/active-orders")({
-	validateSearch: (search: Record<string, unknown>): LookupSearch => ({
-		q:
-			typeof search.q === "string" && search.q.trim()
-				? search.q.trim().slice(0, 120)
-				: undefined,
-	}),
+	validateSearch: (search: Record<string, unknown>): LookupSearch => {
+		// The router reads an all-digit ?q=12345 from the address as a number.
+		const q = typeof search.q === "number" ? String(search.q) : search.q;
+		return {
+			q: typeof q === "string" && q.trim() ? q.trim().slice(0, 120) : undefined,
+		};
+	},
 	loaderDeps: ({ search }) => ({ q: search.q }),
 	loader: ({ deps }) => (deps.q ? findOrdersFn({ data: deps.q }) : []),
 	head: () => ({
@@ -267,7 +267,6 @@ function OrderCard(props: { order: ActiveOrder }) {
 						navigate({
 							to: "/pay/$orderNumber",
 							params: { orderNumber: order().number },
-							search: { key: rememberedOrderId(order().number) },
 						})
 					}
 					aria-label={`${ORDER_STATUS_LABELS[order().status]}: pay for order ${order().number}`}

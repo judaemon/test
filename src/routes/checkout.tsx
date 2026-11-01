@@ -47,7 +47,6 @@ import {
 	serialDigits,
 	validateCheckoutDetails,
 } from "~/lib/checkout";
-import { rememberOrder } from "~/lib/my-orders";
 import {
 	type CardInput,
 	cardDigits,
@@ -299,7 +298,6 @@ function CheckoutForm(props: {
 				}
 				return;
 			}
-			rememberOrder(result.number, result.orderId);
 			// Leave the page before emptying the bag so it never flashes "empty".
 			await navigate({
 				to: "/order/$orderId",
@@ -421,7 +419,8 @@ function CheckoutForm(props: {
 							type="email"
 							autocomplete="email"
 							placeholder="you@example.com"
-							description="We’ll send your order details to this email."
+							// TODO: bring this back once order emails are sent; see TODO.md.
+							// description="We’ll send your order details to this email."
 							maxLength={EMAIL_MAX}
 							defaultValue={props.email}
 							error={errors().email}

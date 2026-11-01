@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
-import { For, onMount, Show } from "solid-js";
+import { For, Show } from "solid-js";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { CompanyLabel } from "~/components/order/company-label";
@@ -8,7 +8,6 @@ import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT } from "~/lib/contact";
-import { rememberOrder } from "~/lib/my-orders";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice, styleLabel } from "~/lib/product";
 import { useSessionUser } from "~/lib/use-catalog";
@@ -34,8 +33,6 @@ function OrderConfirmation() {
 	const paymentDue = () =>
 		order().stage === "new" && isPaymentDue(order().payment.status);
 	const user = useSessionUser();
-	// This link proves the order is theirs; Check your order uses it to let them pay.
-	onMount(() => rememberOrder(order().number, order().id));
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
@@ -116,7 +113,6 @@ function OrderConfirmation() {
 						<Link
 							to="/pay/$orderNumber"
 							params={{ orderNumber: order().number }}
-							search={{ key: order().id }}
 							class={`${pillPrimary} mt-4 w-auto px-8`}
 						>
 							Pay for this order
@@ -127,7 +123,7 @@ function OrderConfirmation() {
 								<Link
 									to="/sign-in"
 									search={{
-										redirect: `/pay/${order().number}?key=${order().id}`,
+										redirect: `/pay/${order().number}`,
 									}}
 									class="font-medium underline underline-offset-2"
 								>

@@ -274,7 +274,6 @@ export function OrderTracker(props: {
 						<Link
 							to="/pay/$orderNumber"
 							params={{ orderNumber: order().number }}
-							search={{ key: order().id }}
 							class={cn(pillPrimary, "h-10 w-auto px-5 text-sm")}
 						>
 							Pay now
