@@ -23,13 +23,8 @@ import {
 } from "~/lib/cart-store";
 import { stemCount } from "~/lib/flowers";
 import { formatPrice, getMaxQuantity, getVariantPrice } from "~/lib/product";
-import {
-	BOUQUET_SIZES,
-	type BouquetSize,
-	bouquetSize,
-	SIZE_GUIDE_IMAGE,
-} from "~/lib/sizes";
-import { useFlowerPhotos } from "~/lib/use-catalog";
+import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
+import { useFlowerPhotos, useSizes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
@@ -51,7 +46,8 @@ export function ProductInfo(props: ProductInfoProps) {
 	const [isAdding, setIsAdding] = createSignal(false);
 
 	const price = () => getVariantPrice(props.product, props.variant);
-	const size = () => bouquetSize(props.variant.size);
+	const sizes = useSizes();
+	const size = () => findSize(sizes(), props.product.size);
 	const flowerPhoto = useFlowerPhotos();
 
 	const bagLines = useSelector(cartStore, (state) => state.lines);
@@ -223,7 +219,9 @@ export function ProductInfo(props: ProductInfoProps) {
 				</dl>
 			</section>
 
-			<Show when={size()}>{(s) => <SizeGuide current={s().id} />}</Show>
+			<Show when={size()}>
+				{(s) => <SizeGuide sizes={sizes()} current={s().id} />}
+			</Show>
 
 			<Show when={props.variant.inStock && !isMaxedOut()}>
 				<NumberField
@@ -306,58 +304,60 @@ export function ProductInfo(props: ProductInfoProps) {
 	);
 }
 
-/** Where each size sits in the guide picture, as a share of its width. */
-const GUIDE_COLUMNS: Record<BouquetSize, { left: number; width: number }> = {
-	petite: { left: 6, width: 21 },
-	classic: { left: 27.5, width: 18.5 },
-	impressive: { left: 47, width: 23 },
-	grand: { left: 71, width: 22 },
-};
-
-/** The size guide picture, with this bouquet's size highlighted. */
-function SizeGuide(props: { current: BouquetSize }) {
-	const column = () => GUIDE_COLUMNS[props.current];
+/** Every size side by side, smallest first, with this bouquet's marked. */
+function SizeGuide(props: { sizes: BouquetSizeInfo[]; current: string }) {
 	return (
 		<section aria-labelledby="size-guide-heading" class="flex flex-col gap-3">
 			<h2 id="size-guide-heading" class="text-sm font-semibold">
 				Size guide
 			</h2>
-			<div class="relative overflow-hidden rounded-lg border">
-				<img
-					src={SIZE_GUIDE_IMAGE}
-					alt="Bouquet sizes from smallest to largest: Petite, Classic, Impressive and Grand, each held by the same person."
-					width={1179}
-					height={938}
-					loading="lazy"
-					class="block w-full"
-				/>
-				<span
-					aria-hidden="true"
-					class="pointer-events-none absolute inset-y-[4%] rounded-xl ring-2 ring-foreground"
-					style={{ left: `${column().left}%`, width: `${column().width}%` }}
-				/>
-			</div>
-			<ul class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-				<For each={BOUQUET_SIZES}>
-					{(size) => (
-						<li
-							aria-current={size.id === props.current ? "true" : undefined}
-							class={cn(
-								"rounded-md border px-2 py-1.5",
-								size.id === props.current
-									? "border-foreground bg-muted font-medium"
-									: "text-muted-foreground",
-							)}
-						>
-							<span class="block font-semibold uppercase tracking-wide">
-								{size.name}
-							</span>
-							{size.description}
-							<Show when={size.id === props.current}>
-								<span class="sr-only"> (this bouquet)</span>
-							</Show>
-						</li>
-					)}
+			<ul
+				class="grid gap-2"
+				style={{
+					"grid-template-columns": `repeat(${Math.min(props.sizes.length, 4)}, minmax(0, 1fr))`,
+				}}
+			>
+				<For each={props.sizes}>
+					{(size) => {
+						const current = () => size.id === props.current;
+						return (
+							<li
+								aria-current={current() ? "true" : undefined}
+								class={cn(
+									"flex flex-col overflow-hidden rounded-lg border text-xs",
+									current()
+										? "border-foreground ring-1 ring-foreground"
+										: "text-muted-foreground",
+								)}
+							>
+								<Show when={size.image}>
+									<img
+										src={size.image}
+										alt={`Someone holding a ${size.name} bouquet`}
+										loading="lazy"
+										class={cn(
+											"aspect-[275/620] w-full bg-[#fdf9ea] object-contain",
+											!current() && "opacity-70",
+										)}
+									/>
+								</Show>
+								<span
+									class={cn(
+										"flex flex-1 flex-col px-2 py-1.5",
+										current() && "bg-muted font-medium",
+									)}
+								>
+									<span class="block font-semibold uppercase tracking-wide">
+										{size.name}
+									</span>
+									{size.description}
+									<Show when={current()}>
+										<span class="sr-only"> (this bouquet)</span>
+									</Show>
+								</span>
+							</li>
+						);
+					}}
 				</For>
 			</ul>
 		</section>

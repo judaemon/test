@@ -7,6 +7,7 @@ import {
 	toPublicProduct,
 } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
+import { listSizes } from "./sizes-repo";
 
 /** Everything the shop shows; loaded once per navigation by the root route. */
 export const getCatalog = createServerFn({ method: "GET" }).handler(
@@ -14,6 +15,8 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 		products: listPublicProducts(),
 		// The builder's prices are public anyway; the bag needs them to show totals.
 		custom: getCustomSettings(),
+		// For the size guide and the shop's size filter.
+		sizes: listSizes().map(({ usedIn: _usedIn, ...size }) => size),
 	}),
 );
 

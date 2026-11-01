@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 
 import { ShopPage } from "~/components/shop/shop-page";
+import { validateShopFilters } from "~/lib/shop-filters";
 
 export const SHOP_HEAD = {
 	meta: [
@@ -14,6 +15,7 @@ export const SHOP_HEAD = {
 };
 
 export const Route = createFileRoute("/shop")({
+	validateSearch: validateShopFilters,
 	head: () => SHOP_HEAD,
 	component: ShopPage,
 });

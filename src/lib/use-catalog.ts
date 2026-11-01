@@ -11,6 +11,11 @@ export function useCatalog() {
 	return useLoaderData({ from: "__root__", select: (data) => data.products });
 }
 
+/** Every bouquet size, smallest first, from Admin → Sizes (from the root route). */
+export function useSizes() {
+	return useLoaderData({ from: "__root__", select: (data) => data.sizes });
+}
+
 /** The bouquet builder's prices, colors and wrappers (from the root route). */
 export function useCustomSettings() {
 	return useLoaderData({ from: "__root__", select: (data) => data.custom });

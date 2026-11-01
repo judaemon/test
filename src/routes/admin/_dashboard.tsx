@@ -33,12 +33,13 @@ export const Route = createFileRoute("/admin/_dashboard")({
 const NAV = [
 	{ to: "/admin/orders", label: "Orders", icon: AdminIcons.orders },
 	{
-		to: "/admin/products",
+		to: "/admin/signature-bouquets",
 		label: "Signature bouquets",
 		icon: AdminIcons.products,
 	},
 	{ to: "/admin/flowers", label: "Flowers", icon: AdminIcons.flowers },
 	{ to: "/admin/wrappers", label: "Wrappers", icon: AdminIcons.wrappers },
+	{ to: "/admin/sizes", label: "Sizes", icon: AdminIcons.sizes },
 	{ to: "/admin/custom", label: "Custom bouquets", icon: AdminIcons.custom },
 	{ to: "/admin/reports", label: "Reports", icon: AdminIcons.reports },
 	{

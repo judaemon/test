@@ -41,6 +41,8 @@ interface Snapshot {
 	bouquet_styles?: Row[];
 	style_flowers?: Row[];
 	bouquet_redirects?: Row[];
+	/** Missing from snapshots taken before sizes had a table. */
+	sizes?: Row[];
 	/** Snapshots from before signature bouquets had their own tables. */
 	products?: Row[];
 	variants?: Row[];
@@ -55,6 +57,7 @@ const TABLES = [
 	"flowers",
 	"flower_colors",
 	"wrappers",
+	"sizes",
 	"signature_bouquets",
 	"bouquet_styles",
 	"style_flowers",
@@ -88,7 +91,9 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 		bouquet: bouquet.name,
 		link: `/products/${bouquet.id}`,
 		description: bouquet.description,
-		size: bouquet.size || null,
+		size:
+			(snapshot.sizes ?? []).find((size) => size.id === bouquet.size_id)?.name ??
+			null,
 		shownInShop: bouquet.is_visible === 1,
 		styles: (snapshot.bouquet_styles ?? [])
 			.filter((style) => style.bouquet_id === bouquet.id)
@@ -247,7 +252,11 @@ async function importCatalog() {
 		}
 
 		if (snapshot.signature_bouquets) {
-			for (const table of TABLES.slice(3))
+			if (snapshot.sizes) {
+				db.exec("DELETE FROM sizes");
+				for (const row of snapshot.sizes) insertRow("sizes", row);
+			}
+			for (const table of TABLES.slice(4))
 				for (const row of snapshot[table] ?? []) insertRow(table, row);
 		} else {
 			// An older snapshot has products and their colors: load them into

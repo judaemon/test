@@ -417,6 +417,49 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 			ALTER TABLE bouquet_styles DROP COLUMN stock_quantity;
 		`);
 	},
+	// v22: sizes get their own table (Admin → Sizes), starting with the four
+	// from the size guide, each with its figure from the guide picture. A
+	// bouquet's size points at one.
+	(db) => {
+		db.exec(`
+			CREATE TABLE sizes (
+				-- Stored on bouquets; also the shop's ?size= filter value.
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+				description TEXT NOT NULL DEFAULT '',
+				-- Someone holding a bouquet this size, for the size guide.
+				image TEXT NOT NULL DEFAULT '',
+				-- Smallest first.
+				sort INTEGER NOT NULL DEFAULT 0,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			);
+		`);
+		const insert = db.query(
+			`INSERT INTO sizes (id, name, description, image, sort, created_at, updated_at)
+			 VALUES ($id, $name, $description, $image, $sort, $now, $now)`,
+		);
+		[
+			["petite", "Petite", "Small enough to hold in one hand"],
+			["classic", "Classic", "Fits in one arm"],
+			["impressive", "Impressive", "A bigger armful"],
+			["grand", "Grand", "Covers the upper body"],
+		].forEach(([id, name, description], sort) => {
+			insert.run({
+				id,
+				name,
+				description,
+				image: `/images/sizes/${id}.jpg`,
+				sort,
+				now: nowIso(),
+			});
+		});
+		db.exec(`
+			ALTER TABLE signature_bouquets ADD COLUMN size_id TEXT REFERENCES sizes(id) ON DELETE RESTRICT;
+			UPDATE signature_bouquets SET size_id = size WHERE size IN (SELECT id FROM sizes);
+			ALTER TABLE signature_bouquets DROP COLUMN size;
+		`);
+	},
 ];
 
 declare global {
@@ -462,7 +505,7 @@ export function seedStarterData(db: Database) {
 
 	if (count("signature_bouquets") === 0) {
 		const insertBouquet = db.query(
-			`INSERT INTO signature_bouquets (id, name, description, size, is_visible, sort, created_at, updated_at)
+			`INSERT INTO signature_bouquets (id, name, description, size_id, is_visible, sort, created_at, updated_at)
 			 VALUES ($id, $name, $description, $size, $visible, $sort, $now, $now)`,
 		);
 		const insertStyle = db.query(
@@ -480,7 +523,7 @@ export function seedStarterData(db: Database) {
 					id: bouquet.id,
 					name: bouquet.name,
 					description: bouquet.description,
-					size: bouquet.size,
+					size: bouquet.size || null,
 					visible: bouquet.isVisible ? 1 : 0,
 					sort: bouquetIndex,
 					now: nowIso(),

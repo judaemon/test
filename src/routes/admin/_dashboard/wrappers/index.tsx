@@ -2,6 +2,12 @@ import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 
 import {
+	choiceParam,
+	ListToolbar,
+	matchesQuery,
+	textParam,
+} from "~/components/admin/list-toolbar";
+import {
 	adminButton,
 	adminCard,
 	PageHeader,
@@ -17,14 +23,67 @@ import {
 	setWrapperEnabledFn,
 } from "~/server/admin/wrappers";
 
+const SORTS = ["name", "name-desc", "price", "price-desc"] as const;
+
+/** Search, filters and sort, kept in the address so Back returns to them. */
+interface WrappersSearch {
+	q?: string;
+	use?: "custom" | "off";
+	stock?: "low" | "sold-out" | "not-counted";
+	/** Missing: the builder's order. */
+	sort?: (typeof SORTS)[number];
+}
+
 export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
+	validateSearch: (search: Record<string, unknown>): WrappersSearch => ({
+		q: textParam(search, "q"),
+		use: choiceParam(search, "use", ["custom", "off"] as const),
+		stock: choiceParam(search, "stock", [
+			"low",
+			"sold-out",
+			"not-counted",
+		] as const),
+		sort: choiceParam(search, "sort", SORTS),
+	}),
 	loader: () => listWrappersAdmin(),
 	component: WrappersPage,
 });
 
 function WrappersPage() {
-	const wrappers = Route.useLoaderData();
+	const all = Route.useLoaderData();
 	const router = useRouter();
+	const search = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const setSearch = (patch: Partial<WrappersSearch>) =>
+		navigate({
+			search: (prev) => ({ ...prev, ...patch }),
+			replace: true,
+			resetScroll: false,
+		});
+	const filtered = () => !!(search().q || search().use || search().stock);
+	const keep = (wrapper: CustomWrapper) => {
+		const { q, use, stock } = search();
+		if (!matchesQuery(q, wrapper.name)) return false;
+		if (use && wrapper.enabled !== (use === "custom")) return false;
+		if (stock === "not-counted") return wrapper.stock === undefined;
+		if (stock === "sold-out") return wrapper.stock === 0;
+		if (stock === "low")
+			return (
+				wrapper.stock !== undefined && wrapper.stock <= LOW_STOCK_THRESHOLD
+			);
+		return true;
+	};
+	const wrappers = () => {
+		const list = all().filter(keep);
+		const by = search().sort;
+		if (!by) return list;
+		const sign = by.endsWith("-desc") ? -1 : 1;
+		return [...list].sort((a, b) =>
+			by.startsWith("price")
+				? sign * (a.price - b.price) || a.name.localeCompare(b.name)
+				: sign * a.name.localeCompare(b.name),
+		);
+	};
 
 	const setEnabled = async (wrapper: CustomWrapper, enabled: boolean) => {
 		try {
@@ -50,11 +109,67 @@ function WrappersPage() {
 					</Link>
 				}
 			/>
+			<ListToolbar
+				query={search().q ?? ""}
+				onQuery={(q) => setSearch({ q: q || undefined })}
+				placeholder="Wrapper name"
+				filters={[
+					{
+						label: "Custom bouquets",
+						value: search().use ?? "",
+						options: [
+							{ value: "", label: "Offered or not" },
+							{ value: "custom", label: "Offered" },
+							{ value: "off", label: "Not offered" },
+						],
+						onChange: (use) =>
+							setSearch({ use: (use || undefined) as WrappersSearch["use"] }),
+					},
+					{
+						label: "Stock",
+						value: search().stock ?? "",
+						options: [
+							{ value: "", label: "Any stock" },
+							{ value: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
+							{ value: "sold-out", label: "Sold out" },
+							{ value: "not-counted", label: "Not counted" },
+						],
+						onChange: (stock) =>
+							setSearch({
+								stock: (stock || undefined) as WrappersSearch["stock"],
+							}),
+					},
+				]}
+				sort={{
+					label: "Sort by",
+					value: search().sort ?? "",
+					options: [
+						{ value: "", label: "Builder order" },
+						{ value: "name", label: "Name, A–Z" },
+						{ value: "name-desc", label: "Name, Z–A" },
+						{ value: "price", label: "Price, low to high" },
+						{ value: "price-desc", label: "Price, high to low" },
+					],
+					onChange: (sort) =>
+						setSearch({ sort: (sort || undefined) as WrappersSearch["sort"] }),
+				}}
+				summary={
+					filtered()
+						? `${wrappers().length} of ${all().length} wrappers`
+						: `${all().length} wrappers`
+				}
+				filtered={filtered()}
+				onClear={() =>
+					setSearch({ q: undefined, use: undefined, stock: undefined })
+				}
+			/>
 			<section class={adminCard}>
 				<Show
 					when={wrappers().length > 0}
 					fallback={
-						<p class="px-5 py-4 text-sm text-petal-900/55">None yet.</p>
+						<p class="px-5 py-4 text-sm text-petal-900/55">
+							{all().length ? "No wrappers match these filters." : "None yet."}
+						</p>
 					}
 				>
 					<ul class="divide-y divide-petal-50">

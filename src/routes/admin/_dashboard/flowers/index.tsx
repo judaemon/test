@@ -2,6 +2,12 @@ import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 
 import {
+	choiceParam,
+	ListToolbar,
+	matchesQuery,
+	textParam,
+} from "~/components/admin/list-toolbar";
+import {
 	adminButton,
 	adminCard,
 	PageHeader,
@@ -14,10 +20,36 @@ import { formatPrice, LOW_STOCK_THRESHOLD } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { listFlowersAdmin, setFlowerEnabledFn } from "~/server/admin/flowers";
 
+const SORTS = ["name", "name-desc", "price", "price-desc", "used"] as const;
+
+/** Search, filters and sort, kept in the address so Back returns to them. */
+interface FlowersSearch {
+	q?: string;
+	use?: "custom" | "recipes";
+	stock?: "low" | "sold-out" | "counted" | "not-counted";
+	/** Missing: the builder's order. */
+	sort?: (typeof SORTS)[number];
+}
+
 export const Route = createFileRoute("/admin/_dashboard/flowers/")({
+	validateSearch: (search: Record<string, unknown>): FlowersSearch => ({
+		q: textParam(search, "q"),
+		use: choiceParam(search, "use", ["custom", "recipes"] as const),
+		stock: choiceParam(search, "stock", [
+			"low",
+			"sold-out",
+			"counted",
+			"not-counted",
+		] as const),
+		sort: choiceParam(search, "sort", SORTS),
+	}),
 	loader: () => listFlowersAdmin(),
 	component: FlowersPage,
 });
+
+/** The cheapest color, for sorting by price. */
+const lowestPrice = (flower: FlowerRecord) =>
+	Math.min(...flower.colors.map((c) => c.price));
 
 function stockLabel(color: FlowerColor) {
 	if (color.stock === undefined) return "Not counted";
@@ -26,8 +58,54 @@ function stockLabel(color: FlowerColor) {
 }
 
 function FlowersPage() {
-	const flowers = Route.useLoaderData();
+	const all = Route.useLoaderData();
 	const router = useRouter();
+	const search = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const setSearch = (patch: Partial<FlowersSearch>) =>
+		navigate({
+			search: (prev) => ({ ...prev, ...patch }),
+			replace: true,
+			resetScroll: false,
+		});
+	const filtered = () => !!(search().q || search().use || search().stock);
+	const keep = (flower: FlowerRecord) => {
+		const { q, use, stock } = search();
+		if (
+			!matchesQuery(
+				q,
+				`${flower.name} ${flower.kind.hint ?? ""} ${flower.colors.map((c) => c.name).join(" ")}`,
+			)
+		)
+			return false;
+		if (use && flower.enabled !== (use === "custom")) return false;
+		const counted = flower.colors.filter((c) => c.stock !== undefined);
+		if (stock === "counted" && counted.length === 0) return false;
+		if (stock === "not-counted" && counted.length === flower.colors.length)
+			return false;
+		if (stock === "sold-out" && !counted.some((c) => c.stock === 0))
+			return false;
+		if (
+			stock === "low" &&
+			!counted.some((c) => (c.stock ?? 0) <= LOW_STOCK_THRESHOLD)
+		)
+			return false;
+		return true;
+	};
+	const flowers = () => {
+		const list = all().filter(keep);
+		const by = search().sort;
+		if (!by) return list;
+		const sign = by.endsWith("-desc") ? -1 : 1;
+		return [...list].sort((a, b) =>
+			by === "used"
+				? b.usedIn - a.usedIn || a.name.localeCompare(b.name)
+				: by.startsWith("price")
+					? sign * (lowestPrice(a) - lowestPrice(b)) ||
+						a.name.localeCompare(b.name)
+					: sign * a.name.localeCompare(b.name),
+		);
+	};
 
 	const setEnabled = async (flower: FlowerRecord, enabled: boolean) => {
 		try {
@@ -141,11 +219,69 @@ function FlowersPage() {
 					</Link>
 				}
 			/>
+			<ListToolbar
+				query={search().q ?? ""}
+				onQuery={(q) => setSearch({ q: q || undefined })}
+				placeholder="Flower, color or note"
+				filters={[
+					{
+						label: "Custom bouquets",
+						value: search().use ?? "",
+						options: [
+							{ value: "", label: "Used or not" },
+							{ value: "custom", label: "Used in custom bouquets" },
+							{ value: "recipes", label: "Recipes only" },
+						],
+						onChange: (use) =>
+							setSearch({ use: (use || undefined) as FlowersSearch["use"] }),
+					},
+					{
+						label: "Stock",
+						value: search().stock ?? "",
+						options: [
+							{ value: "", label: "Any stock" },
+							{ value: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
+							{ value: "sold-out", label: "A color sold out" },
+							{ value: "counted", label: "Stock counted" },
+							{ value: "not-counted", label: "A color not counted" },
+						],
+						onChange: (stock) =>
+							setSearch({
+								stock: (stock || undefined) as FlowersSearch["stock"],
+							}),
+					},
+				]}
+				sort={{
+					label: "Sort by",
+					value: search().sort ?? "",
+					options: [
+						{ value: "", label: "Builder order" },
+						{ value: "name", label: "Name, A–Z" },
+						{ value: "name-desc", label: "Name, Z–A" },
+						{ value: "price", label: "Price, low to high" },
+						{ value: "price-desc", label: "Price, high to low" },
+						{ value: "used", label: "Most used in bouquets" },
+					],
+					onChange: (sort) =>
+						setSearch({ sort: (sort || undefined) as FlowersSearch["sort"] }),
+				}}
+				summary={
+					filtered()
+						? `${flowers().length} of ${all().length} flowers`
+						: `${all().length} flowers`
+				}
+				filtered={filtered()}
+				onClear={() =>
+					setSearch({ q: undefined, use: undefined, stock: undefined })
+				}
+			/>
 			<section class={adminCard}>
 				<Show
 					when={flowers().length > 0}
 					fallback={
-						<p class="px-5 py-4 text-sm text-petal-900/55">None yet.</p>
+						<p class="px-5 py-4 text-sm text-petal-900/55">
+							{all().length ? "No flowers match these filters." : "None yet."}
+						</p>
 					}
 				>
 					<ul class="divide-y divide-petal-50">

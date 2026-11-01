@@ -1,22 +1,77 @@
-import { Link } from "@tanstack/solid-router";
-import { For, Show } from "solid-js";
+import { Link, useNavigate, useSearch } from "@tanstack/solid-router";
+import { createMemo, For, Show } from "solid-js";
 
 import { HowToOrder } from "~/components/shop/how-to-order";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT, TAGLINE } from "~/lib/contact";
-import { useCatalog } from "~/lib/use-catalog";
+import {
+	bouquetFlowers,
+	filterKey,
+	type ShopFilters,
+} from "~/lib/shop-filters";
+import { useCatalog, useSizes } from "~/lib/use-catalog";
+import { cn } from "~/lib/utils";
+import type { Product, ProductVariant } from "~/types/product";
 
 /** The storefront: Battalion Hop launch header, the builder, then the catalog. */
 export function ShopPage() {
 	const catalog = useCatalog();
+	const sizes = useSizes();
+	const search = useSearch({ strict: false }) as () => ShopFilters;
+	const navigate = useNavigate();
+	const setFilter = (patch: ShopFilters) =>
+		navigate({
+			to: ".",
+			search: (prev: ShopFilters) => ({ ...prev, ...patch }),
+			replace: true,
+			resetScroll: false,
+		});
+
+	// Filters offer only what some bouquet has. Each count is how many
+	// bouquets that choice would show, given the other filter.
+	const hasFlower = (product: Product, flower?: string) =>
+		!flower || bouquetFlowers(product).some((f) => filterKey(f) === flower);
+	const hasSize = (product: Product, size?: string) =>
+		!size || product.size === size;
+	const flowerOptions = createMemo(() => {
+		const counts = new Map<string, number>();
+		for (const product of catalog())
+			for (const flower of bouquetFlowers(product))
+				counts.set(
+					flower,
+					(counts.get(flower) ?? 0) + (hasSize(product, search().size) ? 1 : 0),
+				);
+		return [...counts.entries()]
+			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+			.map(([name, count]) => ({ key: filterKey(name), label: name, count }));
+	});
+	const sizeOptions = createMemo(() =>
+		sizes().flatMap((size) => {
+			const all = catalog().filter((p) => p.size === size.id);
+			const count = all.filter((p) => hasFlower(p, search().flower)).length;
+			return all.length ? [{ key: size.id, label: size.name, count }] : [];
+		}),
+	);
+	const flowerLabel = () =>
+		flowerOptions().find((o) => o.key === search().flower)?.label;
+	const sizeLabel = () =>
+		sizeOptions().find((o) => o.key === search().size)?.label;
+	const filtering = () => !!(search().flower || search().size);
+
 	// One card per signature bouquet; its themes are on the bouquet's page.
-	// The card leads with a theme that's available.
+	// The card leads with an available theme, one with the chosen flower if
+	// filtering by flower.
 	const bouquets = () =>
 		catalog().flatMap((product) => {
-			const variant =
-				product.variants.find((theme) => theme.inStock) ?? product.variants[0];
+			const { flower, size } = search();
+			if (size && product.size !== size) return [];
+			const hasFlower = (variant: ProductVariant) =>
+				!flower ||
+				variant.recipe.some((item) => filterKey(item.flower) === flower);
+			const themes = product.variants.filter(hasFlower);
+			const variant = themes.find((theme) => theme.inStock) ?? themes[0];
 			return variant ? [{ product, variant }] : [];
 		});
 
@@ -91,15 +146,82 @@ export function ShopPage() {
 						<h2 class="mt-14 font-display type-soft text-2xl font-semibold">
 							Signature bouquets
 						</h2>
+						<Show when={catalog().length > 0}>
+							<fieldset class="mt-4 flex min-w-0 flex-col gap-3">
+								<legend class="sr-only">Filter bouquets</legend>
+								<FilterRow
+									label="Flower"
+									options={flowerOptions()}
+									selected={search().flower}
+									onSelect={(flower) => setFilter({ flower })}
+								/>
+								<Show when={sizeOptions().length > 1}>
+									<FilterRow
+										label="Size"
+										options={sizeOptions()}
+										selected={search().size}
+										onSelect={(size) => setFilter({ size })}
+									/>
+								</Show>
+								<p class="text-sm text-petal-900/65" aria-live="polite">
+									<Show
+										when={filtering()}
+										fallback={`${catalog().length} bouquets`}
+									>
+										{bouquets().length}{" "}
+										{bouquets().length === 1 ? "bouquet" : "bouquets"}
+										<Show when={flowerLabel()}>
+											{(name) => <> with {name()}</>}
+										</Show>
+										<Show when={sizeLabel()}>
+											{(name) => <> in {name()}</>}
+										</Show>
+										{" · "}
+										<button
+											type="button"
+											class="font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900"
+											onClick={() =>
+												setFilter({ flower: undefined, size: undefined })
+											}
+										>
+											Clear filters
+										</button>
+									</Show>
+								</p>
+							</fieldset>
+						</Show>
 						<Show
 							when={bouquets().length > 0}
 							fallback={
 								<div class="mt-10 flex flex-col items-center gap-3 text-center">
 									<FlowerMark class="size-12" />
-									<p class="font-display type-soft text-xl font-semibold">
-										New bouquets are on their way
-									</p>
-									<p class="text-sm text-petal-900/65">Check back soon.</p>
+									<Show
+										when={filtering()}
+										fallback={
+											<>
+												<p class="font-display type-soft text-xl font-semibold">
+													New bouquets are on their way
+												</p>
+												<p class="text-sm text-petal-900/65">
+													Check back soon.
+												</p>
+											</>
+										}
+									>
+										<p class="font-display type-soft text-xl font-semibold">
+											No bouquets match
+										</p>
+										<p class="text-sm text-petal-900/65">
+											Try another flower or size, or{" "}
+											<Link
+												to="/custom"
+												class="font-medium text-petal-700 underline"
+											>
+												build your own
+											</Link>
+											.
+										</p>
+									</Show>
 								</div>
 							}
 						>
@@ -141,6 +263,70 @@ export function ShopPage() {
 				</div>
 			</main>
 			<SiteFooter />
+		</div>
+	);
+}
+
+/** One filter as a row of chips; tapping the chosen one again clears it. */
+function FilterRow(props: {
+	label: string;
+	options: { key: string; label: string; count: number }[];
+	selected?: string;
+	onSelect: (key: string | undefined) => void;
+}) {
+	const chip =
+		"inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
+	return (
+		<div class="flex items-center gap-3">
+			<span class="w-12 shrink-0 text-xs font-medium uppercase tracking-wide text-petal-900/55">
+				{props.label}
+			</span>
+			<div class="-my-1 flex min-w-0 gap-2 overflow-x-auto py-1 [scrollbar-width:thin]">
+				<button
+					type="button"
+					aria-pressed={!props.selected}
+					onClick={() => props.onSelect(undefined)}
+					class={cn(
+						chip,
+						!props.selected
+							? "border-petal-700 bg-petal-700 text-white"
+							: "border-petal-200 bg-white hover:border-petal-300",
+					)}
+				>
+					All
+				</button>
+				<For each={props.options}>
+					{(option) => {
+						const on = () => props.selected === option.key;
+						return (
+							<button
+								type="button"
+								aria-pressed={on()}
+								// Nothing to show with this choice and the other filter.
+								disabled={!on() && option.count === 0}
+								onClick={() => props.onSelect(on() ? undefined : option.key)}
+								class={cn(
+									chip,
+									"disabled:cursor-not-allowed disabled:opacity-40",
+									on()
+										? "border-petal-700 bg-petal-700 text-white"
+										: "border-petal-200 bg-white hover:border-petal-300",
+								)}
+							>
+								{option.label}
+								<span
+									class={cn(
+										"text-xs tabular-nums",
+										on() ? "text-white/75" : "text-petal-900/45",
+									)}
+								>
+									{option.count}
+								</span>
+							</button>
+						);
+					}}
+				</For>
+			</div>
 		</div>
 	);
 }

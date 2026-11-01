@@ -240,8 +240,22 @@ export function moveProductsToBouquets(db: Database) {
 			.query("SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM signature_bouquets")
 			.get() as { n: number }
 	).n;
+	// Sizes became a table later (v22): then the bouquet points at one.
+	const sizeTable = (
+		db.query("PRAGMA table_info(signature_bouquets)").all() as {
+			name: string;
+		}[]
+	).some((column) => column.name === "size_id");
+	const sizeIds = new Set(
+		sizeTable
+			? (db.query("SELECT id FROM sizes").all() as { id: string }[]).map(
+					(r) => r.id,
+				)
+			: [],
+	);
 	const insertBouquet = db.query(
-		`INSERT INTO signature_bouquets (id, name, description, size, is_visible, sort, created_at, updated_at)
+		`INSERT INTO signature_bouquets (id, name, description, ${sizeTable ? "size_id" : "size"}, is_visible, sort,
+		   created_at, updated_at)
 		 VALUES ($id, $name, $description, $size, $visible, $sort, $now, $now)`,
 	);
 	const insertStyle = db.query(
@@ -288,7 +302,11 @@ export function moveProductsToBouquets(db: Database) {
 					name,
 					description: product.description ?? "",
 					// One size for the bouquet: the one most of its colors had.
-					size: mostCommon(sizes) ?? "",
+					size: sizeTable
+						? sizeIds.has(mostCommon(sizes) ?? "")
+							? mostCommon(sizes)
+							: null
+						: (mostCommon(sizes) ?? ""),
 					visible: product.is_visible === 0 ? 0 : 1,
 					sort: sort++,
 					now: now(),

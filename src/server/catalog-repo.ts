@@ -1,4 +1,4 @@
-import { type BouquetSize, isBouquetSize } from "~/lib/sizes";
+import type { BouquetSize } from "~/lib/sizes";
 import type {
 	AdminProduct,
 	AdminVariant,
@@ -14,7 +14,7 @@ interface BouquetRow {
 	id: string;
 	name: string;
 	description: string;
-	size: string;
+	size_id: string | null;
 	is_visible: number;
 }
 
@@ -76,7 +76,7 @@ export function listAdminProducts({
 		)
 		.all() as RecipeRow[];
 	return bouquets.map((row) => {
-		const size = isBouquetSize(row.size) ? row.size : "";
+		const size = row.size_id ?? "";
 		const variants = styles
 			.filter((style) => style.bouquet_id === row.id)
 			.map((style) => toVariant(style, row, size, recipes));
@@ -215,28 +215,28 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 			);
 			id = uniqueSlug(slugify(input.title), taken);
 			db.query(
-				`INSERT INTO signature_bouquets (id, name, description, size, is_visible, sort, created_at, updated_at)
+				`INSERT INTO signature_bouquets (id, name, description, size_id, is_visible, sort, created_at, updated_at)
 				 VALUES ($id, $name, $description, $size, $visible,
 				   (SELECT COALESCE(MAX(sort), -1) + 1 FROM signature_bouquets), $now, $now)`,
 			).run({
 				id,
 				name: input.title,
 				description: input.description,
-				size: input.size,
+				size: input.size || null,
 				visible: input.isVisible ? 1 : 0,
 				now: nowIso(),
 			});
 		} else {
 			const result = db
 				.query(
-					`UPDATE signature_bouquets SET name = $name, description = $description, size = $size,
+					`UPDATE signature_bouquets SET name = $name, description = $description, size_id = $size,
 					   is_visible = $visible, updated_at = $now WHERE id = $id`,
 				)
 				.run({
 					id,
 					name: input.title,
 					description: input.description,
-					size: input.size,
+					size: input.size || null,
 					visible: input.isVisible ? 1 : 0,
 					now: nowIso(),
 				});

@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
 import { flowerCodeKey, isPhotoTag } from "~/lib/product";
-import { BOUQUET_SIZES } from "~/lib/sizes";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
 import {
@@ -14,6 +13,7 @@ import {
 	type VariantInput,
 } from "../catalog-repo";
 import { getCustomSettings } from "../custom-repo";
+import { listSizes } from "../sizes-repo";
 import { publicUploadUrl, saveImage, UploadError } from "../uploads";
 import {
 	asRecord,
@@ -191,7 +191,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
 			size: product.size
 				? oneOf(
 						product.size,
-						BOUQUET_SIZES.map((s) => s.id),
+						listSizes().map((s) => s.id),
 						"Size",
 					)
 				: "",
