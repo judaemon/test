@@ -9,7 +9,7 @@ import {
 	listAdminProducts,
 	type ProductInput,
 	saveProduct,
-	setStyleAvailable,
+	updateStyle,
 	type VariantInput,
 } from "../catalog-repo";
 import { getCustomSettings } from "../custom-repo";
@@ -55,19 +55,24 @@ export const getAdminProductFn = createServerFn({ method: "GET" })
 		return getAdminProduct(data) ?? null;
 	});
 
-/** Marks a style available or not, from the list of bouquets. */
-export const setStyleAvailableFn = createServerFn({ method: "POST" })
+/** Quick edits from the list of bouquets: a style's availability or price. */
+export const updateStyleFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
 		const source = asRecord(input);
 		return {
 			productId: text(source, "productId", { max: 80 }),
 			variantId: text(source, "variantId", { max: 80 }),
-			isAvailable: bool(source, "isAvailable"),
+			...(source.isAvailable === undefined
+				? {}
+				: { isAvailable: bool(source, "isAvailable") }),
+			...(source.price === undefined
+				? {}
+				: { price: money(source, "price", { label: "Price" }) }),
 		};
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
-		setStyleAvailable(data.productId, data.variantId, data.isAvailable);
+		updateStyle(data.productId, data.variantId, data);
 		return getAdminProduct(data.productId) ?? null;
 	});
 

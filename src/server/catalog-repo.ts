@@ -328,19 +328,27 @@ function flowerColorId(item: RecipeItem) {
 	return row.id;
 }
 
-/** Marks a style available or not, from the list of bouquets. */
-export function setStyleAvailable(
+/** Quick edits from the list of bouquets: a style's availability or price. */
+export function updateStyle(
 	productId: string,
 	variantId: string,
-	isAvailable: boolean,
+	patch: { isAvailable?: boolean; price?: number },
 ) {
 	const db = getDb();
 	const result = db
 		.query(
-			`UPDATE bouquet_styles SET is_available = $available
+			`UPDATE bouquet_styles SET
+			   is_available = COALESCE($available, is_available),
+			   price_cents = COALESCE($price, price_cents)
 			 WHERE bouquet_id = $productId AND slug = $variantId`,
 		)
-		.run({ productId, variantId, available: isAvailable ? 1 : 0 });
+		.run({
+			productId,
+			variantId,
+			available:
+				patch.isAvailable === undefined ? null : patch.isAvailable ? 1 : 0,
+			price: patch.price === undefined ? null : toCents(patch.price),
+		});
 	if (result.changes === 0) throw new Error("Style not found");
 	db.query(
 		"UPDATE signature_bouquets SET updated_at = $now WHERE id = $id",

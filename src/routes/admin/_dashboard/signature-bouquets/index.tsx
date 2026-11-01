@@ -25,7 +25,7 @@ import {
 	deleteProductFn,
 	deleteVariantFn,
 	listInventory,
-	setStyleAvailableFn,
+	updateStyleFn,
 } from "~/server/admin/catalog";
 import type { AdminProduct, AdminVariant } from "~/types/product";
 
@@ -136,7 +136,7 @@ function InventoryPage() {
 		<div>
 			<PageHeader
 				title="Signature bouquets"
-				description="Each bouquet and its styles. Switching a style off keeps it in the shop but stops it being ordered; it saves right away."
+				description="Each bouquet and its styles. Change a price or switch a style off right here; it saves straight away. A style that’s off stays in the shop but can’t be ordered."
 				actions={
 					<Link
 						to="/admin/signature-bouquets/$productId"
@@ -337,7 +337,13 @@ function VariantRow(props: {
 	onSaved: (product: AdminProduct) => void;
 }) {
 	const [saving, setSaving] = createSignal(false);
-	const [saved, setSaved] = createSignal(false);
+	/** Which control just saved, for its "Saved ✓". */
+	const [saved, setSaved] = createSignal<"price" | "available" | null>(null);
+	const currentPrice = () =>
+		String(props.variant.price ?? props.product.basePrice);
+	const [price, setPrice] = createSignal(currentPrice());
+	// Follow saves from elsewhere (or a reverted edit).
+	createEffect(on(currentPrice, (value) => setPrice(value), { defer: true }));
 	let savedTimer: ReturnType<typeof setTimeout> | undefined;
 	onCleanup(() => clearTimeout(savedTimer));
 
@@ -363,28 +369,44 @@ function VariantRow(props: {
 		});
 	};
 
-	// The switch stays enabled while saving: disabling it would drop keyboard
-	// focus. Extra clicks during a save are ignored instead.
-	const setAvailable = async (isAvailable: boolean) => {
+	// Controls stay enabled while saving: disabling them would drop keyboard
+	// focus. Extra changes during a save are ignored instead.
+	const save = async (
+		field: "price" | "available",
+		patch: { isAvailable?: boolean; price?: number },
+	) => {
 		if (saving()) return;
 		setSaving(true);
 		try {
-			const product = await setStyleAvailableFn({
+			const product = await updateStyleFn({
 				data: {
 					productId: props.product.id,
 					variantId: props.variant.id,
-					isAvailable,
+					...patch,
 				},
 			});
 			if (product) props.onSaved(product);
-			setSaved(true);
+			setSaved(field);
 			clearTimeout(savedTimer);
-			savedTimer = setTimeout(() => setSaved(false), 1500);
+			savedTimer = setTimeout(() => setSaved(null), 1500);
 		} catch (error) {
+			setPrice(currentPrice());
 			toastError(error);
 		} finally {
 			setSaving(false);
 		}
+	};
+
+	/** Saves a typed price once it's left (Enter or clicking away). */
+	const commitPrice = () => {
+		const next = Math.round(Number(price()) * 100) / 100;
+		if (!price().trim() || !Number.isFinite(next) || next <= 0) {
+			setPrice(currentPrice());
+			toastError(new Error("Price must be more than zero."));
+			return;
+		}
+		if (String(next) !== currentPrice()) void save("price", { price: next });
+		else setPrice(currentPrice());
 	};
 
 	return (
@@ -441,11 +463,36 @@ function VariantRow(props: {
 					</div>
 				</div>
 			</td>
-			<td data-label="Price" class="px-5 py-2 md:px-3 md:py-3 tabular-nums">
-				{formatPrice(
-					props.variant.price ?? props.product.basePrice,
-					props.product.currency,
-				)}
+			<td data-controls data-label="Price" class="px-5 py-2 md:px-3 md:py-3">
+				<div class="flex items-center gap-2">
+					<label class="flex h-10 w-32 items-center rounded-lg border border-petal-200 bg-white pl-2.5 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 hover:border-petal-300 sm:h-9">
+						<span aria-hidden="true" class="text-petal-900/55">
+							₱
+						</span>
+						<input
+							type="number"
+							inputMode="decimal"
+							min="1"
+							step="0.01"
+							value={price()}
+							aria-label={`${label()} price`}
+							aria-busy={saving()}
+							onInput={(e) => setPrice(e.currentTarget.value)}
+							onChange={commitPrice}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") e.currentTarget.blur();
+								if (e.key === "Escape") {
+									setPrice(currentPrice());
+									e.currentTarget.blur();
+								}
+							}}
+							class="h-full w-full min-w-0 bg-transparent px-1.5 text-base tabular-nums outline-none sm:text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+						/>
+					</label>
+					<span class="w-14 text-xs text-sage-600" aria-live="polite">
+						{saved() === "price" ? "Saved ✓" : ""}
+					</span>
+				</div>
 			</td>
 			<td
 				data-controls
@@ -457,7 +504,9 @@ function VariantRow(props: {
 						label={`${label()} available`}
 						hideLabel
 						checked={props.variant.isAvailable}
-						onChange={(checked) => void setAvailable(checked)}
+						onChange={(checked) =>
+							void save("available", { isAvailable: checked })
+						}
 					/>
 					<span
 						class={cn(
@@ -470,7 +519,7 @@ function VariantRow(props: {
 						{props.variant.isAvailable ? "Available" : "Not available"}
 					</span>
 					<span class="w-14 text-xs text-sage-600" aria-live="polite">
-						{saved() ? "Saved ✓" : ""}
+						{saved() === "available" ? "Saved ✓" : ""}
 					</span>
 				</div>
 			</td>
