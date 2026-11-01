@@ -6,28 +6,18 @@ import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT, TAGLINE } from "~/lib/contact";
-import { flowerCodeKey } from "~/lib/product";
 import { useCatalog } from "~/lib/use-catalog";
-import type { ProductVariant } from "~/types/product";
 
 /** The storefront: Battalion Hop launch header, the builder, then the catalog. */
 export function ShopPage() {
 	const catalog = useCatalog();
-	// One card per style (its flower code); its colors are on the bouquet's
-	// page. The card leads with a color that's in stock.
+	// One card per signature bouquet; its themes are on the bouquet's page.
+	// The card leads with a theme that's available.
 	const bouquets = () =>
 		catalog().flatMap((product) => {
-			const styles = new Map<string, ProductVariant[]>();
-			for (const variant of product.variants) {
-				const key = flowerCodeKey(variant.sku);
-				styles.set(key, [...(styles.get(key) ?? []), variant]);
-			}
-			return [...styles.values()].map((colors) => ({
-				product,
-				variant:
-					colors.find((color) => color.inStock) ??
-					(colors[0] as ProductVariant),
-			}));
+			const variant =
+				product.variants.find((theme) => theme.inStock) ?? product.variants[0];
+			return variant ? [{ product, variant }] : [];
 		});
 
 	return (
@@ -120,13 +110,13 @@ export function ShopPage() {
 											<Link
 												to="/products/$productId"
 												params={{ productId: product.id }}
-												search={{ variant: variant.id }}
+												search={{ theme: variant.id }}
 												class="group block rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-4 focus-visible:ring-offset-cream"
 											>
 												<div class="relative aspect-square overflow-hidden rounded-2xl bg-petal-50 shadow-[0_12px_28px_-20px] shadow-petal-900/40 sm:rounded-3xl">
 													<img
 														src={variant.images[0]}
-														alt={`${variant.sku}: ${product.title}, ${variant.colorName}`}
+														alt={`${product.title}, ${variant.colorName}`}
 														width={600}
 														height={600}
 														loading="lazy"
@@ -134,12 +124,12 @@ export function ShopPage() {
 													/>
 													<Show when={!variant.inStock}>
 														<span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
-															Sold out
+															Not available
 														</span>
 													</Show>
 												</div>
 												<p class="mt-2 text-center font-display type-soft text-base font-semibold sm:text-lg">
-													{variant.sku}
+													{product.title}
 												</p>
 											</Link>
 										</li>

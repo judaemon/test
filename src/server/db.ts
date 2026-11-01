@@ -2,13 +2,28 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { seedPaymentAccounts, seedProducts } from "./seed-data";
+import {
+	type CustomWrapper,
+	DEFAULT_CUSTOM_SETTINGS,
+	flowersFromSettings,
+	type LegacyFlowerOption,
+} from "~/lib/custom-bouquet";
+import {
+	BOUQUET_TABLES_SQL,
+	flowerColorIdFor,
+	moveProductsToBouquets,
+	wrapperIdForName,
+} from "./bouquet-tables";
+import { seedBouquets, seedPaymentAccounts } from "./seed-data";
 
 // Server-only. Requires the Bun runtime (`bun run dev`, `bun .output/server/index.mjs`).
 const DB_PATH = process.env.DATABASE_PATH ?? ".data/oraia.sqlite";
 
-/** Append-only: each entry upgrades the schema by one version. */
-const MIGRATIONS = [
+/**
+ * Append-only: each entry upgrades the schema by one version. Most are SQL;
+ * a function is for steps that need to read JSON first.
+ */
+const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	CREATE TABLE products (
 		id TEXT PRIMARY KEY,
@@ -235,6 +250,173 @@ const MIGRATIONS = [
 	`
 	ALTER TABLE variants ADD COLUMN ai_photos INTEGER NOT NULL DEFAULT 1;
 	`,
+	// v17: flowers get their own tables (Admin → Flowers) instead of a list in
+	// the builder settings, and each color has its own price and stock. The
+	// saved list, or the sample one, moves across with every color at the
+	// flower's old price and stock not counted.
+	(db) => {
+		db.exec(`
+			CREATE TABLE flowers (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+				counted INTEGER NOT NULL DEFAULT 1,
+				hint TEXT NOT NULL DEFAULT '',
+				is_enabled INTEGER NOT NULL DEFAULT 1,
+				image TEXT NOT NULL DEFAULT '',
+				sort INTEGER NOT NULL DEFAULT 0,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			);
+			CREATE TABLE flower_colors (
+				id TEXT PRIMARY KEY,
+				flower_id TEXT NOT NULL REFERENCES flowers(id) ON DELETE CASCADE,
+				name TEXT NOT NULL COLLATE NOCASE,
+				price_cents INTEGER NOT NULL DEFAULT 0 CHECK (price_cents >= 0),
+				-- NULL means stock isn't counted.
+				stock_quantity INTEGER CHECK (stock_quantity >= 0),
+				is_enabled INTEGER NOT NULL DEFAULT 1,
+				image TEXT NOT NULL DEFAULT '',
+				sort INTEGER NOT NULL DEFAULT 0,
+				UNIQUE (flower_id, name)
+			);
+		`);
+		const row = db
+			.query("SELECT value FROM settings WHERE key = 'custom_bouquet'")
+			.get() as { value: string } | null;
+		const saved = row
+			? (JSON.parse(row.value) as { flowers?: LegacyFlowerOption[] })
+			: {};
+		const insertFlower = db.query(
+			`INSERT OR IGNORE INTO flowers (id, name, hint, is_enabled, image, sort, created_at, updated_at)
+			 VALUES ($id, $name, $hint, $enabled, $image, $sort, $now, $now)`,
+		);
+		const insertColor = db.query(
+			`INSERT OR IGNORE INTO flower_colors (id, flower_id, name, price_cents, is_enabled, image, sort)
+			 VALUES ($id, $flowerId, $name, $price, 1, $image, $sort)`,
+		);
+		flowersFromSettings(saved).forEach((flower, index) => {
+			const id = crypto.randomUUID();
+			const { changes } = insertFlower.run({
+				id,
+				name: flower.name,
+				hint: flower.kind.hint ?? "",
+				enabled: flower.enabled ? 1 : 0,
+				image: flower.image ?? "",
+				sort: index,
+				now: nowIso(),
+			});
+			if (changes === 0) return;
+			flower.colors.forEach((color, sort) => {
+				insertColor.run({
+					id: crypto.randomUUID(),
+					flowerId: id,
+					name: color.name,
+					price: toCents(color.price),
+					image: color.image ?? "",
+					sort,
+				});
+			});
+		});
+		if (row && "flowers" in saved) {
+			delete saved.flowers;
+			db.query(
+				"UPDATE settings SET value = $value WHERE key = 'custom_bouquet'",
+			).run({ value: JSON.stringify(saved) });
+		}
+	},
+	// v18: wrappers get their own table too (Admin → Wrappers). They keep
+	// their ids, which orders refer to.
+	(db) => {
+		db.exec(`
+			CREATE TABLE wrappers (
+				id TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				color_hex TEXT NOT NULL,
+				price_cents INTEGER NOT NULL DEFAULT 0 CHECK (price_cents >= 0),
+				-- NULL means stock isn't counted.
+				stock_quantity INTEGER CHECK (stock_quantity >= 0),
+				is_enabled INTEGER NOT NULL DEFAULT 1,
+				image TEXT NOT NULL DEFAULT '',
+				sort INTEGER NOT NULL DEFAULT 0,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			);
+		`);
+		const row = db
+			.query("SELECT value FROM settings WHERE key = 'custom_bouquet'")
+			.get() as { value: string } | null;
+		const saved = row
+			? (JSON.parse(row.value) as { wrappers?: CustomWrapper[] })
+			: {};
+		const insert = db.query(
+			`INSERT OR IGNORE INTO wrappers (id, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
+			   created_at, updated_at)
+			 VALUES ($id, $name, $colorHex, $price, $stock, $enabled, $image, $sort, $now, $now)`,
+		);
+		(saved.wrappers ?? DEFAULT_CUSTOM_SETTINGS.wrappers).forEach(
+			(wrapper, sort) => {
+				insert.run({
+					id: wrapper.id,
+					name: wrapper.name,
+					colorHex: wrapper.colorHex,
+					price: toCents(wrapper.price),
+					stock: wrapper.stock ?? null,
+					enabled: wrapper.enabled ? 1 : 0,
+					image: wrapper.image ?? "",
+					sort,
+					now: nowIso(),
+				});
+			},
+		);
+		if (row && "wrappers" in saved) {
+			delete saved.wrappers;
+			db.query(
+				"UPDATE settings SET value = $value WHERE key = 'custom_bouquet'",
+			).run({ value: JSON.stringify(saved) });
+		}
+	},
+	// v19: every flower is counted, fillers included; there's no more
+	// "added as a cluster". Recipe items without a count get one.
+	(db) => {
+		db.exec("ALTER TABLE flowers DROP COLUMN counted");
+		const rows = db
+			.query("SELECT product_id, id, recipe FROM variants")
+			.all() as { product_id: string; id: string; recipe: string }[];
+		const update = db.query(
+			"UPDATE variants SET recipe = $recipe WHERE product_id = $productId AND id = $id",
+		);
+		for (const row of rows) {
+			const recipe = JSON.parse(row.recipe) as { count?: number }[];
+			if (recipe.every((item) => item.count)) continue;
+			update.run({
+				productId: row.product_id,
+				id: row.id,
+				recipe: JSON.stringify(
+					recipe.map((item) => ({ ...item, count: item.count || 1 })),
+				),
+			});
+		}
+	},
+	// v20: signature bouquets get their own tables. Each style code (a girl's
+	// name) becomes a bouquet, and each of its colors one of its styles, with
+	// recipes and wrappers linked to the flower and wrapper tables.
+	(db) => {
+		db.exec(BOUQUET_TABLES_SQL);
+		moveProductsToBouquets(db);
+	},
+	// v21: styles have no stock count, just an "available" switch. One that
+	// was sold out becomes unavailable. (Databases that reached v20 after
+	// this change never had the column.)
+	(db) => {
+		const columns = db.query("PRAGMA table_info(bouquet_styles)").all() as {
+			name: string;
+		}[];
+		if (!columns.some((column) => column.name === "stock_quantity")) return;
+		db.exec(`
+			UPDATE bouquet_styles SET is_available = 0 WHERE stock_quantity <= 0;
+			ALTER TABLE bouquet_styles DROP COLUMN stock_quantity;
+		`);
+	},
 ];
 
 declare global {
@@ -261,7 +443,9 @@ function migrate(db: Database) {
 	};
 	for (let next = version; next < MIGRATIONS.length; next++) {
 		db.transaction(() => {
-			db.exec(MIGRATIONS[next] as string);
+			const step = MIGRATIONS[next];
+			if (typeof step === "function") step(db);
+			else db.exec(step as string);
 			db.exec(`PRAGMA user_version = ${next + 1}`);
 		})();
 	}
@@ -276,47 +460,52 @@ export function seedStarterData(db: Database) {
 	const count = (table: string) =>
 		(db.query(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
 
-	if (count("products") === 0) {
-		const insertProduct = db.query(
-			`INSERT INTO products (id, title, description, base_price_cents, currency, is_visible, size, sort,
-			   created_at, updated_at)
-			 VALUES ($id, $title, $description, $price, $currency, $visible, $size, $sort, $now, $now)`,
+	if (count("signature_bouquets") === 0) {
+		const insertBouquet = db.query(
+			`INSERT INTO signature_bouquets (id, name, description, size, is_visible, sort, created_at, updated_at)
+			 VALUES ($id, $name, $description, $size, $visible, $sort, $now, $now)`,
 		);
-		const insertVariant = db.query(
-			`INSERT INTO variants (product_id, id, sku, color_name, color_hex, price_cents, stock_quantity, is_available,
-			   images, recipe, wrapper_color, size, sort)
-			 VALUES ($productId, $id, $sku, $colorName, $colorHex, $price, $stock, $available, $images, $recipe,
-			   $wrapperColor, $size, $sort)`,
+		const insertStyle = db.query(
+			`INSERT INTO bouquet_styles (id, bouquet_id, slug, name, color_hex, price_cents, is_available,
+			   images, wrapper_id, sort)
+			 VALUES ($id, $bouquetId, $slug, $name, $colorHex, $price, $available, $images, $wrapperId, $sort)`,
+		);
+		const insertFlower = db.query(
+			`INSERT INTO style_flowers (style_id, flower_color_id, count, sort)
+			 VALUES ($styleId, $colorId, $count, $sort)`,
 		);
 		db.transaction(() => {
-			seedProducts.forEach((product, productIndex) => {
-				insertProduct.run({
-					id: product.id,
-					title: product.title,
-					description: product.description,
-					price: toCents(product.basePrice),
-					currency: product.currency,
-					visible: product.isVisible ? 1 : 0,
-					// Sizes are set per color now.
-					size: "",
-					sort: productIndex,
+			seedBouquets.forEach((bouquet, bouquetIndex) => {
+				insertBouquet.run({
+					id: bouquet.id,
+					name: bouquet.name,
+					description: bouquet.description,
+					size: bouquet.size,
+					visible: bouquet.isVisible ? 1 : 0,
+					sort: bouquetIndex,
 					now: nowIso(),
 				});
-				product.variants.forEach((variant, index) => {
-					insertVariant.run({
-						productId: product.id,
-						id: variant.id,
-						sku: variant.sku,
-						colorName: variant.colorName,
-						colorHex: variant.colorHex ?? null,
-						price: toCents(variant.price ?? product.basePrice),
-						stock: variant.stockQuantity,
-						available: variant.isAvailable ? 1 : 0,
-						images: JSON.stringify(variant.images),
-						recipe: JSON.stringify(variant.recipe),
-						wrapperColor: variant.wrapperColor,
-						size: variant.size ?? "",
+				bouquet.styles.forEach((style, index) => {
+					const styleId = crypto.randomUUID();
+					insertStyle.run({
+						id: styleId,
+						bouquetId: bouquet.id,
+						slug: style.slug,
+						name: style.name,
+						colorHex: style.colorHex,
+						price: toCents(style.price),
+						available: style.isAvailable ? 1 : 0,
+						images: JSON.stringify(style.images),
+						wrapperId: wrapperIdForName(db, style.wrapper),
 						sort: index,
+					});
+					style.recipe.forEach((item, sort) => {
+						insertFlower.run({
+							styleId,
+							colorId: flowerColorIdFor(db, item.flower, item.color),
+							count: item.count ?? 1,
+							sort,
+						});
 					});
 				});
 			});

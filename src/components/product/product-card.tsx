@@ -33,7 +33,7 @@ export function ProductCard(props: { product: Product }) {
 				/>
 				<Show when={soldOut()}>
 					<span class="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-petal-900">
-						Sold out
+						Not available
 					</span>
 				</Show>
 			</div>

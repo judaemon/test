@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/solid-start";
 
 import {
+	findBouquetRedirect,
 	getAdminProduct,
 	listPublicProducts,
 	toPublicProduct,
@@ -25,3 +26,16 @@ export const getProduct = createServerFn({ method: "GET" })
 		const product = getAdminProduct(data);
 		return product?.isVisible ? toPublicProduct(product) : null;
 	});
+
+/** Where an old product link (from before bouquets had their own pages) goes now. */
+export const findMovedProduct = createServerFn({ method: "GET" })
+	.validator((input: unknown) => {
+		const source = (input ?? {}) as Record<string, unknown>;
+		return {
+			productId: String(source.productId ?? "").slice(0, 80),
+			variant: String(source.variant ?? "").slice(0, 80),
+		};
+	})
+	.handler(async ({ data }) =>
+		findBouquetRedirect(data.productId, data.variant),
+	);

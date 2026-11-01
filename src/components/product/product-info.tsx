@@ -1,14 +1,6 @@
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
-import {
-	createEffect,
-	createSignal,
-	For,
-	Match,
-	on,
-	Show,
-	Switch,
-} from "solid-js";
+import { createEffect, createSignal, For, on, Show } from "solid-js";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -30,12 +22,7 @@ import {
 	setCartOpen,
 } from "~/lib/cart-store";
 import { stemCount } from "~/lib/flowers";
-import {
-	formatPrice,
-	getMaxQuantity,
-	getStockStatus,
-	getVariantPrice,
-} from "~/lib/product";
+import { formatPrice, getMaxQuantity, getVariantPrice } from "~/lib/product";
 import {
 	BOUQUET_SIZES,
 	type BouquetSize,
@@ -66,7 +53,7 @@ export function ProductInfo(props: ProductInfoProps) {
 	const price = () => getVariantPrice(props.product, props.variant);
 	const size = () => bouquetSize(props.variant.size);
 	const flowerPhoto = useFlowerPhotos();
-	const stockStatus = () => getStockStatus(props.variant);
+
 	const bagLines = useSelector(cartStore, (state) => state.lines);
 	const inBag = () =>
 		getLineQuantity(bagLines(), props.product.id, props.variant.id);
@@ -75,7 +62,7 @@ export function ProductInfo(props: ProductInfoProps) {
 	const isMaxedOut = () => props.variant.inStock && remaining() === 0;
 	const maxQuantity = () => Math.max(1, remaining());
 
-	// Switching to a variant with less stock must not leave an impossible quantity.
+	// Switching themes must not leave an impossible quantity.
 	createEffect(
 		on(maxQuantity, (max) => setQuantity((current) => Math.min(current, max))),
 	);
@@ -103,9 +90,9 @@ export function ProductInfo(props: ProductInfoProps) {
 					variant: "warning",
 					title:
 						added > 0
-							? `Added ${added} — that’s all we have`
-							: "No more available",
-					description: `Your bag now holds every ${variant.colorName} bouquet in stock.`,
+							? `Added ${added} — that’s the most per order`
+							: "No more for this order",
+					description: `Your bag holds the most ${variant.colorName} bouquets one order can have.`,
 					duration: 4000,
 				});
 			}
@@ -122,12 +109,7 @@ export function ProductInfo(props: ProductInfoProps) {
 				<h1 class="font-display type-soft text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
 					{props.product.title}
 				</h1>
-				<p class="text-sm text-muted-foreground">
-					Style:{" "}
-					<span class="font-display type-soft text-lg font-semibold text-foreground">
-						{props.variant.sku}
-					</span>
-				</p>
+
 				<Show when={props.product.description}>
 					<p class="mt-1 text-sm leading-relaxed text-muted-foreground">
 						{props.product.description}
@@ -144,23 +126,18 @@ export function ProductInfo(props: ProductInfoProps) {
 					<span class="sr-only">Price: </span>
 					{formatPrice(price(), props.product.currency)}
 				</p>
-				<Switch>
-					<Match when={stockStatus() === "in-stock"}>
-						<Badge variant="success" round>
-							In stock
-						</Badge>
-					</Match>
-					<Match when={stockStatus() === "low-stock"}>
-						<Badge variant="warning" round>
-							Only {props.variant.stockQuantity} left
-						</Badge>
-					</Match>
-					<Match when={stockStatus() === "out-of-stock"}>
+				<Show
+					when={props.variant.inStock}
+					fallback={
 						<Badge variant="error" round>
-							Sold out
+							Not available
 						</Badge>
-					</Match>
-				</Switch>
+					}
+				>
+					<Badge variant="success" round>
+						Available
+					</Badge>
+				</Show>
 			</div>
 
 			<Separator />
@@ -298,7 +275,10 @@ export function ProductInfo(props: ProductInfoProps) {
 						aria-busy={isAdding()}
 						onClick={handleAddToCart}
 					>
-						<Show when={props.variant.inStock} fallback={<span>Sold out</span>}>
+						<Show
+							when={props.variant.inStock}
+							fallback={<span>Not available</span>}
+						>
 							<BagIcon class="size-5" />
 							<span>{isAdding() ? "Adding…" : "Add to Bag"}</span>
 						</Show>
@@ -306,8 +286,8 @@ export function ProductInfo(props: ProductInfoProps) {
 				</Show>
 				<Show when={isMaxedOut()}>
 					<p class="text-center text-sm text-muted-foreground">
-						You have all {inBag()} available {props.variant.colorName} bouquets
-						in your bag.
+						Your bag has {inBag()} {props.variant.colorName} bouquets, the most
+						for one order.
 					</p>
 				</Show>
 				<Show when={!isMaxedOut() && inBag() > 0}>
@@ -317,8 +297,8 @@ export function ProductInfo(props: ProductInfoProps) {
 				</Show>
 				<Show when={!props.variant.inStock}>
 					<p class="text-center text-sm text-muted-foreground">
-						{props.variant.colorName} is sold out — pick another color above to
-						order today.
+						{props.variant.colorName} isn’t available right now. Pick another
+						theme above to order.
 					</p>
 				</Show>
 			</div>

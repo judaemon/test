@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/solid-start";
-import { findFlowerKind } from "~/lib/custom-bouquet";
 import { flowerCodeKey, isPhotoTag } from "~/lib/product";
 import { BOUQUET_SIZES } from "~/lib/sizes";
 import type { RecipeItem } from "~/types/product";
@@ -11,7 +10,7 @@ import {
 	listAdminProducts,
 	type ProductInput,
 	saveProduct,
-	updateVariantStock,
+	setStyleAvailable,
 	type VariantInput,
 } from "../catalog-repo";
 import { getCustomSettings } from "../custom-repo";
@@ -26,6 +25,7 @@ import {
 	oneOf,
 	text,
 } from "../validate";
+import { getWrapper } from "../wrappers-repo";
 
 export const listInventory = createServerFn({ method: "GET" }).handler(
 	async () => {
@@ -34,17 +34,14 @@ export const listInventory = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-/** Every style in the shop, so the editor can warn about repeats. */
+/** Every bouquet's name, so the editor can suggest a free one and warn about repeats. */
 export const listFlowerCodes = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
-		return listAdminProducts().flatMap((product) =>
-			product.variants.map((variant) => ({
-				code: variant.sku,
-				owner: `${product.title} · ${variant.colorName}`,
-				productId: product.id,
-			})),
-		);
+		return listAdminProducts().map((product) => ({
+			code: product.title,
+			productId: product.id,
+		}));
 	},
 );
 
@@ -58,31 +55,25 @@ export const getAdminProductFn = createServerFn({ method: "GET" })
 		return getAdminProduct(data) ?? null;
 	});
 
-export const updateStock = createServerFn({ method: "POST" })
+/** Marks a style available or not, from the list of bouquets. */
+export const setStyleAvailableFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
 		const source = asRecord(input);
 		return {
 			productId: text(source, "productId", { max: 80 }),
 			variantId: text(source, "variantId", { max: 80 }),
-			stockQuantity:
-				source.stockQuantity === undefined
-					? undefined
-					: integer(source, "stockQuantity", { label: "Stock", max: 100_000 }),
-			isAvailable:
-				source.isAvailable === undefined
-					? undefined
-					: bool(source, "isAvailable"),
+			isAvailable: bool(source, "isAvailable"),
 		};
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
-		updateVariantStock(data.productId, data.variantId, data);
+		setStyleAvailable(data.productId, data.variantId, data.isAvailable);
 		return getAdminProduct(data.productId) ?? null;
 	});
 
 function parseVariant(raw: unknown, index: number): VariantInput {
 	const source = asRecord(raw);
-	const label = `Color ${index + 1}`;
+	const label = `Style ${index + 1}`;
 	const colorHex = text(source, "colorHex", {
 		label: `${label} swatch`,
 		max: 7,
@@ -115,46 +106,41 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 				? source.id.slice(0, 80)
 				: undefined,
 		colorName: text(source, "colorName", { label: `${label} name`, max: 40 }),
-		sku: flowerCode(source, label),
 		colorHex,
 		colorHex2,
 		price: money(source, "price", { label: `${label} price` }),
-		stockQuantity: integer(source, "stockQuantity", {
-			label: `${label} stock`,
-			max: 100_000,
-		}),
 		isAvailable: bool(source, "isAvailable"),
 		aiPhotos: bool(source, "aiPhotos"),
 		images,
 		imageTags,
 		recipe: parseRecipe(source.recipe, label),
-		wrapperColor: text(source, "wrapperColor", {
-			label: `${label} wrapper color`,
-			max: 40,
-			required: false,
-		}),
-		size: source.size
-			? oneOf(
-					source.size,
-					BOUQUET_SIZES.map((s) => s.id),
-					`${label} size`,
-				)
-			: "",
+		wrapperId: wrapperId(source, label),
 	};
 }
 
-/** Flower codes are girls' names, e.g. "Bianca" or "Mary Ann". */
-function flowerCode(source: Record<string, unknown>, label: string) {
-	const code = text(source, "sku", { label: `${label} style`, max: 30 });
-	if (!/^\p{L}[\p{L} '.-]*$/u.test(code))
+/** A wrapper from Admin → Wrappers, or none. */
+function wrapperId(source: Record<string, unknown>, label: string) {
+	const id = text(source, "wrapperId", { max: 64, required: false });
+	if (id && !getWrapper(id))
+		throw new InputError(`${label} wrapper isn’t in the wrapper list.`);
+	return id;
+}
+
+/** Bouquets are named after girls, e.g. "Odette" or "Mary Ann". */
+function bouquetName(source: Record<string, unknown>) {
+	const name = text(source, "title", { label: "Name", max: 30 }).replace(
+		/\s+/g,
+		" ",
+	);
+	if (!/^\p{L}[\p{L} '.-]*$/u.test(name))
 		throw new InputError(
-			`${label} style should be a name, like Bianca — letters only.`,
+			"The name should be a name, like Odette — letters only.",
 		);
-	return code;
+	return name;
 }
 
 function parseRecipe(raw: unknown, label: string): RecipeItem[] {
-	// Includes flowers staff added in Custom bouquets.
+	// The flowers staff keep in Admin → Flowers.
 	const settings = getCustomSettings();
 	const rows = Array.isArray(raw) ? raw : [];
 	if (rows.length > 20)
@@ -162,28 +148,28 @@ function parseRecipe(raw: unknown, label: string): RecipeItem[] {
 	return rows.map((row) => {
 		const item = asRecord(row);
 		const flower = text(item, "flower", { label: `${label} flower`, max: 40 });
-		const kind = findFlowerKind(flower, settings);
-		if (!kind)
+		const option = settings.flowers.find((f) => f.name === flower);
+		if (!option)
 			throw new InputError(`${label}: “${flower}” isn’t in the flower list.`);
 		const parsed: RecipeItem = { flower };
-		if (kind.colors) {
-			const color = text(item, "color", {
+		// Flowers with one color name none; the rest pick one from Flowers.
+		if (option.kind.colors) {
+			const wanted = text(item, "color", {
 				label: `${label} ${flower} color`,
 				max: 30,
-			});
-			if (kind.colors !== true && !kind.colors.includes(color))
+			}).toLowerCase();
+			const color = option.colors.find((c) => c.name.toLowerCase() === wanted);
+			if (!color)
 				throw new InputError(
-					`${label} ${flower} color must be ${kind.colors.join(" or ")}.`,
+					`${label} ${flower} color must be one of ${option.colors.map((c) => c.name).join(", ")}.`,
 				);
-			parsed.color = color;
+			parsed.color = color.name;
 		}
-		// Cluster flowers (Gypsophila and the like) are never counted.
-		if (kind.counted)
-			parsed.count = integer(item, "count", {
-				label: `${label} ${flower} count`,
-				min: 1,
-				max: 500,
-			});
+		parsed.count = integer(item, "count", {
+			label: `${label} ${flower} count`,
+			min: 1,
+			max: 500,
+		});
 		return parsed;
 	});
 }
@@ -194,19 +180,23 @@ export const saveProductFn = createServerFn({ method: "POST" })
 		const product = asRecord(source.product);
 		const rawVariants = Array.isArray(product.variants) ? product.variants : [];
 		if (rawVariants.length === 0)
-			throw new InputError("Add at least one color.");
-		const variants = rawVariants.map(parseVariant);
+			throw new InputError("Add at least one style.");
 		const parsed: ProductInput = {
-			title: text(product, "title", { label: "Name", max: 120 }),
+			title: bouquetName(product),
 			description: text(product, "description", {
 				label: "Description",
 				max: 2000,
 				required: false,
 			}),
-			// Prices are set per color; the product's is its cheapest ("From …").
-			basePrice: Math.min(...variants.map((v) => v.price)),
+			size: product.size
+				? oneOf(
+						product.size,
+						BOUQUET_SIZES.map((s) => s.id),
+						"Size",
+					)
+				: "",
 			isVisible: bool(product, "isVisible"),
-			variants,
+			variants: rawVariants.map(parseVariant),
 		};
 		return {
 			productId: typeof source.productId === "string" ? source.productId : null,
@@ -215,31 +205,23 @@ export const saveProductFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
-		// A style (flower code) belongs to one product; colors sharing it within
-		// that product are the style's colors, and each can only appear once.
-		const taken = new Map<string, string>();
-		for (const product of listAdminProducts()) {
-			if (product.id === data.productId) continue;
-			for (const variant of product.variants)
-				taken.set(
-					flowerCodeKey(variant.sku),
-					`${product.title} · ${variant.colorName}`,
-				);
-		}
+		const name = flowerCodeKey(data.product.title);
+		const other = listAdminProducts().find(
+			(product) =>
+				product.id !== data.productId && flowerCodeKey(product.title) === name,
+		);
+		if (other)
+			throw new InputError(
+				`There’s already a bouquet called “${other.title}”.`,
+			);
 		const seen = new Set<string>();
 		for (const variant of data.product.variants) {
-			const key = flowerCodeKey(variant.sku);
-			const owner = taken.get(key);
-			if (owner)
+			const key = variant.colorName.trim().toLowerCase();
+			if (seen.has(key))
 				throw new InputError(
-					`The style “${variant.sku}” is already used by ${owner}.`,
+					`There are two styles called “${variant.colorName}”.`,
 				);
-			const color = `${key}::${variant.colorName.trim().toLowerCase()}`;
-			if (seen.has(color))
-				throw new InputError(
-					`Style “${variant.sku}” already has a color called “${variant.colorName}”.`,
-				);
-			seen.add(color);
+			seen.add(key);
 		}
 		const id = saveProduct(data.productId, data.product);
 		return getAdminProduct(id);
@@ -271,7 +253,7 @@ export const deleteProductFn = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		await requireStaff();
 		if (!deleteProduct(data.productId))
-			throw new InputError("That product was already deleted.");
+			throw new InputError("That bouquet was already deleted.");
 		return { ok: true as const };
 	});
 

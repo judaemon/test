@@ -21,9 +21,11 @@ import {
 	type CustomDesign,
 	cashTotal,
 	colorChoices,
+	colorInStock,
 	designKey,
 	flowerKinds,
 	flowerPhoto,
+	itemColor,
 	MAX_STEMS_PER_FLOWER,
 	priceDesign,
 	wrapperInStock,
@@ -93,7 +95,7 @@ const itemKey = (flower: string, color = "") => `${flower}::${color}`;
 
 function BuilderPage() {
 	const settings = useCustomSettings();
-	// Chosen flowers: key → stem count (counted) or 0 (a cluster is in).
+	// Chosen flowers: key → stem count.
 	const [picked, setPicked] = createStore<Record<string, number>>({});
 	const [wrapperId, setWrapperId] = createSignal("");
 	// Bills in a money bouquet: face value → how many.
@@ -103,9 +105,29 @@ function BuilderPage() {
 
 	const option = (name: string) =>
 		settings().flowers.find((f) => f.name === name && f.enabled);
+	/** The color an item is made in; `""` for a flower with just one. */
+	const colorOf = (name: string, color = "") =>
+		itemColor(option(name), color || undefined);
+	/** Flowers with at least one offered color still in stock. */
+	const inStock = (name: string) =>
+		!!option(name)?.colors.some((c) => c.enabled && colorInStock(c));
 	const kinds = () => flowerKinds(settings());
-	const counted = () => kinds().filter((k) => k.counted && option(k.name));
-	const fillers = () => kinds().filter((k) => !k.counted && option(k.name));
+	const available = () => kinds().filter((k) => inStock(k.name));
+	/** "₱90", or "from ₱90" when its colors cost different amounts. */
+	const priceLabel = (name: string) => {
+		const prices = (option(name)?.colors ?? [])
+			.filter((c) => c.enabled)
+			.map((c) => c.price);
+		const lowest = Math.min(...prices);
+		const price = formatPrice(lowest, CURRENCY);
+		return prices.some((p) => p !== lowest) ? `from ${price}` : price;
+	};
+	/** Most stems of one color: the per-flower limit, or what's left. */
+	const maxStems = (name: string, color = "") =>
+		Math.min(
+			MAX_STEMS_PER_FLOWER,
+			colorOf(name, color)?.stock ?? MAX_STEMS_PER_FLOWER,
+		);
 	const wrappers = () => settings().wrappers.filter((w) => w.enabled);
 
 	const design = createMemo<CustomDesign>(() => {
@@ -118,7 +140,7 @@ function BuilderPage() {
 				items.push({
 					flower: kind.name,
 					...(color ? { color } : {}),
-					...(kind.counted ? { count: value } : {}),
+					count: value,
 				});
 			}
 		}
@@ -136,7 +158,7 @@ function BuilderPage() {
 	const priced = createMemo(() => priceDesign(design(), settings()));
 	const flowersTotal = () =>
 		design().items.reduce((sum, item) => {
-			const price = option(item.flower)?.price ?? 0;
+			const price = colorOf(item.flower, item.color)?.price ?? 0;
 			return sum + (item.count ? price * item.count : price);
 		}, 0);
 	const wrapper = () => wrappers().find((w) => w.id === wrapperId());
@@ -158,15 +180,6 @@ function BuilderPage() {
 			}),
 		);
 	};
-	const toggleCluster = (key: string) => {
-		setAdded(false);
-		setPicked(
-			produce((state) => {
-				if (key in state) delete state[key];
-				else state[key] = 0;
-			}),
-		);
-	};
 
 	// Editing a bouquet already in the bag: fill the builder in from it once
 	// the bag has loaded, and swap it for the new version on save.
@@ -185,8 +198,9 @@ function BuilderPage() {
 		);
 		if (!line?.custom) return;
 		const loaded: Record<string, number> = {};
+		// Bouquets built when fillers came as one cluster have no count.
 		for (const item of line.custom.items)
-			loaded[itemKey(item.flower, item.color)] = item.count ?? 0;
+			loaded[itemKey(item.flower, item.color)] = item.count ?? 1;
 		setPicked(reconcile(loaded));
 		const bills: Record<number, number> = {};
 		for (const bill of line.custom.bills ?? []) bills[bill.value] = bill.count;
@@ -231,7 +245,7 @@ function BuilderPage() {
 					Build your bouquet
 				</h1>
 				<p class="mt-2 max-w-xl text-petal-900/70">
-					Pick your flowers and colors, add fillers or money, then choose a
+					Pick your flowers and colors, add money if you like, then choose a
 					wrapper. The price updates as you go.
 				</p>
 				<Show when={settings().enabled}>
@@ -293,7 +307,7 @@ function BuilderPage() {
 						<div class="flex flex-col gap-6">
 							<Step number={1} title="Pick your flowers">
 								<ul class="grid gap-3 sm:grid-cols-2">
-									<For each={counted()}>
+									<For each={available()}>
 										{(kind) => {
 											const opt = () => option(kind.name);
 											const colors = () => colorChoices(kind, opt());
@@ -328,7 +342,7 @@ function BuilderPage() {
 															</p>
 														</div>
 														<p class="shrink-0 text-sm text-petal-900/65 tabular-nums">
-															{formatPrice(opt()?.price ?? 0, CURRENCY)} / stem
+															{priceLabel(kind.name)} each
 														</p>
 													</div>
 													<Show
@@ -337,6 +351,7 @@ function BuilderPage() {
 															<Stepper
 																label={kind.name}
 																value={picked[itemKey(kind.name)] ?? 0}
+																max={maxStems(kind.name)}
 																onChange={(n) =>
 																	setCount(itemKey(kind.name), n)
 																}
@@ -351,15 +366,18 @@ function BuilderPage() {
 																{(color) => {
 																	const key = itemKey(kind.name, color);
 																	const on = () => picked[key] !== undefined;
+																	const soldOut = () =>
+																		maxStems(kind.name, color) === 0;
 																	return (
 																		<button
 																			type="button"
 																			aria-pressed={on()}
+																			disabled={soldOut() && !on()}
 																			onClick={() =>
 																				setCount(key, on() ? 0 : 1)
 																			}
 																			class={cn(
-																				"flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors outline-none sm:px-2.5 sm:py-1 focus-visible:ring-2 focus-visible:ring-petal-500",
+																				"flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors outline-none sm:px-2.5 sm:py-1 focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-45",
 																				on()
 																					? "border-petal-700 bg-petal-50 font-medium"
 																					: "border-petal-200 hover:border-petal-300",
@@ -373,6 +391,11 @@ function BuilderPage() {
 																				}}
 																			/>
 																			{color}
+																			<Show when={soldOut()}>
+																				<span class="text-xs text-petal-900/55">
+																					sold out
+																				</span>
+																			</Show>
 																		</button>
 																	);
 																}}
@@ -389,7 +412,7 @@ function BuilderPage() {
 																<div class="flex items-center justify-between gap-2 text-sm">
 																	<span class="flex items-center gap-1.5">
 																		<Show
-																			when={opt()?.colorImages?.[color]}
+																			when={colorOf(kind.name, color)?.image}
 																			fallback={
 																				<span
 																					aria-hidden="true"
@@ -409,12 +432,19 @@ function BuilderPage() {
 																			)}
 																		</Show>
 																		{color}
+																		<span class="text-xs text-petal-900/55 tabular-nums">
+																			{formatPrice(
+																				colorOf(kind.name, color)?.price ?? 0,
+																				CURRENCY,
+																			)}
+																		</span>
 																	</span>
 																	<Stepper
 																		label={`${color} ${kind.name}`}
 																		value={
 																			picked[itemKey(kind.name, color)] ?? 0
 																		}
+																		max={maxStems(kind.name, color)}
 																		onChange={(n) =>
 																			setCount(itemKey(kind.name, color), n)
 																		}
@@ -430,86 +460,8 @@ function BuilderPage() {
 								</ul>
 							</Step>
 
-							<Show when={fillers().length > 0}>
-								<Step number={2} title="Add fillers">
-									<p class="-mt-2 mb-3 text-sm text-petal-900/60">
-										Fillers come as a cluster. Tap to add or remove.
-									</p>
-									<div class="flex flex-wrap gap-2">
-										<For each={fillers()}>
-											{(kind) => {
-												const opt = () => option(kind.name);
-												const colors = () => colorChoices(kind, opt());
-												return (
-													<For each={colors().length ? colors() : [""]}>
-														{(color) => {
-															const key = itemKey(kind.name, color);
-															const on = () => picked[key] !== undefined;
-															return (
-																<button
-																	type="button"
-																	aria-pressed={on()}
-																	onClick={() => toggleCluster(key)}
-																	class={cn(
-																		"flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-left text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
-																		on()
-																			? "border-petal-700 bg-petal-50 shadow-[inset_0_0_0_1px] shadow-petal-700"
-																			: "border-petal-200 bg-white hover:border-petal-300",
-																	)}
-																>
-																	<Show when={flowerPhoto(opt(), color)}>
-																		{(src) => (
-																			<img
-																				src={src()}
-																				alt=""
-																				class="size-9 shrink-0 rounded-md border border-black/10 object-cover"
-																			/>
-																		)}
-																	</Show>
-																	<Show when={color}>
-																		<span
-																			aria-hidden="true"
-																			class="size-4 rounded-full border border-black/15"
-																			style={{
-																				background: swatchFor(color),
-																			}}
-																		/>
-																	</Show>
-																	<span>
-																		<span class="font-medium">
-																			{kind.name}
-																			<Show when={color}> · {color}</Show>
-																		</span>
-																		<span class="block text-xs text-petal-900/60 tabular-nums">
-																			+
-																			{formatPrice(opt()?.price ?? 0, CURRENCY)}
-																		</span>
-																	</span>
-																	<span
-																		aria-hidden="true"
-																		class={cn(
-																			"ml-1 text-petal-700",
-																			!on() && "invisible",
-																		)}
-																	>
-																		✓
-																	</span>
-																</button>
-															);
-														}}
-													</For>
-												);
-											}}
-										</For>
-									</div>
-								</Step>
-							</Show>
-
 							<Show when={money().enabled && money().denominations.length > 0}>
-								<Step
-									number={fillers().length > 0 ? 3 : 2}
-									title="Add money (optional)"
-								>
+								<Step number={2} title="Add money (optional)">
 									<p class="-mt-2 mb-3 text-sm text-petal-900/60">
 										We fold real bills into the bouquet. You pay each bill’s
 										value plus {formatPrice(money().feePerBill, CURRENCY)} per
@@ -550,7 +502,6 @@ function BuilderPage() {
 							<Step
 								number={
 									1 +
-									(fillers().length > 0 ? 1 : 0) +
 									(money().enabled && money().denominations.length > 0
 										? 1
 										: 0) +

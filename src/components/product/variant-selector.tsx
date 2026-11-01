@@ -54,10 +54,10 @@ export function VariantSelector(props: VariantSelectorProps) {
 	return (
 		<div class={cn("flex flex-col gap-3", props.class)}>
 			<p id={labelId} class="text-sm">
-				<span class="text-muted-foreground">Color: </span>
+				<span class="text-muted-foreground">Theme: </span>
 				<span class="font-semibold">{displayed()?.colorName}</span>
 				<Show when={displayed() && !displayed()?.inStock}>
-					<span class="text-muted-foreground"> (sold out)</span>
+					<span class="text-muted-foreground"> (not available)</span>
 				</Show>
 			</p>
 
@@ -83,7 +83,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 									aria-label={
 										variant.inStock
 											? variant.colorName
-											: `${variant.colorName}, sold out`
+											: `${variant.colorName}, not available`
 									}
 									tabindex={isSelected() ? 0 : -1}
 									data-variant-id={variant.id}
@@ -145,7 +145,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 								<TooltipContent class="px-2.5 py-1 text-xs">
 									{variant.colorName}
 									<Show when={!variant.inStock}>
-										<span class="text-muted-foreground"> · Sold out</span>
+										<span class="text-muted-foreground"> · Not available</span>
 									</Show>
 								</TooltipContent>
 							</Tooltip>

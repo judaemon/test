@@ -1,26 +1,36 @@
 import {
 	type CustomBouquetSettings,
 	DEFAULT_CUSTOM_SETTINGS,
-	withAllFlowers,
+	withDefaults,
 } from "~/lib/custom-bouquet";
 import { getDb, nowIso } from "./db";
+import { listShopFlowers } from "./flowers-repo";
+import { InputError } from "./validate";
+import { listWrappers } from "./wrappers-repo";
 
 const KEY = "custom_bouquet";
 
-/** The builder's prices, colors and wrappers; sample values until saved. */
+/** The builder's fees, flowers and wrappers; sample fees until saved. */
 export function getCustomSettings(): CustomBouquetSettings {
 	const row = getDb()
 		.query("SELECT value FROM settings WHERE key = $key")
 		.get({ key: KEY }) as { value: string } | null;
-	if (!row) return DEFAULT_CUSTOM_SETTINGS;
-	return withAllFlowers({
-		...(JSON.parse(row.value) as Partial<CustomBouquetSettings>),
-		saved: true,
-	});
+	const flowers = listShopFlowers();
+	const wrappers = listWrappers();
+	if (!row) return { ...DEFAULT_CUSTOM_SETTINGS, flowers, wrappers };
+	return withDefaults(
+		{
+			...(JSON.parse(row.value) as Partial<CustomBouquetSettings>),
+			saved: true,
+		},
+		flowers,
+		wrappers,
+	);
 }
 
+/** Saves the fees and money settings; flowers and wrappers have their own tables. */
 export function saveCustomSettings(
-	settings: Omit<CustomBouquetSettings, "saved">,
+	settings: Omit<CustomBouquetSettings, "saved" | "flowers" | "wrappers">,
 ) {
 	getDb()
 		.query(
@@ -31,36 +41,15 @@ export function saveCustomSettings(
 	return getCustomSettings();
 }
 
-/**
- * Moves wrappers in or out of stock for built bouquets: `-1` when an order is
- * placed, `+1` when it's cancelled. Run inside the order's transaction.
- * Returns the wrapper that ran out, if taking failed.
- */
-export function adjustWrapperStock(
-	lines: { custom?: { wrapperId: string }; quantity: number }[],
-	direction: 1 | -1,
-): string | null {
-	const db = getDb();
-	const row = db
-		.query("SELECT value FROM settings WHERE key = $key")
-		.get({ key: KEY }) as { value: string } | null;
-	// Unsaved sample settings don't count wrappers.
-	if (!row) return null;
-	const settings = JSON.parse(row.value) as Partial<CustomBouquetSettings>;
-	let changed = false;
-	for (const line of lines) {
-		const wrapper = settings.wrappers?.find(
-			(w) => w.id === line.custom?.wrapperId,
+/** The builder needs a flower and a wrapper to offer while it's switched on. */
+export function checkBuilderCanSell(settings: CustomBouquetSettings) {
+	if (!settings.enabled) return;
+	if (!settings.flowers.some((f) => f.enabled))
+		throw new InputError(
+			"Keep at least one flower marked for custom bouquets, or switch the builder off in Custom bouquets.",
 		);
-		if (wrapper?.stock === undefined) continue;
-		const stock = wrapper.stock + direction * line.quantity;
-		if (stock < 0) return wrapper.name;
-		wrapper.stock = stock;
-		changed = true;
-	}
-	if (changed)
-		db.query(
-			"UPDATE settings SET value = $value, updated_at = $now WHERE key = $key",
-		).run({ key: KEY, value: JSON.stringify(settings), now: nowIso() });
-	return null;
+	if (!settings.wrappers.some((w) => w.enabled))
+		throw new InputError(
+			"Keep at least one wrapper offered, or switch the builder off in Custom bouquets.",
+		);
 }

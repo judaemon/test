@@ -45,6 +45,19 @@ export function money(
 	return Math.round(value * 100) / 100;
 }
 
+/** Zero is allowed (a free wrapper, no base fee); negatives aren't. */
+export function price(
+	source: Record<string, unknown>,
+	key: string,
+	label: string,
+) {
+	const value = source[key];
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+		throw new InputError(`${label} must be zero or more.`);
+	if (value > 100_000) throw new InputError(`${label} is too large.`);
+	return Math.round(value * 100) / 100;
+}
+
 export function bool(source: Record<string, unknown>, key: string) {
 	return source[key] === true;
 }

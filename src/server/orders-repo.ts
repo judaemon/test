@@ -2,6 +2,7 @@ import type { CheckoutDetails } from "~/lib/checkout";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import type { CardBrand, PaymentMethod } from "~/lib/payment";
 import type { PricedCart, PricedLine } from "~/lib/pricing";
+import { lineName } from "~/lib/product";
 import {
 	type CustomerOrder,
 	isPaymentDue,
@@ -12,8 +13,9 @@ import {
 	type OrderStage,
 	type PaymentStatus,
 } from "~/types/order";
-import { adjustWrapperStock } from "./custom-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
+import { adjustFlowerStock } from "./flowers-repo";
+import { adjustWrapperStock } from "./wrappers-repo";
 
 interface OrderRow {
 	id: string;
@@ -151,28 +153,26 @@ export interface NewOrder {
 }
 
 /**
- * Inserts the order and takes its units out of stock atomically, so two
- * shoppers can never both buy the last bouquet.
+ * Inserts the order, checking each bouquet style is still available and
+ * taking custom bouquets' flowers and wrappers out of stock, atomically.
  */
 export function createOrder(order: NewOrder): Order {
 	const db = getDb();
-	const takeStock = db.query(
-		`UPDATE variants SET stock_quantity = stock_quantity - $quantity
-		 WHERE product_id = $productId AND id = $variantId
-		   AND is_available = 1 AND stock_quantity >= $quantity`,
+	const isAvailable = db.query(
+		`SELECT 1 FROM bouquet_styles
+		 WHERE bouquet_id = $productId AND slug = $variantId AND is_available = 1`,
 	);
 	db.transaction(() => {
 		for (const line of order.cart.lines) {
-			// Built bouquets are made to order; there's no stock to take.
+			// Built bouquets are checked against flower and wrapper stock below.
 			if (line.productId === CUSTOM_PRODUCT_ID) continue;
-			const result = takeStock.run({
-				quantity: line.quantity,
+			const available = isAvailable.get({
 				productId: line.productId,
 				variantId: line.variantId,
 			});
-			if (result.changes === 0) {
+			if (!available) {
 				throw new OrderRuleError(
-					`${line.colorName} just sold out. Remove it from your bag to continue.`,
+					`${lineName(line)} isn’t available right now. Remove it from your bag to continue.`,
 				);
 			}
 		}
@@ -180,6 +180,11 @@ export function createOrder(order: NewOrder): Order {
 		if (outOfWrapper)
 			throw new OrderRuleError(
 				`There aren’t enough ${outOfWrapper} wrappers left. Edit your custom bouquet to pick another, or lower the quantity.`,
+			);
+		const outOfFlower = adjustFlowerStock(order.cart.lines, -1);
+		if (outOfFlower)
+			throw new OrderRuleError(
+				`There aren’t enough ${outOfFlower} left. Edit your custom bouquet to choose fewer, or lower the quantity.`,
 			);
 		const now = nowIso();
 		// Orders are numbered #1, #2, … in the order they were placed. Inside the
@@ -332,18 +337,9 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 			}
 		}
 		if (stage === "cancelled") {
-			const restock = db.query(
-				`UPDATE variants SET stock_quantity = stock_quantity + $quantity
-				 WHERE product_id = $productId AND id = $variantId`,
-			);
-			for (const line of order.lines) {
-				restock.run({
-					quantity: line.quantity,
-					productId: line.productId,
-					variantId: line.variantId,
-				});
-			}
+			// Signature bouquets have no stock count; custom ones give back theirs.
 			adjustWrapperStock(order.lines, 1);
+			adjustFlowerStock(order.lines, 1);
 		}
 		const now = nowIso();
 		db.query(

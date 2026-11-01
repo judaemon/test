@@ -3,13 +3,14 @@
  * so a fresh install can start with the real shop. `.data/` itself stays out of
  * git: it also holds orders, accounts, login sessions and payment details.
  *
- *   bun run catalog:export           save products, stock and custom bouquet settings
+ *   bun run catalog:export           save signature bouquets, flowers, wrappers and custom bouquet settings
  *   bun run catalog:import           restore them (refuses if the shop has orders)
- *   bun run catalog:import --force   restore anyway; replaces products and stock
+ *   bun run catalog:import --force   restore anyway; replaces bouquets and stock
  *
  * `catalog.json` is what the import reads. `products.json` and
- * `custom-bouquets.json` are the same data laid out to read (product, then
- * style, then color), with each photo pointing at its file in `photos/`.
+ * `custom-bouquets.json` are the same data laid out to read (bouquet, then
+ * style), with each photo pointing at its file in `photos/`. Snapshots taken
+ * before bouquets, flowers and wrappers had their own tables still import.
  *
  * Orders, accounts and payment settings are never read or changed.
  * Safe to run while the dev server is running.
@@ -17,8 +18,14 @@
 import { copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-import { flowerCodeKey } from "~/lib/product";
+import { flowersFromSettings } from "~/lib/custom-bouquet";
+import {
+	LEGACY_CATALOG_SQL,
+	moveProductsToBouquets,
+} from "~/server/bouquet-tables";
 import { getDb } from "~/server/db";
+import { replaceFlowers } from "~/server/flowers-repo";
+import { replaceWrappers } from "~/server/wrappers-repo";
 
 const SNAPSHOT_DIR = "catalog-snapshot";
 const SNAPSHOT_FILE = join(SNAPSHOT_DIR, "catalog.json");
@@ -29,10 +36,30 @@ const SETTINGS_KEY = "custom_bouquet";
 type Row = Record<string, string | number | null>;
 
 interface Snapshot {
-	products: Row[];
-	variants: Row[];
 	settings: Row[];
+	signature_bouquets?: Row[];
+	bouquet_styles?: Row[];
+	style_flowers?: Row[];
+	bouquet_redirects?: Row[];
+	/** Snapshots from before signature bouquets had their own tables. */
+	products?: Row[];
+	variants?: Row[];
+	/** Missing from snapshots taken before flowers and wrappers had tables. */
+	flowers?: Row[];
+	flower_colors?: Row[];
+	wrappers?: Row[];
 }
+
+/** Tables the export saves, in an order that inserts cleanly. */
+const TABLES = [
+	"flowers",
+	"flower_colors",
+	"wrappers",
+	"signature_bouquets",
+	"bouquet_styles",
+	"style_flowers",
+	"bouquet_redirects",
+] as const;
 
 function insertRow(table: string, row: Row) {
 	const columns = Object.keys(row);
@@ -52,34 +79,39 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 		return file ? `photos/${file}` : url ? String(url) : null;
 	};
 
-	const products = snapshot.products.map((product) => {
-		const styles = new Map<string, Row[]>();
-		for (const variant of snapshot.variants) {
-			if (variant.product_id !== product.id) continue;
-			const key = flowerCodeKey(String(variant.sku));
-			styles.set(key, [...(styles.get(key) ?? []), variant]);
-		}
-		return {
-			product: product.title,
-			description: product.description,
-			shownInShop: product.is_visible === 1,
-			styles: [...styles.values()].map((colors) => ({
-				style: colors[0]?.sku,
-				colors: colors.map((color) => ({
-					color: color.color_name,
-					swatches: [color.color_hex, color.color_hex2].filter(Boolean),
-					size: color.size || null,
-					price: Number(color.price_cents) / 100,
-					stock: color.stock_quantity,
-					selling: color.is_available === 1,
-					recipe: JSON.parse(String(color.recipe)),
-					wrapperColor: color.wrapper_color || null,
-					aiPhotoNote: color.ai_photos === 1,
-					photos: (JSON.parse(String(color.images)) as string[]).map(photoPath),
-				})),
+	const byId = (rows: Row[] | undefined) =>
+		new Map((rows ?? []).map((row) => [row.id, row]));
+	const flowerColors = byId(snapshot.flower_colors);
+	const flowers = byId(snapshot.flowers);
+	const wrappers = byId(snapshot.wrappers);
+	const products = (snapshot.signature_bouquets ?? []).map((bouquet) => ({
+		bouquet: bouquet.name,
+		link: `/products/${bouquet.id}`,
+		description: bouquet.description,
+		size: bouquet.size || null,
+		shownInShop: bouquet.is_visible === 1,
+		styles: (snapshot.bouquet_styles ?? [])
+			.filter((style) => style.bouquet_id === bouquet.id)
+			.map((style) => ({
+				style: style.name,
+				swatches: [style.color_hex, style.color_hex2].filter(Boolean),
+				price: Number(style.price_cents) / 100,
+				available: style.is_available === 1,
+				recipe: (snapshot.style_flowers ?? [])
+					.filter((item) => item.style_id === style.id)
+					.map((item) => {
+						const color = flowerColors.get(item.flower_color_id);
+						return {
+							flower: flowers.get(color?.flower_id ?? null)?.name ?? null,
+							color: color?.name ?? null,
+							count: item.count,
+						};
+					}),
+				wrapper: wrappers.get(style.wrapper_id)?.name ?? null,
+				aiPhotoNote: style.ai_photos === 1,
+				photos: (JSON.parse(String(style.images)) as string[]).map(photoPath),
 			})),
-		};
-	});
+	}));
 	await Bun.write(
 		join(SNAPSHOT_DIR, "products.json"),
 		`${JSON.stringify(products, null, "\t")}\n`,
@@ -94,27 +126,27 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 			{
 				builderShownInShop: custom.enabled,
 				baseFee: custom.baseFee,
-				flowers: custom.flowers.map((flower: any) => ({
+				flowers: (snapshot.flowers ?? []).map((flower) => ({
 					flower: flower.name,
-					soldAs: flower.kind.counted ? "stem" : "cluster",
-					offered: flower.enabled,
-					price: flower.price,
-					colors: flower.colors,
-					note: flower.kind.hint ?? null,
+					offered: flower.is_enabled === 1,
+					note: flower.hint || null,
 					photo: flower.image ? photoPath(flower.image) : null,
-					colorPhotos: Object.fromEntries(
-						Object.entries(flower.colorImages ?? {}).map(([color, url]) => [
-							color,
-							photoPath(url),
-						]),
-					),
+					colors: (snapshot.flower_colors ?? [])
+						.filter((color) => color.flower_id === flower.id)
+						.map((color) => ({
+							color: color.name,
+							price: Number(color.price_cents) / 100,
+							stock: color.stock_quantity,
+							offered: color.is_enabled === 1,
+							photo: color.image ? photoPath(color.image) : null,
+						})),
 				})),
-				wrappers: custom.wrappers.map((wrapper: any) => ({
+				wrappers: (snapshot.wrappers ?? []).map((wrapper) => ({
 					wrapper: wrapper.name,
-					color: wrapper.colorHex,
-					offered: wrapper.enabled,
-					price: wrapper.price,
-					stock: wrapper.stock ?? null,
+					color: wrapper.color_hex,
+					offered: wrapper.is_enabled === 1,
+					price: Number(wrapper.price_cents) / 100,
+					stock: wrapper.stock_quantity,
 					photo: wrapper.image ? photoPath(wrapper.image) : null,
 				})),
 				moneyBouquets: custom.money,
@@ -128,14 +160,14 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 async function exportCatalog() {
 	const db = getDb();
 	const snapshot: Snapshot = {
-		products: db.query("SELECT * FROM products ORDER BY sort, id").all() as Row[],
-		variants: db
-			.query("SELECT * FROM variants ORDER BY product_id, sort, id")
-			.all() as Row[],
 		settings: db
 			.query("SELECT * FROM settings WHERE key = $key")
 			.all({ key: SETTINGS_KEY }) as Row[],
 	};
+	for (const table of TABLES)
+		snapshot[table] = db
+			.query(`SELECT * FROM ${table} ORDER BY rowid`)
+			.all() as Row[];
 	const json = JSON.stringify(snapshot, null, "\t");
 
 	// Only the photos in use; old uploads may still be sitting in the folder.
@@ -159,7 +191,7 @@ async function exportCatalog() {
 	await writeReadableFiles(snapshot, photos);
 
 	console.log(
-		`Saved ${snapshot.products.length} products, ${snapshot.variants.length} colors and ${photos.length} photos to ${SNAPSHOT_DIR}/.`,
+		`Saved ${snapshot.signature_bouquets?.length} bouquets, ${snapshot.bouquet_styles?.length} styles and ${photos.length} photos to ${SNAPSHOT_DIR}/.`,
 	);
 }
 
@@ -184,16 +216,53 @@ async function importCatalog() {
 		await copyFile(join(SNAPSHOT_PHOTOS, photo), join(UPLOAD_PHOTOS, photo));
 
 	db.transaction(() => {
-		// Variants go with their products (ON DELETE CASCADE).
-		db.exec("DELETE FROM products");
+		// Styles, recipes and redirects go with their bouquets (ON DELETE
+		// CASCADE); then nothing uses the flowers and wrappers any more.
+		db.exec("DELETE FROM signature_bouquets");
 		db.query("DELETE FROM settings WHERE key = $key").run({ key: SETTINGS_KEY });
-		for (const row of snapshot.products) insertRow("products", row);
-		for (const row of snapshot.variants) insertRow("variants", row);
 		for (const row of snapshot.settings) insertRow("settings", row);
+		const saved = JSON.parse(String(snapshot.settings[0]?.value ?? "{}"));
+
+		if (snapshot.flowers) {
+			db.exec("DELETE FROM flowers");
+			db.exec("DELETE FROM wrappers");
+			// Snapshots from before every flower was counted have this column.
+			for (const { counted: _counted, ...row } of snapshot.flowers)
+				insertRow("flowers", row);
+			for (const row of snapshot.flower_colors ?? [])
+				insertRow("flower_colors", row);
+			for (const row of snapshot.wrappers ?? []) insertRow("wrappers", row);
+		} else {
+			// An older snapshot keeps flowers and wrappers in the settings.
+			replaceFlowers(flowersFromSettings(saved));
+			if (saved.wrappers) replaceWrappers(saved.wrappers);
+		}
+		if (saved.flowers || saved.wrappers) {
+			delete saved.flowers;
+			delete saved.wrappers;
+			db.query("UPDATE settings SET value = $value WHERE key = $key").run({
+				key: SETTINGS_KEY,
+				value: JSON.stringify(saved),
+			});
+		}
+
+		if (snapshot.signature_bouquets) {
+			for (const table of TABLES.slice(3))
+				for (const row of snapshot[table] ?? []) insertRow(table, row);
+		} else {
+			// An older snapshot has products and their colors: load them into
+			// the old tables and move them across, as the migration does.
+			db.exec(LEGACY_CATALOG_SQL);
+			for (const row of snapshot.products ?? []) insertRow("products", row);
+			for (const row of snapshot.variants ?? []) insertRow("variants", row);
+			moveProductsToBouquets(db);
+		}
 	})();
 
+	const count = (table: string) =>
+		(db.query(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
 	console.log(
-		`Restored ${snapshot.products.length} products, ${snapshot.variants.length} colors and ${photos.length} photos.`,
+		`Restored ${count("signature_bouquets")} bouquets, ${count("bouquet_styles")} styles, ${count("flowers")} flowers and ${photos.length} photos.`,
 	);
 }
 

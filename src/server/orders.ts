@@ -15,7 +15,7 @@ import {
 	validateReferenceNumber,
 } from "~/lib/payment";
 import { type CartLine, priceCart, sanitizeCartLines } from "~/lib/pricing";
-import { styleLabel } from "~/lib/product";
+import { lineName } from "~/lib/product";
 import {
 	type ActiveOrder,
 	type CustomerOrder,
@@ -138,8 +138,8 @@ export const placeOrder = createServerFn({ method: "POST" })
 					unavailable.problem === "unavailable"
 						? `Your custom bouquet can’t be made as built: ${unavailable.problemText} Remove it and build it again.`
 						: unavailable.problem === "sold-out"
-							? `${unavailable.colorName} just sold out. Remove it from your bag to continue.`
-							: `Only ${unavailable.maxQuantity} of ${unavailable.colorName} available. Lower the quantity to continue.`,
+							? `${lineName(unavailable)} isn’t available right now. Remove it from your bag to continue.`
+							: `You can order up to ${unavailable.maxQuantity} of ${lineName(unavailable)} at a time. Lower the quantity to continue.`,
 			};
 		}
 
@@ -220,9 +220,7 @@ export const listActiveOrders = createServerFn({ method: "GET" }).handler(
 			className: order.details.className,
 			company: order.details.company,
 			fullName: order.details.fullName,
-			items: order.lines.map(
-				(line) => `${line.quantity} × ${line.title} · ${styleLabel(line)}`,
-			),
+			items: order.lines.map((line) => `${line.quantity} × ${lineName(line)}`),
 			total: order.total,
 			currency: order.currency,
 			status: orderStatus(order.stage, order.payment.status),
@@ -296,9 +294,7 @@ export const getPayableOrder = createServerFn({ method: "GET" })
 			number: order.number,
 			total: order.total,
 			currency: order.currency,
-			items: order.lines.map(
-				(line) => `${line.quantity} × ${line.title} · ${styleLabel(line)}`,
-			),
+			items: order.lines.map((line) => `${line.quantity} × ${lineName(line)}`),
 			status: orderStatus(order.stage, order.payment.status),
 			due,
 			access,

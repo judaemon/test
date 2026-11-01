@@ -7,42 +7,77 @@ export const CUSTOM_IMAGE = "/images/bouquets/custom.svg";
 /** Most stems of one flower and color in a single bouquet. */
 export const MAX_STEMS_PER_FLOWER = 100;
 
+/** Every flower has at least one color; a flower with one has no choice. */
+export const SINGLE_COLOR_NAME = "Natural";
+
 /** What sort of flower it is; staff can edit this for every flower. */
 export interface FlowerKindSettings {
-	/** Counted per stem, or added as a cluster. */
-	counted: boolean;
-	/** Comes in colors (listed in `colors`). */
+	/** Shoppers pick a color: true when the flower has more than one. */
 	colors: boolean;
 	/** Short note shown with the name, e.g. "big yellow chrysanthemum". */
 	hint?: string;
 }
 
+/** One color of a flower, with its own price and stock. */
+export interface FlowerColor {
+	name: string;
+	/** Each, per stem or bunch. */
+	price: number;
+	/** How many are left; missing means not counted. */
+	stock?: number;
+	enabled: boolean;
+	/** Photo of this color; the flower's photo covers it otherwise. */
+	image?: string;
+}
+
 export interface CustomFlowerOption {
 	name: string;
 	enabled: boolean;
-	/** Per stem for counted flowers, per cluster for fillers. */
-	price: number;
-	/** Colors shoppers can pick, for flowers that come in colors. */
-	colors: string[];
+	/** At least one; shoppers pick from them when there's more than one. */
+	colors: FlowerColor[];
 	/** Photo of the flower, shown beside it in recipes; empty if none. */
 	image?: string;
-	/** Photos of particular colors (keyed by color name); `image` covers the rest. */
-	colorImages?: Record<string, string>;
 	kind: FlowerKindSettings;
 }
+
+/** A row of the flowers table and its colors, as edited in Admin → Flowers. */
+export interface FlowerRecord extends Omit<CustomFlowerOption, "colors"> {
+	id: string;
+	colors: (FlowerColor & { id: string })[];
+	/** Signature bouquet colors whose recipe uses this flower. */
+	usedIn: number;
+}
+
+/** A color still has stock (or isn't counted). */
+export const colorInStock = (color: FlowerColor, needed = 1) =>
+	color.stock === undefined || color.stock >= needed;
+
+/**
+ * The color an item is made in: the one picked, or the only color of a
+ * flower that has just one (those items name no color).
+ */
+export function itemColor<C extends FlowerColor>(
+	option: { colors: C[] } | undefined,
+	color?: string,
+): C | undefined {
+	if (!option) return undefined;
+	const wanted = color?.trim().toLowerCase();
+	const [only] = option.colors;
+	if (option.colors.length === 1 && only)
+		return !wanted || only.name.toLowerCase() === wanted ? only : undefined;
+	if (!wanted) return undefined;
+	return option.colors.find((c) => c.name.toLowerCase() === wanted);
+}
+
+/** Stems of one flower color an item takes (old cluster items take one). */
+export const itemUnits = (item: RecipeItem) => item.count ?? 1;
 
 /** The photo for a flower in a given color, falling back to its main photo. */
 export function flowerPhoto(
 	option: CustomFlowerOption | undefined,
 	color?: string,
 ): string | undefined {
-	if (!option) return undefined;
-	const wanted = color?.trim().toLowerCase();
-	if (wanted && option.colorImages) {
-		for (const [name, src] of Object.entries(option.colorImages))
-			if (src && name.toLowerCase() === wanted) return src;
-	}
-	return option.image || undefined;
+	return itemColor(option, color)?.image || option?.image || undefined;
 }
 
 export interface CustomWrapper {
@@ -123,13 +158,13 @@ const SAMPLE_COLORS: Record<string, string[]> = {
 export const DEFAULT_CUSTOM_SETTINGS: CustomBouquetSettings = {
 	enabled: true,
 	baseFee: 300,
-	flowers: FLOWER_KINDS.map((kind) => ({
-		name: kind.name,
-		enabled: true,
-		price: SAMPLE_PRICES[kind.name] ?? 150,
-		colors: startingColors(kind),
-		kind: kindSettings(kind),
-	})),
+	flowers: FLOWER_KINDS.map((kind) =>
+		withColors(
+			{ name: kind.name, enabled: true, kind: kindSettings(kind) },
+			startingColors(kind),
+			SAMPLE_PRICES[kind.name] ?? 150,
+		),
+	),
 	wrappers: [
 		{
 			id: "kraft",
@@ -172,7 +207,6 @@ export const DEFAULT_CUSTOM_SETTINGS: CustomBouquetSettings = {
 /** A built-in flower's starting settings, before staff edit it. */
 function kindSettings(kind: FlowerKind): FlowerKindSettings {
 	return {
-		counted: kind.counted,
 		colors: !!kind.colors,
 		...(kind.hint ? { hint: kind.hint } : {}),
 	};
@@ -184,32 +218,77 @@ function startingColors(kind: FlowerKind): string[] {
 	return kind.colors === true ? (SAMPLE_COLORS[kind.name] ?? []) : [];
 }
 
+/** A flower with these colors at one price; "Natural" when it has none. */
+function withColors(
+	flower: Omit<CustomFlowerOption, "colors">,
+	names: string[],
+	price: number,
+	images: Record<string, string> = {},
+): CustomFlowerOption {
+	const colors = (names.length ? names : [SINGLE_COLOR_NAME]).map((name) => ({
+		name,
+		price,
+		enabled: true,
+		...(images[name] ? { image: images[name] } : {}),
+	}));
+	return {
+		...flower,
+		colors,
+		kind: { ...flower.kind, colors: colors.length > 1 },
+	};
+}
+
+/** How flowers were kept in the builder settings before their own tables. */
+export interface LegacyFlowerOption {
+	name: string;
+	enabled: boolean;
+	price: number;
+	colors: string[];
+	image?: string;
+	colorImages?: Record<string, string>;
+	kind?: FlowerKindSettings;
+}
+
 /**
- * Fills in saved settings. The saved flower list is the shop's list (staff can
- * edit, add and remove any flower); flowers saved before they could be edited
- * get their kind from the built-in list.
+ * The flower list kept in the builder settings before flowers had their own
+ * tables, with each color at the flower's price. Flowers saved before they
+ * could be edited get their kind from the built-in list. Only read when moving
+ * old settings (or an old catalog snapshot) into the tables.
  */
-export function withAllFlowers(
+export function flowersFromSettings(saved: {
+	flowers?: LegacyFlowerOption[];
+}): CustomFlowerOption[] {
+	if (!saved.flowers) return DEFAULT_CUSTOM_SETTINGS.flowers;
+	return saved.flowers.flatMap((flower): CustomFlowerOption[] => {
+		const builtIn = FLOWER_KINDS.find((k) => k.name === flower.name);
+		const kind = flower.kind ?? (builtIn && kindSettings(builtIn));
+		if (!kind) return [];
+		const colors =
+			!flower.kind && !flower.colors.length && Array.isArray(builtIn?.colors)
+				? [...builtIn.colors]
+				: flower.colors;
+		return [
+			withColors(
+				{
+					name: flower.name,
+					enabled: flower.enabled,
+					...(flower.image ? { image: flower.image } : {}),
+					kind,
+				},
+				kind.colors ? colors : [],
+				flower.price,
+				flower.colorImages,
+			),
+		];
+	});
+}
+
+/** Fills in saved settings; flowers and wrappers come from their tables. */
+export function withDefaults(
 	saved: Partial<CustomBouquetSettings>,
+	flowers: CustomFlowerOption[],
+	wrappers: CustomWrapper[],
 ): CustomBouquetSettings {
-	const flowers = saved.flowers
-		? saved.flowers.flatMap((flower): CustomFlowerOption[] => {
-				if (flower.kind) return [flower];
-				const builtIn = FLOWER_KINDS.find((k) => k.name === flower.name);
-				if (!builtIn) return [];
-				return [
-					{
-						...flower,
-						kind: kindSettings(builtIn),
-						colors: flower.colors.length
-							? flower.colors
-							: Array.isArray(builtIn.colors)
-								? [...builtIn.colors]
-								: [],
-					},
-				];
-			})
-		: DEFAULT_CUSTOM_SETTINGS.flowers;
 	return {
 		...DEFAULT_CUSTOM_SETTINGS,
 		...saved,
@@ -219,15 +298,15 @@ export function withAllFlowers(
 			enabled: !saved.saved,
 		},
 		flowers,
+		wrappers,
 	};
 }
 
-/** Every flower the shop knows, as set in Admin → Custom bouquets. */
+/** Every flower the shop knows, as set in Admin → Flowers. */
 export function flowerKinds(settings?: CustomBouquetSettings): FlowerKind[] {
 	if (!settings) return [...FLOWER_KINDS];
 	return settings.flowers.map((option) => ({
 		name: option.name,
-		counted: option.kind.counted,
 		...(option.kind.colors ? { colors: true as const } : {}),
 		...(option.kind.hint ? { hint: option.kind.hint } : {}),
 	}));
@@ -238,10 +317,10 @@ export function findFlowerKind(name: string, settings?: CustomBouquetSettings) {
 	return flowerKinds(settings).find((kind) => kind.name === name);
 }
 
-/** The colors shoppers choose from, as listed by staff. */
+/** The colors shoppers choose from: the ones offered, for flowers with a choice. */
 export function colorChoices(kind: FlowerKind, option?: CustomFlowerOption) {
 	if (!kind.colors) return [];
-	if (option) return option.colors;
+	if (option) return option.colors.filter((c) => c.enabled).map((c) => c.name);
 	return Array.isArray(kind.colors) ? [...kind.colors] : [];
 }
 
@@ -308,6 +387,8 @@ export function designKey(design: CustomDesign) {
 export interface PricedDesign {
 	unitPrice: number;
 	wrapper?: CustomWrapper;
+	/** Most of this bouquet the flower stock can make; missing if not counted. */
+	maxQuantity?: number;
 	/** Why it can't be ordered as built, if anything. */
 	problem?: string;
 }
@@ -373,6 +454,7 @@ export function priceDesign(
 		cashTotal(bills) +
 		billCount(bills) * settings.money.feePerBill;
 	const seen = new Set<string>();
+	let maxQuantity: number | undefined;
 	for (const item of design.items) {
 		const kind = findFlowerKind(item.flower, settings);
 		const option = settings.flowers.find((f) => f.name === item.flower);
@@ -382,18 +464,16 @@ export function priceDesign(
 				wrapper,
 				problem: `${item.flower} isn’t available right now.`,
 			};
-		const colors = colorChoices(kind, option);
-		if (
-			colors.length > 0
-				? !item.color || !colors.includes(item.color)
-				: item.color
-		)
+		const color = itemColor(option, item.color);
+		if (!color?.enabled)
 			return {
 				unitPrice: 0,
 				wrapper,
-				problem: `Pick a color we have for ${item.flower}.`,
+				problem: kind.colors
+					? `Pick a color we have for ${item.flower}.`
+					: `${item.flower} isn’t available right now.`,
 			};
-		const key = `${item.flower}::${item.color ?? ""}`;
+		const key = `${item.flower}::${color.name}`;
 		if (seen.has(key))
 			return {
 				unitPrice: 0,
@@ -401,35 +481,33 @@ export function priceDesign(
 				problem: `${item.flower} is listed twice.`,
 			};
 		seen.add(key);
-		if (kind.counted) {
-			if (!item.count || item.count < 1 || item.count > MAX_STEMS_PER_FLOWER)
-				return {
-					unitPrice: 0,
-					wrapper,
-					problem: `Choose 1–${MAX_STEMS_PER_FLOWER} ${item.flower}.`,
-				};
-			total += option.price * item.count;
-		} else {
-			if (item.count !== undefined)
-				return {
-					unitPrice: 0,
-					wrapper,
-					problem: `${item.flower} comes as one cluster.`,
-				};
-			total += option.price;
-		}
+		if (!item.count || item.count < 1 || item.count > MAX_STEMS_PER_FLOWER)
+			return {
+				unitPrice: 0,
+				wrapper,
+				problem: `Choose 1–${MAX_STEMS_PER_FLOWER} ${item.flower}.`,
+			};
+		const label = kind.colors ? `${color.name} ${item.flower}` : item.flower;
+		if (!colorInStock(color, itemUnits(item)))
+			return {
+				unitPrice: 0,
+				wrapper,
+				problem: color.stock
+					? `Only ${color.stock} ${label} left. Choose fewer.`
+					: `${label} is sold out.`,
+			};
+		if (color.stock !== undefined)
+			maxQuantity = Math.min(
+				maxQuantity ?? Number.POSITIVE_INFINITY,
+				Math.floor(color.stock / itemUnits(item)),
+			);
+		total += color.price * itemUnits(item);
 	}
-	// Fillers alone don't make a bouquet; it needs counted flowers or cash.
-	if (
-		bills.length === 0 &&
-		!design.items.some((item) => findFlowerKind(item.flower, settings)?.counted)
-	)
-		return {
-			unitPrice: 0,
-			wrapper,
-			problem: "Add at least one counted flower, like Roses, or some money.",
-		};
-	return { unitPrice: Math.round(total * 100) / 100, wrapper };
+	return {
+		unitPrice: Math.round(total * 100) / 100,
+		wrapper,
+		...(maxQuantity === undefined ? {} : { maxQuantity }),
+	};
 }
 
 /** "10 × ₱100, 2 × ₱500" for showing the cash in a bouquet. */

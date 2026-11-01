@@ -1,89 +1,126 @@
+import type { BouquetSize } from "~/lib/sizes";
 import type { PaymentAccount } from "~/types/payment";
-import type { AdminProduct } from "~/types/product";
+import type { RecipeItem } from "~/types/product";
 
 // Starting catalog, written to the database the first time it's created.
-// After that, products are managed from the admin.
+// After that, signature bouquets are managed from the admin.
 
 const gallery = (variantId: string) =>
 	["front", "top", "detail", "vase"].map(
 		(view) => `/images/bouquets/${variantId}-${view}.svg`,
 	);
 
-export const seedProducts: AdminProduct[] = [
+export interface SeedBouquet {
+	id: string;
+	/** A girl's name. */
+	name: string;
+	description: string;
+	size: BouquetSize | "";
+	isVisible: boolean;
+	styles: {
+		slug: string;
+		name: string;
+		colorHex: string;
+		price: number;
+		/** Unavailable styles show in the shop but can't be ordered. */
+		isAvailable: boolean;
+		images: string[];
+		/** Flowers and colors by name, as in Admin → Flowers. */
+		recipe: RecipeItem[];
+		/** A wrapper's name, as in Admin → Wrappers. */
+		wrapper: string;
+	}[];
+}
+
+const ROSES_DESCRIPTION =
+	"Eighteen premium long-stem roses, hand-tied by our florists and wrapped in textured paper with a satin ribbon. Each bouquet is cut to order and arrives in a hydration pack so it stays fresh for up to 7 days.";
+
+export const seedBouquets: SeedBouquet[] = [
 	{
-		id: "signature-rose-bouquet",
-		title: "Signature Hand-Tied Rose Bouquet",
-		description:
-			"Eighteen premium long-stem roses, hand-tied by our florists and wrapped in textured paper with a satin ribbon. Each bouquet is cut to order and arrives in a hydration pack so it stays fresh for up to 7 days.",
-		basePrice: 2999,
-		currency: "PHP",
+		id: "scarlett",
+		name: "Scarlett",
+		description: ROSES_DESCRIPTION,
+		size: "classic",
 		isVisible: true,
-		variants: [
+		styles: [
 			{
-				id: "red-velvet",
-				sku: "Scarlett",
-				colorName: "Red Velvet",
+				slug: "red-velvet",
+				name: "Red Velvet",
 				colorHex: "#a51c34",
 				price: 3499,
-				inStock: true,
 				isAvailable: true,
-				stockQuantity: 24,
 				images: gallery("red-velvet"),
 				recipe: [
 					{ flower: "Roses", count: 18, color: "Red" },
-					{ flower: "Gypsophila" },
+					{ flower: "Gypsophila", count: 1 },
 				],
-				wrapperColor: "Black",
-				size: "classic",
+				wrapper: "Black",
 			},
+		],
+	},
+	{
+		id: "rosie",
+		name: "Rosie",
+		description: ROSES_DESCRIPTION,
+		size: "classic",
+		isVisible: true,
+		styles: [
 			{
-				id: "pastel-pink",
-				sku: "Rosie",
-				colorName: "Pastel Pink",
+				slug: "pastel-pink",
+				name: "Pastel Pink",
 				colorHex: "#f2a6b8",
-				inStock: true,
+				price: 2999,
 				isAvailable: true,
-				stockQuantity: 12,
 				images: gallery("pastel-pink"),
 				recipe: [
 					{ flower: "Roses", count: 18, color: "Pink" },
-					{ flower: "Aster", color: "Violet" },
+					{ flower: "Aster", count: 1, color: "Violet" },
 				],
-				wrapperColor: "Blush pink",
-				size: "classic",
+				wrapper: "Blush pink",
 			},
+		],
+	},
+	{
+		id: "bianca",
+		name: "Bianca",
+		description: ROSES_DESCRIPTION,
+		size: "classic",
+		isVisible: true,
+		styles: [
 			{
-				id: "cream-white",
-				sku: "Bianca",
-				colorName: "Cream White",
+				slug: "cream-white",
+				name: "Cream White",
 				colorHex: "#f4ecd9",
-				inStock: true,
+				price: 2999,
 				isAvailable: true,
-				stockQuantity: 3,
 				images: gallery("cream-white"),
 				recipe: [
 					{ flower: "Roses", count: 18, color: "Cream" },
-					{ flower: "Eucalyptus" },
+					{ flower: "Eucalyptus", count: 1 },
 				],
-				wrapperColor: "Kraft brown",
-				size: "classic",
+				wrapper: "Kraft brown",
 			},
+		],
+	},
+	{
+		id: "coral",
+		name: "Coral",
+		description: ROSES_DESCRIPTION,
+		size: "classic",
+		isVisible: true,
+		styles: [
 			{
-				id: "sunset-coral",
-				sku: "Coral",
-				colorName: "Sunset Coral",
+				slug: "sunset-coral",
+				name: "Sunset Coral",
 				colorHex: "#f27a5c",
 				price: 3299,
-				inStock: false,
-				isAvailable: true,
-				stockQuantity: 0,
+				isAvailable: false,
 				images: gallery("sunset-coral"),
 				recipe: [
 					{ flower: "Tulips", count: 10 },
 					{ flower: "Carnations", count: 8, color: "Coral" },
 				],
-				wrapperColor: "Ivory",
-				size: "classic",
+				wrapper: "Ivory",
 			},
 		],
 	},

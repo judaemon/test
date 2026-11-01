@@ -1,4 +1,9 @@
-import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	redirect,
+} from "@tanstack/solid-router";
 import { createMemo, Show } from "solid-js";
 
 import { ProductGallery } from "~/components/product/product-gallery";
@@ -14,23 +19,38 @@ import {
 	BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { buttonVariants } from "~/components/ui/button";
-import { bouquetPhotos, flowerCodeKey, resolveVariant } from "~/lib/product";
+import { bouquetPhotos, resolveVariant } from "~/lib/product";
 import { cn } from "~/lib/utils";
-import { getProduct } from "~/server/catalog";
+import { findMovedProduct, getProduct } from "~/server/catalog";
 import type { ProductVariant } from "~/types/product";
 
 interface ProductSearch {
+	/** The theme (a bouquet style) to show. */
+	theme?: string;
+	/** Old links: a product's color, before bouquets had their own pages. */
 	variant?: string;
 }
 
 export const Route = createFileRoute("/products/$productId")({
 	validateSearch: (search: Record<string, unknown>): ProductSearch => ({
+		theme: typeof search.theme === "string" ? search.theme : undefined,
 		variant: typeof search.variant === "string" ? search.variant : undefined,
 	}),
-	loader: async ({ params }) => {
+	loaderDeps: ({ search }) => ({ variant: search.variant }),
+	loader: async ({ params, deps }) => {
 		const product = await getProduct({ data: params.productId });
-		if (!product) throw notFound();
-		return product;
+		if (product) return product;
+		// An old /products/<product>?variant=<color> link: go to that bouquet.
+		const moved = await findMovedProduct({
+			data: { productId: params.productId, variant: deps.variant ?? "" },
+		});
+		if (!moved) throw notFound();
+		throw redirect({
+			to: "/products/$productId",
+			params: { productId: moved.productId },
+			search: { theme: moved.variant },
+			statusCode: 301,
+		});
 	},
 	head: ({ loaderData }) => ({
 		meta: [
@@ -62,22 +82,14 @@ function ProductPage() {
 
 	// The URL is the single source of truth for the selected variant.
 	const activeVariant = createMemo(() =>
-		resolveVariant(product(), search().variant),
-	);
-
-	// Only the colors of the style that was opened.
-	const styleColors = createMemo(() =>
-		product().variants.filter(
-			(variant) =>
-				flowerCodeKey(variant.sku) === flowerCodeKey(activeVariant().sku),
-		),
+		resolveVariant(product(), search().theme ?? search().variant),
 	);
 
 	const selectVariant = (variant: ProductVariant) => {
 		if (variant.id === activeVariant().id) return;
 		navigate({
-			search: (prev) => ({ ...prev, variant: variant.id }),
-			// Swapping colors shouldn't flood the back button with history entries.
+			search: (prev) => ({ ...prev, theme: variant.id, variant: undefined }),
+			// Swapping themes shouldn't flood the back button with history entries.
 			replace: true,
 			resetScroll: false,
 		});
@@ -117,7 +129,7 @@ function ProductPage() {
 					</div>
 					<ProductInfo product={product()} variant={activeVariant()}>
 						<VariantSelector
-							variants={styleColors()}
+							variants={product().variants}
 							selectedId={activeVariant().id}
 							onSelect={selectVariant}
 							onPreview={preloadVariantImages}

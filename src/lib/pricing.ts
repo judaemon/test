@@ -36,7 +36,12 @@ export interface PricedLine {
 	unitPrice: number;
 	lineTotal: number;
 	maxQuantity: number;
-	/** Why this line can't be ordered as-is, if anything. */
+	/**
+	 * Why this line can't be ordered as-is, if anything: `sold-out` is a
+	 * bouquet style marked not available, `over-stock` more than one order
+	 * (or the custom bouquet's stock) allows, `unavailable` a custom bouquet
+	 * that can't be made as built.
+	 */
 	problem?: "sold-out" | "over-stock" | "unavailable";
 	/** Shopper-facing reason, for `unavailable`. */
 	problemText?: string;
@@ -127,14 +132,19 @@ export function priceCart(
 	};
 }
 
-/** A built bouquet: made to order, limited only by wrappers left. */
+/** A built bouquet: made to order, limited by the wrappers and flowers left. */
 function priceCustomLine(
 	line: CartLine,
 	design: CustomDesign,
 	settings: CustomBouquetSettings,
 ): PricedLine {
-	const { unitPrice, wrapper, problem } = priceDesign(design, settings);
-	const maxQuantity = Math.min(MAX_PER_ORDER, wrapper?.stock ?? MAX_PER_ORDER);
+	const priced = priceDesign(design, settings);
+	const { unitPrice, wrapper, problem } = priced;
+	const maxQuantity = Math.min(
+		MAX_PER_ORDER,
+		wrapper?.stock ?? MAX_PER_ORDER,
+		priced.maxQuantity ?? MAX_PER_ORDER,
+	);
 	return {
 		productId: CUSTOM_PRODUCT_ID,
 		variantId: line.variantId,

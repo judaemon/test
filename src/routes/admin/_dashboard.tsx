@@ -34,9 +34,11 @@ const NAV = [
 	{ to: "/admin/orders", label: "Orders", icon: AdminIcons.orders },
 	{
 		to: "/admin/products",
-		label: "Products & stock",
+		label: "Signature bouquets",
 		icon: AdminIcons.products,
 	},
+	{ to: "/admin/flowers", label: "Flowers", icon: AdminIcons.flowers },
+	{ to: "/admin/wrappers", label: "Wrappers", icon: AdminIcons.wrappers },
 	{ to: "/admin/custom", label: "Custom bouquets", icon: AdminIcons.custom },
 	{ to: "/admin/reports", label: "Reports", icon: AdminIcons.reports },
 	{

@@ -51,7 +51,7 @@ import {
 	validateReferenceNumber,
 } from "~/lib/payment";
 import type { PricedCart } from "~/lib/pricing";
-import { formatPrice, styleLabel } from "~/lib/product";
+import { formatPrice, lineName, styleLabel } from "~/lib/product";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { getCheckoutConfig, placeOrder } from "~/server/orders";
@@ -560,7 +560,7 @@ function CheckoutForm(props: {
 											{line.problem === "unavailable"
 												? `${line.problemText} Remove it to continue.`
 												: line.problem === "sold-out"
-													? "Sold out — remove to continue"
+													? "Not available — remove to continue"
 													: `Only ${line.maxQuantity} available`}
 										</span>
 									</Show>
@@ -851,9 +851,7 @@ function ReviewSummary(props: {
 			<dt class="text-petal-900/60">Bouquets</dt>
 			<dd>
 				{props.cart.lines
-					.map(
-						(line) => `${line.quantity} × ${line.title} (${styleLabel(line)})`,
-					)
+					.map((line) => `${line.quantity} × ${lineName(line)}`)
 					.join(", ")}
 			</dd>
 			<Show when={props.paymentMethod}>

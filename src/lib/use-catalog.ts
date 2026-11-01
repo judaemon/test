@@ -33,7 +33,7 @@ export function useSessionUser() {
 }
 
 /**
- * A flower's photo (set in Admin → Custom bouquets), in the given color when
+ * A flower's photo (set in Admin → Flowers), in the given color when
  * there is a photo of that color.
  */
 export function useFlowerPhotos() {

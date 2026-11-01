@@ -1,8 +1,8 @@
 /**
  * Fills the local database with demo data for trying out the shop and admin.
  *
- *   bun run db:seed            add demo accounts, products and orders (skips what exists)
- *   bun run db:seed --reset    wipe products, orders, payment settings and accounts first
+ *   bun run db:seed            add demo accounts, bouquets and orders (skips what exists)
+ *   bun run db:seed --reset    wipe bouquets, orders, payment settings and accounts first
  *
  * Safe to run while the dev server is running. Refuses to run in production.
  */
@@ -28,6 +28,7 @@ import {
 	setDeliveryPhoto,
 	setRider,
 } from "~/server/orders-repo";
+import { wrapperIdByName } from "~/server/wrappers-repo";
 import {
 	listAddresses,
 	listOccasions,
@@ -77,64 +78,65 @@ const gallery = (variantId: string) =>
 		(view) => `/images/bouquets/${variantId}-${view}.svg`,
 	);
 
-const DEMO_PRODUCTS: Array<{ id: string; input: ProductInput }> = [
+/** Demo bouquets; built when used, since naming wrappers may add them. */
+const demoBouquets = (): Array<{ id: string; input: ProductInput }> => [
 	{
-		id: "petite-rose-posy",
+		id: "bella",
 		input: {
-			title: "Petite Rose Posy",
+			title: "Bella",
 			description:
 				"Six hand-picked roses in a little posy, just right for a desk, a bedside table or a ‘just because’.",
-			basePrice: 1499,
+			size: "petite",
 			isVisible: true,
 			variants: [
 				{
 					colorName: "Blush Pink",
-					sku: "Bella",
 					colorHex: "#f2a6b8",
 					price: 1499,
-					stockQuantity: 15,
 					isAvailable: true,
 					images: gallery("pastel-pink"),
-					recipe: [{ flower: "Roses", count: 6, color: "Pink" }, { flower: "Gypsophila" }],
-					wrapperColor: "White",
-					size: "petite",
+					recipe: [
+						{ flower: "Roses", count: 6, color: "Pink" },
+						{ flower: "Gypsophila", count: 1 },
+					],
+					wrapperId: wrapperIdByName("White"),
 				},
 				{
 					colorName: "Ruby",
-					sku: "Ruby",
 					colorHex: "#a51c34",
 					price: 1599,
-					stockQuantity: 8,
 					isAvailable: true,
 					images: gallery("red-velvet"),
-					recipe: [{ flower: "Sunflower", count: 3 }, { flower: "Aster", color: "Violet" }],
-					wrapperColor: "Kraft brown",
-					size: "petite",
+					recipe: [
+						{ flower: "Roses", count: 6, color: "Red" },
+						{ flower: "Gypsophila", count: 1 },
+					],
+					wrapperId: wrapperIdByName("Kraft brown"),
 				},
 			],
 		},
 	},
 	{
-		// Hidden: shows how a draft product looks in the admin.
-		id: "grand-cream-rose-box",
+		// Hidden: shows how a draft bouquet looks in the admin.
+		id: "ivy",
 		input: {
-			title: "Grand Cream Rose Box",
+			title: "Ivy",
 			description:
 				"Thirty-six cream roses arranged in a keepsake box. Coming soon for weddings and big days.",
-			basePrice: 4999,
+			size: "grand",
 			isVisible: false,
 			variants: [
 				{
 					colorName: "Ivory",
-					sku: "Ivy",
 					colorHex: "#f4ecd9",
 					price: 4999,
-					stockQuantity: 4,
 					isAvailable: true,
 					images: gallery("cream-white"),
-					recipe: [{ flower: "Stargazer", count: 5 }, { flower: "Roses", count: 12, color: "Cream" }],
-					wrapperColor: "Gold box",
-					size: "grand",
+					recipe: [
+						{ flower: "Stargazer", count: 5 },
+						{ flower: "Roses", count: 12, color: "White" },
+					],
+					wrapperId: wrapperIdByName("Gold box"),
 				},
 			],
 		},
@@ -263,8 +265,8 @@ async function main() {
 				"orders",
 				"customer_addresses",
 				"customer_occasions",
-				"variants",
-				"products",
+				// Styles, recipes and redirects go with their bouquets.
+				"signature_bouquets",
 				"payment_accounts",
 				"session",
 				"account",
@@ -304,7 +306,7 @@ async function main() {
 	}
 
 	// ── Products ──────────────────────────────────────────────────────────
-	for (const product of DEMO_PRODUCTS) {
+	for (const product of demoBouquets()) {
 		if (getAdminProduct(product.id)) {
 			console.log(`  · product ${product.input.title} already exists`);
 			continue;

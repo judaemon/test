@@ -7,7 +7,7 @@ import type { Product } from "~/types/product";
 export interface ReorderResult {
 	/** Units put in the bag. */
 	added: number;
-	/** Colors that are gone, sold out or only partly available. */
+	/** Styles that are gone, not available or only partly added. */
 	unavailable: string[];
 }
 

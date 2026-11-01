@@ -247,6 +247,18 @@ export const AdminIcons = {
 			<path d="M12 12v9M8 17c-2 0-4-1-4-3 2 0 4 1 4 3ZM16 17c2 0 4-1 4-3-2 0-4 1-4 3Z" />
 		</svg>
 	),
+	flowers: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<circle cx="12" cy="9" r="2.5" />
+			<path d="M12 6.5C12 4 13.5 3 15 3.5s1.5 2.8-.6 4.4M14.5 9c2.5 0 3.5 1.5 3 3s-2.8 1.5-4.4-.6M12 11.5c0 2.5-1.5 3.5-3 3s-1.5-2.8.6-4.4M9.5 9C7 9 6 7.5 6.5 6s2.8-1.5 4.4.6M12 11.5V21M12 18c-1.5-2-3.5-2.5-5-2" />
+		</svg>
+	),
+	wrappers: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M4 4h16l-6 10v6l-4-2v-4L4 4Z" />
+			<path d="M8 4l4 6 4-6" />
+		</svg>
+	),
 	reports: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />

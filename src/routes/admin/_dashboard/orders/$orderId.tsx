@@ -208,7 +208,9 @@ function OrderDetail() {
 												{line.quantity} × {line.colorName}
 											</span>
 											<span class="block text-xs text-petal-900/55">
-												{line.title} · {line.sku}
+												{line.title === line.sku
+													? line.title
+													: `${line.title} · ${line.sku}`}
 											</span>
 											<Show when={line.recipe?.length}>
 												<Show when={stemCount(line.recipe)}>

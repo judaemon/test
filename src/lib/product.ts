@@ -15,9 +15,24 @@ export function styleLabel(line: { sku: string; colorName: string }) {
 		: line.colorName;
 }
 
+/**
+ * A line's full name: "Odette · Cream". Lines from before bouquets had their
+ * own pages also name the product: "Roses · Althea · White".
+ */
+export function lineName(line: {
+	title: string;
+	sku: string;
+	colorName: string;
+}) {
+	const style = styleLabel(line);
+	return flowerCodeKey(line.title) === flowerCodeKey(line.sku)
+		? style
+		: `${line.title} · ${style}`;
+}
+
+/** Most of one style per order; none while it's unavailable. */
 export function getMaxQuantity(variant: ProductVariant) {
-	if (!variant.inStock) return 0;
-	return Math.min(MAX_PER_ORDER, variant.stockQuantity ?? MAX_PER_ORDER);
+	return variant.inStock ? MAX_PER_ORDER : 0;
 }
 
 export function getVariantPrice(product: Product, variant: ProductVariant) {
@@ -38,18 +53,6 @@ export function resolveVariant(
 		product.variants.find((variant) => variant.inStock) ??
 		product.variants[0]
 	);
-}
-
-export type StockStatus = "in-stock" | "low-stock" | "out-of-stock";
-
-export function getStockStatus(variant: ProductVariant): StockStatus {
-	if (!variant.inStock) return "out-of-stock";
-	if (
-		variant.stockQuantity !== undefined &&
-		variant.stockQuantity <= LOW_STOCK_THRESHOLD
-	)
-		return "low-stock";
-	return "in-stock";
 }
 
 export function formatPrice(amount: number, currency: string) {

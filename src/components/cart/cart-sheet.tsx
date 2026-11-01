@@ -17,7 +17,12 @@ import {
 import { CUSTOM_PRODUCT_ID, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem } from "~/lib/flowers";
 import type { PricedLine } from "~/lib/pricing";
-import { formatPrice, styleLabel, swatchBackground } from "~/lib/product";
+import {
+	formatPrice,
+	lineName,
+	styleLabel,
+	swatchBackground,
+} from "~/lib/product";
 import { usePricedCart } from "~/lib/use-catalog";
 
 import { QuantityStepper } from "./quantity-stepper";
@@ -124,7 +129,7 @@ function BagLine(props: {
 	onRemove: (line: PricedLine) => void;
 }) {
 	const line = () => props.line;
-	const label = () => `${line().title}, ${styleLabel(line())}`;
+	const label = () => lineName(line());
 
 	return (
 		<li class="flex gap-4 py-5">
@@ -150,7 +155,7 @@ function BagLine(props: {
 				<Link
 					to="/products/$productId"
 					params={{ productId: line().productId }}
-					search={{ variant: line().variantId }}
+					search={{ theme: line().variantId }}
 					onClick={props.onNavigate}
 					class="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 				>
@@ -198,7 +203,7 @@ function BagLine(props: {
 							{problem() === "unavailable"
 								? `${line().problemText} Please remove it.`
 								: problem() === "sold-out"
-									? "Sold out — please remove"
+									? "Not available — please remove"
 									: `Only ${line().maxQuantity} available`}
 						</p>
 					)}
