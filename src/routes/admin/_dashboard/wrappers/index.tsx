@@ -3,6 +3,9 @@ import { For, Show } from "solid-js";
 
 import {
 	choiceParam,
+	type Facet,
+	facetCount,
+	fitsFacets,
 	ListToolbar,
 	matchesQuery,
 	textParam,
@@ -17,6 +20,7 @@ import {
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import type { CustomWrapper } from "~/lib/custom-bouquet";
 import { formatPrice, LOW_STOCK_THRESHOLD } from "~/lib/product";
+import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
 import {
 	listWrappersAdmin,
@@ -28,8 +32,10 @@ const SORTS = ["name", "name-desc", "price", "price-desc"] as const;
 /** Search, filters and sort, kept in the address so Back returns to them. */
 interface WrappersSearch {
 	q?: string;
-	use?: "custom" | "off";
-	stock?: "low" | "sold-out" | "not-counted";
+	/** Comma-separated: "custom", "off". */
+	use?: string;
+	/** Comma-separated: "low", "sold-out", "not-counted". */
+	stock?: string;
 	/** Missing: the builder's order. */
 	sort?: (typeof SORTS)[number];
 }
@@ -37,12 +43,8 @@ interface WrappersSearch {
 export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 	validateSearch: (search: Record<string, unknown>): WrappersSearch => ({
 		q: textParam(search, "q"),
-		use: choiceParam(search, "use", ["custom", "off"] as const),
-		stock: choiceParam(search, "stock", [
-			"low",
-			"sold-out",
-			"not-counted",
-		] as const),
+		use: textParam(search, "use"),
+		stock: textParam(search, "stock"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
 	loader: () => listWrappersAdmin(),
@@ -61,20 +63,39 @@ function WrappersPage() {
 			resetScroll: false,
 		});
 	const filtered = () => !!(search().q || search().use || search().stock);
-	const keep = (wrapper: CustomWrapper) => {
-		const { q, use, stock } = search();
-		if (!matchesQuery(q, wrapper.name)) return false;
-		if (use && wrapper.enabled !== (use === "custom")) return false;
-		if (stock === "not-counted") return wrapper.stock === undefined;
-		if (stock === "sold-out") return wrapper.stock === 0;
-		if (stock === "low")
-			return (
-				wrapper.stock !== undefined && wrapper.stock <= LOW_STOCK_THRESHOLD
-			);
-		return true;
-	};
+	const searched = () =>
+		all().filter((wrapper) => matchesQuery(search().q, wrapper.name));
+	const facets = (): Record<string, Facet<CustomWrapper>> => ({
+		use: {
+			chosen: parseList(search().use),
+			matches: (wrapper, key) => wrapper.enabled === (key === "custom"),
+		},
+		stock: {
+			chosen: parseList(search().stock),
+			matches: (wrapper, key) => {
+				if (key === "not-counted") return wrapper.stock === undefined;
+				if (key === "sold-out") return wrapper.stock === 0;
+				return (
+					wrapper.stock !== undefined && wrapper.stock <= LOW_STOCK_THRESHOLD
+				);
+			},
+		},
+	});
+	const filterOf = (
+		name: "use" | "stock",
+		label: string,
+		choices: { key: string; label: string }[],
+	) => ({
+		label,
+		selected: parseList(search()[name]),
+		onChange: (chosen: string[]) => setSearch({ [name]: joinList(chosen) }),
+		options: choices.map((choice) => ({
+			...choice,
+			count: facetCount(searched(), facets(), name, choice.key),
+		})),
+	});
 	const wrappers = () => {
-		const list = all().filter(keep);
+		const list = searched().filter((w) => fitsFacets(w, facets()));
 		const by = search().sort;
 		if (!by) return list;
 		const sign = by.endsWith("-desc") ? -1 : 1;
@@ -114,34 +135,17 @@ function WrappersPage() {
 				onQuery={(q) => setSearch({ q: q || undefined })}
 				placeholder="Wrapper name"
 				filters={[
-					{
-						label: "Custom bouquets",
-						value: search().use ?? "",
-						options: [
-							{ value: "", label: "Offered or not" },
-							{ value: "custom", label: "Offered" },
-							{ value: "off", label: "Not offered" },
-						],
-						onChange: (use) =>
-							setSearch({ use: (use || undefined) as WrappersSearch["use"] }),
-					},
-					{
-						label: "Stock",
-						value: search().stock ?? "",
-						options: [
-							{ value: "", label: "Any stock" },
-							{ value: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
-							{ value: "sold-out", label: "Sold out" },
-							{ value: "not-counted", label: "Not counted" },
-						],
-						onChange: (stock) =>
-							setSearch({
-								stock: (stock || undefined) as WrappersSearch["stock"],
-							}),
-					},
+					filterOf("use", "Custom bouquets", [
+						{ key: "custom", label: "Offered" },
+						{ key: "off", label: "Not offered" },
+					]),
+					filterOf("stock", "Stock", [
+						{ key: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
+						{ key: "sold-out", label: "Sold out" },
+						{ key: "not-counted", label: "Not counted" },
+					]),
 				]}
 				sort={{
-					label: "Sort by",
 					value: search().sort ?? "",
 					options: [
 						{ value: "", label: "Builder order" },

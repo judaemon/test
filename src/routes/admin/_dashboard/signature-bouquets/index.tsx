@@ -3,6 +3,9 @@ import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import {
 	choiceParam,
+	type Facet,
+	facetCount,
+	fitsFacets,
 	ListToolbar,
 	matchesQuery,
 	textParam,
@@ -18,6 +21,7 @@ import {
 } from "~/components/admin/ui";
 import { formatRecipeItem, mainFlower } from "~/lib/flowers";
 import { formatPrice, swatchBackground } from "~/lib/product";
+import { joinList, parseList } from "~/lib/shop-filters";
 import { findSize } from "~/lib/sizes";
 import { useSizes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
@@ -34,11 +38,13 @@ const SORTS = ["name", "name-desc", "price", "price-desc"] as const;
 /** Search, filters and sort, kept in the address so Back returns to them. */
 interface InventorySearch {
 	q?: string;
-	/** A size's id, or "none" for bouquets without one. */
+	/** Comma-separated: size ids, or "none" for bouquets without one. */
 	size?: string;
-	status?: "shown" | "hidden";
-	themes?: "all-available" | "some-unavailable";
-	/** A flower's name. */
+	/** Comma-separated: "shown", "hidden". */
+	status?: string;
+	/** Comma-separated: "all-available", "some-unavailable". */
+	themes?: string;
+	/** Comma-separated flower names. */
 	flower?: string;
 	/** Missing: the shop's order. */
 	sort?: (typeof SORTS)[number];
@@ -48,11 +54,8 @@ export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 	validateSearch: (search: Record<string, unknown>): InventorySearch => ({
 		q: textParam(search, "q"),
 		size: textParam(search, "size"),
-		status: choiceParam(search, "status", ["shown", "hidden"] as const),
-		themes: choiceParam(search, "themes", [
-			"all-available",
-			"some-unavailable",
-		] as const),
+		status: textParam(search, "status"),
+		themes: textParam(search, "themes"),
 		flower: textParam(search, "flower"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
@@ -90,7 +93,7 @@ function InventoryPage() {
 
 	const flowersOf = (product: AdminProduct) =>
 		new Set(product.variants.flatMap((v) => v.recipe.map((i) => i.flower)));
-	const flowerOptions = () =>
+	const flowerNames = () =>
 		[...new Set(products.flatMap((p) => [...flowersOf(p)]))].sort();
 
 	/** A bouquet's styles that match the search (all, if it names the bouquet). */
@@ -98,17 +101,41 @@ function InventoryPage() {
 		product.variants.filter((variant) =>
 			matchesQuery(search().q, `${product.title} ${variant.colorName}`),
 		);
-	const keep = (product: AdminProduct) => {
-		const { size, status, themes, flower } = search();
-		if (size && (product.size || "none") !== size) return false;
-		if (status && product.isVisible !== (status === "shown")) return false;
-		const unavailable = product.variants.some((v) => !v.isAvailable);
-		if (themes && unavailable !== (themes === "some-unavailable")) return false;
-		if (flower && !flowersOf(product).has(flower)) return false;
-		return colorsOf(product).length > 0;
-	};
+	const searched = () => products.filter((p) => colorsOf(p).length > 0);
+	const facets = (): Record<string, Facet<AdminProduct>> => ({
+		size: {
+			chosen: parseList(search().size),
+			matches: (p, key) => (p.size || "none") === key,
+		},
+		status: {
+			chosen: parseList(search().status),
+			matches: (p, key) => p.isVisible === (key === "shown"),
+		},
+		themes: {
+			chosen: parseList(search().themes),
+			matches: (p, key) =>
+				p.variants.some((v) => !v.isAvailable) === (key === "some-unavailable"),
+		},
+		flower: {
+			chosen: parseList(search().flower),
+			matches: (p, key) => flowersOf(p).has(key),
+		},
+	});
+	const filterOf = (
+		name: keyof InventorySearch & string,
+		label: string,
+		choices: { key: string; label: string }[],
+	) => ({
+		label,
+		selected: parseList(search()[name]),
+		onChange: (chosen: string[]) => setSearch({ [name]: joinList(chosen) }),
+		options: choices.map((choice) => ({
+			...choice,
+			count: facetCount(searched(), facets(), name, choice.key),
+		})),
+	});
 	const visible = () => {
-		const list = products.filter(keep);
+		const list = searched().filter((p) => fitsFacets(p, facets()));
 		const by = search().sort;
 		if (!by) return list;
 		const sign = by.endsWith("-desc") ? -1 : 1;
@@ -152,54 +179,25 @@ function InventoryPage() {
 				onQuery={(q) => setSearch({ q: q || undefined })}
 				placeholder="Bouquet or style name"
 				filters={[
-					{
-						label: "Size",
-						value: search().size ?? "",
-						options: [
-							{ value: "", label: "All sizes" },
-							...sizes().map((size) => ({ value: size.id, label: size.name })),
-							{ value: "none", label: "No size set" },
-						],
-						onChange: (size) => setSearch({ size: size || undefined }),
-					},
-					{
-						label: "In the shop",
-						value: search().status ?? "",
-						options: [
-							{ value: "", label: "Shown and hidden" },
-							{ value: "shown", label: "Shown" },
-							{ value: "hidden", label: "Hidden" },
-						],
-						onChange: (status) =>
-							setSearch({
-								status: (status || undefined) as InventorySearch["status"],
-							}),
-					},
-					{
-						label: "Styles",
-						value: search().themes ?? "",
-						options: [
-							{ value: "", label: "Any" },
-							{ value: "all-available", label: "All available" },
-							{ value: "some-unavailable", label: "Some not available" },
-						],
-						onChange: (themes) =>
-							setSearch({
-								themes: (themes || undefined) as InventorySearch["themes"],
-							}),
-					},
-					{
-						label: "Flower",
-						value: search().flower ?? "",
-						options: [
-							{ value: "", label: "Any flower" },
-							...flowerOptions().map((name) => ({ value: name, label: name })),
-						],
-						onChange: (flower) => setSearch({ flower: flower || undefined }),
-					},
+					filterOf("size", "Size", [
+						...sizes().map((size) => ({ key: size.id, label: size.name })),
+						{ key: "none", label: "No size set" },
+					]),
+					filterOf(
+						"flower",
+						"Flower",
+						flowerNames().map((name) => ({ key: name, label: name })),
+					),
+					filterOf("status", "In the shop", [
+						{ key: "shown", label: "Shown" },
+						{ key: "hidden", label: "Hidden" },
+					]),
+					filterOf("themes", "Styles", [
+						{ key: "all-available", label: "All available" },
+						{ key: "some-unavailable", label: "Some not available" },
+					]),
 				]}
 				sort={{
-					label: "Sort by",
 					value: search().sort ?? "",
 					options: [
 						{ value: "", label: "Shop order" },

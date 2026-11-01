@@ -3,6 +3,9 @@ import { For, Show } from "solid-js";
 
 import {
 	choiceParam,
+	type Facet,
+	facetCount,
+	fitsFacets,
 	ListToolbar,
 	matchesQuery,
 	textParam,
@@ -17,6 +20,7 @@ import {
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import type { FlowerColor, FlowerRecord } from "~/lib/custom-bouquet";
 import { formatPrice, LOW_STOCK_THRESHOLD } from "~/lib/product";
+import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
 import { listFlowersAdmin, setFlowerEnabledFn } from "~/server/admin/flowers";
 
@@ -25,8 +29,10 @@ const SORTS = ["name", "name-desc", "price", "price-desc", "used"] as const;
 /** Search, filters and sort, kept in the address so Back returns to them. */
 interface FlowersSearch {
 	q?: string;
-	use?: "custom" | "recipes";
-	stock?: "low" | "sold-out" | "counted" | "not-counted";
+	/** Comma-separated: "custom", "recipes". */
+	use?: string;
+	/** Comma-separated: "low", "sold-out", "counted", "not-counted". */
+	stock?: string;
 	/** Missing: the builder's order. */
 	sort?: (typeof SORTS)[number];
 }
@@ -34,13 +40,8 @@ interface FlowersSearch {
 export const Route = createFileRoute("/admin/_dashboard/flowers/")({
 	validateSearch: (search: Record<string, unknown>): FlowersSearch => ({
 		q: textParam(search, "q"),
-		use: choiceParam(search, "use", ["custom", "recipes"] as const),
-		stock: choiceParam(search, "stock", [
-			"low",
-			"sold-out",
-			"counted",
-			"not-counted",
-		] as const),
+		use: textParam(search, "use"),
+		stock: textParam(search, "stock"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
 	loader: () => listFlowersAdmin(),
@@ -69,31 +70,42 @@ function FlowersPage() {
 			resetScroll: false,
 		});
 	const filtered = () => !!(search().q || search().use || search().stock);
-	const keep = (flower: FlowerRecord) => {
-		const { q, use, stock } = search();
-		if (
-			!matchesQuery(
-				q,
+	const searched = () =>
+		all().filter((flower) =>
+			matchesQuery(
+				search().q,
 				`${flower.name} ${flower.kind.hint ?? ""} ${flower.colors.map((c) => c.name).join(" ")}`,
-			)
-		)
-			return false;
-		if (use && flower.enabled !== (use === "custom")) return false;
+			),
+		);
+	const stockMatches = (flower: FlowerRecord, key: string) => {
 		const counted = flower.colors.filter((c) => c.stock !== undefined);
-		if (stock === "counted" && counted.length === 0) return false;
-		if (stock === "not-counted" && counted.length === flower.colors.length)
-			return false;
-		if (stock === "sold-out" && !counted.some((c) => c.stock === 0))
-			return false;
-		if (
-			stock === "low" &&
-			!counted.some((c) => (c.stock ?? 0) <= LOW_STOCK_THRESHOLD)
-		)
-			return false;
-		return true;
+		if (key === "counted") return counted.length > 0;
+		if (key === "not-counted") return counted.length < flower.colors.length;
+		if (key === "sold-out") return counted.some((c) => c.stock === 0);
+		return counted.some((c) => (c.stock ?? 0) <= LOW_STOCK_THRESHOLD);
 	};
+	const facets = (): Record<string, Facet<FlowerRecord>> => ({
+		use: {
+			chosen: parseList(search().use),
+			matches: (flower, key) => flower.enabled === (key === "custom"),
+		},
+		stock: { chosen: parseList(search().stock), matches: stockMatches },
+	});
+	const filterOf = (
+		name: "use" | "stock",
+		label: string,
+		choices: { key: string; label: string }[],
+	) => ({
+		label,
+		selected: parseList(search()[name]),
+		onChange: (chosen: string[]) => setSearch({ [name]: joinList(chosen) }),
+		options: choices.map((choice) => ({
+			...choice,
+			count: facetCount(searched(), facets(), name, choice.key),
+		})),
+	});
 	const flowers = () => {
-		const list = all().filter(keep);
+		const list = searched().filter((f) => fitsFacets(f, facets()));
 		const by = search().sort;
 		if (!by) return list;
 		const sign = by.endsWith("-desc") ? -1 : 1;
@@ -224,35 +236,18 @@ function FlowersPage() {
 				onQuery={(q) => setSearch({ q: q || undefined })}
 				placeholder="Flower, color or note"
 				filters={[
-					{
-						label: "Custom bouquets",
-						value: search().use ?? "",
-						options: [
-							{ value: "", label: "Used or not" },
-							{ value: "custom", label: "Used in custom bouquets" },
-							{ value: "recipes", label: "Recipes only" },
-						],
-						onChange: (use) =>
-							setSearch({ use: (use || undefined) as FlowersSearch["use"] }),
-					},
-					{
-						label: "Stock",
-						value: search().stock ?? "",
-						options: [
-							{ value: "", label: "Any stock" },
-							{ value: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
-							{ value: "sold-out", label: "A color sold out" },
-							{ value: "counted", label: "Stock counted" },
-							{ value: "not-counted", label: "A color not counted" },
-						],
-						onChange: (stock) =>
-							setSearch({
-								stock: (stock || undefined) as FlowersSearch["stock"],
-							}),
-					},
+					filterOf("use", "Custom bouquets", [
+						{ key: "custom", label: "Used in custom bouquets" },
+						{ key: "recipes", label: "Recipes only" },
+					]),
+					filterOf("stock", "Stock", [
+						{ key: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
+						{ key: "sold-out", label: "A color sold out" },
+						{ key: "counted", label: "Stock counted" },
+						{ key: "not-counted", label: "A color not counted" },
+					]),
 				]}
 				sort={{
-					label: "Sort by",
 					value: search().sort ?? "",
 					options: [
 						{ value: "", label: "Builder order" },

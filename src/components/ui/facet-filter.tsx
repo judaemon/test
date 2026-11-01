@@ -1,5 +1,5 @@
 import * as PopoverPrimitive from "@kobalte/core/popover";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Index, Show } from "solid-js";
 
 import { cn } from "~/lib/utils";
 
@@ -21,6 +21,8 @@ export function FacetFilter(props: {
 	onChange: (selected: string[]) => void;
 }) {
 	const [query, setQuery] = createSignal("");
+	// A short list is quicker to read than to search.
+	const searchable = () => props.options.length > 6;
 	const chosen = () =>
 		props.options.filter((option) => props.selected.includes(option.key));
 	const shown = () => {
@@ -86,32 +88,35 @@ export function FacetFilter(props: {
 					<PopoverPrimitive.Title class="sr-only">
 						Filter by {props.label.toLowerCase()}
 					</PopoverPrimitive.Title>
-					<div class="border-b border-petal-100 p-2">
-						<label class="flex items-center gap-2 rounded-lg bg-petal-50 px-2.5">
-							<svg
-								aria-hidden="true"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.8"
-								stroke-linecap="round"
-								class="size-4 shrink-0 text-petal-900/45"
-							>
-								<circle cx="11" cy="11" r="6.5" />
-								<path d="m20 20-4.2-4.2" />
-							</svg>
-							<span class="sr-only">Search {props.label.toLowerCase()}</span>
-							<input
-								type="search"
-								value={query()}
-								onInput={(e) => setQuery(e.currentTarget.value)}
-								placeholder={props.label}
-								class="h-9 w-full bg-transparent text-base outline-none placeholder:text-petal-900/40 sm:text-sm"
-							/>
-						</label>
-					</div>
+					<Show when={searchable()}>
+						<div class="border-b border-petal-100 p-2">
+							<label class="flex items-center gap-2 rounded-lg bg-petal-50 px-2.5">
+								<svg
+									aria-hidden="true"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.8"
+									stroke-linecap="round"
+									class="size-4 shrink-0 text-petal-900/45"
+								>
+									<circle cx="11" cy="11" r="6.5" />
+									<path d="m20 20-4.2-4.2" />
+								</svg>
+								<span class="sr-only">Search {props.label.toLowerCase()}</span>
+								<input
+									type="search"
+									value={query()}
+									onInput={(e) => setQuery(e.currentTarget.value)}
+									placeholder={props.label}
+									class="h-9 w-full bg-transparent text-base outline-none placeholder:text-petal-900/40 sm:text-sm"
+								/>
+							</label>
+						</div>
+					</Show>
 					<ul class="max-h-72 overflow-y-auto p-1">
-						<For
+						{/* By position: counts change on every tick; keep focus on the box. */}
+						<Index
 							each={shown()}
 							fallback={
 								<li class="px-3 py-6 text-center text-sm text-petal-900/55">
@@ -120,22 +125,22 @@ export function FacetFilter(props: {
 							}
 						>
 							{(option) => {
-								const on = () => props.selected.includes(option.key);
+								const on = () => props.selected.includes(option().key);
 								return (
 									<li>
 										<label
 											class={cn(
 												"flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm hover:bg-petal-50",
 												!on() &&
-													option.count === 0 &&
+													option().count === 0 &&
 													"cursor-not-allowed opacity-40 hover:bg-transparent",
 											)}
 										>
 											<input
 												type="checkbox"
 												checked={on()}
-												disabled={!on() && option.count === 0}
-												onChange={() => toggle(option.key)}
+												disabled={!on() && option().count === 0}
+												onChange={() => toggle(option().key)}
 												class="peer sr-only"
 											/>
 											<span
@@ -162,15 +167,15 @@ export function FacetFilter(props: {
 													</svg>
 												</Show>
 											</span>
-											<span class="flex-1">{option.label}</span>
+											<span class="flex-1">{option().label}</span>
 											<span class="text-xs tabular-nums text-petal-900/50">
-												{option.count}
+												{option().count}
 											</span>
 										</label>
 									</li>
 								);
 							}}
-						</For>
+						</Index>
 					</ul>
 					<Show when={props.selected.length}>
 						<div class="border-t border-petal-100 p-1">

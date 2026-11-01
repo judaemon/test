@@ -1,11 +1,10 @@
 import { Link, useNavigate, useSearch } from "@tanstack/solid-router";
 import { createMemo, createSignal, For, Show } from "solid-js";
-
-import { FacetFilter } from "~/components/shop/facet-filter";
 import { HowToOrder } from "~/components/shop/how-to-order";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
+import { FacetFilter } from "~/components/ui/facet-filter";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CUSTOM_IMAGE } from "~/lib/custom-bouquet";
 import { formatPrice } from "~/lib/product";
