@@ -387,87 +387,81 @@ function CheckoutForm(props: {
 					</div>
 				</Section>
 
-				<Section title="Notes & dedication card" note="Optional" step={2}>
-					<div class="flex flex-col gap-5">
+				<Section title="Dedication card" note="Optional" step={2}>
+					<div class="flex flex-col gap-4">
+						<p class="text-sm text-petal-900/60">
+							Printed and tucked into the bouquet, free.
+						</p>
+						<Field
+							name="dedicationFor"
+							label="To"
+							placeholder="Who the card is addressed to"
+							autocomplete="off"
+							maxLength={NAME_MAX}
+							value={dedicationFor()}
+							onValueChange={setDedicationFor}
+							error={errors().dedicationFor}
+							onInput={() => {
+								clearError("dedicationFor");
+								clearError("dedicationMessage");
+							}}
+						/>
 						<TextField
-							name="notes"
-							value={notes()}
-							onChange={setNotes}
-							validationState={errors().notes ? "invalid" : "valid"}
+							name="dedicationMessage"
+							value={dedicationMessage()}
+							onChange={setDedicationMessage}
+							validationState={errors().dedicationMessage ? "invalid" : "valid"}
 							class="gap-2"
 						>
-							<TextFieldLabel class="text-petal-900">
-								Note for the florist
-							</TextFieldLabel>
+							<TextFieldLabel class="text-petal-900">Message</TextFieldLabel>
 							<TextFieldTextArea
-								maxLength={NOTES_MAX}
-								rows={2}
-								placeholder="Anything we should know about your order"
-								onInput={() => clearError("notes")}
+								maxLength={DEDICATION_MESSAGE_MAX}
+								rows={4}
+								placeholder="Happy birthday, sunshine! 🌷"
+								onInput={() => clearError("dedicationMessage")}
 								class={textAreaClass}
 							/>
-							<TextFieldErrorMessage>{errors().notes}</TextFieldErrorMessage>
-						</TextField>
-
-						<fieldset class="flex flex-col gap-4 rounded-2xl bg-petal-50 p-5">
-							<legend class="sr-only">Dedication card</legend>
-							<p class="text-sm font-medium">
-								Dedication card{" "}
-								<span class="font-normal text-petal-900/60">
-									· printed and tucked into the bouquet, free
+							<div class="flex justify-between gap-4">
+								<TextFieldDescription class="text-petal-900/60">
+									Leave it empty for no card.
+								</TextFieldDescription>
+								<span
+									class="shrink-0 text-xs tabular-nums text-petal-900/50"
+									aria-hidden="true"
+								>
+									{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
 								</span>
-							</p>
-							<Field
-								name="dedicationFor"
-								label="To"
-								placeholder="Who the card is addressed to"
-								autocomplete="off"
-								maxLength={NAME_MAX}
-								value={dedicationFor()}
-								onValueChange={setDedicationFor}
-								error={errors().dedicationFor}
-								onInput={() => {
-									clearError("dedicationFor");
-									clearError("dedicationMessage");
-								}}
-							/>
-							<TextField
-								name="dedicationMessage"
-								value={dedicationMessage()}
-								onChange={setDedicationMessage}
-								validationState={
-									errors().dedicationMessage ? "invalid" : "valid"
-								}
-								class="gap-2"
-							>
-								<TextFieldLabel class="text-petal-900">Message</TextFieldLabel>
-								<TextFieldTextArea
-									maxLength={DEDICATION_MESSAGE_MAX}
-									rows={4}
-									placeholder="Happy birthday, sunshine! 🌷"
-									onInput={() => clearError("dedicationMessage")}
-									class={textAreaClass}
-								/>
-								<div class="flex justify-between gap-4">
-									<TextFieldDescription class="text-petal-900/60">
-										Leave it empty for no card.
-									</TextFieldDescription>
-									<span
-										class="shrink-0 text-xs tabular-nums text-petal-900/50"
-										aria-hidden="true"
-									>
-										{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
-									</span>
-								</div>
-								<TextFieldErrorMessage>
-									{errors().dedicationMessage}
-								</TextFieldErrorMessage>
-							</TextField>
-						</fieldset>
+							</div>
+							<TextFieldErrorMessage>
+								{errors().dedicationMessage}
+							</TextFieldErrorMessage>
+						</TextField>
 					</div>
 				</Section>
 
-				<Section title="Payment" step={3}>
+				<Section title="Note for the florist" note="Optional" step={3}>
+					<TextField
+						name="notes"
+						value={notes()}
+						onChange={setNotes}
+						validationState={errors().notes ? "invalid" : "valid"}
+						class="gap-2"
+					>
+						<TextFieldLabel class="sr-only">
+							Note for the florist
+						</TextFieldLabel>
+						<TextFieldTextArea
+							maxLength={NOTES_MAX}
+							rows={2}
+							placeholder="Anything we should know about your order"
+							onInput={() => clearError("notes")}
+							class={textAreaClass}
+						/>
+						<TextFieldErrorMessage>{errors().notes}</TextFieldErrorMessage>
+					</TextField>
+				</Section>
+
+				<Section title="Payment" step={4}>
 					<PaymentSection
 						accounts={props.paymentAccounts}
 						total={props.cart.total}
