@@ -31,6 +31,7 @@ import { cn } from "~/lib/utils";
 import {
 	assignRider,
 	getAdminOrder,
+	markOrderTest,
 	moveOrder,
 	type OrderActionResult,
 	reviewOrderPayment,
@@ -102,6 +103,13 @@ function OrderDetail() {
 			() => moveOrder({ data: { id: order().id, stage } }),
 			`Moved to ${STAGE_LABELS[stage]}.`,
 		);
+	const markTest = (isTest: boolean) =>
+		run(
+			() => markOrderTest({ data: { id: order().id, isTest } }),
+			isTest
+				? "Marked as a test. It won’t count in reports."
+				: "Now a real order again.",
+		);
 	const review = (decision: "verified" | "rejected") =>
 		run(
 			() => reviewOrderPayment({ data: { id: order().id, decision } }),
@@ -136,11 +144,29 @@ function OrderDetail() {
 					},
 				)}`}
 				actions={
-					<span class="rounded-full bg-white px-3 py-1 text-sm font-medium">
-						{STAGE_LABELS[order().stage]}
-					</span>
+					<>
+						<button
+							type="button"
+							class={adminButton.secondary}
+							disabled={busy()}
+							onClick={() => markTest(!order().isTest)}
+						>
+							{order().isTest ? "Not a test" : "Mark as test"}
+						</button>
+						<span class="rounded-full bg-white px-3 py-1 text-sm font-medium">
+							{STAGE_LABELS[order().stage]}
+						</span>
+					</>
 				}
 			/>
+
+			<Show when={order().isTest}>
+				<p class="mb-5 rounded-2xl border border-petal-200 bg-petal-50 px-4 py-3 text-sm">
+					<strong class="font-semibold">Test order.</strong> It’s left out of
+					reports and holds no stock. Customers can still find it in Check your
+					order.
+				</p>
+			</Show>
 
 			<Show when={order().cancelReason}>
 				<p class="mb-5 rounded-2xl border border-error-foreground/25 bg-error px-4 py-3 text-sm text-error-foreground">

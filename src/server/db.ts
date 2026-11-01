@@ -464,6 +464,10 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE orders ADD COLUMN serial_number TEXT NOT NULL DEFAULT '';
 	`,
+	// v24: staff can mark an order as a test, which leaves it out of reports.
+	`
+	ALTER TABLE orders ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0;
+	`,
 ];
 
 declare global {

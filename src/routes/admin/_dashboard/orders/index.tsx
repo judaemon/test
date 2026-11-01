@@ -1,7 +1,18 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
+import {
+	createFileRoute,
+	Link,
+	useNavigate,
+	useRouter,
+} from "@tanstack/solid-router";
 import { createSignal, For, onCleanup, Show } from "solid-js";
 
-import { adminCard, adminInput, PageHeader } from "~/components/admin/ui";
+import {
+	adminCard,
+	adminInput,
+	PageHeader,
+	toastError,
+	toastSuccess,
+} from "~/components/admin/ui";
 import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
@@ -12,7 +23,7 @@ import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { cn } from "~/lib/utils";
-import { listAdminOrders } from "~/server/admin/orders";
+import { listAdminOrders, markOrderTest } from "~/server/admin/orders";
 import {
 	ORDER_STATUS_LABELS,
 	type OrderStage,
@@ -26,6 +37,8 @@ type StageTab = (typeof STAGE_TABS)[number];
 interface OrdersSearch {
 	stage?: Exclude<StageTab, "all">;
 	payment?: "pending" | "on_hold";
+	/** Show only test orders. */
+	test?: "only";
 	q?: string;
 }
 
@@ -39,6 +52,7 @@ export const Route = createFileRoute("/admin/_dashboard/orders/")({
 			search.payment === "pending" || search.payment === "on_hold"
 				? search.payment
 				: undefined,
+		test: search.test === "only" ? "only" : undefined,
 		q:
 			typeof search.q === "string" && search.q.trim()
 				? search.q.trim().slice(0, 80)
@@ -51,6 +65,7 @@ export const Route = createFileRoute("/admin/_dashboard/orders/")({
 				stages: deps.stage ? [deps.stage] : undefined,
 				needsVerification: deps.payment === "pending",
 				onHold: deps.payment === "on_hold",
+				test: deps.test,
 				search: deps.q,
 			},
 		}),
@@ -90,6 +105,27 @@ function OrdersPage() {
 	};
 
 	const stageTab = (): StageTab => search().stage ?? "all";
+
+	const router = useRouter();
+	const [marking, setMarking] = createSignal<string | null>(null);
+	const markTest = async (id: string, isTest: boolean) => {
+		if (marking()) return;
+		setMarking(id);
+		try {
+			const result = await markOrderTest({ data: { id, isTest } });
+			if (!result.ok) throw new Error(result.message);
+			toastSuccess(
+				isTest
+					? "Marked as a test. It won’t count in reports."
+					: "Now a real order again.",
+			);
+			await router.invalidate();
+		} catch (error) {
+			toastError(error);
+		} finally {
+			setMarking(null);
+		}
+	};
 
 	return (
 		<div>
@@ -152,6 +188,22 @@ function OrdersPage() {
 					)}
 				>
 					On hold
+				</Link>
+				<Link
+					from={Route.fullPath}
+					search={(prev) => ({
+						...prev,
+						test: prev.test === "only" ? undefined : "only",
+					})}
+					aria-pressed={search().test === "only"}
+					class={cn(
+						"rounded-full border px-3 py-1.5 text-sm transition-colors",
+						search().test === "only"
+							? "border-petal-700 bg-petal-100 font-medium text-petal-900"
+							: "border-petal-200 bg-white text-petal-900/70 hover:bg-petal-50",
+					)}
+				>
+					Test orders
 				</Link>
 				<label class="ml-auto w-full sm:w-72">
 					<span class="sr-only">Search orders</span>
@@ -220,7 +272,10 @@ function OrdersPage() {
 												params: { orderId: order.id },
 											});
 										}}
-										class="cursor-pointer border-b border-black/5 align-top transition-[filter] hover:brightness-[0.95]"
+										class={cn(
+											"cursor-pointer border-b border-black/5 align-top transition-[filter] hover:brightness-[0.95]",
+											order.isTest && "opacity-60",
+										)}
 										style={{
 											"background-color": color ? `${color}2e` : "#ffffff",
 										}}
@@ -242,6 +297,11 @@ function OrdersPage() {
 											>
 												#{order.number}
 											</Link>
+											<Show when={order.isTest}>
+												<span class="ml-1.5 rounded-full bg-petal-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+													Test
+												</span>
+											</Show>
 											<p class="whitespace-nowrap text-xs text-petal-900/55">
 												{new Date(order.createdAt).toLocaleString("en-PH", {
 													timeZone: "Asia/Manila",
@@ -265,6 +325,14 @@ function OrdersPage() {
 													)}
 												</Show>
 											</p>
+											<button
+												type="button"
+												disabled={marking() === order.id}
+												onClick={() => markTest(order.id, !order.isTest)}
+												class="mt-1 whitespace-nowrap py-1 text-xs font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900 disabled:opacity-50"
+											>
+												{order.isTest ? "Not a test" : "Mark as test"}
+											</button>
 										</td>
 										<td
 											data-label="Company"

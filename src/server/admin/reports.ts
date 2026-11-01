@@ -96,7 +96,8 @@ const group = (orders: Order[]): OrderGroup => ({
 export const getReport = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Report> => {
 		await requireStaff();
-		const all = listOrders({ limit: 100_000 });
+		// Test orders don't count towards anything.
+		const all = listOrders({ limit: 100_000, test: "exclude" });
 		const active = all.filter((order) => order.stage !== "cancelled");
 		const cancelled = all.filter((order) => order.stage === "cancelled");
 

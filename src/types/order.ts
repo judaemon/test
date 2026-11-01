@@ -106,11 +106,13 @@ export interface Order extends PricedCart {
 	events: OrderEvent[];
 	/** On older orders the shopper cancelled themselves: their reason. */
 	cancelReason?: string;
+	/** Marked by staff: left out of reports, and holds no stock. */
+	isTest: boolean;
 }
 
 /** A customer's view of their own order: no staff-only details or file names. */
 export interface CustomerOrder
-	extends Omit<Order, "payment" | "delivery" | "customerId"> {
+	extends Omit<Order, "payment" | "delivery" | "customerId" | "isTest"> {
 	payment: Omit<OrderPayment, "proofFile" | "reviewedBy">;
 	delivery: Omit<OrderDelivery, "photoFile"> & { hasPhoto: boolean };
 }

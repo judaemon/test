@@ -9,6 +9,7 @@ import {
 	reviewPayment,
 	setDeliveryPhoto,
 	setOrderStage,
+	setOrderTest,
 	setRider,
 } from "../orders-repo";
 import { deleteUpload, saveImage, UploadError } from "../uploads";
@@ -40,6 +41,7 @@ export const listAdminOrders = createServerFn({ method: "GET" })
 				: undefined,
 			needsVerification: source.needsVerification === true,
 			onHold: source.onHold === true,
+			test: source.test === "only" ? "only" : undefined,
 			search:
 				typeof source.search === "string"
 					? source.search.trim().slice(0, 80) || undefined
@@ -82,6 +84,19 @@ export const moveOrder = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		await requireStaff();
 		return runAction(() => setOrderStage(data.id, data.stage));
+	});
+
+export const markOrderTest = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			id: text(source, "id", { max: 64 }),
+			isTest: source.isTest === true,
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		return runAction(() => setOrderTest(data.id, data.isTest));
 	});
 
 export const reviewOrderPayment = createServerFn({ method: "POST" })

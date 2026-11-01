@@ -57,6 +57,7 @@ interface OrderRow {
 	delivery_photo: string | null;
 	delivered_at: string | null;
 	cancel_reason: string | null;
+	is_test: number;
 }
 
 function loadEvents(ids: string[]): Map<string, OrderEvent[]> {
@@ -126,6 +127,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 		},
 		events,
 		cancelReason: row.cancel_reason ?? undefined,
+		isTest: row.is_test === 1,
 	};
 }
 
@@ -133,6 +135,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 export function toCustomerOrder(order: Order): CustomerOrder {
 	const {
 		customerId: _customer,
+		isTest: _isTest,
 		payment: { proofFile: _proof, reviewedBy: _reviewer, ...payment },
 		delivery: { photoFile, ...delivery },
 		...rest
@@ -258,6 +261,35 @@ export function getOrderByNumber(number: string): Order | undefined {
 	return row ? toOrders([row])[0] : undefined;
 }
 
+/**
+ * Marks an order as a test or a real order. A test order holds no flowers or
+ * wrappers, so its stock goes back, and is taken again if it's unmarked.
+ * Cancelled orders have already given theirs back.
+ */
+export function setOrderTest(id: string, isTest: boolean): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.isTest === isTest) return;
+		if (order.stage !== "cancelled") {
+			const direction = isTest ? 1 : -1;
+			const short =
+				adjustWrapperStock(order.lines, direction) ??
+				adjustFlowerStock(order.lines, direction);
+			if (short)
+				throw new OrderRuleError(
+					`There isn’t enough ${short} in stock to make this a real order.`,
+				);
+		}
+		db.query("UPDATE orders SET is_test = $isTest WHERE id = $id").run({
+			id,
+			isTest: isTest ? 1 : 0,
+		});
+	})();
+	return getOrderById(id) as Order;
+}
+
 /** Shortest thing the public order search will look up. */
 export const ORDER_SEARCH_MIN = 3;
 
@@ -321,6 +353,8 @@ export interface OrderFilter {
 	stages?: OrderStage[];
 	needsVerification?: boolean;
 	onHold?: boolean;
+	/** Only test orders, or leave them out. */
+	test?: "only" | "exclude";
 	search?: string;
 	limit?: number;
 }
@@ -353,6 +387,7 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
 	if (filter.onHold) {
 		where.push("payment_status = 'on_hold' AND stage != 'cancelled'");
 	}
+	if (filter.test) where.push(`is_test = ${filter.test === "only" ? 1 : 0}`);
 	if (filter.search) {
 		where.push(
 			`(number LIKE $q OR full_name LIKE $q OR company LIKE $q OR class_name LIKE $q
@@ -391,7 +426,8 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 				);
 			}
 		}
-		if (stage === "cancelled") {
+		// A test order already gave its stock back when it was marked.
+		if (stage === "cancelled" && !order.isTest) {
 			// Signature bouquets have no stock count; custom ones give back theirs.
 			adjustWrapperStock(order.lines, 1);
 			adjustFlowerStock(order.lines, 1);
