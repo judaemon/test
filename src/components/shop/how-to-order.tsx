@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/solid-router";
 import type { JSX } from "solid-js";
-import { createSignal, For } from "solid-js";
+import { For } from "solid-js";
 
 import { cn } from "~/lib/utils";
 
@@ -47,35 +47,41 @@ const STEPS: { title: string; body: () => JSX.Element }[] = [
 	},
 ];
 
-/** The ordering steps: a side panel on desktop, tap to open on phones. */
-export function HowToOrder(props: { class?: string }) {
-	const [open, setOpen] = createSignal(false);
-
+/**
+ * The ordering steps: a band of cards on wider screens, tap to open on phones.
+ * The page owns `open`, so its hero button can open the steps before scrolling
+ * to them.
+ */
+export function HowToOrder(props: {
+	class?: string;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
 	return (
 		<aside
 			aria-labelledby="how-to-order"
 			class={cn(
-				"rounded-3xl border border-petal-200 bg-white p-5 lg:p-6",
+				"rounded-3xl border border-petal-200 bg-white p-5 sm:p-6",
 				props.class,
 			)}
 		>
 			<h2
 				id="how-to-order"
-				class="font-display type-soft text-xl font-semibold"
+				class="scroll-mt-28 font-display type-soft text-xl font-semibold"
 			>
 				<button
 					type="button"
-					aria-expanded={open()}
+					aria-expanded={props.open}
 					aria-controls="how-to-order-steps"
-					onClick={() => setOpen((value) => !value)}
-					class="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-petal-500 lg:pointer-events-none"
+					onClick={() => props.onOpenChange(!props.open)}
+					class="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:pointer-events-none"
 				>
 					How to order
 					<span
 						aria-hidden="true"
 						class={cn(
-							"text-base text-petal-900/50 transition-transform lg:hidden",
-							open() && "rotate-180",
+							"text-base text-petal-900/50 transition-transform sm:hidden",
+							props.open && "rotate-180",
 						)}
 					>
 						▾
@@ -84,11 +90,14 @@ export function HowToOrder(props: { class?: string }) {
 			</h2>
 			<ol
 				id="how-to-order-steps"
-				class={cn("mt-3 flex-col gap-4 lg:flex", open() ? "flex" : "hidden")}
+				class={cn(
+					"mt-4 gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3",
+					props.open ? "grid" : "hidden",
+				)}
 			>
 				<For each={STEPS}>
 					{(step, index) => (
-						<li class="flex gap-3">
+						<li class="flex gap-3 rounded-2xl bg-petal-50/70 p-4">
 							<span
 								aria-hidden="true"
 								class="flex size-7 shrink-0 items-center justify-center rounded-full bg-petal-100 text-sm font-medium text-petal-700"

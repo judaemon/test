@@ -2,11 +2,19 @@ import type { Product } from "~/types/product";
 
 /** The landing page's filters, kept in the address so a view can be shared. */
 export interface ShopFilters {
-	/** A flower's key, e.g. "roses" or "white-lily". */
+	/** Flowers' keys, comma-separated, e.g. "roses,white-lily". */
 	flower?: string;
-	/** A size's id, e.g. "petite". */
+	/** Sizes' ids, comma-separated, e.g. "petite,classic". */
 	size?: string;
 }
+
+/** "roses,tulips" → ["roses", "tulips"]. */
+export const parseList = (value?: string) =>
+	(value ?? "").split(",").filter(Boolean);
+
+/** The other way round; missing when nothing's chosen. */
+export const joinList = (values: string[]) =>
+	values.length ? values.join(",") : undefined;
 
 /** "White lily" → "white-lily", for the address. */
 export const filterKey = (name: string) =>
@@ -20,7 +28,7 @@ export function validateShopFilters(
 ): ShopFilters {
 	const value = (key: string) =>
 		typeof search[key] === "string" && search[key]
-			? (search[key] as string).slice(0, 60)
+			? (search[key] as string).slice(0, 400)
 			: undefined;
 	return { flower: value("flower"), size: value("size") };
 }

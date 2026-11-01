@@ -304,15 +304,28 @@ export function ProductInfo(props: ProductInfoProps) {
 	);
 }
 
-/** Every size side by side, smallest first, with this bouquet's marked. */
+/**
+ * Every size side by side, smallest first, as a scale chart rather than a
+ * picker: one shared panel, no per-size cards, and this bouquet's size tagged
+ * while the rest fade back. Each signature bouquet comes in a single size.
+ */
 function SizeGuide(props: { sizes: BouquetSizeInfo[]; current: string }) {
+	const currentName = () =>
+		props.sizes.find((size) => size.id === props.current)?.name;
 	return (
 		<section aria-labelledby="size-guide-heading" class="flex flex-col gap-3">
-			<h2 id="size-guide-heading" class="text-sm font-semibold">
-				Size guide
-			</h2>
+			<div>
+				<h2 id="size-guide-heading" class="text-sm font-semibold">
+					How big is it?
+				</h2>
+				<p class="mt-0.5 text-sm text-muted-foreground">
+					This bouquet comes in one size,{" "}
+					<span class="font-medium text-foreground">{currentName()}</span>. Our
+					other sizes are shown for scale.
+				</p>
+			</div>
 			<ul
-				class="grid gap-2"
+				class="grid gap-1 rounded-xl bg-[#fdf9ea] px-2 pb-3 pt-2"
 				style={{
 					"grid-template-columns": `repeat(${Math.min(props.sizes.length, 4)}, minmax(0, 1fr))`,
 				}}
@@ -323,37 +336,44 @@ function SizeGuide(props: { sizes: BouquetSizeInfo[]; current: string }) {
 						return (
 							<li
 								aria-current={current() ? "true" : undefined}
-								class={cn(
-									"flex flex-col overflow-hidden rounded-lg border text-xs",
-									current()
-										? "border-foreground ring-1 ring-foreground"
-										: "text-muted-foreground",
-								)}
+								class="flex flex-col items-center text-center text-xs"
 							>
+								{/* Every column keeps the tag's height so the figures line up. */}
+								<span
+									aria-hidden={!current()}
+									class={cn(
+										"rounded-full bg-foreground px-2 py-0.5 text-[11px] font-medium text-background",
+										!current() && "invisible",
+									)}
+								>
+									This bouquet
+								</span>
 								<Show when={size.image}>
 									<img
 										src={size.image}
 										alt={`Someone holding a ${size.name} bouquet`}
 										loading="lazy"
 										class={cn(
-											"aspect-[275/620] w-full bg-[#fdf9ea] object-contain",
-											!current() && "opacity-70",
+											"mt-1 aspect-[275/620] w-full object-contain transition-opacity",
+											!current() && "opacity-40",
 										)}
 									/>
 								</Show>
 								<span
 									class={cn(
-										"flex flex-1 flex-col px-2 py-1.5",
-										current() && "bg-muted font-medium",
+										"mt-1 font-semibold uppercase tracking-wide",
+										!current() && "text-muted-foreground",
 									)}
 								>
-									<span class="block font-semibold uppercase tracking-wide">
-										{size.name}
-									</span>
+									{size.name}
+								</span>
+								<span
+									class={cn(
+										"leading-snug",
+										current() ? "text-foreground" : "text-muted-foreground/80",
+									)}
+								>
 									{size.description}
-									<Show when={current()}>
-										<span class="sr-only"> (this bouquet)</span>
-									</Show>
 								</span>
 							</li>
 						);

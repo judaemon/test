@@ -1,21 +1,31 @@
 import { Link, useNavigate, useSearch } from "@tanstack/solid-router";
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 
+import { FacetFilter } from "~/components/shop/facet-filter";
 import { HowToOrder } from "~/components/shop/how-to-order";
-import { FlowerMark } from "~/components/site/brand";
+import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import {
 	bouquetFlowers,
 	filterKey,
+	joinList,
+	parseList,
 	type ShopFilters,
 } from "~/lib/shop-filters";
 import { useCatalog, useSizes } from "~/lib/use-catalog";
-import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
-/** The storefront: Battalion Hop launch header, the builder, then the catalog. */
+/** Smooth-scrolls to a section, or jumps there if the viewer prefers less motion. */
+function scrollToId(id: string) {
+	const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+	document
+		.getElementById(id)
+		?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+}
+
+/** The storefront: Battalion Hop hero, the builder, the catalog, then how to order. */
 export function ShopPage() {
 	const catalog = useCatalog();
 	const sizes = useSizes();
@@ -28,20 +38,27 @@ export function ShopPage() {
 			replace: true,
 			resetScroll: false,
 		});
+	const chosenFlowers = () => parseList(search().flower);
+	const chosenSizes = () => parseList(search().size);
+	const filtering = () => chosenFlowers().length + chosenSizes().length > 0;
+	const [stepsOpen, setStepsOpen] = createSignal(false);
+
+	// A bouquet matches a filter if it has any of the ticked choices.
+	const hasFlower = (product: Product, flowers: string[]) =>
+		!flowers.length ||
+		bouquetFlowers(product).some((f) => flowers.includes(filterKey(f)));
+	const hasSize = (product: Product, sizes: string[]) =>
+		!sizes.length || sizes.includes(product.size);
 
 	// Filters offer only what some bouquet has. Each count is how many
-	// bouquets that choice would show, given the other filter.
-	const hasFlower = (product: Product, flower?: string) =>
-		!flower || bouquetFlowers(product).some((f) => filterKey(f) === flower);
-	const hasSize = (product: Product, size?: string) =>
-		!size || product.size === size;
+	// bouquets that choice shows, given the other filter.
 	const flowerOptions = createMemo(() => {
 		const counts = new Map<string, number>();
 		for (const product of catalog())
 			for (const flower of bouquetFlowers(product))
 				counts.set(
 					flower,
-					(counts.get(flower) ?? 0) + (hasSize(product, search().size) ? 1 : 0),
+					(counts.get(flower) ?? 0) + (hasSize(product, chosenSizes()) ? 1 : 0),
 				);
 		return [...counts.entries()]
 			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -50,27 +67,25 @@ export function ShopPage() {
 	const sizeOptions = createMemo(() =>
 		sizes().flatMap((size) => {
 			const all = catalog().filter((p) => p.size === size.id);
-			const count = all.filter((p) => hasFlower(p, search().flower)).length;
+			const count = all.filter((p) => hasFlower(p, chosenFlowers())).length;
 			return all.length ? [{ key: size.id, label: size.name, count }] : [];
 		}),
 	);
-	const flowerLabel = () =>
-		flowerOptions().find((o) => o.key === search().flower)?.label;
-	const sizeLabel = () =>
-		sizeOptions().find((o) => o.key === search().size)?.label;
-	const filtering = () => !!(search().flower || search().size);
 
 	// One card per signature bouquet; its themes are on the bouquet's page.
-	// The card leads with an available theme, one with the chosen flower if
+	// The card leads with an available theme, one with a chosen flower if
 	// filtering by flower.
 	const bouquets = () =>
 		catalog().flatMap((product) => {
-			const { flower, size } = search();
-			if (size && product.size !== size) return [];
-			const hasFlower = (variant: ProductVariant) =>
-				!flower ||
-				variant.recipe.some((item) => filterKey(item.flower) === flower);
-			const themes = product.variants.filter(hasFlower);
+			if (!hasSize(product, chosenSizes())) return [];
+			const flowers = chosenFlowers();
+			const themes = product.variants.filter(
+				(variant: ProductVariant) =>
+					!flowers.length ||
+					variant.recipe.some((item) =>
+						flowers.includes(filterKey(item.flower)),
+					),
+			);
 			const variant = themes.find((theme) => theme.inStock) ?? themes[0];
 			return variant ? [{ product, variant }] : [];
 		});
@@ -78,27 +93,54 @@ export function ShopPage() {
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
 			<SiteHeader />
-			<main class="mx-auto w-full max-w-6xl flex-1 px-4 pb-20 pt-10 sm:px-6 lg:max-w-7xl lg:px-8">
-				<header class="flex flex-col items-center text-center">
-					<div class="flex items-center gap-3">
-						<FlowerMark class="size-14 sm:size-16" />
-						<span class="font-display type-soft text-4xl font-semibold tracking-[0.25em] text-black sm:text-5xl">
+			<main class="flex-1">
+				{/* Apple-style hero: one screen tall, big centered type, two pill buttons. */}
+				<header class="relative flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_top,var(--color-petal-100),transparent_65%)] px-4 py-20 text-center">
+					<Petal class="pointer-events-none absolute left-[8%] top-[18%] w-8 rotate-[-30deg] text-petal-200 motion-safe:animate-float-slow sm:w-10" />
+					<Petal class="pointer-events-none absolute bottom-[16%] right-[10%] w-10 rotate-[140deg] text-petal-200 motion-safe:animate-float sm:w-12" />
+					<Sparkle class="pointer-events-none absolute right-[18%] top-[14%] w-5 text-butter motion-safe:animate-float" />
+					<Sparkle class="pointer-events-none absolute bottom-[22%] left-[16%] w-4 text-petal-300 motion-safe:animate-float-slow" />
+
+					<div class="flex items-center gap-3 sm:gap-4">
+						<FlowerMark class="size-16 sm:size-24" />
+						<span class="font-display type-soft text-5xl font-semibold tracking-[0.25em] text-black sm:text-7xl">
 							ORAIA
 						</span>
 					</div>
-					<p class="mt-2 font-display text-lg italic text-petal-900/70 sm:text-xl">
+					<p class="mt-4 font-display text-xl italic text-petal-900/70 sm:text-3xl">
 						{TAGLINE}
 					</p>
-					<p class="mt-5 text-sm font-medium uppercase tracking-[0.3em] text-petal-900/60">
+					<p class="mt-14 text-sm font-medium uppercase tracking-[0.3em] text-petal-900/60 sm:mt-20 sm:text-base">
 						Soft launch for
 					</p>
-					<h1 class="mt-1 font-display type-soft text-3xl font-semibold tracking-wide sm:text-5xl">
+					<h1 class="mt-3 font-display type-soft text-5xl font-semibold leading-[0.95] tracking-tight text-balance sm:text-7xl lg:text-8xl">
 						BATTALION HOP 2027
 					</h1>
+					<div class="mt-12 flex flex-col items-center gap-3 sm:flex-row">
+						<button
+							type="button"
+							onClick={() => {
+								scrollToId("bouquets");
+							}}
+							class="inline-flex h-12 items-center justify-center rounded-full bg-petal-700 px-8 text-base font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+						>
+							Shop bouquets
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								setStepsOpen(true);
+								scrollToId("how-to-order");
+							}}
+							class="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-petal-200 bg-white/70 px-8 text-base font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
+						>
+							How to order
+							<span aria-hidden="true">↓</span>
+						</button>
+					</div>
 				</header>
 
-				<div class="mt-10 flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-8">
-					<HowToOrder class="lg:sticky lg:top-24 lg:order-last lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto" />
+				<div class="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6 lg:max-w-7xl lg:px-8">
 					<div class="min-w-0">
 						<section
 							aria-labelledby="custom-heading"
@@ -143,52 +185,51 @@ export function ShopPage() {
 							</div>
 						</section>
 
-						<h2 class="mt-14 font-display type-soft text-2xl font-semibold">
+						<h2
+							id="bouquets"
+							class="mt-14 scroll-mt-24 font-display type-soft text-2xl font-semibold"
+						>
 							Signature bouquets
 						</h2>
 						<Show when={catalog().length > 0}>
-							<fieldset class="mt-4 flex min-w-0 flex-col gap-3">
-								<legend class="sr-only">Filter bouquets</legend>
-								<FilterRow
+							<div class="mt-4 flex flex-wrap items-center gap-2">
+								<FacetFilter
 									label="Flower"
 									options={flowerOptions()}
-									selected={search().flower}
-									onSelect={(flower) => setFilter({ flower })}
+									selected={chosenFlowers()}
+									onChange={(flowers) =>
+										setFilter({ flower: joinList(flowers) })
+									}
 								/>
 								<Show when={sizeOptions().length > 1}>
-									<FilterRow
+									<FacetFilter
 										label="Size"
 										options={sizeOptions()}
-										selected={search().size}
-										onSelect={(size) => setFilter({ size })}
+										selected={chosenSizes()}
+										onChange={(chosen) => setFilter({ size: joinList(chosen) })}
 									/>
 								</Show>
-								<p class="text-sm text-petal-900/65" aria-live="polite">
+								<Show when={filtering()}>
+									<button
+										type="button"
+										onClick={() =>
+											setFilter({ flower: undefined, size: undefined })
+										}
+										class="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-petal-900/70 transition-colors outline-none hover:bg-petal-100 hover:text-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500"
+									>
+										Reset
+										<span aria-hidden="true">✕</span>
+									</button>
+								</Show>
+								<p class="ml-auto text-sm text-petal-900/60" aria-live="polite">
 									<Show
 										when={filtering()}
 										fallback={`${catalog().length} bouquets`}
 									>
-										{bouquets().length}{" "}
-										{bouquets().length === 1 ? "bouquet" : "bouquets"}
-										<Show when={flowerLabel()}>
-											{(name) => <> with {name()}</>}
-										</Show>
-										<Show when={sizeLabel()}>
-											{(name) => <> in {name()}</>}
-										</Show>
-										{" · "}
-										<button
-											type="button"
-											class="font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900"
-											onClick={() =>
-												setFilter({ flower: undefined, size: undefined })
-											}
-										>
-											Clear filters
-										</button>
+										{bouquets().length} of {catalog().length} bouquets
 									</Show>
 								</p>
-							</fieldset>
+							</div>
 						</Show>
 						<Show
 							when={bouquets().length > 0}
@@ -225,7 +266,7 @@ export function ShopPage() {
 								</div>
 							}
 						>
-							<ul class="mt-6 grid grid-cols-3 gap-x-3 gap-y-6 sm:gap-x-5 lg:grid-cols-4">
+							<ul class="mt-6 grid grid-cols-3 gap-x-3 gap-y-6 sm:gap-x-5 lg:grid-cols-5">
 								<For each={bouquets()}>
 									{({ product, variant }) => (
 										<li>
@@ -259,74 +300,16 @@ export function ShopPage() {
 								</For>
 							</ul>
 						</Show>
+
+						<HowToOrder
+							class="mt-16"
+							open={stepsOpen()}
+							onOpenChange={setStepsOpen}
+						/>
 					</div>
 				</div>
 			</main>
 			<SiteFooter />
-		</div>
-	);
-}
-
-/** One filter as a row of chips; tapping the chosen one again clears it. */
-function FilterRow(props: {
-	label: string;
-	options: { key: string; label: string; count: number }[];
-	selected?: string;
-	onSelect: (key: string | undefined) => void;
-}) {
-	const chip =
-		"inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
-	return (
-		<div class="flex items-center gap-3">
-			<span class="w-12 shrink-0 text-xs font-medium uppercase tracking-wide text-petal-900/55">
-				{props.label}
-			</span>
-			<div class="-my-1 flex min-w-0 gap-2 overflow-x-auto py-1 [scrollbar-width:thin]">
-				<button
-					type="button"
-					aria-pressed={!props.selected}
-					onClick={() => props.onSelect(undefined)}
-					class={cn(
-						chip,
-						!props.selected
-							? "border-petal-700 bg-petal-700 text-white"
-							: "border-petal-200 bg-white hover:border-petal-300",
-					)}
-				>
-					All
-				</button>
-				<For each={props.options}>
-					{(option) => {
-						const on = () => props.selected === option.key;
-						return (
-							<button
-								type="button"
-								aria-pressed={on()}
-								// Nothing to show with this choice and the other filter.
-								disabled={!on() && option.count === 0}
-								onClick={() => props.onSelect(on() ? undefined : option.key)}
-								class={cn(
-									chip,
-									"disabled:cursor-not-allowed disabled:opacity-40",
-									on()
-										? "border-petal-700 bg-petal-700 text-white"
-										: "border-petal-200 bg-white hover:border-petal-300",
-								)}
-							>
-								{option.label}
-								<span
-									class={cn(
-										"text-xs tabular-nums",
-										on() ? "text-white/75" : "text-petal-900/45",
-									)}
-								>
-									{option.count}
-								</span>
-							</button>
-						);
-					}}
-				</For>
-			</div>
 		</div>
 	);
 }
