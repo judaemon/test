@@ -296,6 +296,17 @@ function OrderDetail() {
 							</dd>
 							<dt class="text-petal-900/60">Class</dt>
 							<dd>{details().className || "—"}</dd>
+							<Show when={details().email}>
+								<dt class="text-petal-900/60">Email</dt>
+								<dd class="min-w-0 break-words">
+									<a
+										href={`mailto:${details().email}`}
+										class="underline-offset-2 hover:underline"
+									>
+										{details().email}
+									</a>
+								</dd>
+							</Show>
 						</dl>
 						<Show when={details().notes}>
 							<h3 class="mt-4 mb-1 text-sm font-semibold">Notes</h3>

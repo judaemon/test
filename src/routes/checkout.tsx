@@ -30,6 +30,7 @@ import { cartStore, clearCart, setCartOpen } from "~/lib/cart-store";
 import {
 	type CheckoutField,
 	DEDICATION_MESSAGE_MAX,
+	EMAIL_MAX,
 	type FieldErrors,
 	hasErrors,
 	NAME_MAX,
@@ -121,6 +122,7 @@ function CheckoutPage() {
 							cart={cart()}
 							paymentAccounts={config().paymentAccounts}
 							name={user()?.name}
+							email={user()?.email}
 						/>
 					</Match>
 				</Switch>
@@ -130,9 +132,6 @@ function CheckoutPage() {
 	);
 }
 
-const chip =
-	"flex h-full items-center justify-center rounded-2xl border border-petal-200 bg-white px-4 py-3 text-center text-sm font-medium transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500 peer-focus-visible:ring-offset-2";
-
 const textAreaClass =
 	"rounded-xl border-petal-200 bg-white text-base placeholder:text-petal-900/35 focus-visible:ring-petal-500 sm:text-sm";
 
@@ -141,6 +140,8 @@ function CheckoutForm(props: {
 	paymentAccounts: PaymentAccount[];
 	/** Signed-in shopper's name, used to prefill the name field. */
 	name?: string;
+	/** And their email, for the email field. */
+	email?: string;
 }) {
 	const navigate = useNavigate();
 	const [errors, setErrors] = createSignal<FieldErrors>({});
@@ -148,11 +149,12 @@ function CheckoutForm(props: {
 	const [submitting, setSubmitting] = createSignal(false);
 	const [className, setClassName] = createSignal("");
 	const [company, setCompany] = createSignal("");
-	const [addDedication, setAddDedication] = createSignal(false);
 	// Controlled, so the review step edits the same text as the form.
 	const [notes, setNotes] = createSignal("");
 	const [dedicationFor, setDedicationFor] = createSignal("");
 	const [dedicationMessage, setDedicationMessage] = createSignal("");
+	/** A card is printed only when there's a message for it. */
+	const addDedication = () => dedicationMessage().trim() !== "";
 	/** Open once the form is valid: a last look (and edit) before placing. */
 	const [reviewing, setReviewing] = createSignal(false);
 	/** Ticked in the review: orders can't be cancelled once placed. */
@@ -184,12 +186,6 @@ function CheckoutForm(props: {
 	const clearError = (field: CheckoutField | PaymentField) => {
 		if (!errors()[field]) return;
 		setErrors(({ [field]: _, ...rest }) => rest);
-	};
-
-	const chooseDedication = (on: boolean) => {
-		setAddDedication(on);
-		clearError("dedicationFor");
-		clearError("dedicationMessage");
 	};
 
 	const focusFirstInvalid = (form: HTMLFormElement) =>
@@ -376,10 +372,22 @@ function CheckoutForm(props: {
 							error={errors().firstName}
 							onInput={() => clearError("firstName")}
 						/>
+						<Field
+							name="email"
+							label="Email"
+							type="email"
+							autocomplete="email"
+							placeholder="you@example.com"
+							description="We’ll send your order details to this email."
+							maxLength={EMAIL_MAX}
+							defaultValue={props.email}
+							error={errors().email}
+							onInput={() => clearError("email")}
+						/>
 					</div>
 				</Section>
 
-				<Section title="Notes & dedication card" step={2}>
+				<Section title="Notes & dedication card" note="Optional" step={2}>
 					<div class="flex flex-col gap-5">
 						<TextField
 							name="notes"
@@ -389,8 +397,7 @@ function CheckoutForm(props: {
 							class="gap-2"
 						>
 							<TextFieldLabel class="text-petal-900">
-								Notes{" "}
-								<span class="font-normal text-petal-900/50">(optional)</span>
+								Note for the florist
 							</TextFieldLabel>
 							<TextFieldTextArea
 								maxLength={NOTES_MAX}
@@ -402,93 +409,61 @@ function CheckoutForm(props: {
 							<TextFieldErrorMessage>{errors().notes}</TextFieldErrorMessage>
 						</TextField>
 
-						<fieldset>
-							<legend class="mb-2 text-sm font-medium">
-								Free dedication card
-							</legend>
-							<p class="-mt-1 mb-2 text-sm text-petal-900/60">
-								We print your message on a card and tuck it into the bouquet, at
-								no extra cost.
+						<fieldset class="flex flex-col gap-4 rounded-2xl bg-petal-50 p-5">
+							<legend class="sr-only">Dedication card</legend>
+							<p class="text-sm font-medium">
+								Dedication card{" "}
+								<span class="font-normal text-petal-900/60">
+									· printed and tucked into the bouquet, free
+								</span>
 							</p>
-							<input
-								type="hidden"
-								name="addDedication"
-								value={String(addDedication())}
+							<Field
+								name="dedicationFor"
+								label="To"
+								placeholder="Who the card is addressed to"
+								autocomplete="off"
+								maxLength={NAME_MAX}
+								value={dedicationFor()}
+								onValueChange={setDedicationFor}
+								error={errors().dedicationFor}
+								onInput={() => {
+									clearError("dedicationFor");
+									clearError("dedicationMessage");
+								}}
 							/>
-							<div class="grid grid-cols-2 gap-2">
-								<For
-									each={
-										[
-											[false, "No card"],
-											[true, "Add a free card"],
-										] as const
-									}
-								>
-									{([value, label]) => (
-										<label class="cursor-pointer">
-											<input
-												type="radio"
-												name="dedicationChoice"
-												checked={addDedication() === value}
-												onChange={() => chooseDedication(value)}
-												class="peer sr-only"
-											/>
-											<span class={chip}>{label}</span>
-										</label>
-									)}
-								</For>
-							</div>
-						</fieldset>
-
-						<Show when={addDedication()}>
-							<div class="flex flex-col gap-4 rounded-2xl bg-petal-50 p-5">
-								<Field
-									name="dedicationFor"
-									label="To"
-									placeholder="Who the card is addressed to"
-									autocomplete="off"
-									maxLength={NAME_MAX}
-									value={dedicationFor()}
-									onValueChange={setDedicationFor}
-									error={errors().dedicationFor}
-									onInput={() => clearError("dedicationFor")}
+							<TextField
+								name="dedicationMessage"
+								value={dedicationMessage()}
+								onChange={setDedicationMessage}
+								validationState={
+									errors().dedicationMessage ? "invalid" : "valid"
+								}
+								class="gap-2"
+							>
+								<TextFieldLabel class="text-petal-900">Message</TextFieldLabel>
+								<TextFieldTextArea
+									maxLength={DEDICATION_MESSAGE_MAX}
+									rows={4}
+									placeholder="Happy birthday, sunshine! 🌷"
+									onInput={() => clearError("dedicationMessage")}
+									class={textAreaClass}
 								/>
-								<TextField
-									name="dedicationMessage"
-									value={dedicationMessage()}
-									onChange={setDedicationMessage}
-									validationState={
-										errors().dedicationMessage ? "invalid" : "valid"
-									}
-									class="gap-2"
-								>
-									<TextFieldLabel class="text-petal-900">
-										Message
-									</TextFieldLabel>
-									<TextFieldTextArea
-										maxLength={DEDICATION_MESSAGE_MAX}
-										rows={5}
-										placeholder="Happy birthday, sunshine! 🌷"
-										onInput={() => clearError("dedicationMessage")}
-										class={textAreaClass}
-									/>
-									<div class="flex justify-between gap-4">
-										<TextFieldDescription class="text-petal-900/60">
-											Printed on a card tucked into the bouquet.
-										</TextFieldDescription>
-										<span
-											class="shrink-0 text-xs tabular-nums text-petal-900/50"
-											aria-hidden="true"
-										>
-											{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
-										</span>
-									</div>
-									<TextFieldErrorMessage>
-										{errors().dedicationMessage}
-									</TextFieldErrorMessage>
-								</TextField>
-							</div>
-						</Show>
+								<div class="flex justify-between gap-4">
+									<TextFieldDescription class="text-petal-900/60">
+										Leave it empty for no card.
+									</TextFieldDescription>
+									<span
+										class="shrink-0 text-xs tabular-nums text-petal-900/50"
+										aria-hidden="true"
+									>
+										{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
+									</span>
+								</div>
+								<TextFieldErrorMessage>
+									{errors().dedicationMessage}
+								</TextFieldErrorMessage>
+							</TextField>
+						</fieldset>
 					</div>
 				</Section>
 
@@ -649,7 +624,7 @@ function CheckoutForm(props: {
 								<div class="mt-5 flex flex-col gap-4">
 									<label class="flex flex-col gap-2">
 										<span class="text-sm font-medium">
-											Notes{" "}
+											Note for the florist{" "}
 											<span class="font-normal text-petal-900/50">
 												(optional)
 											</span>
@@ -673,93 +648,68 @@ function CheckoutForm(props: {
 										</Show>
 									</label>
 
-									<Show
-										when={addDedication()}
-										fallback={
-											<div class="flex items-center justify-between gap-3 rounded-2xl bg-petal-50 px-4 py-3 text-sm">
-												<span class="text-petal-900/65">
-													No dedication card.
+									<div class="flex flex-col gap-3 rounded-2xl bg-petal-50 p-4">
+										<span class="text-sm font-semibold">
+											Dedication card{" "}
+											<span class="font-normal text-petal-900/60">
+												·{" "}
+												{addDedication() ? "free" : "no card without a message"}
+											</span>
+										</span>
+										<label class="flex flex-col gap-1.5">
+											<span class="text-sm font-medium">To</span>
+											<input
+												value={dedicationFor()}
+												onInput={(e) => {
+													setDedicationFor(e.currentTarget.value);
+													clearError("dedicationFor");
+												}}
+												maxLength={NAME_MAX}
+												placeholder="Who the card is addressed to"
+												aria-invalid={
+													errors().dedicationFor ? "true" : undefined
+												}
+												class={cn(reviewInput, "h-11")}
+											/>
+											<Show when={errors().dedicationFor}>
+												<span class="text-xs text-destructive">
+													{errors().dedicationFor}
 												</span>
-												<button
-													type="button"
-													onClick={() => chooseDedication(true)}
-													class="font-medium text-petal-700 underline-offset-2 hover:underline"
+											</Show>
+										</label>
+										<label class="flex flex-col gap-1.5">
+											<span class="flex justify-between text-sm font-medium">
+												Message
+												<span
+													class="text-xs font-normal tabular-nums text-petal-900/50"
+													aria-hidden="true"
 												>
-													Add a free card
-												</button>
-											</div>
-										}
-									>
-										<div class="flex flex-col gap-3 rounded-2xl bg-petal-50 p-4">
-											<div class="flex items-center justify-between">
-												<span class="text-sm font-semibold">
-													Dedication card{" "}
-													<span class="font-medium text-sage-600">· Free</span>
+													{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
 												</span>
-												<button
-													type="button"
-													onClick={() => chooseDedication(false)}
-													class="text-xs text-petal-900/60 underline-offset-2 hover:underline"
-												>
-													Remove
-												</button>
-											</div>
-											<label class="flex flex-col gap-1.5">
-												<span class="text-sm font-medium">To</span>
-												<input
-													value={dedicationFor()}
-													onInput={(e) => {
-														setDedicationFor(e.currentTarget.value);
-														clearError("dedicationFor");
-													}}
-													maxLength={NAME_MAX}
-													placeholder="Who the card is addressed to"
-													aria-invalid={
-														errors().dedicationFor ? "true" : undefined
-													}
-													class={cn(reviewInput, "h-11")}
-												/>
-												<Show when={errors().dedicationFor}>
-													<span class="text-xs text-destructive">
-														{errors().dedicationFor}
-													</span>
-												</Show>
-											</label>
-											<label class="flex flex-col gap-1.5">
-												<span class="flex justify-between text-sm font-medium">
-													Message
-													<span
-														class="text-xs font-normal tabular-nums text-petal-900/50"
-														aria-hidden="true"
-													>
-														{dedicationMessage().length}/
-														{DEDICATION_MESSAGE_MAX}
-													</span>
+											</span>
+											<textarea
+												value={dedicationMessage()}
+												onInput={(e) => {
+													setDedicationMessage(e.currentTarget.value);
+													clearError("dedicationMessage");
+												}}
+												maxLength={DEDICATION_MESSAGE_MAX}
+												rows={5}
+												aria-invalid={
+													errors().dedicationMessage ? "true" : undefined
+												}
+												class={cn(
+													reviewInput,
+													"py-2 font-display text-base italic",
+												)}
+											/>
+											<Show when={errors().dedicationMessage}>
+												<span class="text-xs text-destructive">
+													{errors().dedicationMessage}
 												</span>
-												<textarea
-													value={dedicationMessage()}
-													onInput={(e) => {
-														setDedicationMessage(e.currentTarget.value);
-														clearError("dedicationMessage");
-													}}
-													maxLength={DEDICATION_MESSAGE_MAX}
-													rows={5}
-													aria-invalid={
-														errors().dedicationMessage ? "true" : undefined
-													}
-													class={cn(
-														reviewInput,
-														"py-2 font-display text-base italic",
-													)}
-												/>
-												<Show when={errors().dedicationMessage}>
-													<span class="text-xs text-destructive">
-														{errors().dedicationMessage}
-													</span>
-												</Show>
-											</label>
-										</div>
-									</Show>
+											</Show>
+										</label>
+									</div>
 								</div>
 
 								<Show when={formError()}>
@@ -883,6 +833,8 @@ function ReviewSummary(props: {
 
 function Section(props: {
 	title: string;
+	/** A word after the title, e.g. "Optional". */
+	note?: string;
 	step: number;
 	children: JSX.Element;
 }) {
@@ -896,6 +848,11 @@ function Section(props: {
 					{props.step}
 				</span>
 				{props.title}
+				<Show when={props.note}>
+					<span class="font-sans text-sm font-normal text-petal-900/50">
+						{props.note}
+					</span>
+				</Show>
 			</h2>
 			{props.children}
 		</section>
@@ -905,6 +862,7 @@ function Section(props: {
 function Field(props: {
 	name: CheckoutField;
 	label: string;
+	type?: "text" | "email";
 	autocomplete?: string;
 	placeholder?: string;
 	description?: string;
@@ -928,7 +886,7 @@ function Field(props: {
 		>
 			<TextFieldLabel class="text-petal-900">{props.label}</TextFieldLabel>
 			<TextFieldInput
-				type="text"
+				type={props.type ?? "text"}
 				autocomplete={props.autocomplete}
 				placeholder={props.placeholder}
 				maxLength={props.maxLength}

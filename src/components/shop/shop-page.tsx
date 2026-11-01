@@ -286,7 +286,7 @@ export function ShopPage() {
 							id="bouquets"
 							class="mt-14 scroll-mt-24 font-display type-soft text-2xl font-semibold"
 						>
-							Signature bouquets
+							Signature Bouquets
 						</h2>
 						<Show when={catalog().length > 0}>
 							<div class="mt-4 flex flex-wrap items-center gap-2">

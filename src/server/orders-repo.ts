@@ -23,6 +23,7 @@ interface OrderRow {
 	created_at: string;
 	stage: OrderStage;
 	stage_updated_at: string;
+	email: string;
 	first_name: string;
 	last_name: string;
 	full_name: string;
@@ -88,6 +89,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 			fullName: row.full_name,
 			company: row.company,
 			className: row.class_name,
+			email: row.email,
 			notes: row.notes,
 			addDedication: !!(row.dedication_for || row.gift_message),
 			dedicationFor: row.dedication_for,
@@ -200,7 +202,7 @@ export function createOrder(order: NewOrder): Order {
 			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, class_name, notes,
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
 			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id)
-			 VALUES ($id, $number, $now, 'new', $now, '', '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
+			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
 			   $company, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
 			   $customerId)`,
@@ -213,6 +215,7 @@ export function createOrder(order: NewOrder): Order {
 			fullName: order.details.fullName,
 			company: order.details.company,
 			className: order.details.className,
+			email: order.details.email,
 			notes: order.details.notes,
 			dedicationFor: order.details.dedicationFor,
 			dedicationMessage: order.details.dedicationMessage,
