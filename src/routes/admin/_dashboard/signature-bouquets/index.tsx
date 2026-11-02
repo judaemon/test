@@ -11,6 +11,7 @@ import {
 	textParam,
 } from "~/components/admin/list-toolbar";
 import {
+	AdminIcons,
 	adminButton,
 	adminCard,
 	ConfirmButton,
@@ -166,15 +167,24 @@ function InventoryPage() {
 			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
 				<PageHeader
 					title="Signature bouquets"
-					description="Each bouquet and its styles. Change a price or switch a style off right here; it saves straight away. A style that’s off stays in the shop but can’t be ordered."
+					description="Price and availability changes save straight away. A style that’s off stays in the shop but can’t be ordered."
 					actions={
-						<Link
-							to="/admin/signature-bouquets/$productId"
-							params={{ productId: "new" }}
-							class={adminButton.primary}
-						>
-							+ New bouquet
-						</Link>
+						<>
+							<Link
+								to="/admin/signature-bouquets/arrange"
+								class={adminButton.secondary}
+							>
+								<AdminIcons.grip class="size-4" />
+								Rearrange shop
+							</Link>
+							<Link
+								to="/admin/signature-bouquets/$productId"
+								params={{ productId: "new" }}
+								class={adminButton.primary}
+							>
+								+ New bouquet
+							</Link>
+						</>
 					}
 				/>
 				<ListToolbar

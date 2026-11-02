@@ -8,6 +8,7 @@ import {
 	getAdminProduct,
 	listAdminProducts,
 	type ProductInput,
+	reorderProducts,
 	saveProduct,
 	updateStyle,
 	type VariantInput,
@@ -230,6 +231,24 @@ export const saveProductFn = createServerFn({ method: "POST" })
 		}
 		const id = saveProduct(data.productId, data.product);
 		return getAdminProduct(id);
+	});
+
+/** Sets the shop's order from every bouquet's id, the first shown first. */
+export const reorderProductsFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const ids = asRecord(input).ids;
+		if (
+			!Array.isArray(ids) ||
+			ids.length > 1000 ||
+			!ids.every((id) => typeof id === "string")
+		)
+			throw new InputError("Invalid request.");
+		return { ids: ids as string[] };
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		reorderProducts(data.ids);
+		return { ok: true as const };
 	});
 
 export const uploadProductImage = createServerFn({ method: "POST" })

@@ -310,6 +310,35 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 	})();
 }
 
+/**
+ * Sets the shop's order: `ids` lists every bouquet, the first shown first. A
+ * list that's out of date is refused, so a bouquet added or deleted in the
+ * meantime can't end up without a place.
+ */
+export function reorderProducts(ids: string[]) {
+	const db = getDb();
+	db.transaction(() => {
+		const current = db.query("SELECT id FROM signature_bouquets").all() as {
+			id: string;
+		}[];
+		const known = new Set(current.map((row) => row.id));
+		const complete =
+			new Set(ids).size === known.size &&
+			ids.length === known.size &&
+			ids.every((id) => known.has(id));
+		if (!complete)
+			throw new InputError(
+				"The bouquets changed since you opened this page. Reload and try again.",
+			);
+		const update = db.query(
+			"UPDATE signature_bouquets SET sort = $sort WHERE id = $id",
+		);
+		ids.forEach((id, sort) => {
+			update.run({ id, sort });
+		});
+	})();
+}
+
 /** The flower color a checked recipe line names (its only color if none). */
 function flowerColorId(item: RecipeItem) {
 	const row = getDb()

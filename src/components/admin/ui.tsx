@@ -72,7 +72,8 @@ export function PageHeader(props: {
 	const actions = children(() => props.actions);
 	return (
 		<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-			<div>
+			{/* A long description wraps here rather than pushing the actions below it. */}
+			<div class="min-w-0 flex-1 basis-80">
 				<h1 class="font-display type-soft text-3xl font-semibold tracking-tight">
 					{props.title}
 				</h1>
@@ -228,6 +229,12 @@ const icon = {
 } as const;
 
 export const AdminIcons = {
+	/** The same grip as the drag handles on the arrange page. */
+	grip: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" />
+		</svg>
+	),
 	board: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<rect x="3" y="4" width="5" height="16" rx="1.5" />
