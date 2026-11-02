@@ -22,6 +22,7 @@ import { Route as AccountOccasionsRouteImport } from './routes/account/occasions
 import { Route as AccountOrdersRouteImport } from './routes/account/orders'
 import { Route as AdminDashboardRouteImport } from './routes/admin/_dashboard'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AssetsSplatRouteImport } from './routes/assets/$'
 import { Route as OrderOrderIdRouteImport } from './routes/order/$orderId'
 import { Route as PayOrderNumberRouteImport } from './routes/pay.$orderNumber'
 import { Route as ProductsProductIdRouteImport } from './routes/products/$productId'
@@ -111,6 +112,11 @@ const AdminDashboardRoute = AdminDashboardRouteImport.update({
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsSplatRoute = AssetsSplatRouteImport.update({
+  id: '/assets/$',
+  path: '/assets/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OrderOrderIdRoute = OrderOrderIdRouteImport.update({
@@ -265,6 +271,7 @@ export interface FileRoutesByFullPath {
   '/account/orders': typeof AccountOrdersRoute
   '/admin': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/assets/$': typeof AssetsSplatRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/pay/$orderNumber': typeof PayOrderNumberRoute
   '/products/$productId': typeof ProductsProductIdRoute
@@ -303,6 +310,7 @@ export interface FileRoutesByTo {
   '/account/occasions': typeof AccountOccasionsRoute
   '/account/orders': typeof AccountOrdersRoute
   '/admin/login': typeof AdminLoginRoute
+  '/assets/$': typeof AssetsSplatRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/pay/$orderNumber': typeof PayOrderNumberRoute
   '/products/$productId': typeof ProductsProductIdRoute
@@ -344,6 +352,7 @@ export interface FileRoutesById {
   '/account/orders': typeof AccountOrdersRoute
   '/admin/_dashboard': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/assets/$': typeof AssetsSplatRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/pay/$orderNumber': typeof PayOrderNumberRoute
   '/products/$productId': typeof ProductsProductIdRoute
@@ -386,6 +395,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin'
     | '/admin/login'
+    | '/assets/$'
     | '/order/$orderId'
     | '/pay/$orderNumber'
     | '/products/$productId'
@@ -424,6 +434,7 @@ export interface FileRouteTypes {
     | '/account/occasions'
     | '/account/orders'
     | '/admin/login'
+    | '/assets/$'
     | '/order/$orderId'
     | '/pay/$orderNumber'
     | '/products/$productId'
@@ -464,6 +475,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/_dashboard'
     | '/admin/login'
+    | '/assets/$'
     | '/order/$orderId'
     | '/pay/$orderNumber'
     | '/products/$productId'
@@ -502,6 +514,7 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   AdminDashboardRoute: typeof AdminDashboardRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
+  AssetsSplatRoute: typeof AssetsSplatRoute
   OrderOrderIdRoute: typeof OrderOrderIdRoute
   PayOrderNumberRoute: typeof PayOrderNumberRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
@@ -603,6 +616,13 @@ declare module '@tanstack/solid-router' {
       path: '/admin/login'
       fullPath: '/admin/login'
       preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets/$': {
+      id: '/assets/$'
+      path: '/assets/$'
+      fullPath: '/assets/$'
+      preLoaderRoute: typeof AssetsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/order/$orderId': {
@@ -856,6 +876,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   AdminDashboardRoute: AdminDashboardRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
+  AssetsSplatRoute: AssetsSplatRoute,
   OrderOrderIdRoute: OrderOrderIdRoute,
   PayOrderNumberRoute: PayOrderNumberRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
