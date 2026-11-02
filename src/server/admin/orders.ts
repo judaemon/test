@@ -1,5 +1,10 @@
 import { createServerFn } from "@tanstack/solid-start";
-import type { Order, OrderStage } from "~/types/order";
+import {
+	type Order,
+	type OrderStage,
+	PAYMENT_STATUSES,
+	WRAPPER_STATUSES,
+} from "~/types/order";
 import { requireStaff } from "../admin-auth";
 import {
 	getOrderById,
@@ -11,9 +16,10 @@ import {
 	setOrderStage,
 	setOrderTest,
 	setRider,
+	setWrapperStatus,
 } from "../orders-repo";
 import { deleteUpload, saveImage, UploadError } from "../uploads";
-import { asRecord, InputError, oneOf, text } from "../validate";
+import { asRecord, InputError, integer, oneOf, text } from "../validate";
 
 const ALL_STAGES = [
 	"new",
@@ -104,12 +110,26 @@ export const reviewOrderPayment = createServerFn({ method: "POST" })
 		const source = asRecord(input);
 		return {
 			id: text(source, "id", { max: 64 }),
-			decision: oneOf(source.decision, ["verified", "rejected"] as const),
+			status: oneOf(source.status, PAYMENT_STATUSES, "Payment status"),
 		};
 	})
 	.handler(async ({ data }) => {
 		const user = await requireStaff();
-		return runAction(() => reviewPayment(data.id, data.decision, user.name));
+		return runAction(() => reviewPayment(data.id, data.status, user.name));
+	});
+
+export const updateWrapperStatus = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			id: text(source, "id", { max: 64 }),
+			line: integer(source, "line", { label: "Bouquet", min: 0, max: 500 }),
+			status: oneOf(source.status, WRAPPER_STATUSES, "Wrapper status"),
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		return runAction(() => setWrapperStatus(data.id, data.line, data.status));
 	});
 
 export const assignRider = createServerFn({ method: "POST" })

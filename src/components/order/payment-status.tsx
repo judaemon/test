@@ -26,6 +26,10 @@ export function paymentStatusLabel(status: PaymentStatus) {
 	return STATUS[status].label;
 }
 
+export function paymentStatusClass(status: PaymentStatus) {
+	return STATUS[status].class;
+}
+
 const PILL =
 	"inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium";
 

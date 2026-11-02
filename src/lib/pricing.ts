@@ -8,6 +8,7 @@ import {
 	priceDesign,
 } from "~/lib/custom-bouquet";
 import { getMaxQuantity, getVariantPrice, MAX_PER_ORDER } from "~/lib/product";
+import type { WrapperStatus } from "~/types/order";
 import type { Product, ProductVariant, RecipeItem } from "~/types/product";
 
 export interface CartLine {
@@ -30,6 +31,8 @@ export interface PricedLine {
 	/** Snapshot of the bouquet's recipe; missing on orders placed before recipes. */
 	recipe?: RecipeItem[];
 	wrapperColor?: string;
+	/** Set by staff on placed orders. */
+	wrapperStatus?: WrapperStatus;
 	/** The design, for built bouquets, so they can be ordered again. */
 	custom?: CustomDesign;
 	quantity: number;

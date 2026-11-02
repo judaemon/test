@@ -19,12 +19,14 @@ export const STAGE_LABELS: Record<OrderStage, string> = {
  * staff match the reference number, then become `verified` or `rejected`.
  * `on_hold` means the shopper ordered and will send the reference number later.
  */
-export type PaymentStatus =
-	| "paid"
-	| "pending"
-	| "verified"
-	| "rejected"
-	| "on_hold";
+export const PAYMENT_STATUSES = [
+	"on_hold",
+	"pending",
+	"rejected",
+	"verified",
+	"paid",
+] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export function isPaymentSettled(status: PaymentStatus) {
 	return status === "paid" || status === "verified";
@@ -34,6 +36,16 @@ export function isPaymentSettled(status: PaymentStatus) {
 export function isPaymentDue(status: PaymentStatus) {
 	return status === "on_hold" || status === "rejected";
 }
+
+/** How far staff are with a bouquet's wrapper; lines without one read as `todo`. */
+export const WRAPPER_STATUSES = ["todo", "in_progress", "made"] as const;
+export type WrapperStatus = (typeof WRAPPER_STATUSES)[number];
+
+export const WRAPPER_STATUS_LABELS: Record<WrapperStatus, string> = {
+	todo: "Not started",
+	in_progress: "In progress",
+	made: "Made",
+};
 
 /** What shoppers and staff are told about an order, from its stage and payment. */
 export type OrderStatus =

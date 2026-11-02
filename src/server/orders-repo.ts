@@ -16,6 +16,7 @@ import {
 	type OrderPayment,
 	type OrderStage,
 	type PaymentStatus,
+	type WrapperStatus,
 } from "~/types/order";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { adjustFlowerStock } from "./flowers-repo";
@@ -478,9 +479,10 @@ export function submitPayment(
 	return getOrderById(id) as Order;
 }
 
+/** Staff set a payment's status; going back to unreviewed clears the reviewer. */
 export function reviewPayment(
 	id: string,
-	decision: "verified" | "rejected",
+	status: PaymentStatus,
 	reviewer: string,
 ): Order {
 	const order = getOrderById(id);
@@ -489,16 +491,47 @@ export function reviewPayment(
 		throw new OrderRuleError("Card payments don’t need review.");
 	if (order.stage === "cancelled")
 		throw new OrderRuleError("This order was cancelled.");
-	if (decision === "rejected" && order.stage !== "new")
+	if (!isPaymentSettled(status) && order.stage !== "new")
 		throw new OrderRuleError(
 			"This order is already being made. Move it back to New first.",
 		);
+	const reviewed = status !== "pending" && status !== "on_hold";
 	getDb()
 		.query(
 			`UPDATE orders SET payment_status = $status, payment_reviewed_by = $reviewer,
 			 payment_reviewed_at = $now WHERE id = $id`,
 		)
-		.run({ id, status: decision, reviewer, now: nowIso() });
+		.run({
+			id,
+			status,
+			reviewer: reviewed ? reviewer : null,
+			now: reviewed ? nowIso() : null,
+		});
+	return getOrderById(id) as Order;
+}
+
+/** Records how far the wrapper of one of the order's bouquets has got. */
+export function setWrapperStatus(
+	id: string,
+	lineIndex: number,
+	status: WrapperStatus,
+): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("This order was cancelled.");
+		if (!order.lines[lineIndex])
+			throw new OrderRuleError("That bouquet isn’t on this order.");
+		const lines = order.lines.map((line, index) =>
+			index === lineIndex ? { ...line, wrapperStatus: status } : line,
+		);
+		db.query("UPDATE orders SET lines = $lines WHERE id = $id").run({
+			id,
+			lines: JSON.stringify(lines),
+		});
+	})();
 	return getOrderById(id) as Order;
 }
 

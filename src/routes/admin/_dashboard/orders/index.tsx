@@ -14,25 +14,59 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { CompanyLabel } from "~/components/order/company-label";
-import { PaymentStatusPill } from "~/components/order/payment-status";
+import {
+	OrderStatusPill,
+	PaymentStatusPill,
+	paymentStatusClass,
+	paymentStatusLabel,
+} from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { orderColor } from "~/lib/cadets";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
+import type { PricedLine } from "~/lib/pricing";
 import { formatPrice } from "~/lib/product";
 import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
-import { listAdminOrders, markOrderTest } from "~/server/admin/orders";
 import {
-	ORDER_STATUS_LABELS,
+	listAdminOrders,
+	markOrderTest,
+	moveOrder,
+	type OrderActionResult,
+	reviewOrderPayment,
+	updateWrapperStatus,
+} from "~/server/admin/orders";
+import {
+	BOARD_STAGES,
+	isPaymentSettled,
+	type Order,
 	type OrderStage,
-	orderStatus,
+	PAYMENT_STATUSES,
 	STAGE_LABELS,
+	WRAPPER_STATUS_LABELS,
+	WRAPPER_STATUSES,
+	type WrapperStatus,
 } from "~/types/order";
 
 const STAGE_TABS = ["all", "new", "making", "done", "cancelled"] as const;
 type StageTab = (typeof STAGE_TABS)[number];
+
+/** The stages an order can be moved to from its row. */
+const ROW_STAGES = BOARD_STAGES;
+type RowStage = (typeof ROW_STAGES)[number];
+
+const STAGE_CLASS: Record<RowStage, string> = {
+	new: "bg-petal-100 text-petal-700",
+	making: "bg-warning text-warning-foreground",
+	done: "bg-success text-success-foreground",
+};
+
+const WRAPPER_CLASS: Record<WrapperStatus, string> = {
+	todo: "bg-petal-100 text-petal-700",
+	in_progress: "bg-warning text-warning-foreground",
+	made: "bg-success text-success-foreground",
+};
 
 interface OrdersSearch {
 	stage?: Exclude<StageTab, "all">;
@@ -85,7 +119,9 @@ function OrdersPage() {
 					Number(a.number) - Number(b.number) ||
 					a.createdAt.localeCompare(b.createdAt),
 			)
-			.flatMap((order) => order.lines.map((line) => ({ order, line })));
+			.flatMap((order) =>
+				order.lines.map((line, index) => ({ order, line, index })),
+			);
 	const search = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const [query, setQuery] = createSignal(search().q ?? "");
@@ -132,7 +168,7 @@ function OrdersPage() {
 		<div>
 			<PageHeader
 				title="Orders"
-				description="Every bouquet ordered, first order on top, colored by company. Open an order to check its payment."
+				description="Every bouquet ordered, first order on top, colored by company. Change a status right in its row, or open the order to check its payment."
 			/>
 
 			<div class="mb-4 flex flex-wrap items-center gap-3">
@@ -219,22 +255,24 @@ function OrdersPage() {
 			</div>
 
 			<div class={cn(adminCard, "relative overflow-x-auto")}>
-				<table class="stack-table w-full text-left text-sm md:min-w-[1500px]">
+				<table class="stack-table w-full text-left text-sm md:min-w-[1780px]">
 					<thead class="border-b border-petal-100 text-xs uppercase tracking-wide text-petal-900/55">
 						<tr>
 							<th class="px-3 py-3 pl-5 font-medium">Order</th>
+							<th class="px-3 py-3 font-medium">Name</th>
 							<th class="px-3 py-3 font-medium">Company</th>
 							<th class="px-3 py-3 font-medium">Class</th>
-							<th class="px-3 py-3 font-medium">Name</th>
-							<th class="px-3 py-3 font-medium">Style</th>
-							<th class="px-3 py-3 font-medium">Photo</th>
+							<th class="px-3 py-3 font-medium">Status</th>
 							<th class="px-3 py-3 text-right font-medium">Price</th>
 							<th class="px-3 py-3 font-medium">Payment</th>
 							<th class="px-3 py-3 font-medium">Method</th>
 							<th class="px-3 py-3 font-medium">Ref no.</th>
-							<th class="px-3 py-3 font-medium">Notes / Dedication</th>
+							<th class="px-3 py-3 font-medium">Style</th>
+							<th class="px-3 py-3 font-medium">Photo</th>
 							<th class="px-3 py-3 font-medium">Flowers</th>
 							<th class="px-3 py-3 font-medium">Wrapper</th>
+							<th class="px-3 py-3 font-medium">Wrapper status</th>
+							<th class="px-3 py-3 font-medium">Notes / Dedication</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -243,7 +281,7 @@ function OrdersPage() {
 							fallback={
 								<tr>
 									<td
-										colSpan={13}
+										colSpan={15}
 										data-wide
 										class="px-4 py-12 text-center text-petal-900/55"
 									>
@@ -252,7 +290,7 @@ function OrdersPage() {
 								</tr>
 							}
 						>
-							{({ order, line }) => {
+							{({ order, line, index }) => {
 								const details = order.details;
 								const color = orderColor(details.company, details.className);
 								return (
@@ -260,7 +298,11 @@ function OrdersPage() {
 										// The whole row opens the order; the order number stays a
 										// real link for keyboard users and opening in a new tab.
 										onClick={(event) => {
-											if ((event.target as HTMLElement).closest("a, button"))
+											if (
+												(event.target as HTMLElement).closest(
+													"a, button, select",
+												)
+											)
 												return;
 											// Don't hijack selecting text to copy it.
 											if (window.getSelection()?.toString()) return;
@@ -312,20 +354,13 @@ function OrdersPage() {
 													minute: "2-digit",
 												})}
 											</p>
-											<p class="text-xs text-petal-900/55">
-												{
-													ORDER_STATUS_LABELS[
-														orderStatus(order.stage, order.payment.status)
-													]
-												}
-												<Show when={order.cancelReason}>
-													{(reason) => (
-														<span class="block max-w-40 text-error-foreground">
-															By customer: {reason()}
-														</span>
-													)}
-												</Show>
-											</p>
+											<Show when={order.cancelReason}>
+												{(reason) => (
+													<p class="max-w-40 text-xs text-error-foreground">
+														By customer: {reason()}
+													</p>
+												)}
+											</Show>
 											<button
 												type="button"
 												disabled={marking() === order.id}
@@ -334,6 +369,14 @@ function OrdersPage() {
 											>
 												{order.isTest ? "Not a test" : "Mark as test"}
 											</button>
+										</td>
+										<td
+											data-label="Name"
+											class="px-5 py-2 md:px-3 md:py-3 font-medium"
+										>
+											{details.lastName
+												? `${details.lastName}, ${details.firstName}`
+												: details.fullName}
 										</td>
 										<td
 											data-label="Company"
@@ -346,13 +389,26 @@ function OrdersPage() {
 										<td data-label="Class" class="px-5 py-2 md:px-3 md:py-3">
 											{details.className || "—"}
 										</td>
+										<td data-label="Status" class="px-5 py-2 md:px-3 md:py-3">
+											<OrderStageSelect order={order} />
+										</td>
 										<td
-											data-label="Name"
-											class="px-5 py-2 md:px-3 md:py-3 font-medium"
+											data-label="Price"
+											class="px-5 py-2 md:px-3 md:py-3 font-medium tabular-nums md:text-right"
 										>
-											{details.lastName
-												? `${details.lastName}, ${details.firstName}`
-												: details.fullName}
+											{formatPrice(line.lineTotal, order.currency)}
+										</td>
+										<td data-label="Payment" class="px-5 py-2 md:px-3 md:py-3">
+											<PaymentStatusSelect order={order} />
+										</td>
+										<td data-label="Method" class="px-5 py-2 md:px-3 md:py-3">
+											{PAYMENT_METHOD_LABELS[order.payment.method]}
+										</td>
+										<td
+											data-label="Ref no."
+											class="px-5 py-2 md:px-3 md:py-3 font-mono text-xs"
+										>
+											{order.payment.referenceNumber ?? "—"}
 										</td>
 										<td data-label="Style" class="px-5 py-2 md:px-3 md:py-3">
 											<span class="font-semibold">{line.sku}</span>
@@ -376,57 +432,6 @@ function OrdersPage() {
 														class="size-14 rounded-lg border border-black/10 bg-white object-cover"
 													/>
 												)}
-											</Show>
-										</td>
-										<td
-											data-label="Price"
-											class="px-5 py-2 md:px-3 md:py-3 font-medium tabular-nums md:text-right"
-										>
-											{formatPrice(line.lineTotal, order.currency)}
-										</td>
-										<td data-label="Payment" class="px-5 py-2 md:px-3 md:py-3">
-											<PaymentStatusPill status={order.payment.status} />
-										</td>
-										<td data-label="Method" class="px-5 py-2 md:px-3 md:py-3">
-											{PAYMENT_METHOD_LABELS[order.payment.method]}
-										</td>
-										<td
-											data-label="Ref no."
-											class="px-5 py-2 md:px-3 md:py-3 font-mono text-xs"
-										>
-											{order.payment.referenceNumber ?? "—"}
-										</td>
-										<td
-											data-label="Notes / Dedication"
-											data-wide
-											class="px-5 py-2 md:px-3 md:py-3 text-xs md:max-w-64"
-										>
-											<Show
-												when={details.notes || details.addDedication}
-												fallback="—"
-											>
-												<Show when={details.notes}>
-													<p class="whitespace-pre-line">
-														<span class="font-semibold">Notes:</span>{" "}
-														{details.notes}
-													</p>
-												</Show>
-												<Show when={details.addDedication}>
-													<button
-														type="button"
-														onClick={() => printDedicationCard(order.id)}
-														title="Print this dedication card (A5)"
-														class="-mx-1 mt-1 block w-[calc(100%+0.5rem)] rounded-md px-1 py-0.5 text-left whitespace-pre-line outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-petal-500"
-													>
-														<span class="font-semibold">
-															To {details.dedicationFor || "—"}:
-														</span>{" "}
-														“{details.dedicationMessage}”
-														<span class="mt-0.5 block font-medium text-petal-700">
-															🖨 Print card
-														</span>
-													</button>
-												</Show>
 											</Show>
 										</td>
 										<td
@@ -471,6 +476,49 @@ function OrdersPage() {
 										<td data-label="Wrapper" class="px-5 py-2 md:px-3 md:py-3">
 											{line.wrapperColor || "—"}
 										</td>
+										<td
+											data-label="Wrapper status"
+											class="px-5 py-2 md:px-3 md:py-3"
+										>
+											<WrapperStatusSelect
+												order={order}
+												line={line}
+												index={index}
+											/>
+										</td>
+										<td
+											data-label="Notes / Dedication"
+											data-wide
+											class="px-5 py-2 md:px-3 md:py-3 text-xs md:max-w-64"
+										>
+											<Show
+												when={details.notes || details.addDedication}
+												fallback="—"
+											>
+												<Show when={details.notes}>
+													<p class="whitespace-pre-line">
+														<span class="font-semibold">Notes:</span>{" "}
+														{details.notes}
+													</p>
+												</Show>
+												<Show when={details.addDedication}>
+													<button
+														type="button"
+														onClick={() => printDedicationCard(order.id)}
+														title="Print this dedication card (A5)"
+														class="-mx-1 mt-1 block w-[calc(100%+0.5rem)] rounded-md px-1 py-0.5 text-left whitespace-pre-line outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-petal-500"
+													>
+														<span class="font-semibold">
+															To {details.dedicationFor || "—"}:
+														</span>{" "}
+														“{details.dedicationMessage}”
+														<span class="mt-0.5 block font-medium text-petal-700">
+															🖨 Print card
+														</span>
+													</button>
+												</Show>
+											</Show>
+										</td>
 									</tr>
 								);
 							}}
@@ -479,5 +527,150 @@ function OrdersPage() {
 				</table>
 			</div>
 		</div>
+	);
+}
+
+/** A status changed right in its row. Saves as soon as it's picked. */
+function RowSelect<T extends string>(props: {
+	label: string;
+	value: T;
+	options: { value: T; label: string; disabled?: boolean }[];
+	class: string;
+	onSave: (value: T) => Promise<OrderActionResult>;
+	saved: (label: string) => string;
+}) {
+	const router = useRouter();
+	const [saving, setSaving] = createSignal(false);
+
+	const save = async (select: HTMLSelectElement) => {
+		const value = select.value as T;
+		setSaving(true);
+		try {
+			const result = await props.onSave(value);
+			if (!result.ok) throw new Error(result.message);
+			const option = props.options.find((o) => o.value === value);
+			toastSuccess(props.saved(option?.label ?? value));
+			await router.invalidate();
+		} catch (error) {
+			select.value = props.value;
+			toastError(error);
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	return (
+		<select
+			aria-label={props.label}
+			disabled={saving()}
+			onChange={(e) => void save(e.currentTarget)}
+			class={cn(
+				"h-10 max-w-full cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs",
+				props.class,
+			)}
+		>
+			<For each={props.options}>
+				{(option) => (
+					<option
+						value={option.value}
+						selected={option.value === props.value}
+						disabled={option.disabled}
+					>
+						{option.label}
+					</option>
+				)}
+			</For>
+		</select>
+	);
+}
+
+function OrderStageSelect(props: { order: Order }) {
+	const stage = () => props.order.stage as RowStage;
+	return (
+		<Show
+			// Cancelling restocks and can't be undone: it stays on the order page,
+			// behind its confirmation.
+			when={props.order.stage !== "cancelled"}
+			fallback={<OrderStatusPill status="cancelled" />}
+		>
+			<RowSelect
+				label={`Status of order ${props.order.number}`}
+				value={stage()}
+				options={ROW_STAGES.map((value) => ({
+					value,
+					label: STAGE_LABELS[value],
+					// Unpaid orders stay in "New orders" until the payment is settled.
+					disabled:
+						value !== "new" && !isPaymentSettled(props.order.payment.status),
+				}))}
+				class={STAGE_CLASS[stage()]}
+				onSave={(value) =>
+					moveOrder({ data: { id: props.order.id, stage: value } })
+				}
+				saved={(label) => `Order #${props.order.number}: ${label}.`}
+			/>
+		</Show>
+	);
+}
+
+function PaymentStatusSelect(props: { order: Order }) {
+	const status = () => props.order.payment.status;
+	return (
+		<Show
+			// Card payments are settled at checkout, and cancelled orders are closed.
+			when={
+				props.order.payment.method !== "card" &&
+				props.order.stage !== "cancelled"
+			}
+			fallback={<PaymentStatusPill status={status()} />}
+		>
+			<RowSelect
+				label={`Payment status for order ${props.order.number}`}
+				value={status()}
+				options={PAYMENT_STATUSES.map((value) => ({
+					value,
+					label: paymentStatusLabel(value),
+					// Past "New orders" a payment has to stay settled.
+					disabled: props.order.stage !== "new" && !isPaymentSettled(value),
+				}))}
+				class={paymentStatusClass(status())}
+				onSave={(value) =>
+					reviewOrderPayment({ data: { id: props.order.id, status: value } })
+				}
+				saved={(label) => `Order #${props.order.number}: ${label}.`}
+			/>
+		</Show>
+	);
+}
+
+function WrapperStatusSelect(props: {
+	order: Order;
+	line: PricedLine;
+	index: number;
+}) {
+	const status = () => props.line.wrapperStatus ?? "todo";
+	return (
+		<Show when={props.line.wrapperColor} fallback="—">
+			<Show
+				when={props.order.stage !== "cancelled"}
+				fallback={WRAPPER_STATUS_LABELS[status()]}
+			>
+				<RowSelect
+					label={`Wrapper status for ${props.line.sku}, order ${props.order.number}`}
+					value={status()}
+					options={WRAPPER_STATUSES.map((value) => ({
+						value,
+						label: WRAPPER_STATUS_LABELS[value],
+					}))}
+					class={WRAPPER_CLASS[status()]}
+					onSave={(value) =>
+						updateWrapperStatus({
+							data: { id: props.order.id, line: props.index, status: value },
+						})
+					}
+					saved={(label) => `${props.line.sku} wrapper: ${label}.`}
+				/>
+			</Show>
+		</Show>
 	);
 }

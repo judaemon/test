@@ -112,7 +112,7 @@ function OrderDetail() {
 		);
 	const review = (decision: "verified" | "rejected") =>
 		run(
-			() => reviewOrderPayment({ data: { id: order().id, decision } }),
+			() => reviewOrderPayment({ data: { id: order().id, status: decision } }),
 			decision === "verified"
 				? "Payment verified."
 				: "Payment marked as rejected.",
