@@ -99,7 +99,7 @@ function ProductPage() {
 	return (
 		<div class="min-h-screen bg-background">
 			<SiteHeader />
-			<main class="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+			<main class="mx-auto max-w-6xl px-4 pb-16 pt-4 sm:px-6 lg:max-w-7xl lg:px-8">
 				<Breadcrumb class="mb-4">
 					<BreadcrumbList>
 						<BreadcrumbItem>
@@ -114,7 +114,7 @@ function ProductPage() {
 					</BreadcrumbList>
 				</Breadcrumb>
 
-				<div class="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12">
+				<div class="grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-12">
 					<div class="lg:sticky lg:top-20 lg:self-start">
 						<ProductGallery
 							photos={bouquetPhotos(activeVariant())}

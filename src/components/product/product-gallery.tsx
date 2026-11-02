@@ -74,7 +74,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 	return (
 		<div
 			class={cn(
-				"flex flex-col gap-3 lg:flex-row-reverse lg:items-start",
+				"flex flex-col gap-3 lg:flex-row-reverse lg:items-start lg:justify-end",
 				props.class,
 			)}
 		>
@@ -99,7 +99,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 					if ((event.target as HTMLElement).closest("button")) return;
 					setViewing(true);
 				}}
-				class="group relative aspect-square w-full cursor-zoom-in touch-pan-y overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:flex-1"
+				class="group relative aspect-square w-full cursor-zoom-in touch-pan-y overflow-hidden rounded-xl bg-muted outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:max-w-[calc(100svh-11rem)] lg:flex-1"
 			>
 				<For each={props.photos}>
 					{(photo, index) => (
@@ -201,7 +201,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 			<Show when={hasMultiple()}>
 				<ul
 					aria-label="Choose an image"
-					class="flex gap-2 overflow-x-auto pb-1 lg:w-20 lg:shrink-0 lg:flex-col lg:overflow-visible lg:pb-0"
+					class="flex gap-2 overflow-x-auto pb-1 lg:max-h-[calc(100svh-11rem)] lg:w-20 lg:shrink-0 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0"
 				>
 					<For each={props.photos}>
 						{(photo, index) => (
