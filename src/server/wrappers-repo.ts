@@ -6,6 +6,7 @@ interface WrapperRow {
 	code: string | null;
 	name: string;
 	color_hex: string;
+	extra_colors: string;
 	price_cents: number;
 	stock_quantity: number | null;
 	stock_actual: number | null;
@@ -18,17 +19,21 @@ export type WrapperInput = Omit<CustomWrapper, "id" | "image"> & {
 	image: string;
 };
 
-const toWrapper = (row: WrapperRow): CustomWrapper => ({
-	id: row.id,
-	...(row.code ? { code: row.code } : {}),
-	name: row.name,
-	colorHex: row.color_hex,
-	price: fromCents(row.price_cents),
-	enabled: row.is_enabled === 1,
-	...(row.stock_quantity === null ? {} : { stock: row.stock_quantity }),
-	...(row.stock_actual === null ? {} : { stockActual: row.stock_actual }),
-	...(row.image ? { image: row.image } : {}),
-});
+const toWrapper = (row: WrapperRow): CustomWrapper => {
+	const extraColors = JSON.parse(row.extra_colors) as string[];
+	return {
+		id: row.id,
+		...(row.code ? { code: row.code } : {}),
+		name: row.name,
+		colorHex: row.color_hex,
+		...(extraColors.length ? { extraColors } : {}),
+		price: fromCents(row.price_cents),
+		enabled: row.is_enabled === 1,
+		...(row.stock_quantity === null ? {} : { stock: row.stock_quantity }),
+		...(row.stock_actual === null ? {} : { stockActual: row.stock_actual }),
+		...(row.image ? { image: row.image } : {}),
+	};
+};
 
 /** Every wrapper, in the order shoppers see them. */
 export function listWrappers(): CustomWrapper[] {
@@ -57,6 +62,7 @@ const wrapperParams = (input: WrapperInput) => ({
 	code: input.code || null,
 	name: input.name,
 	colorHex: input.colorHex,
+	extraColors: JSON.stringify(input.extraColors ?? []),
 	price: toCents(input.price),
 	stock: input.stock ?? null,
 	stockActual: input.stockActual ?? null,
@@ -71,7 +77,7 @@ export function saveWrapper(id: string | null, input: WrapperInput) {
 	if (id) {
 		const { changes } = db
 			.query(
-				`UPDATE wrappers SET code = $code, name = $name, color_hex = $colorHex, price_cents = $price,
+				`UPDATE wrappers SET code = $code, name = $name, color_hex = $colorHex, extra_colors = $extraColors, price_cents = $price,
 				   stock_quantity = $stock, stock_actual = $stockActual, is_enabled = $enabled, image = $image, updated_at = $now
 				 WHERE id = $id`,
 			)
@@ -81,9 +87,9 @@ export function saveWrapper(id: string | null, input: WrapperInput) {
 	}
 	const newId = `w-${crypto.randomUUID().slice(0, 8)}`;
 	db.query(
-		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, stock_actual, is_enabled, image, sort,
+		`INSERT INTO wrappers (id, code, name, color_hex, extra_colors, price_cents, stock_quantity, stock_actual, is_enabled, image, sort,
 		   created_at, updated_at)
-		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $stockActual, $enabled, $image,
+		 VALUES ($id, $code, $name, $colorHex, $extraColors, $price, $stock, $stockActual, $enabled, $image,
 		   (SELECT COALESCE(MAX(sort), -1) + 1 FROM wrappers), $now, $now)`,
 	).run({ id: newId, ...wrapperParams(input), now });
 	return newId;
@@ -109,12 +115,17 @@ export function wrapperIdByName(name: string) {
 
 /**
  * Saves a wrapper from an Excel import: the one with this code is overwritten
- * (it stays offered or not, as staff set it), otherwise it's added.
+ * (keeping what the sheet doesn't hold: whether it's offered, and its extra
+ * colors), otherwise it's added.
  */
 export function importWrapper(input: WrapperInput & { code: string }) {
 	const existing = getWrapperByCode(input.code);
 	return existing
-		? saveWrapper(existing.id, { ...input, enabled: existing.enabled })
+		? saveWrapper(existing.id, {
+				...input,
+				enabled: existing.enabled,
+				extraColors: existing.extraColors,
+			})
 		: saveWrapper(null, input);
 }
 
@@ -140,9 +151,9 @@ export function deleteWrapper(id: string) {
 export function replaceWrappers(wrappers: CustomWrapper[]) {
 	const db = getDb();
 	const insert = db.query(
-		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, stock_actual, is_enabled, image, sort,
+		`INSERT INTO wrappers (id, code, name, color_hex, extra_colors, price_cents, stock_quantity, stock_actual, is_enabled, image, sort,
 		   created_at, updated_at)
-		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $stockActual, $enabled, $image, $sort, $now, $now)`,
+		 VALUES ($id, $code, $name, $colorHex, $extraColors, $price, $stock, $stockActual, $enabled, $image, $sort, $now, $now)`,
 	);
 	db.transaction(() => {
 		db.exec("DELETE FROM wrappers");

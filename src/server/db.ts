@@ -477,6 +477,10 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE wrappers ADD COLUMN stock_actual INTEGER CHECK (stock_actual >= 0);
 	`,
+	// v27: a wrapper can have more than one color.
+	`
+	ALTER TABLE wrappers ADD COLUMN extra_colors TEXT NOT NULL DEFAULT '[]';
+	`,
 ];
 
 declare global {

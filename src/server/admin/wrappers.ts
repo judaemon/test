@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/solid-start";
 
-import { normalizeWrapperCode } from "~/lib/custom-bouquet";
+import { MAX_WRAPPER_COLORS, normalizeWrapperCode } from "~/lib/custom-bouquet";
 import { requireStaff } from "../admin-auth";
 import { checkBuilderCanSell, getCustomSettings } from "../custom-repo";
 import {
@@ -43,8 +43,14 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 		text(source, "code", { label: "Code", max: 40, required: false }),
 	);
 	const colorHex = text(source, "colorHex", { label: "Color", max: 7 });
-	if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
-		throw new InputError("Color must look like #c9a77c.");
+	const extraColors = Array.isArray(source.extraColors)
+		? source.extraColors
+		: [];
+	if (extraColors.length >= MAX_WRAPPER_COLORS)
+		throw new InputError(`Use at most ${MAX_WRAPPER_COLORS} colors.`);
+	for (const color of [colorHex, ...extraColors])
+		if (typeof color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(color))
+			throw new InputError("Color must look like #c9a77c.");
 	// Blank stock means the wrapper isn't counted.
 	const count = (key: string, label: string) =>
 		source[key] === null || source[key] === undefined || source[key] === ""
@@ -56,6 +62,7 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 		...(code ? { code } : {}),
 		name,
 		colorHex,
+		...(extraColors.length ? { extraColors: extraColors as string[] } : {}),
 		price: price(source, "price", `${name} price`),
 		enabled: bool(source, "enabled"),
 		...(stock === undefined ? {} : { stock }),

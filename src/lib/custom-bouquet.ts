@@ -87,6 +87,8 @@ export interface CustomWrapper {
 	code?: string;
 	name: string;
 	colorHex: string;
+	/** Further colors, for wrappers of more than one. */
+	extraColors?: string[];
 	price: number;
 	enabled: boolean;
 	/** Wrappers on hand; each built bouquet uses one. Missing means not counted. */
@@ -96,6 +98,15 @@ export interface CustomWrapper {
 	/** Photo of the wrapper; empty if none. */
 	image?: string;
 }
+
+/** A wrapper can show this many colors, counting its first. */
+export const MAX_WRAPPER_COLORS = 4;
+
+/** Every color of a wrapper, first color first. */
+export const wrapperColors = (wrapper: {
+	colorHex: string;
+	extraColors?: string[];
+}) => [wrapper.colorHex, ...(wrapper.extraColors ?? [])];
 
 /** `" 2t  red gold"` → `"2T RED GOLD"`, so a code matches however it's typed. */
 export const normalizeWrapperCode = (code: string) =>

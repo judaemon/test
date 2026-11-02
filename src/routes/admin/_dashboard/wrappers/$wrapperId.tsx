@@ -4,7 +4,7 @@ import {
 	notFound,
 	useNavigate,
 } from "@tanstack/solid-router";
-import { createSignal, Show } from "solid-js";
+import { createSignal, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 
 import { createCropper } from "~/components/admin/image-cropper";
@@ -20,7 +20,12 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
-import type { CustomWrapper } from "~/lib/custom-bouquet";
+import {
+	type CustomWrapper,
+	MAX_WRAPPER_COLORS,
+	wrapperColors,
+} from "~/lib/custom-bouquet";
+import { swatchColors } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
 import {
@@ -46,6 +51,7 @@ interface WrapperDraft {
 	name: string;
 	/** Empty until staff pick one: a new wrapper has no color yet. */
 	colorHex: string;
+	extraColors: string[];
 	price: string;
 	/** Blank means not counted. */
 	stock: string;
@@ -60,6 +66,7 @@ function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 		code: wrapper?.code ?? "",
 		name: wrapper?.name ?? "",
 		colorHex: wrapper?.colorHex ?? "",
+		extraColors: [...(wrapper?.extraColors ?? [])],
 		price: wrapper ? String(wrapper.price) : "0",
 		stock: wrapper?.stock === undefined ? "" : String(wrapper.stock),
 		stockActual:
@@ -101,6 +108,9 @@ function WrapperEditor() {
 		}
 	};
 
+	const swatch = () =>
+		draft.colorHex ? swatchColors(wrapperColors(draft)) : "transparent";
+
 	const save = async (event: SubmitEvent) => {
 		event.preventDefault();
 		setSaving(true);
@@ -112,6 +122,7 @@ function WrapperEditor() {
 						code: draft.code,
 						name: draft.name,
 						colorHex: draft.colorHex,
+						extraColors: [...draft.extraColors],
 						price: Number(draft.price),
 						stock: draft.stock.trim() === "" ? null : Number(draft.stock),
 						stockActual:
@@ -162,7 +173,7 @@ function WrapperEditor() {
 									"size-24 rounded-lg border border-black/10",
 									!draft.colorHex && "border-dashed border-petal-300",
 								)}
-								style={{ background: draft.colorHex }}
+								style={{ background: swatch() }}
 							/>
 						}
 					>
@@ -230,17 +241,67 @@ function WrapperEditor() {
 							class={adminInput}
 						/>
 					</Field>
-					<Field
-						label="Color"
-						hint="Required. Shown as a swatch when there’s no photo."
-					>
-						<input
-							type="color"
-							value={draft.colorHex || "#ffffff"}
-							onInput={(e) => setDraft("colorHex", e.currentTarget.value)}
-							class="h-10 w-full cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
-						/>
-					</Field>
+					<div class="flex flex-col gap-1.5">
+						<span class="text-sm font-medium">Color</span>
+						<div class="flex flex-wrap items-center gap-2">
+							<input
+								type="color"
+								aria-label="Color 1"
+								value={draft.colorHex || "#ffffff"}
+								onInput={(e) => setDraft("colorHex", e.currentTarget.value)}
+								class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+							/>
+							<Index each={draft.extraColors}>
+								{(color, index) => (
+									<span class="relative">
+										<input
+											type="color"
+											aria-label={`Color ${index + 2}`}
+											value={color()}
+											onInput={(e) =>
+												setDraft("extraColors", index, e.currentTarget.value)
+											}
+											class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+										/>
+										<button
+											type="button"
+											aria-label={`Remove color ${index + 2}`}
+											onClick={() =>
+												setDraft("extraColors", (list) =>
+													list.filter((_, i) => i !== index),
+												)
+											}
+											class="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full border border-petal-200 bg-white text-xs text-petal-900/70 outline-none hover:bg-petal-50 hover:text-error-foreground focus-visible:ring-2 focus-visible:ring-petal-500"
+										>
+											✕
+										</button>
+									</span>
+								)}
+							</Index>
+							<Show when={draft.extraColors.length + 1 < MAX_WRAPPER_COLORS}>
+								<button
+									type="button"
+									aria-label="Add a color"
+									title="Add a color"
+									onClick={() =>
+										setDraft("extraColors", (list) => [...list, "#ffffff"])
+									}
+									class="flex h-10 w-12 items-center justify-center rounded-lg border border-dashed border-petal-300 text-lg text-petal-700 outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									+
+								</button>
+							</Show>
+							<span
+								aria-hidden="true"
+								class="size-7 shrink-0 rounded-full border border-black/10"
+								style={{ background: swatch() }}
+							/>
+						</div>
+						<span class="text-xs text-petal-900/55">
+							Required. Press + for wrappers with more than one color, up to{" "}
+							{MAX_WRAPPER_COLORS}.
+						</span>
+					</div>
 					<Field label="Price (₱)" hint="0 shows as “Free”.">
 						<input
 							type="number"

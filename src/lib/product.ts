@@ -103,8 +103,18 @@ export function bouquetPhotos(variant: ProductVariant) {
 
 /** CSS background for a swatch: one color, or split diagonally for two. */
 export function swatchBackground(color?: string, color2?: string) {
-	if (!color) return "transparent";
-	return color2
-		? `linear-gradient(135deg, ${color} 50%, ${color2} 50%)`
-		: color;
+	return swatchColors([color, color2].filter((c) => !!c) as string[]);
+}
+
+/** One color as it is, two split diagonally, more in equal slices from the middle. */
+export function swatchColors(colors: string[]) {
+	if (colors.length === 0) return "transparent";
+	if (colors.length === 1) return colors[0] as string;
+	if (colors.length === 2)
+		return `linear-gradient(135deg, ${colors[0]} 50%, ${colors[1]} 50%)`;
+	const slice = 100 / colors.length;
+	const stops = colors.map(
+		(color, i) => `${color} ${slice * i}% ${slice * (i + 1)}%`,
+	);
+	return `conic-gradient(${stops.join(", ")})`;
 }

@@ -19,8 +19,8 @@ import {
 } from "~/components/admin/ui";
 import { WrapperImport } from "~/components/admin/wrapper-import";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
-import type { CustomWrapper } from "~/lib/custom-bouquet";
-import { formatPrice, LOW_STOCK_THRESHOLD } from "~/lib/product";
+import { type CustomWrapper, wrapperColors } from "~/lib/custom-bouquet";
+import { formatPrice, LOW_STOCK_THRESHOLD, swatchColors } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
 import {
@@ -193,7 +193,9 @@ function WrappersPage() {
 											<span
 												aria-hidden="true"
 												class="size-14 shrink-0 rounded-lg border border-black/10"
-												style={{ background: wrapper.colorHex }}
+												style={{
+													background: swatchColors(wrapperColors(wrapper)),
+												}}
 											/>
 										}
 									>
@@ -219,12 +221,7 @@ function WrappersPage() {
 												{wrapper.code}
 											</span>
 										</Show>
-										<p class="flex items-center gap-1.5 text-sm text-petal-900/65 tabular-nums">
-											<span
-												aria-hidden="true"
-												class="size-3 rounded-full border border-black/15"
-												style={{ background: wrapper.colorHex }}
-											/>
+										<p class="text-sm text-petal-900/65 tabular-nums">
 											{wrapper.price === 0
 												? "Free"
 												: formatPrice(wrapper.price, "PHP")}{" "}
@@ -249,6 +246,20 @@ function WrappersPage() {
 												· {wrapper.stockActual} actual
 											</Show>
 										</p>
+									</div>
+									<div class="flex w-44 items-center gap-2.5">
+										<span
+											aria-hidden="true"
+											class="size-8 shrink-0 rounded-full border border-black/15"
+											style={{
+												background: swatchColors(wrapperColors(wrapper)),
+											}}
+										/>
+										<span class="grid grid-cols-2 gap-x-2 font-mono text-xs text-petal-900/65">
+											<For each={wrapperColors(wrapper)}>
+												{(color) => <span>{color}</span>}
+											</For>
+										</span>
 									</div>
 									<div class="flex items-center gap-3">
 										<Toggle

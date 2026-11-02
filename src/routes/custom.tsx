@@ -28,10 +28,16 @@ import {
 	itemColor,
 	MAX_STEMS_PER_FLOWER,
 	priceDesign,
+	wrapperColors,
 	wrapperInStock,
 } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
-import { formatPrice, MAX_PER_ORDER, swatchBackground } from "~/lib/product";
+import {
+	formatPrice,
+	MAX_PER_ORDER,
+	swatchBackground,
+	swatchColors,
+} from "~/lib/product";
 import { useCustomSettings } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { RecipeItem } from "~/types/product";
@@ -538,7 +544,9 @@ function BuilderPage() {
 															<span
 																aria-hidden="true"
 																class="h-12 w-10 border border-black/15 [clip-path:polygon(0_0,100%_0,50%_100%)]"
-																style={{ "background-color": w.colorHex }}
+																style={{
+																	background: swatchColors(wrapperColors(w)),
+																}}
 															/>
 														}
 													>
