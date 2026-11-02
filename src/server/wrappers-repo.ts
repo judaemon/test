@@ -3,6 +3,7 @@ import { fromCents, getDb, nowIso, toCents } from "./db";
 
 interface WrapperRow {
 	id: string;
+	code: string | null;
 	name: string;
 	color_hex: string;
 	price_cents: number;
@@ -18,6 +19,7 @@ export type WrapperInput = Omit<CustomWrapper, "id" | "image"> & {
 
 const toWrapper = (row: WrapperRow): CustomWrapper => ({
 	id: row.id,
+	...(row.code ? { code: row.code } : {}),
 	name: row.name,
 	colorHex: row.color_hex,
 	price: fromCents(row.price_cents),
@@ -42,7 +44,15 @@ export function getWrapper(id: string): CustomWrapper | null {
 	return row ? toWrapper(row) : null;
 }
 
+export function getWrapperByCode(code: string): CustomWrapper | null {
+	const row = getDb()
+		.query("SELECT * FROM wrappers WHERE code = $code")
+		.get({ code }) as WrapperRow | null;
+	return row ? toWrapper(row) : null;
+}
+
 const wrapperParams = (input: WrapperInput) => ({
+	code: input.code || null,
 	name: input.name,
 	colorHex: input.colorHex,
 	price: toCents(input.price),
@@ -58,7 +68,7 @@ export function saveWrapper(id: string | null, input: WrapperInput) {
 	if (id) {
 		const { changes } = db
 			.query(
-				`UPDATE wrappers SET name = $name, color_hex = $colorHex, price_cents = $price,
+				`UPDATE wrappers SET code = $code, name = $name, color_hex = $colorHex, price_cents = $price,
 				   stock_quantity = $stock, is_enabled = $enabled, image = $image, updated_at = $now
 				 WHERE id = $id`,
 			)
@@ -68,9 +78,9 @@ export function saveWrapper(id: string | null, input: WrapperInput) {
 	}
 	const newId = `w-${crypto.randomUUID().slice(0, 8)}`;
 	db.query(
-		`INSERT INTO wrappers (id, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
+		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
 		   created_at, updated_at)
-		 VALUES ($id, $name, $colorHex, $price, $stock, $enabled, $image,
+		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $enabled, $image,
 		   (SELECT COALESCE(MAX(sort), -1) + 1 FROM wrappers), $now, $now)`,
 	).run({ id: newId, ...wrapperParams(input), now });
 	return newId;
@@ -92,6 +102,17 @@ export function wrapperIdByName(name: string) {
 		enabled: false,
 		image: "",
 	});
+}
+
+/**
+ * Saves a wrapper from an Excel import: the one with this code is overwritten
+ * (it stays offered or not, as staff set it), otherwise it's added.
+ */
+export function importWrapper(input: WrapperInput & { code: string }) {
+	const existing = getWrapperByCode(input.code);
+	return existing
+		? saveWrapper(existing.id, { ...input, enabled: existing.enabled })
+		: saveWrapper(null, input);
 }
 
 /** Switches a wrapper on or off without touching the rest. */
@@ -116,9 +137,9 @@ export function deleteWrapper(id: string) {
 export function replaceWrappers(wrappers: CustomWrapper[]) {
 	const db = getDb();
 	const insert = db.query(
-		`INSERT INTO wrappers (id, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
+		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
 		   created_at, updated_at)
-		 VALUES ($id, $name, $colorHex, $price, $stock, $enabled, $image, $sort, $now, $now)`,
+		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $enabled, $image, $sort, $now, $now)`,
 	);
 	db.transaction(() => {
 		db.exec("DELETE FROM wrappers");

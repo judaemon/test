@@ -17,6 +17,7 @@ import {
 	Toggle,
 	toastError,
 } from "~/components/admin/ui";
+import { WrapperImport } from "~/components/admin/wrapper-import";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import type { CustomWrapper } from "~/lib/custom-bouquet";
 import { formatPrice, LOW_STOCK_THRESHOLD } from "~/lib/product";
@@ -65,7 +66,9 @@ function WrappersPage() {
 		});
 	const filtered = () => !!(search().q || search().use || search().stock);
 	const searched = () =>
-		all().filter((wrapper) => matchesQuery(search().q, wrapper.name));
+		all().filter((wrapper) =>
+			matchesQuery(search().q, `${wrapper.name} ${wrapper.code ?? ""}`),
+		);
 	const facets = (): Record<string, Facet<CustomWrapper>> => ({
 		use: {
 			chosen: parseList(search().use),
@@ -122,19 +125,22 @@ function WrappersPage() {
 				title="Wrappers"
 				description="Shoppers pick one for each bouquet they build. A price of 0 shows as “Free”."
 				actions={
-					<Link
-						to="/admin/wrappers/$wrapperId"
-						params={{ wrapperId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add wrapper
-					</Link>
+					<>
+						<WrapperImport wrappers={all()} />
+						<Link
+							to="/admin/wrappers/$wrapperId"
+							params={{ wrapperId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add wrapper
+						</Link>
+					</>
 				}
 			/>
 			<ListToolbar
 				query={search().q ?? ""}
 				onQuery={(q) => setSearch({ q: q || undefined })}
-				placeholder="Wrapper name"
+				placeholder="Wrapper name or code"
 				filters={[
 					filterOf("use", "Custom bouquets", [
 						{ key: "custom", label: "Offered" },
@@ -208,6 +214,11 @@ function WrappersPage() {
 										>
 											{wrapper.name}
 										</Link>
+										<Show when={wrapper.code && wrapper.code !== wrapper.name}>
+											<span class="ml-2 font-mono text-xs text-petal-900/55">
+												{wrapper.code}
+											</span>
+										</Show>
 										<p class="flex items-center gap-1.5 text-sm text-petal-900/65 tabular-nums">
 											<span
 												aria-hidden="true"

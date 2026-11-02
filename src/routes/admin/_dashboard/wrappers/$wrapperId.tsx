@@ -42,6 +42,7 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/$wrapperId")({
 interface WrapperDraft {
 	/** The name as last saved; empty for a new wrapper. */
 	savedName: string;
+	code: string;
 	name: string;
 	/** Empty until staff pick one: a new wrapper has no color yet. */
 	colorHex: string;
@@ -55,6 +56,7 @@ interface WrapperDraft {
 function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 	return {
 		savedName: wrapper?.name ?? "",
+		code: wrapper?.code ?? "",
 		name: wrapper?.name ?? "",
 		colorHex: wrapper?.colorHex ?? "",
 		price: wrapper ? String(wrapper.price) : "0",
@@ -104,6 +106,7 @@ function WrapperEditor() {
 				data: {
 					id: isNew() ? "" : params().wrapperId,
 					wrapper: {
+						code: draft.code,
 						name: draft.name,
 						colorHex: draft.colorHex,
 						price: Number(draft.price),
@@ -198,13 +201,25 @@ function WrapperEditor() {
 					</span>
 				</div>
 				<div class="grid gap-4 sm:grid-cols-2">
-					<Field label="Name" class="sm:col-span-2">
+					<Field label="Name">
 						<input
 							value={draft.name}
 							onInput={(e) => setDraft("name", e.currentTarget.value)}
 							required
 							maxLength={40}
 							placeholder="e.g. Kraft brown"
+							class={adminInput}
+						/>
+					</Field>
+					<Field
+						label="Code"
+						hint="Unique. An Excel import overwrites the wrapper with its code."
+					>
+						<input
+							value={draft.code}
+							onInput={(e) => setDraft("code", e.currentTarget.value)}
+							maxLength={40}
+							placeholder="e.g. 2T RED GOLD"
 							class={adminInput}
 						/>
 					</Field>

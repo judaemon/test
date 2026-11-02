@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/solid-start";
 
+import { normalizeWrapperCode } from "~/lib/custom-bouquet";
 import { requireStaff } from "../admin-auth";
 import { checkBuilderCanSell, getCustomSettings } from "../custom-repo";
 import {
@@ -14,6 +15,8 @@ import {
 import {
 	deleteWrapper,
 	getWrapper,
+	getWrapperByCode,
+	importWrapper,
 	listWrappers,
 	saveWrapper,
 	setWrapperEnabled,
@@ -36,6 +39,9 @@ export const getWrapperAdmin = createServerFn({ method: "GET" })
 
 function parseWrapper(source: Record<string, unknown>): WrapperInput {
 	const name = text(source, "name", { label: "Wrapper name", max: 40 });
+	const code = normalizeWrapperCode(
+		text(source, "code", { label: "Code", max: 40, required: false }),
+	);
 	const colorHex = text(source, "colorHex", { label: "Color", max: 7 });
 	if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
 		throw new InputError("Color must look like #c9a77c.");
@@ -45,6 +51,7 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 			? undefined
 			: integer(source, "stock", { label: `${name} stock`, max: 100_000 });
 	return {
+		...(code ? { code } : {}),
 		name,
 		colorHex,
 		price: price(source, "price", `${name} price`),
@@ -74,7 +81,22 @@ export const saveWrapperFn = createServerFn({ method: "POST" })
 		if (data.id && !getWrapper(data.id))
 			throw new InputError("That wrapper was deleted.");
 		if (data.id && !data.wrapper.enabled) keepAWrapperOffered(data.id);
+		const other = data.wrapper.code && getWrapperByCode(data.wrapper.code);
+		if (other && other.id !== data.id)
+			throw new InputError(`“${other.name}” already uses that code.`);
 		return getWrapper(saveWrapper(data.id, data.wrapper));
+	});
+
+/** One row of an Excel import: overwrites the wrapper with its code, if any. */
+export const importWrapperFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const wrapper = parseWrapper(asRecord(asRecord(input).wrapper));
+		if (!wrapper.code) throw new InputError("Every row needs a code.");
+		return { ...wrapper, code: wrapper.code };
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		return { id: importWrapper(data) };
 	});
 
 export const setWrapperEnabledFn = createServerFn({ method: "POST" })

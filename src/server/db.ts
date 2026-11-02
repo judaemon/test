@@ -468,6 +468,11 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE orders ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0;
 	`,
+	// v25: wrappers get a stock code; Excel imports overwrite by it.
+	`
+	ALTER TABLE wrappers ADD COLUMN code TEXT;
+	CREATE UNIQUE INDEX wrappers_by_code ON wrappers (code) WHERE code IS NOT NULL;
+	`,
 ];
 
 declare global {
@@ -475,14 +480,23 @@ declare global {
 	var __oraiaDb: Database | undefined;
 }
 
+/** Whether this copy of the module has checked the database is up to date. */
+let migrated = false;
+
 export function getDb(): Database {
-	if (globalThis.__oraiaDb) return globalThis.__oraiaDb;
+	if (globalThis.__oraiaDb) {
+		// HMR keeps the connection, but this file may have brought a new migration.
+		if (!migrated) migrate(globalThis.__oraiaDb);
+		migrated = true;
+		return globalThis.__oraiaDb;
+	}
 	mkdirSync(dirname(DB_PATH), { recursive: true });
 	const db = new Database(DB_PATH, { create: true, strict: true });
 	db.exec("PRAGMA journal_mode = WAL");
 	db.exec("PRAGMA foreign_keys = ON");
 	db.exec("PRAGMA busy_timeout = 5000");
 	migrate(db);
+	migrated = true;
 	seedStarterData(db);
 	globalThis.__oraiaDb = db;
 	return db;

@@ -83,6 +83,8 @@ export function flowerPhoto(
 
 export interface CustomWrapper {
 	id: string;
+	/** Stock code, unique; Excel imports overwrite the wrapper that has it. */
+	code?: string;
 	name: string;
 	colorHex: string;
 	price: number;
@@ -92,6 +94,10 @@ export interface CustomWrapper {
 	/** Photo of the wrapper; empty if none. */
 	image?: string;
 }
+
+/** `" 2t  red gold"` → `"2T RED GOLD"`, so a code matches however it's typed. */
+export const normalizeWrapperCode = (code: string) =>
+	code.trim().replace(/\s+/g, " ").toUpperCase();
 
 /** Whether a wrapper can go on another bouquet right now. */
 export const wrapperInStock = (wrapper: CustomWrapper) =>
