@@ -89,8 +89,10 @@ export interface CustomWrapper {
 	colorHex: string;
 	price: number;
 	enabled: boolean;
-	/** Wrappers left; each built bouquet uses one. Missing means not counted. */
+	/** Wrappers on hand; each built bouquet uses one. Missing means not counted. */
 	stock?: number;
+	/** Staff's recorded count, from the stock sheet; orders don't change it. */
+	stockActual?: number;
 	/** Photo of the wrapper; empty if none. */
 	image?: string;
 }

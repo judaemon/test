@@ -242,8 +242,12 @@ function WrappersPage() {
 													? "Stock not counted"
 													: wrapper.stock === 0
 														? "Sold out"
-														: `${wrapper.stock} left`}
+														: `${wrapper.stock} on hand`}
 											</span>
+											<Show when={wrapper.stockActual !== undefined}>
+												{" "}
+												· {wrapper.stockActual} actual
+											</Show>
 										</p>
 									</div>
 									<div class="flex items-center gap-3">

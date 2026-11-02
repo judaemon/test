@@ -88,6 +88,7 @@ export function WrapperImport(props: { wrappers: CustomWrapper[] }) {
 					colorHex,
 					price: row.price,
 					stock: row.stock,
+					stockActual: row.stockActual,
 					enabled: offer(),
 					image,
 				},
@@ -167,16 +168,25 @@ export function WrapperImport(props: { wrappers: CustomWrapper[] }) {
 									<thead class="sticky top-0 bg-white text-xs uppercase tracking-wide text-petal-900/55">
 										<tr>
 											<th class="px-5 py-2 font-medium">Code</th>
-											<th class="px-3 py-2 text-right font-medium">Price</th>
-											<th class="px-3 py-2 text-right font-medium">Stock</th>
-											<th class="px-5 py-2 font-medium">Result</th>
+											<th class="px-2 py-2 text-right font-medium sm:px-3">
+												Price
+											</th>
+											<th class="px-2 py-2 text-right font-medium sm:px-3">
+												Actual
+											</th>
+											<th class="px-2 py-2 text-right font-medium whitespace-nowrap sm:px-3">
+												On hand
+											</th>
+											<th class="hidden px-5 py-2 font-medium sm:table-cell">
+												Result
+											</th>
 										</tr>
 									</thead>
 									<tbody>
 										<For each={plan()?.rows}>
 											{(row) => (
 												<tr class="border-t border-petal-50">
-													<td class="px-5 py-1.5">
+													<td class="py-1.5 pl-5 pr-2">
 														<span class="flex items-center gap-2 font-medium">
 															<Show when={preview(row)}>
 																{(src) => (
@@ -190,14 +200,20 @@ export function WrapperImport(props: { wrappers: CustomWrapper[] }) {
 															</Show>
 															{row.code}
 														</span>
+														<span class="ml-10 block text-xs text-petal-900/60 sm:hidden">
+															{existing(row.code) ? "Overwrite" : "New"}
+														</span>
 													</td>
-													<td class="px-3 py-1.5 text-right tabular-nums">
+													<td class="px-2 py-1.5 text-right tabular-nums sm:px-3">
 														{formatPrice(row.price, "PHP")}
 													</td>
-													<td class="px-3 py-1.5 text-right tabular-nums">
+													<td class="px-2 py-1.5 text-right tabular-nums sm:px-3">
+														{row.stockActual ?? "—"}
+													</td>
+													<td class="px-2 py-1.5 text-right tabular-nums sm:px-3">
 														{row.stock}
 													</td>
-													<td class="px-5 py-1.5 text-xs text-petal-900/60">
+													<td class="hidden px-5 py-1.5 text-xs text-petal-900/60 sm:table-cell">
 														{existing(row.code) ? "Overwrite" : "New"}
 													</td>
 												</tr>

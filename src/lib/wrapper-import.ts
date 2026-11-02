@@ -7,7 +7,10 @@ export const FALLBACK_WRAPPER_COLOR = "#d9cfc7";
 export interface WrapperImportRow {
 	code: string;
 	price: number;
+	/** STOCK ONHAND. */
 	stock: number;
+	/** STOCK ACTUAL; missing if the cell is blank. */
+	stockActual?: number;
 	image?: Blob;
 }
 
@@ -24,6 +27,7 @@ const SHEET = "STOCK";
 const COLUMNS = {
 	code: "CODE",
 	stock: "STOCK ONHAND",
+	stockActual: "STOCK ACTUAL",
 	price: "FINAL PRICE",
 } as const;
 
@@ -41,6 +45,9 @@ function toNumber(value: unknown) {
 	const number = Number(cellValue(value));
 	return Number.isFinite(number) ? number : 0;
 }
+
+/** A whole count of at least 0. */
+const toCount = (value: unknown) => Math.max(0, Math.round(toNumber(value)));
 
 /**
  * Reads the wrappers out of the stock workbook, in the browser: the file is
@@ -72,6 +79,7 @@ export async function readWrapperWorkbook(
 	};
 	const code = columnOf(COLUMNS.code);
 	const stock = columnOf(COLUMNS.stock);
+	const stockActual = columnOf(COLUMNS.stockActual);
 	const price = columnOf(COLUMNS.price);
 
 	const imageByRow = new Map<number, Blob>();
@@ -110,7 +118,10 @@ export async function readWrapperWorkbook(
 		rows.set(rowCode, {
 			code: rowCode,
 			price: rowPrice,
-			stock: Math.max(0, Math.round(toNumber(row.getCell(stock).value))),
+			stock: toCount(row.getCell(stock).value),
+			...(row.getCell(stockActual).value == null
+				? {}
+				: { stockActual: toCount(row.getCell(stockActual).value) }),
 			image: imageByRow.get(number),
 		});
 	}

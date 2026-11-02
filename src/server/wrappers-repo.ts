@@ -8,6 +8,7 @@ interface WrapperRow {
 	color_hex: string;
 	price_cents: number;
 	stock_quantity: number | null;
+	stock_actual: number | null;
 	is_enabled: number;
 	image: string;
 }
@@ -25,6 +26,7 @@ const toWrapper = (row: WrapperRow): CustomWrapper => ({
 	price: fromCents(row.price_cents),
 	enabled: row.is_enabled === 1,
 	...(row.stock_quantity === null ? {} : { stock: row.stock_quantity }),
+	...(row.stock_actual === null ? {} : { stockActual: row.stock_actual }),
 	...(row.image ? { image: row.image } : {}),
 });
 
@@ -57,6 +59,7 @@ const wrapperParams = (input: WrapperInput) => ({
 	colorHex: input.colorHex,
 	price: toCents(input.price),
 	stock: input.stock ?? null,
+	stockActual: input.stockActual ?? null,
 	enabled: input.enabled ? 1 : 0,
 	image: input.image,
 });
@@ -69,7 +72,7 @@ export function saveWrapper(id: string | null, input: WrapperInput) {
 		const { changes } = db
 			.query(
 				`UPDATE wrappers SET code = $code, name = $name, color_hex = $colorHex, price_cents = $price,
-				   stock_quantity = $stock, is_enabled = $enabled, image = $image, updated_at = $now
+				   stock_quantity = $stock, stock_actual = $stockActual, is_enabled = $enabled, image = $image, updated_at = $now
 				 WHERE id = $id`,
 			)
 			.run({ id, ...wrapperParams(input), now });
@@ -78,9 +81,9 @@ export function saveWrapper(id: string | null, input: WrapperInput) {
 	}
 	const newId = `w-${crypto.randomUUID().slice(0, 8)}`;
 	db.query(
-		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
+		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, stock_actual, is_enabled, image, sort,
 		   created_at, updated_at)
-		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $enabled, $image,
+		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $stockActual, $enabled, $image,
 		   (SELECT COALESCE(MAX(sort), -1) + 1 FROM wrappers), $now, $now)`,
 	).run({ id: newId, ...wrapperParams(input), now });
 	return newId;
@@ -137,9 +140,9 @@ export function deleteWrapper(id: string) {
 export function replaceWrappers(wrappers: CustomWrapper[]) {
 	const db = getDb();
 	const insert = db.query(
-		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, is_enabled, image, sort,
+		`INSERT INTO wrappers (id, code, name, color_hex, price_cents, stock_quantity, stock_actual, is_enabled, image, sort,
 		   created_at, updated_at)
-		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $enabled, $image, $sort, $now, $now)`,
+		 VALUES ($id, $code, $name, $colorHex, $price, $stock, $stockActual, $enabled, $image, $sort, $now, $now)`,
 	);
 	db.transaction(() => {
 		db.exec("DELETE FROM wrappers");

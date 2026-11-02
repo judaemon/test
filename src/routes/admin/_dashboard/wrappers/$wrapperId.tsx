@@ -49,6 +49,7 @@ interface WrapperDraft {
 	price: string;
 	/** Blank means not counted. */
 	stock: string;
+	stockActual: string;
 	enabled: boolean;
 	image: string;
 }
@@ -61,6 +62,8 @@ function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 		colorHex: wrapper?.colorHex ?? "",
 		price: wrapper ? String(wrapper.price) : "0",
 		stock: wrapper?.stock === undefined ? "" : String(wrapper.stock),
+		stockActual:
+			wrapper?.stockActual === undefined ? "" : String(wrapper.stockActual),
 		enabled: wrapper?.enabled ?? true,
 		image: wrapper?.image ?? "",
 	};
@@ -111,6 +114,10 @@ function WrapperEditor() {
 						colorHex: draft.colorHex,
 						price: Number(draft.price),
 						stock: draft.stock.trim() === "" ? null : Number(draft.stock),
+						stockActual:
+							draft.stockActual.trim() === ""
+								? null
+								: Number(draft.stockActual),
 						enabled: draft.enabled,
 						image: draft.image,
 					},
@@ -247,7 +254,22 @@ function WrapperEditor() {
 						/>
 					</Field>
 					<Field
-						label="In stock"
+						label="Stock actual"
+						hint="The count on your stock sheet. Orders don’t change it."
+					>
+						<input
+							type="number"
+							min="0"
+							step="1"
+							inputMode="numeric"
+							value={draft.stockActual}
+							onInput={(e) => setDraft("stockActual", e.currentTarget.value)}
+							placeholder="Not recorded"
+							class={cn(adminInput, "tabular-nums")}
+						/>
+					</Field>
+					<Field
+						label="Stock on hand"
 						hint="Each built bouquet uses one; cancelled orders put it back. Leave blank to not count it."
 					>
 						<input

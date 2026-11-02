@@ -473,6 +473,10 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE wrappers ADD COLUMN code TEXT;
 	CREATE UNIQUE INDEX wrappers_by_code ON wrappers (code) WHERE code IS NOT NULL;
 	`,
+	// v26: wrappers keep the actual stock count beside what's on hand.
+	`
+	ALTER TABLE wrappers ADD COLUMN stock_actual INTEGER CHECK (stock_actual >= 0);
+	`,
 ];
 
 declare global {

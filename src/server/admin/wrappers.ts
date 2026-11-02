@@ -46,10 +46,12 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 	if (!/^#[0-9a-fA-F]{6}$/.test(colorHex))
 		throw new InputError("Color must look like #c9a77c.");
 	// Blank stock means the wrapper isn't counted.
-	const stock =
-		source.stock === null || source.stock === undefined || source.stock === ""
+	const count = (key: string, label: string) =>
+		source[key] === null || source[key] === undefined || source[key] === ""
 			? undefined
-			: integer(source, "stock", { label: `${name} stock`, max: 100_000 });
+			: integer(source, key, { label: `${name} ${label}`, max: 100_000 });
+	const stock = count("stock", "stock on hand");
+	const stockActual = count("stockActual", "stock actual");
 	return {
 		...(code ? { code } : {}),
 		name,
@@ -57,6 +59,7 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 		price: price(source, "price", `${name} price`),
 		enabled: bool(source, "enabled"),
 		...(stock === undefined ? {} : { stock }),
+		...(stockActual === undefined ? {} : { stockActual }),
 		image: source.image ? imageUrl(source.image) : "",
 	};
 }
