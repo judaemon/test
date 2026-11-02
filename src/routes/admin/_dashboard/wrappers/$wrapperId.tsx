@@ -3,6 +3,7 @@ import {
 	Link,
 	notFound,
 	useNavigate,
+	useRouter,
 } from "@tanstack/solid-router";
 import { createSignal, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -80,6 +81,7 @@ function WrapperEditor() {
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const navigate = useNavigate();
+	const router = useRouter();
 	const isNew = () => params().wrapperId === "new";
 	const [draft, setDraft] = createStore<WrapperDraft>(toDraft(loaded()));
 	const [saving, setSaving] = createSignal(false);
@@ -136,13 +138,9 @@ function WrapperEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the wrapper.");
 			toastSuccess(isNew() ? "Wrapper added." : "Changes saved.");
-			setDraft(toDraft(saved));
-			if (isNew())
-				await navigate({
-					to: "/admin/wrappers/$wrapperId",
-					params: { wrapperId: saved.id },
-					replace: true,
-				});
+			// So the list shows this save straight away.
+			await router.invalidate();
+			await navigate({ to: "/admin/wrappers", replace: true });
 		} catch (error) {
 			toastError(error);
 		} finally {

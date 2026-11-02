@@ -3,6 +3,7 @@ import {
 	Link,
 	notFound,
 	useNavigate,
+	useRouter,
 } from "@tanstack/solid-router";
 import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
@@ -189,13 +190,12 @@ function ProductEditor() {
 	const loaded = () => data().product;
 	const params = Route.useParams();
 	const navigate = useNavigate();
+	const router = useRouter();
 	const isNew = () => params().productId === "new";
 	const [draft, setDraft] = createStore<ProductDraft>(toDraft(loaded()));
 	const [saving, setSaving] = createSignal(false);
 	// What the shop sees right now (the draft may have unsaved changes).
-	const [savedVisible, setSavedVisible] = createSignal(
-		loaded()?.isVisible ?? true,
-	);
+	const savedVisible = () => loaded()?.isVisible ?? true;
 	const [uploading, setUploading] = createSignal<string | null>(null);
 
 	const updateVariant = (index: number, patch: Partial<VariantDraft>) =>
@@ -413,15 +413,9 @@ function ProductEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the bouquet.");
 			toastSuccess(isNew() ? "Bouquet created." : "Changes saved.");
-			setDraft(toDraft(saved));
-			setSavedVisible(saved.isVisible);
-			if (isNew()) {
-				await navigate({
-					to: "/admin/signature-bouquets/$productId",
-					params: { productId: saved.id },
-					replace: true,
-				});
-			}
+			// So the list shows this save straight away.
+			await router.invalidate();
+			await navigate({ to: "/admin/signature-bouquets", replace: true });
 		} catch (error) {
 			toastError(error);
 		} finally {

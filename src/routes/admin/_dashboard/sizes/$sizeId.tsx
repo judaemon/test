@@ -89,15 +89,9 @@ function SizeEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the size.");
 			toastSuccess(isNew() ? "Size added." : "Changes saved.");
-			setDraft("savedName", saved.name);
 			// The shop and the bouquet editor read sizes from the root route.
 			await router.invalidate();
-			if (isNew())
-				await navigate({
-					to: "/admin/sizes/$sizeId",
-					params: { sizeId: saved.id },
-					replace: true,
-				});
+			await navigate({ to: "/admin/sizes", replace: true });
 		} catch (error) {
 			toastError(error);
 		} finally {

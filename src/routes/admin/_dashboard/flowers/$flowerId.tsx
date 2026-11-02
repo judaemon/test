@@ -3,6 +3,7 @@ import {
 	Link,
 	notFound,
 	useNavigate,
+	useRouter,
 } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -102,6 +103,7 @@ function FlowerEditor() {
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const navigate = useNavigate();
+	const router = useRouter();
 	const isNew = () => params().flowerId === "new";
 	const [draft, setDraft] = createStore<FlowerDraft>(toDraft(loaded()));
 	const [saving, setSaving] = createSignal(false);
@@ -162,13 +164,9 @@ function FlowerEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the flower.");
 			toastSuccess(isNew() ? "Flower added." : "Changes saved.");
-			setDraft(toDraft(saved));
-			if (isNew())
-				await navigate({
-					to: "/admin/flowers/$flowerId",
-					params: { flowerId: saved.id },
-					replace: true,
-				});
+			// So the list shows this save straight away.
+			await router.invalidate();
+			await navigate({ to: "/admin/flowers", replace: true });
 		} catch (error) {
 			toastError(error);
 		} finally {
