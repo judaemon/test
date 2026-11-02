@@ -148,6 +148,9 @@ export function ShopPage() {
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
+			<p class="bg-petal-700 px-4 py-2 text-center text-sm font-medium text-white">
+				No more Google Sheets. Order your bouquet right here.
+			</p>
 			<SiteHeader />
 			<main class="flex-1">
 				{/* Apple-style hero: most of a screen tall, big centered type, two pill buttons. */}
