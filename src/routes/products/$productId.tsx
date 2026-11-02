@@ -8,6 +8,7 @@ import { createMemo, Show } from "solid-js";
 
 import { ProductGallery } from "~/components/product/product-gallery";
 import { ProductInfo } from "~/components/product/product-info";
+import { RelatedBouquets } from "~/components/product/related-bouquets";
 import { VariantSelector } from "~/components/product/variant-selector";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
@@ -136,6 +137,8 @@ function ProductPage() {
 						/>
 					</ProductInfo>
 				</div>
+
+				<RelatedBouquets product={product()} />
 			</main>
 			<SiteFooter />
 		</div>

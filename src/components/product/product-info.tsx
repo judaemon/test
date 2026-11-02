@@ -58,6 +58,15 @@ export function ProductInfo(props: ProductInfoProps) {
 	const isMaxedOut = () => props.variant.inStock && remaining() === 0;
 	const maxQuantity = () => Math.max(1, remaining());
 
+	// Suggestions swap the bouquet on this same page; start its count over.
+	createEffect(
+		on(
+			() => props.product.id,
+			() => setQuantity(1),
+			{ defer: true },
+		),
+	);
+
 	// Switching themes must not leave an impossible quantity.
 	createEffect(
 		on(maxQuantity, (max) => setQuantity((current) => Math.min(current, max))),

@@ -191,6 +191,26 @@ code {
   }
 }
 
+/* The browser's clear button in search boxes, in the shop's colors. */
+input[type='search']::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	appearance: none;
+	flex-shrink: 0;
+	width: 1rem;
+	height: 1rem;
+	margin: 0 0 0 0.5rem;
+	background-color: currentColor;
+	opacity: 0.45;
+	cursor: pointer;
+	transition: opacity 150ms;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E")
+		center / contain no-repeat;
+}
+
+input[type='search']::-webkit-search-cancel-button:hover {
+	opacity: 0.8;
+}
+
 /*
  * Wide tables read as a list of cards on phones. Cells take half the row;
  * `data-wide` makes one full width and `data-label` names what's in it.

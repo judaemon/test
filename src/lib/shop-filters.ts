@@ -1,7 +1,9 @@
-import type { Product } from "~/types/product";
+import type { Product, ProductVariant } from "~/types/product";
 
 /** The landing page's filters, kept in the address so a view can be shared. */
 export interface ShopFilters {
+	/** Part of a bouquet's name. */
+	q?: string;
 	/** Flowers' keys, comma-separated, e.g. "roses,white-lily". */
 	flower?: string;
 	/** Sizes' ids, comma-separated, e.g. "petite,classic". */
@@ -30,8 +32,18 @@ export function validateShopFilters(
 		typeof search[key] === "string" && search[key]
 			? (search[key] as string).slice(0, 400)
 			: undefined;
-	return { flower: value("flower"), size: value("size") };
+	// The router reads an all-digit value as a number.
+	const q = typeof search.q === "number" ? String(search.q) : search.q;
+	return {
+		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 120) : undefined,
+		flower: value("flower"),
+		size: value("size"),
+	};
 }
+
+/** Whether a bouquet's name has the search in it; any case. */
+export const nameMatches = (title: string, query: string) =>
+	title.toLowerCase().includes(query.trim().toLowerCase());
 
 /** Every flower in any of a bouquet's themes, by name. */
 export function bouquetFlowers(product: Product) {
@@ -42,4 +54,28 @@ export function bouquetFlowers(product: Product) {
 			),
 		),
 	];
+}
+
+/**
+ * Other bouquets to suggest, each on its first available theme: those sharing
+ * the most flowers first, then the same size, then the shop's order.
+ */
+export function relatedBouquets(
+	product: Product,
+	catalog: Product[],
+	limit = 5,
+): { product: Product; variant: ProductVariant }[] {
+	const flowers = new Set(bouquetFlowers(product));
+	const shared = (other: Product) =>
+		bouquetFlowers(other).filter((flower) => flowers.has(flower)).length;
+	const sameSize = (other: Product) => (other.size === product.size ? 1 : 0);
+	return catalog
+		.filter((other) => other.id !== product.id && other.variants.length > 0)
+		.sort((a, b) => shared(b) - shared(a) || sameSize(b) - sameSize(a))
+		.slice(0, limit)
+		.map((other) => ({
+			product: other,
+			variant:
+				other.variants.find((variant) => variant.inStock) ?? other.variants[0],
+		}));
 }

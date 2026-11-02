@@ -1,5 +1,14 @@
 import { Link, useNavigate, useSearch } from "@tanstack/solid-router";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	on,
+	onCleanup,
+	Show,
+} from "solid-js";
+import { BouquetCard } from "~/components/shop/bouquet-card";
 import { HowToOrder } from "~/components/shop/how-to-order";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
@@ -12,6 +21,7 @@ import {
 	bouquetFlowers,
 	filterKey,
 	joinList,
+	nameMatches,
 	parseList,
 	type ShopFilters,
 } from "~/lib/shop-filters";
@@ -54,9 +64,30 @@ export function ShopPage() {
 	};
 	const chosenFlowers = () => parseList(search().flower);
 	const chosenSizes = () => parseList(search().size);
-	const filtering = () => chosenFlowers().length + chosenSizes().length > 0;
+	// The list follows each keystroke; the address once the person pauses.
+	const [query, setQuery] = createSignal(search().q ?? "");
+	createEffect(
+		on(
+			() => search().q,
+			(value) => setQuery(value ?? ""),
+			{ defer: true },
+		),
+	);
+	let debounce: ReturnType<typeof setTimeout> | undefined;
+	onCleanup(() => clearTimeout(debounce));
+	const typeQuery = (value: string) => {
+		setQuery(value);
+		clearTimeout(debounce);
+		debounce = setTimeout(
+			() => setFilter({ q: value.trim() || undefined }),
+			300,
+		);
+	};
+	const filtering = () =>
+		!!query().trim() || chosenFlowers().length + chosenSizes().length > 0;
 	const [stepsOpen, setStepsOpen] = createSignal(false);
 
+	const hasName = (product: Product) => nameMatches(product.title, query());
 	// A bouquet matches a filter if it has any of the ticked choices.
 	const hasFlower = (product: Product, flowers: string[]) =>
 		!flowers.length ||
@@ -65,14 +96,15 @@ export function ShopPage() {
 		!sizes.length || sizes.includes(product.size);
 
 	// Filters offer only what some bouquet has. Each count is how many
-	// bouquets that choice shows, given the other filter.
+	// bouquets that choice shows, given the search and the other filter.
 	const flowerOptions = createMemo(() => {
 		const counts = new Map<string, number>();
 		for (const product of catalog())
 			for (const flower of bouquetFlowers(product))
 				counts.set(
 					flower,
-					(counts.get(flower) ?? 0) + (hasSize(product, chosenSizes()) ? 1 : 0),
+					(counts.get(flower) ?? 0) +
+						(hasName(product) && hasSize(product, chosenSizes()) ? 1 : 0),
 				);
 		return [...counts.entries()]
 			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -81,7 +113,9 @@ export function ShopPage() {
 	const sizeOptions = createMemo(() =>
 		sizes().flatMap((size) => {
 			const all = catalog().filter((p) => p.size === size.id);
-			const count = all.filter((p) => hasFlower(p, chosenFlowers())).length;
+			const count = all.filter(
+				(p) => hasName(p) && hasFlower(p, chosenFlowers()),
+			).length;
 			return all.length ? [{ key: size.id, label: size.name, count }] : [];
 		}),
 	);
@@ -91,7 +125,7 @@ export function ShopPage() {
 	// filtering by flower.
 	const bouquets = () =>
 		catalog().flatMap((product) => {
-			if (!hasSize(product, chosenSizes())) return [];
+			if (!hasName(product) || !hasSize(product, chosenSizes())) return [];
 			const flowers = chosenFlowers();
 			const themes = product.variants.filter(
 				(variant: ProductVariant) =>
@@ -289,6 +323,28 @@ export function ShopPage() {
 						</h2>
 						<Show when={catalog().length > 0}>
 							<div class="mt-4 flex flex-wrap items-center gap-2">
+								<label class="flex h-10 w-full items-center gap-2 rounded-xl border border-petal-200 bg-white px-3 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 sm:w-64">
+									<svg
+										aria-hidden="true"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.8"
+										stroke-linecap="round"
+										class="size-4 shrink-0 text-petal-900/45"
+									>
+										<circle cx="11" cy="11" r="6.5" />
+										<path d="m20 20-4.2-4.2" />
+									</svg>
+									<span class="sr-only">Search bouquets by name</span>
+									<input
+										type="search"
+										value={query()}
+										onInput={(e) => typeQuery(e.currentTarget.value)}
+										placeholder="Search by name"
+										class="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-petal-900/40 sm:text-sm"
+									/>
+								</label>
 								<FacetFilter
 									label="Flower"
 									options={flowerOptions()}
@@ -308,9 +364,15 @@ export function ShopPage() {
 								<Show when={filtering()}>
 									<button
 										type="button"
-										onClick={() =>
-											setFilter({ flower: undefined, size: undefined })
-										}
+										onClick={() => {
+											clearTimeout(debounce);
+											setQuery("");
+											setFilter({
+												q: undefined,
+												flower: undefined,
+												size: undefined,
+											});
+										}}
 										class="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-petal-900/70 transition-colors outline-none hover:bg-petal-100 hover:text-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500"
 									>
 										Reset
@@ -349,7 +411,7 @@ export function ShopPage() {
 											No bouquets match
 										</p>
 										<p class="text-sm text-petal-900/65">
-											Try another flower or size, or{" "}
+											Try another name, flower or size, or{" "}
 											<Link
 												to="/custom"
 												class="font-medium text-petal-700 underline"
@@ -366,31 +428,7 @@ export function ShopPage() {
 								<For each={bouquets()}>
 									{({ product, variant }) => (
 										<li>
-											<Link
-												to="/products/$productId"
-												params={{ productId: product.id }}
-												search={{ theme: variant.id }}
-												class="group block rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-4 focus-visible:ring-offset-cream"
-											>
-												<div class="relative aspect-square overflow-hidden rounded-2xl bg-petal-50 shadow-[0_12px_28px_-20px] shadow-petal-900/40 sm:rounded-3xl">
-													<img
-														src={variant.images[0]}
-														alt={`${product.title}, ${variant.colorName}`}
-														width={600}
-														height={600}
-														loading="lazy"
-														class="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-													/>
-													<Show when={!variant.inStock}>
-														<span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
-															Not available
-														</span>
-													</Show>
-												</div>
-												<p class="mt-2 text-center font-display type-soft text-base font-semibold sm:text-lg">
-													{product.title}
-												</p>
-											</Link>
+											<BouquetCard product={product} variant={variant} />
 										</li>
 									)}
 								</For>
