@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "bun .output/server/index.mjs",
     "db:seed": "bun scripts/seed-demo.ts",
+    "db:seed:orders": "bun scripts/seed-demo.ts --orders",
     "catalog:export": "bun scripts/catalog.ts export",
     "catalog:import": "bun scripts/catalog.ts import",
     "preview": "vite preview",

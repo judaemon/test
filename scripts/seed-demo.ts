@@ -3,6 +3,8 @@
  *
  *   bun run db:seed            add demo accounts, bouquets and orders (skips what exists)
  *   bun run db:seed --reset    wipe bouquets, orders, payment settings and accounts first
+ *   bun run db:seed:orders     add orders for the bouquets already in the shop; nothing else
+ *   bun run db:seed:orders 80  the same, with this many orders (40 if left out)
  *
  * Safe to run while the dev server is running. Refuses to run in production.
  */
@@ -43,6 +45,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const RESET = process.argv.includes("--reset");
+const ORDERS_ONLY = process.argv.includes("--orders");
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? ".data/uploads";
 const REVIEWER = "Olivia Owner";
 
@@ -159,27 +162,24 @@ interface DemoOrder {
 	customer?: true;
 }
 
-const ROSES = "signature-rose-bouquet";
-const POSY = "petite-rose-posy";
-
 // A spread that fills every board column, payment state and filter.
 const DEMO_ORDERS: DemoOrder[] = [
-	{ recipient: "Miguel Tan", items: [[ROSES, "pastel-pink", 2]], method: "card", stage: "done", placedHoursAgo: 60, customer: true },
-	{ recipient: "Lea Ramos", items: [[POSY, "blush-pink", 1]], method: "maya", review: "verified", stage: "done", placedHoursAgo: 40 },
-	{ recipient: "Rosa Villanueva", items: [[ROSES, "red-velvet", 1]], method: "gcash", review: "verified", stage: "making", gift: "Sorry I missed your recital. So proud of you!", placedHoursAgo: 30 },
-	{ recipient: "Gina Flores", items: [[ROSES, "red-velvet", 1]], method: "card", stage: "done", placedHoursAgo: 20 },
-	{ recipient: "Ana Reyes", items: [[ROSES, "red-velvet", 2]], method: "card", stage: "making", gift: "Happy anniversary, mahal! Ten years and counting.", placedHoursAgo: 18, customer: true },
-	{ recipient: "Bea Santos", items: [[ROSES, "pastel-pink", 1]], method: "gcash", review: "verified", stage: "making", gift: "Get well soon, Lola. We love you!", placedHoursAgo: 16, customer: true },
-	{ recipient: "Carlo Mendoza", items: [[ROSES, "cream-white", 1]], method: "bank", review: "verified", stage: "making", placedHoursAgo: 14 },
-	{ recipient: "Dani Cruz", items: [[POSY, "ruby", 1]], method: "gcash", stage: "new", placedHoursAgo: 5 },
-	{ recipient: "Mark Uy", items: [[ROSES, "pastel-pink", 1]], method: "card", stage: "cancelled", placedHoursAgo: 12 },
-	{ recipient: "Ella Garcia", items: [[ROSES, "red-velvet", 1], [POSY, "blush-pink", 1]], method: "card", stage: "new", gift: "Congratulations on the new job!", placedHoursAgo: 4 },
-	{ recipient: "Felix Lim", items: [[ROSES, "pastel-pink", 1]], method: "maya", review: "rejected", stage: "new", placedHoursAgo: 6 },
-	{ recipient: "Hana Aquino", items: [[ROSES, "pastel-pink", 1]], method: "gcash", stage: "new", placedHoursAgo: 3, customer: true },
-	{ recipient: "Ivan Bautista", items: [[ROSES, "red-velvet", 3]], method: "card", stage: "new", gift: "Happy birthday, Ma! Love, Ivan and Pia", placedHoursAgo: 2 },
-	{ recipient: "Joy Navarro", items: [[POSY, "blush-pink", 2]], method: "bank", stage: "new", placedHoursAgo: 1 },
-	{ recipient: "Karl Dizon", items: [[ROSES, "red-velvet", 1]], method: "card", stage: "new", placedHoursAgo: 1 },
-	{ recipient: "Lia Morales", items: [[ROSES, "cream-white", 1]], method: "maya", review: "verified", stage: "new", placedHoursAgo: 0.5 },
+	{ recipient: "Miguel Tan", items: [["rosie", "pastel-pink", 2]], method: "card", stage: "done", placedHoursAgo: 60, customer: true },
+	{ recipient: "Lea Ramos", items: [["bella", "blush-pink", 1]], method: "maya", review: "verified", stage: "done", placedHoursAgo: 40 },
+	{ recipient: "Rosa Villanueva", items: [["scarlett", "red-velvet", 1]], method: "gcash", review: "verified", stage: "making", gift: "Sorry I missed your recital. So proud of you!", placedHoursAgo: 30 },
+	{ recipient: "Gina Flores", items: [["scarlett", "red-velvet", 1]], method: "card", stage: "done", placedHoursAgo: 20 },
+	{ recipient: "Ana Reyes", items: [["scarlett", "red-velvet", 2]], method: "card", stage: "making", gift: "Happy anniversary, mahal! Ten years and counting.", placedHoursAgo: 18, customer: true },
+	{ recipient: "Bea Santos", items: [["rosie", "pastel-pink", 1]], method: "gcash", review: "verified", stage: "making", gift: "Get well soon, Lola. We love you!", placedHoursAgo: 16, customer: true },
+	{ recipient: "Carlo Mendoza", items: [["bianca", "cream-white", 1]], method: "bank", review: "verified", stage: "making", placedHoursAgo: 14 },
+	{ recipient: "Dani Cruz", items: [["bella", "ruby", 1]], method: "gcash", stage: "new", placedHoursAgo: 5 },
+	{ recipient: "Mark Uy", items: [["rosie", "pastel-pink", 1]], method: "card", stage: "cancelled", placedHoursAgo: 12 },
+	{ recipient: "Ella Garcia", items: [["scarlett", "red-velvet", 1], ["bella", "blush-pink", 1]], method: "card", stage: "new", gift: "Congratulations on the new job!", placedHoursAgo: 4 },
+	{ recipient: "Felix Lim", items: [["rosie", "pastel-pink", 1]], method: "maya", review: "rejected", stage: "new", placedHoursAgo: 6 },
+	{ recipient: "Hana Aquino", items: [["rosie", "pastel-pink", 1]], method: "gcash", stage: "new", placedHoursAgo: 3, customer: true },
+	{ recipient: "Ivan Bautista", items: [["scarlett", "red-velvet", 3]], method: "card", stage: "new", gift: "Happy birthday, Ma! Love, Ivan and Pia", placedHoursAgo: 2 },
+	{ recipient: "Joy Navarro", items: [["bella", "blush-pink", 2]], method: "bank", stage: "new", placedHoursAgo: 1 },
+	{ recipient: "Karl Dizon", items: [["scarlett", "red-velvet", 1]], method: "card", stage: "new", placedHoursAgo: 1 },
+	{ recipient: "Lia Morales", items: [["bianca", "cream-white", 1]], method: "maya", review: "verified", stage: "new", placedHoursAgo: 0.5 },
 ];
 
 const DEDICATED_TO = ["Rosa", "Mahal", "Lola", "Ella", "Ma"];
@@ -215,6 +215,159 @@ function backdate(id: string, hoursAgo: number) {
 		   delivered_at = CASE WHEN delivered_at IS NULL THEN NULL ELSE $last END
 		 WHERE id = $id`,
 	).run({ id, placed: at(0), last });
+}
+
+/** Places one order and walks it to its stage. False if an item can't be bought. */
+async function placeDemoOrder(
+	demo: DemoOrder,
+	index: number,
+	customerId: string | undefined,
+) {
+	const catalog = listPublicProducts();
+	const cart = priceCart(
+		demo.items.map(([productId, variantId, quantity]) => ({
+			productId,
+			variantId,
+			quantity,
+		})),
+		catalog,
+	);
+	const problem = cart.lines.find((line) => line.problem);
+	if (cart.lines.length !== demo.items.length || problem) {
+		console.warn(`  ! skipped order for ${demo.recipient}: item missing or out of stock`);
+		return false;
+	}
+
+	const id = crypto.randomUUID();
+	let payment: NewOrder["payment"];
+	if (demo.method === "card") {
+		payment = {
+			method: "card",
+			status: "paid",
+			cardBrand: index % 2 === 0 ? "visa" : "mastercard",
+			cardLast4: String(4242 + index * 37).slice(-4),
+		};
+	} else {
+		payment = {
+			method: demo.method,
+			status: "pending",
+			referenceNumber: String(1_000_000_000_000 + index * 7_654_321_987),
+		};
+	}
+
+	createOrder({
+		id,
+		cart,
+		payment,
+		customerId: demo.customer ? customerId : undefined,
+		details: {
+			firstName: demo.recipient.split(" ")[0] as string,
+			lastName: demo.recipient.split(" ").slice(1).join(" "),
+			fullName: demo.recipient,
+			// Every fifth buyer is a civilian, who has no company.
+			className: index % 5 === 4 ? CIVILIAN : (CADET_CLASSES[index % CADET_CLASSES.length] as string),
+			company: index % 5 === 4 ? "" : COMPANIES[index % COMPANIES.length]?.name ?? "",
+			serialNumber: index % 5 === 4 ? "" : String(10000 + index),
+			email: `${demo.recipient.split(" ")[0]?.toLowerCase()}@example.com`,
+			notes: index % 4 === 1 ? "Please wrap it in kraft paper." : "",
+			addDedication: !!demo.gift,
+			dedicationFor: demo.gift
+				? (DEDICATED_TO[index % DEDICATED_TO.length] as string)
+				: "",
+			dedicationMessage: demo.gift ?? "",
+		},
+	});
+	if (demo.review) reviewPayment(id, demo.review, REVIEWER);
+	// Walk through each stage like staff would, so the timeline is complete.
+	const path =
+		demo.stage === "cancelled"
+			? (["cancelled"] as const)
+			: BOARD_STAGES.slice(1, BOARD_STAGES.indexOf(demo.stage) + 1);
+	for (const stage of path) setOrderStage(id, stage);
+	if (demo.stage === "done") {
+		setRider(id, RIDERS[index % RIDERS.length] as (typeof RIDERS)[number]);
+	}
+	if (demo.stage === "done") {
+		const photo = `${crypto.randomUUID()}.png`;
+		await copyFile(SAMPLE_DELIVERY, join(UPLOAD_DIR, "delivery", photo));
+		setDeliveryPhoto(id, photo);
+	}
+	backdate(id, demo.placedHoursAgo);
+	return true;
+}
+
+const FIRST_NAMES = ["Andres", "Bianca", "Camille", "Diego", "Erika", "Francis", "Gabby", "Hazel", "Isko", "Jasmine", "Kiko", "Liza", "Marco", "Nina", "Oscar", "Pia", "Quino", "Rina", "Sam", "Tessa"];
+const LAST_NAMES = ["Abad", "Bautista", "Castro", "Domingo", "Evangelista", "Fernandez", "Gonzales", "Hernandez", "Ignacio", "Javier", "Lopez", "Manalo", "Ocampo", "Pascual", "Quiambao", "Reyes", "Salazar", "Torres", "Valdez", "Yap"];
+const GIFTS = ["See you at the Hop!", "For the best date in the Corps.", "Congratulations, my cadet!", "Thank you for everything, Ma.", "Happy birthday! Love you always."];
+const METHODS: Method[] = ["card", "gcash", "maya", "bank"];
+/** How far back the orders go: 30 days. */
+const ORDERS_SPAN_HOURS = 30 * 24;
+
+/**
+ * A month of orders for the bouquets in the shop. Old orders are mostly
+ * delivered and recent ones still moving, with some of every payment state,
+ * and every style that can be ordered gets its turn.
+ */
+function catalogOrders(count: number): DemoOrder[] {
+	const styles = listPublicProducts().flatMap((product) =>
+		product.variants
+			.filter((variant) => variant.inStock)
+			.map((variant) => [product.id, variant.id] as const),
+	);
+	if (styles.length === 0) return [];
+	const pick = (index: number, quantity: number) =>
+		[...(styles[index % styles.length] as readonly [string, string]), quantity] as [string, string, number];
+	return Array.from({ length: count }, (_, index) => {
+		const placedHoursAgo = ORDERS_SPAN_HOURS * (1 - index / count);
+		const method = METHODS[index % METHODS.length] as Method;
+		const stage: OrderStage =
+			index % 11 === 10
+				? "cancelled"
+				: placedHoursAgo > 7 * 24
+					? "done"
+					: placedHoursAgo > 2 * 24
+						? "making"
+						: "new";
+		// A QR payment has to be verified before the order can move on.
+		const waiting = stage === "new" || stage === "cancelled";
+		const review =
+			method === "card" || (waiting && index % 3 === 0)
+				? undefined
+				: waiting && index % 3 === 1
+					? "rejected"
+					: "verified";
+		return {
+			recipient: `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[(index * 7 + Math.floor(index / FIRST_NAMES.length)) % LAST_NAMES.length]}`,
+			items:
+				index % 7 === 6
+					? [pick(index, 1), pick(index + 1, 1)]
+					: [pick(index, index % 6 === 5 ? 2 : 1)],
+			method,
+			review,
+			stage,
+			gift: index % 3 === 0 ? GIFTS[index % GIFTS.length] : undefined,
+			placedHoursAgo,
+			customer: index % 6 === 0 ? true : undefined,
+		};
+	});
+}
+
+/** Adds orders to whatever's in the database, leaving everything else alone. */
+async function seedCatalogOrders() {
+	// Runs the auth migrations, for the tables the orders may link to.
+	await getAuth();
+	const count = Number(process.argv.find((arg) => /^\d+$/.test(arg)) ?? 40);
+	const orders = catalogOrders(count);
+	if (orders.length === 0) {
+		console.log("  · no bouquets can be ordered yet, so there's nothing to seed");
+		return;
+	}
+	await mkdir(join(UPLOAD_DIR, "delivery"), { recursive: true });
+	const customerId = userIdFor(DEMO_CUSTOMER);
+	let created = 0;
+	for (const [index, demo] of orders.entries())
+		if (await placeDemoOrder(demo, index, customerId)) created++;
+	console.log(`  + ${created} orders across the last 30 days`);
 }
 
 async function seedCustomerExtras() {
@@ -338,79 +491,8 @@ async function main() {
 	} else {
 		await mkdir(join(UPLOAD_DIR, "delivery"), { recursive: true });
 		let created = 0;
-		for (const [index, demo] of toCreate.entries()) {
-			const catalog = listPublicProducts();
-			const cart = priceCart(
-				demo.items.map(([productId, variantId, quantity]) => ({
-					productId,
-					variantId,
-					quantity,
-				})),
-				catalog,
-			);
-			const problem = cart.lines.find((line) => line.problem);
-			if (cart.lines.length !== demo.items.length || problem) {
-				console.warn(`  ! skipped order for ${demo.recipient}: item missing or out of stock`);
-				continue;
-			}
-
-			const id = crypto.randomUUID();
-			let payment: NewOrder["payment"];
-			if (demo.method === "card") {
-				payment = {
-					method: "card",
-					status: "paid",
-					cardBrand: index % 2 === 0 ? "visa" : "mastercard",
-					cardLast4: String(4242 + index * 37).slice(-4),
-				};
-			} else {
-				payment = {
-					method: demo.method,
-					status: "pending",
-					referenceNumber: String(1_000_000_000_000 + index * 7_654_321_987),
-				};
-			}
-
-			createOrder({
-				id,
-				cart,
-				payment,
-				customerId: demo.customer ? customerId : undefined,
-				details: {
-					firstName: demo.recipient.split(" ")[0] as string,
-					lastName: demo.recipient.split(" ").slice(1).join(" "),
-					fullName: demo.recipient,
-					// Every fifth buyer is a civilian, who has no company.
-					className: index % 5 === 4 ? CIVILIAN : (CADET_CLASSES[index % CADET_CLASSES.length] as string),
-					company: index % 5 === 4 ? "" : COMPANIES[index % COMPANIES.length]?.name ?? "",
-					serialNumber: index % 5 === 4 ? "" : String(10000 + index),
-					email: `${demo.recipient.split(" ")[0]?.toLowerCase()}@example.com`,
-					notes: index % 4 === 1 ? "Please wrap it in kraft paper." : "",
-					addDedication: !!demo.gift,
-					dedicationFor: demo.gift
-						? (DEDICATED_TO[index % DEDICATED_TO.length] as string)
-						: "",
-					dedicationMessage: demo.gift ?? "",
-				},
-			});
-			if (demo.review) reviewPayment(id, demo.review, REVIEWER);
-			// Walk through each stage like staff would, so the timeline is complete.
-			const path =
-				demo.stage === "cancelled"
-					? (["cancelled"] as const)
-					: BOARD_STAGES.slice(1, BOARD_STAGES.indexOf(demo.stage) + 1);
-			for (const stage of path) setOrderStage(id, stage);
-			if (demo.stage === "done") {
-				setRider(id, RIDERS[index % RIDERS.length] as (typeof RIDERS)[number]);
-			}
-			if (demo.stage === "done") {
-				const photo = `${crypto.randomUUID()}.png`;
-				await copyFile(SAMPLE_DELIVERY, join(UPLOAD_DIR, "delivery", photo));
-				setDeliveryPhoto(id, photo);
-			}
-			backdate(id, demo.placedHoursAgo);
-			created++;
-		}
+		for (const [index, demo] of toCreate.entries())
+			if (await placeDemoOrder(demo, index, customerId)) created++;
 		console.log(
 			`  + ${created} demo orders${toCreate === DEMO_ORDERS ? "" : " for the demo customer"}`,
 		);
@@ -424,4 +506,4 @@ ${accounts.map((a) => `  ${(a.role === "admin" ? "Owner" : a.role === "user" ? "
 `);
 }
 
-await main();
+await (ORDERS_ONLY ? seedCatalogOrders() : main());
