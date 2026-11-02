@@ -10,6 +10,7 @@ import {
 	type ProductInput,
 	reorderProducts,
 	saveProduct,
+	setProductVisible,
 	updateStyle,
 	type VariantInput,
 } from "../catalog-repo";
@@ -74,6 +75,21 @@ export const updateStyleFn = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		await requireStaff();
 		updateStyle(data.productId, data.variantId, data);
+		return getAdminProduct(data.productId) ?? null;
+	});
+
+/** Quick edit from the list of bouquets: shows or hides it in the shop. */
+export const setProductVisibleFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			productId: text(source, "productId", { max: 80 }),
+			isVisible: bool(source, "isVisible"),
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		setProductVisible(data.productId, data.isVisible);
 		return getAdminProduct(data.productId) ?? null;
 	});
 

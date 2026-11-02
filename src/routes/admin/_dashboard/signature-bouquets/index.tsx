@@ -30,11 +30,18 @@ import {
 	deleteProductFn,
 	deleteVariantFn,
 	listInventory,
+	setProductVisibleFn,
 	updateStyleFn,
 } from "~/server/admin/catalog";
 import type { AdminProduct, AdminVariant } from "~/types/product";
 
 const SORTS = ["name", "name-desc", "price", "price-desc"] as const;
+
+/** Quiet until hovered, so a list of bouquets isn't a column of red. */
+const DELETE_ICON_BUTTON = cn(
+	adminButton.ghost,
+	"size-10 px-0 hover:bg-error hover:text-error-foreground",
+);
 
 /** Search, filters and sort, kept in the address so Back returns to them. */
 interface InventorySearch {
@@ -167,7 +174,7 @@ function InventoryPage() {
 			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
 				<PageHeader
 					title="Signature bouquets"
-					description="Price and availability changes save straight away. A style that’s off stays in the shop but can’t be ordered."
+					description="Changes here save straight away. Show in shop lists or hides the whole bouquet; a style that isn’t Available stays listed but can’t be ordered."
 					actions={
 						<>
 							<Link
@@ -257,8 +264,8 @@ function InventoryPage() {
 							class={adminCard}
 							aria-labelledby={`product-${product.id}`}
 						>
-							<header class="flex flex-wrap items-center justify-between gap-3 border-b border-petal-100 px-5 py-4">
-								<div>
+							<header class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-petal-100 px-5 py-3">
+								<div class="min-w-48 flex-1">
 									<h2
 										id={`product-${product.id}`}
 										class="flex flex-wrap items-center gap-2 font-semibold"
@@ -277,7 +284,8 @@ function InventoryPage() {
 										{formatPrice(product.basePrice, product.currency)}
 									</p>
 								</div>
-								<div class="flex gap-2">
+								<ShopToggle product={product} onSaved={replaceProduct} />
+								<div class="flex items-center gap-1">
 									<Show when={product.isVisible}>
 										<a
 											href={`/products/${product.id}`}
@@ -296,7 +304,8 @@ function InventoryPage() {
 										Edit details
 									</Link>
 									<ConfirmButton
-										class={adminButton.danger}
+										class={DELETE_ICON_BUTTON}
+										aria-label={`Delete ${product.title}`}
 										title={`Delete ${product.title}?`}
 										description={
 											<>
@@ -308,18 +317,23 @@ function InventoryPage() {
 										confirmLabel="Delete bouquet"
 										onConfirm={() => removeProduct(product)}
 									>
-										Delete
+										<AdminIcons.trash class="size-4" />
 									</ConfirmButton>
 								</div>
 							</header>
-							<div class="relative overflow-x-auto">
-								<table class="stack-table w-full text-left text-sm md:min-w-[640px]">
+							<div
+								class={cn(
+									"relative overflow-x-auto",
+									!product.isVisible && "opacity-60",
+								)}
+							>
+								<table class="stack-table w-full text-left text-sm md:min-w-[720px] md:table-fixed">
 									<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 										<tr>
-											<th class="px-5 py-2.5 font-medium">Style</th>
-											<th class="px-3 py-2.5 font-medium">Price</th>
-											<th class="px-3 py-2.5 font-medium">Available</th>
-											<th class="px-5 py-2.5">
+											<th class="px-5 py-2 font-medium">Style</th>
+											<th class="px-3 py-2 font-medium md:w-52">Price</th>
+											<th class="px-3 py-2 font-medium md:w-56">Available</th>
+											<th class="px-3 py-2 md:w-16">
 												<span class="sr-only">Actions</span>
 											</th>
 										</tr>
@@ -341,6 +355,56 @@ function InventoryPage() {
 					)}
 				</For>
 			</div>
+		</div>
+	);
+}
+
+/** Shows or hides a whole bouquet in the shop, saving straight away. */
+function ShopToggle(props: {
+	product: AdminProduct;
+	onSaved: (product: AdminProduct) => void;
+}) {
+	const [saving, setSaving] = createSignal(false);
+	const [saved, setSaved] = createSignal(false);
+	let savedTimer: ReturnType<typeof setTimeout> | undefined;
+	onCleanup(() => clearTimeout(savedTimer));
+
+	// Stays enabled while saving, like the style controls, to keep keyboard focus.
+	const save = async (isVisible: boolean) => {
+		if (saving()) return;
+		setSaving(true);
+		try {
+			const product = await setProductVisibleFn({
+				data: { productId: props.product.id, isVisible },
+			});
+			if (product) props.onSaved(product);
+			setSaved(true);
+			clearTimeout(savedTimer);
+			savedTimer = setTimeout(() => setSaved(false), 1500);
+		} catch (error) {
+			toastError(error);
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	return (
+		<div class="flex h-10 items-center gap-2 rounded-full bg-petal-50 pl-2 pr-3.5">
+			<Toggle
+				label={`Show ${props.product.title} in shop`}
+				hideLabel
+				checked={props.product.isVisible}
+				onChange={(checked) => void save(checked)}
+			/>
+			<span
+				aria-live="polite"
+				class={cn(
+					"min-w-[4.75rem] whitespace-nowrap text-xs font-medium",
+					saved() && "text-sage-600",
+				)}
+			>
+				{saved() ? "Saved ✓" : "Show in shop"}
+			</span>
 		</div>
 	);
 }
@@ -429,7 +493,7 @@ function VariantRow(props: {
 			onClick={openColor}
 			class="cursor-pointer transition-colors hover:bg-petal-50/70"
 		>
-			<td data-wide class="px-5 py-3">
+			<td data-wide class="px-5 py-2.5">
 				<div class="flex items-center gap-3">
 					<img
 						src={props.variant.images[0]}
@@ -457,29 +521,28 @@ function VariantRow(props: {
 								{props.variant.colorName}
 							</Link>
 						</p>
-						<p class="text-xs text-petal-900/50">
-							{props.variant.wrapperColor
-								? `${props.variant.wrapperColor} wrapper`
-								: "No wrapper set"}
+						<p class="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-petal-900/60">
+							<span>
+								{props.variant.wrapperColor
+									? `${props.variant.wrapperColor} wrapper`
+									: "No wrapper"}
+							</span>
+							<span aria-hidden="true">·</span>
+							<Show
+								when={mainFlower(props.variant.recipe)}
+								fallback={
+									<span class="text-warning-foreground">No recipe yet</span>
+								}
+							>
+								{(main) => <span>{formatRecipeItem(main())}</span>}
+							</Show>
 						</p>
-						<Show
-							when={mainFlower(props.variant.recipe)}
-							fallback={
-								<p class="text-xs text-warning-foreground">No recipe yet</p>
-							}
-						>
-							{(main) => (
-								<p class="mt-0.5 text-xs font-medium text-petal-900/80">
-									Main flower: {formatRecipeItem(main())}
-								</p>
-							)}
-						</Show>
 					</div>
 				</div>
 			</td>
-			<td data-controls data-label="Price" class="px-5 py-2 md:px-3 md:py-3">
+			<td data-controls data-label="Price" class="px-5 py-2 md:px-3 md:py-2.5">
 				<div class="flex items-center gap-2">
-					<label class="flex h-10 w-32 items-center rounded-lg border border-petal-200 bg-white pl-2.5 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 hover:border-petal-300 sm:h-9">
+					<label class="flex h-10 w-28 items-center rounded-lg border border-petal-200 bg-white pl-2.5 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 hover:border-petal-300 sm:h-9">
 						<span aria-hidden="true" class="text-petal-900/55">
 							₱
 						</span>
@@ -511,7 +574,7 @@ function VariantRow(props: {
 			<td
 				data-controls
 				data-label="Available"
-				class="px-5 py-2 md:px-3 md:py-3"
+				class="px-5 py-2 md:px-3 md:py-2.5"
 			>
 				<div class="flex items-center gap-2">
 					<Toggle
@@ -537,13 +600,11 @@ function VariantRow(props: {
 					</span>
 				</div>
 			</td>
-			<td class="px-5 py-3 text-right">
-				<Show
-					when={props.product.variants.length > 1}
-					fallback={<span class="text-xs text-petal-900/45">Only style</span>}
-				>
+			<td class="px-5 py-2 text-right md:px-3 md:py-2.5">
+				{/* A bouquet keeps at least one style. */}
+				<Show when={props.product.variants.length > 1}>
 					<ConfirmButton
-						class={cn(adminButton.ghost, "text-error-foreground")}
+						class={DELETE_ICON_BUTTON}
 						aria-label={`Delete ${label()}`}
 						title={`Delete ${label()}?`}
 						description={
@@ -568,7 +629,7 @@ function VariantRow(props: {
 							}
 						}}
 					>
-						Delete
+						<AdminIcons.trash class="size-4" />
 					</ConfirmButton>
 				</Show>
 			</td>

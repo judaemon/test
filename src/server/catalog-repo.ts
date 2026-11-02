@@ -384,6 +384,17 @@ export function updateStyle(
 	).run({ id: productId, now: nowIso() });
 }
 
+/** Quick edit from the list of bouquets: shows or hides it in the shop. */
+export function setProductVisible(productId: string, isVisible: boolean) {
+	const { changes } = getDb()
+		.query(
+			`UPDATE signature_bouquets SET is_visible = $visible, updated_at = $now
+			 WHERE id = $id`,
+		)
+		.run({ id: productId, visible: isVisible ? 1 : 0, now: nowIso() });
+	if (changes === 0) throw new InputError("That bouquet was deleted.");
+}
+
 /**
  * Deletes a bouquet and all its styles. Past orders keep their own copy of
  * what was bought, so they're unaffected.
