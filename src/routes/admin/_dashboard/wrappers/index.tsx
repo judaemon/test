@@ -47,7 +47,8 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 		stock: textParam(search, "stock"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
-	loader: () => listWrappersAdmin(),
+	loader: ({ abortController }) =>
+		listWrappersAdmin({ signal: abortController.signal }),
 	component: WrappersPage,
 });
 

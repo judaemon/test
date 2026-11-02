@@ -23,8 +23,11 @@ import styleCss from '../styles.css?url'
 
 export const Route = createRootRouteWithContext()({
   // Who's signed in (customer or staff), for the header and account pages.
-  beforeLoad: async () => ({ user: await getCurrentUser() }),
-  loader: () => getCatalog(),
+  beforeLoad: async ({ abortController }) => ({
+    user: await getCurrentUser({ signal: abortController.signal }),
+  }),
+  loader: ({ abortController }) =>
+    getCatalog({ signal: abortController.signal }),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },

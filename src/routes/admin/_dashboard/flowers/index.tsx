@@ -44,7 +44,8 @@ export const Route = createFileRoute("/admin/_dashboard/flowers/")({
 		stock: textParam(search, "stock"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
-	loader: () => listFlowersAdmin(),
+	loader: ({ abortController }) =>
+		listFlowersAdmin({ signal: abortController.signal }),
 	component: FlowersPage,
 });
 

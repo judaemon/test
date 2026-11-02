@@ -46,7 +46,10 @@ export const Route = createFileRoute("/active-orders")({
 		};
 	},
 	loaderDeps: ({ search }) => ({ q: search.q }),
-	loader: ({ deps }) => (deps.q ? findOrdersFn({ data: deps.q }) : []),
+	loader: ({ deps, abortController }) =>
+		deps.q
+			? findOrdersFn({ data: deps.q, signal: abortController.signal })
+			: [],
 	head: () => ({
 		meta: [
 			{ title: "Check your order · ORAIA" },

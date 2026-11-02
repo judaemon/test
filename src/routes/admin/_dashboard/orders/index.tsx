@@ -22,7 +22,7 @@ import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
-import { cn } from "~/lib/utils";
+import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 import { listAdminOrders, markOrderTest } from "~/server/admin/orders";
 import {
 	ORDER_STATUS_LABELS,
@@ -59,8 +59,9 @@ export const Route = createFileRoute("/admin/_dashboard/orders/")({
 				: undefined,
 	}),
 	loaderDeps: ({ search }) => search,
-	loader: ({ deps }) =>
+	loader: ({ deps, abortController }) =>
 		listAdminOrders({
+			signal: abortController.signal,
 			data: {
 				stages: deps.stage ? [deps.stage] : undefined,
 				needsVerification: deps.payment === "pending",
@@ -100,7 +101,7 @@ function OrdersPage() {
 					search: (prev) => ({ ...prev, q: value.trim() || undefined }),
 					replace: true,
 				}),
-			300,
+			SEARCH_DEBOUNCE_MS,
 		);
 	};
 

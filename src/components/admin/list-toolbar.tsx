@@ -10,7 +10,7 @@ import {
 } from "solid-js";
 
 import { FacetFilter, type FacetOption } from "~/components/ui/facet-filter";
-import { cn } from "~/lib/utils";
+import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 
 export interface ToolbarFilter {
 	label: string;
@@ -44,10 +44,14 @@ export function ListToolbar(props: {
 }) {
 	// Typing updates the address once the person pauses.
 	const [query, setQuery] = createSignal(props.query);
+	let searchBox: HTMLInputElement | undefined;
 	createEffect(
 		on(
 			() => props.query,
-			(value) => setQuery(value),
+			(value) => {
+				// An older search landing late mustn't undo what's typed since.
+				if (document.activeElement !== searchBox) setQuery(value);
+			},
 			{ defer: true },
 		),
 	);
@@ -56,7 +60,10 @@ export function ListToolbar(props: {
 	const type = (value: string) => {
 		setQuery(value);
 		clearTimeout(debounce);
-		debounce = setTimeout(() => props.onQuery(value.trim()), 300);
+		debounce = setTimeout(
+			() => props.onQuery(value.trim()),
+			SEARCH_DEBOUNCE_MS,
+		);
 	};
 
 	return (
@@ -77,6 +84,7 @@ export function ListToolbar(props: {
 					</svg>
 					<span class="sr-only">Search</span>
 					<input
+						ref={searchBox}
 						type="search"
 						value={query()}
 						onInput={(e) => type(e.currentTarget.value)}

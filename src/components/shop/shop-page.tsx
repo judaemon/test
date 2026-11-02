@@ -26,6 +26,7 @@ import {
 	type ShopFilters,
 } from "~/lib/shop-filters";
 import { useCatalog, useCustomSettings, useSizes } from "~/lib/use-catalog";
+import { SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
 /** Smooth-scrolls to a section, or jumps there if the viewer prefers less motion. */
@@ -64,12 +65,19 @@ export function ShopPage() {
 	};
 	const chosenFlowers = () => parseList(search().flower);
 	const chosenSizes = () => parseList(search().size);
-	// The list follows each keystroke; the address once the person pauses.
+	// The box shows each keystroke; the list and address follow a pause.
 	const [query, setQuery] = createSignal(search().q ?? "");
+	const [searched, setSearched] = createSignal(query());
+	let searchBox: HTMLInputElement | undefined;
 	createEffect(
 		on(
 			() => search().q,
-			(value) => setQuery(value ?? ""),
+			(value) => {
+				// An older search landing late mustn't undo what's typed since.
+				if (document.activeElement === searchBox) return;
+				setQuery(value ?? "");
+				setSearched(value ?? "");
+			},
 			{ defer: true },
 		),
 	);
@@ -78,16 +86,16 @@ export function ShopPage() {
 	const typeQuery = (value: string) => {
 		setQuery(value);
 		clearTimeout(debounce);
-		debounce = setTimeout(
-			() => setFilter({ q: value.trim() || undefined }),
-			300,
-		);
+		debounce = setTimeout(() => {
+			setSearched(value);
+			setFilter({ q: value.trim() || undefined });
+		}, SEARCH_DEBOUNCE_MS);
 	};
 	const filtering = () =>
-		!!query().trim() || chosenFlowers().length + chosenSizes().length > 0;
+		!!searched().trim() || chosenFlowers().length + chosenSizes().length > 0;
 	const [stepsOpen, setStepsOpen] = createSignal(false);
 
-	const hasName = (product: Product) => nameMatches(product.title, query());
+	const hasName = (product: Product) => nameMatches(product.title, searched());
 	// A bouquet matches a filter if it has any of the ticked choices.
 	const hasFlower = (product: Product, flowers: string[]) =>
 		!flowers.length ||
@@ -338,6 +346,7 @@ export function ShopPage() {
 									</svg>
 									<span class="sr-only">Search bouquets by name</span>
 									<input
+										ref={searchBox}
 										type="search"
 										value={query()}
 										onInput={(e) => typeQuery(e.currentTarget.value)}
@@ -367,6 +376,7 @@ export function ShopPage() {
 										onClick={() => {
 											clearTimeout(debounce);
 											setQuery("");
+											setSearched("");
 											setFilter({
 												q: undefined,
 												flower: undefined,

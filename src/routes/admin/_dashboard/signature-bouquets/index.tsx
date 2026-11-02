@@ -59,7 +59,8 @@ export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 		flower: textParam(search, "flower"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
-	loader: () => listInventory(),
+	loader: ({ abortController }) =>
+		listInventory({ signal: abortController.signal }),
 	component: InventoryPage,
 });
 
