@@ -17,10 +17,14 @@ import {
 	PageHeader,
 } from "~/components/admin/ui";
 import { ColorSwatch, CompanyLabel } from "~/components/order/company-label";
-import { PaymentStatusPill } from "~/components/order/payment-status";
+import {
+	PaymentStatusPill,
+	paymentStatusLabel,
+} from "~/components/order/payment-status";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { CADET_CLASSES, CIVILIAN, COMPANIES, orderColor } from "~/lib/cadets";
 import { formatPrice } from "~/lib/product";
+import type { OrderBlock } from "~/lib/report-export";
 import { cn } from "~/lib/utils";
 import {
 	type CountRow,
@@ -48,13 +52,6 @@ interface ListSection {
 interface Selection {
 	title: string;
 	sections: ListSection[];
-}
-
-/** A block of orders ready to show. */
-interface OrderBlock {
-	heading?: string;
-	color?: string;
-	orders: ReportOrder[];
 }
 
 const SEPARATE_BY = [
@@ -619,6 +616,36 @@ function OrderList(props: {
 		SEPARATE_BY.find((option) => option.id === separateBy())?.label ?? "";
 	const orderCount = () =>
 		new Set(sections().flatMap((s) => s.orders.map((o) => o.id))).size;
+	const summary = () =>
+		`${orderCount()} ${orderCount() === 1 ? "order" : "orders"} · sorted by surname${
+			separateBy() === "report"
+				? ""
+				: ` · separated by ${separateLabel().toLowerCase()}`
+		}`;
+	const [exporting, setExporting] = createSignal<"pdf" | "excel" | null>(null);
+	const [exportFailed, setExportFailed] = createSignal(false);
+	const exportList = async (format: "pdf" | "excel") => {
+		setExporting(format);
+		setExportFailed(false);
+		try {
+			const { exportOrdersExcel, exportOrdersPdf } = await import(
+				"~/lib/report-export"
+			);
+			await (format === "pdf" ? exportOrdersPdf : exportOrdersExcel)({
+				title: props.selection?.title ?? "Orders",
+				subtitle: summary(),
+				blocks: sections(),
+				newPages: newPages(),
+				currency: props.currency,
+				paymentStatusLabel,
+			});
+		} catch (error) {
+			console.error(error);
+			setExportFailed(true);
+		} finally {
+			setExporting(null);
+		}
+	};
 
 	return (
 		<Dialog.Root
@@ -641,12 +668,7 @@ function OrderList(props: {
 									{props.selection?.title}
 								</Dialog.Title>
 								<Dialog.Description class="text-sm text-petal-900/60">
-									{orderCount()} {orderCount() === 1 ? "order" : "orders"} ·
-									sorted by surname
-									<Show when={separateBy() !== "report"}>
-										{" "}
-										· separated by {separateLabel().toLowerCase()}
-									</Show>
+									{summary()}
 								</Dialog.Description>
 							</div>
 							<div class="flex shrink-0 items-center gap-2 print:hidden">
@@ -695,6 +717,29 @@ function OrderList(props: {
 								/>
 								New page for each group
 							</label>
+							<div class="flex items-center gap-2 sm:ml-auto">
+								<Show when={exportFailed()}>
+									<span role="alert" class="text-error-foreground">
+										Couldn't export. Try again.
+									</span>
+								</Show>
+								<button
+									type="button"
+									disabled={!!exporting() || orderCount() === 0}
+									onClick={() => void exportList("pdf")}
+									class={adminButton.secondary}
+								>
+									{exporting() === "pdf" ? "Exporting…" : "Export PDF"}
+								</button>
+								<button
+									type="button"
+									disabled={!!exporting() || orderCount() === 0}
+									onClick={() => void exportList("excel")}
+									class={adminButton.secondary}
+								>
+									{exporting() === "excel" ? "Exporting…" : "Export Excel"}
+								</button>
+							</div>
 						</div>
 						<div class="overflow-auto print:overflow-visible">
 							<For each={sections()}>
