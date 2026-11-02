@@ -15,7 +15,7 @@ import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { FacetFilter } from "~/components/ui/facet-filter";
 import { CONTACT, TAGLINE } from "~/lib/contact";
-import { CUSTOM_IMAGE } from "~/lib/custom-bouquet";
+import { CUSTOM_BANNER_IMAGE } from "~/lib/custom-bouquet";
 import { formatPrice } from "~/lib/product";
 import {
 	bouquetFlowers,
@@ -204,7 +204,7 @@ export function ShopPage() {
 						>
 							<div class="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-7 sm:p-8">
 								<img
-									src={CUSTOM_IMAGE}
+									src={CUSTOM_BANNER_IMAGE}
 									alt=""
 									width={128}
 									height={128}

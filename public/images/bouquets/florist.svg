@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <title>Florist arranging a bouquet</title>
+  <rect width="400" height="400" fill="#fbf1ee"/>
+  <!-- Sparkles -->
+  <circle cx="60" cy="72" r="5" fill="#f5c542"/>
+  <path d="M340 62 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5 Z" fill="#f5c542"/>
+  <!-- Florist body -->
+  <path d="M46 400 Q44 232 138 226 Q222 232 226 400 Z" fill="#f4ecd9"/>
+  <!-- Neck -->
+  <rect x="120" y="186" width="38" height="52" rx="16" fill="#dba888"/>
+  <!-- Apron -->
+  <path d="M104 232 L104 262 Q70 280 66 400 L208 400 Q206 280 176 262 L176 232 L160 232 L160 256 L120 256 L120 232 Z" fill="#c25b74"/>
+  <path d="M112 318 H162 V352 Q162 362 152 362 H122 Q112 362 112 352 Z" fill="#a84a62"/>
+  <!-- Hair behind -->
+  <circle cx="132" cy="72" r="26" fill="#5b3a2e"/>
+  <circle cx="132" cy="140" r="58" fill="#5b3a2e"/>
+  <!-- Face -->
+  <circle cx="148" cy="148" r="48" fill="#e8b896"/>
+  <!-- Hair fringe -->
+  <path d="M92 150 Q92 92 152 92 Q196 94 198 132 Q162 134 138 112 Q128 138 106 142 Q100 150 100 172 Q92 164 92 150 Z" fill="#5b3a2e"/>
+  <!-- Eyes, cheek and smile -->
+  <path d="M146 150 q9 8 18 0" fill="none" stroke="#5b3a2e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M176 148 q7 7 14 0" fill="none" stroke="#5b3a2e" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="142" cy="170" r="10" fill="#e8607d" opacity="0.35"/>
+  <path d="M164 174 q10 10 20 0" fill="none" stroke="#b8344f" stroke-width="5" stroke-linecap="round"/>
+  <!-- Workbench -->
+  <rect y="346" width="400" height="54" fill="#e9d2bd"/>
+  <rect y="346" width="400" height="8" fill="#d4b89e"/>
+  <!-- Leaves -->
+  <g fill="#7fa36b">
+    <path d="M272 150 Q244 112 256 72 Q288 102 290 146 Z"/>
+    <path d="M318 150 Q332 104 368 92 Q368 134 336 162 Z"/>
+    <path d="M336 186 Q370 176 388 190 Q362 214 330 208 Z"/>
+  </g>
+  <!-- Stems -->
+  <g fill="none" stroke="#6b8e58" stroke-width="7" stroke-linecap="round">
+    <path d="M296 262 L270 180"/>
+    <path d="M300 262 L300 160"/>
+    <path d="M304 262 L340 182"/>
+  </g>
+  <!-- Flowers -->
+  <g>
+    <circle cx="272" cy="176" r="31" fill="#f5c542"/>
+    <circle cx="272" cy="176" r="12" fill="#7a4a1f"/>
+    <circle cx="326" cy="146" r="33" fill="#e8607d"/>
+    <circle cx="326" cy="146" r="13" fill="#b8344f"/>
+    <circle cx="338" cy="212" r="27" fill="#a77bd1"/>
+    <circle cx="338" cy="212" r="10" fill="#7b4fa8"/>
+    <circle cx="286" cy="232" r="24" fill="#f28c6b"/>
+    <circle cx="286" cy="232" r="9" fill="#c55a3c"/>
+  </g>
+  <!-- Vase -->
+  <path d="M254 250 H346 L330 346 H270 Z" fill="#8fbcc4"/>
+  <path d="M250 244 H350 V260 H250 Z" fill="#a9d0d6"/>
+  <!-- Arm placing a flower -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M216 314 L250 228" stroke="#e8b896" stroke-width="26"/>
+    <path d="M188 254 L216 314" stroke="#f4ecd9" stroke-width="36"/>
+    <path d="M257 240 L264 102" stroke="#6b8e58" stroke-width="7"/>
+  </g>
+  <circle cx="254" cy="220" r="18" fill="#e8b896"/>
+  <circle cx="264" cy="102" r="28" fill="#f4ecd9"/>
+  <circle cx="264" cy="102" r="11" fill="#e0cfa8"/>
+</svg>

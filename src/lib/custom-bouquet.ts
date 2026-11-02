@@ -4,6 +4,7 @@ import type { RecipeItem } from "~/types/product";
 /** Cart and order lines for built bouquets use this in place of a product id. */
 export const CUSTOM_PRODUCT_ID = "_custom";
 export const CUSTOM_IMAGE = "/images/bouquets/custom.svg";
+export const CUSTOM_BANNER_IMAGE = "/images/bouquets/florist.svg";
 /** Most stems of one flower and color in a single bouquet. */
 export const MAX_STEMS_PER_FLOWER = 100;
 
