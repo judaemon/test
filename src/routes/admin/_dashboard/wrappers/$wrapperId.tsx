@@ -43,6 +43,7 @@ interface WrapperDraft {
 	/** The name as last saved; empty for a new wrapper. */
 	savedName: string;
 	name: string;
+	/** Empty until staff pick one: a new wrapper has no color yet. */
 	colorHex: string;
 	price: string;
 	/** Blank means not counted. */
@@ -55,7 +56,7 @@ function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 	return {
 		savedName: wrapper?.name ?? "",
 		name: wrapper?.name ?? "",
-		colorHex: wrapper?.colorHex ?? "#c9a77c",
+		colorHex: wrapper?.colorHex ?? "",
 		price: wrapper ? String(wrapper.price) : "0",
 		stock: wrapper?.stock === undefined ? "" : String(wrapper.stock),
 		enabled: wrapper?.enabled ?? true,
@@ -147,7 +148,10 @@ function WrapperEditor() {
 						fallback={
 							<span
 								aria-hidden="true"
-								class="size-24 rounded-lg border border-black/10"
+								class={cn(
+									"size-24 rounded-lg border border-black/10",
+									!draft.colorHex && "border-dashed border-petal-300",
+								)}
 								style={{ background: draft.colorHex }}
 							/>
 						}
@@ -170,7 +174,7 @@ function WrapperEditor() {
 								? "Uploading…"
 								: draft.image
 									? "Replace"
-									: "Add photo"}
+									: "Add photo (optional)"}
 							<input
 								type="file"
 								accept="image/png,image/jpeg,image/webp"
@@ -204,10 +208,13 @@ function WrapperEditor() {
 							class={adminInput}
 						/>
 					</Field>
-					<Field label="Color" hint="Shown as a swatch when there’s no photo.">
+					<Field
+						label="Color"
+						hint="Required. Shown as a swatch when there’s no photo."
+					>
 						<input
 							type="color"
-							value={draft.colorHex}
+							value={draft.colorHex || "#ffffff"}
 							onInput={(e) => setDraft("colorHex", e.currentTarget.value)}
 							class="h-10 w-full cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
 						/>
