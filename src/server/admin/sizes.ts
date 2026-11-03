@@ -9,7 +9,14 @@ import {
 	saveSize,
 	sizeNameTaken,
 } from "../sizes-repo";
-import { asRecord, InputError, imageUrl, oneOf, text } from "../validate";
+import {
+	asRecord,
+	InputError,
+	imageUrl,
+	oneOf,
+	price,
+	text,
+} from "../validate";
 
 export const listSizesAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
@@ -43,6 +50,11 @@ export const saveSizeFn = createServerFn({ method: "POST" })
 					required: false,
 				}),
 				image: size.image ? imageUrl(size.image) : "",
+				// Empty leaves the size out of the bouquet builder.
+				price:
+					size.price === null || size.price === undefined
+						? null
+						: price(size, "price", "Builder price"),
 			},
 		};
 	})

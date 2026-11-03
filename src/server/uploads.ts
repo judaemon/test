@@ -8,9 +8,20 @@ const UPLOAD_ROOT = process.env.UPLOAD_DIR ?? ".data/uploads";
 /**
  * Public kinds are served at `/uploads/<kind>/<file>`. Payment proofs are
  * staff-only; delivery photos are for staff and the order's customer.
+ * References are shoppers' inspiration photos for a built bouquet, served by
+ * their random names so the bag can show them before the order is placed.
  */
-export type UploadKind = "products" | "payments" | "proofs" | "delivery";
-export const PUBLIC_UPLOAD_KINDS: UploadKind[] = ["products", "payments"];
+export type UploadKind =
+	| "products"
+	| "payments"
+	| "proofs"
+	| "delivery"
+	| "references";
+export const PUBLIC_UPLOAD_KINDS: UploadKind[] = [
+	"products",
+	"payments",
+	"references",
+];
 
 /** Phone photos can be large; cropped uploads come in far smaller. */
 export const IMAGE_MAX_BYTES = 20 * 1024 * 1024;

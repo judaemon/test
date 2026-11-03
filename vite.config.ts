@@ -12,7 +12,7 @@ import { join } from 'node:path'
 
 /**
  * Dev only: Nitro's dev server hands image requests (`sec-fetch-dest: image`)
- * to Vite's static handler, which knows nothing about admin uploads. In
+ * to Vite's static handler, which knows nothing about uploads. In
  * production they're served by the `/uploads/$` route instead.
  */
 function devUploads(): Plugin {
@@ -24,7 +24,7 @@ function devUploads(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const path = req.url?.split('?')[0] ?? ''
-        const match = /^\/uploads\/(products|payments)\/([a-z0-9-]+)$/.exec(path)
+        const match = /^\/uploads\/(products|payments|references)\/([a-z0-9-]+)$/.exec(path)
         if (!match) return next()
         for (const [ext, type] of Object.entries(types)) {
           try {

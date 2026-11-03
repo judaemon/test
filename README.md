@@ -31,7 +31,7 @@ ADMIN_EMAIL=you@example.com
 ADMIN_PASSWORD=a-long-password   # at least 10 characters
 ```
 
-**Demo data.** For local testing, `bun run db:seed` adds demo accounts (`owner@oraia.test` / `oraia-owner-2026`, `staff@oraia.test` / `oraia-staff-2026`), two extra products and 16 orders spread across the board, payment methods and payment states. `bun run db:seed --reset` wipes products, orders, payment settings and accounts first. It refuses to run with `NODE_ENV=production`.
+**Demo data.** For local testing, `bun run db:seed` adds demo accounts (`owner@oraia.test` / `oraia-owner-2026`, `staff@oraia.test` / `oraia-staff-2026`), two extra products and 16 orders spread across the board, payment methods and payment states. `bun run db:seed --reset` wipes products, orders, payment settings and accounts first. `bun run db:seed:sizes` only gives the starter sizes builder prices (Petite free, Classic ₱200, Impressive ₱450, Grand ₱800) and switches the bouquet builder on. It refuses to run with `NODE_ENV=production`.
 
 Owners add staff from **Admin → Staff**. Staff can run the board, orders and stock; owners can also change payment accounts and staff.
 

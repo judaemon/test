@@ -5,6 +5,7 @@
  *   bun run db:seed --reset    wipe bouquets, orders, payment settings and accounts first
  *   bun run db:seed:orders     add orders for the bouquets already in the shop; nothing else
  *   bun run db:seed:orders 80  the same, with this many orders (40 if left out)
+ *   bun run db:seed:sizes      give sizes builder prices and switch the builder on; nothing else
  *
  * Safe to run while the dev server is running. Refuses to run in production.
  */
@@ -21,6 +22,7 @@ import {
 	type ProductInput,
 	saveProduct,
 } from "~/server/catalog-repo";
+import { getCustomSettings, saveCustomSettings } from "~/server/custom-repo";
 import { getDb, seedStarterData } from "~/server/db";
 import {
 	createOrder,
@@ -46,6 +48,7 @@ if (process.env.NODE_ENV === "production") {
 
 const RESET = process.argv.includes("--reset");
 const ORDERS_ONLY = process.argv.includes("--orders");
+const SIZES_ONLY = process.argv.includes("--sizes");
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? ".data/uploads";
 const REVIEWER = "Olivia Owner";
 
@@ -405,6 +408,41 @@ async function seedCustomerExtras() {
 	}
 }
 
+/** Builder prices for the starter sizes, in pesos: the smallest is free. */
+const SIZE_PRICES: Record<string, number> = {
+	petite: 0,
+	classic: 200,
+	impressive: 450,
+	grand: 800,
+};
+
+/**
+ * Prices the starter sizes for the bouquet builder and switches the builder
+ * on, so its size step shows. Sizes staff already priced keep their price.
+ */
+function seedSizePrices() {
+	const db = getDb();
+	const update = db.query(
+		"UPDATE sizes SET price_cents = $cents, updated_at = $now WHERE id = $id AND price_cents IS NULL",
+	);
+	let priced = 0;
+	for (const [id, price] of Object.entries(SIZE_PRICES))
+		priced += update.run({ id, cents: price * 100, now: new Date().toISOString() }).changes;
+	console.log(
+		priced
+			? `  + builder prices for ${priced} ${priced === 1 ? "size" : "sizes"}`
+			: "  · sizes already have builder prices",
+	);
+	const settings = getCustomSettings();
+	if (settings.enabled) {
+		console.log("  · the bouquet builder is already on");
+		return;
+	}
+	const { saved: _saved, flowers: _flowers, wrappers: _wrappers, sizes: _sizes, ...fees } = settings;
+	saveCustomSettings({ ...fees, enabled: true });
+	console.log("  + switched the bouquet builder on (Admin → Custom bouquets)");
+}
+
 async function main() {
 	const db = getDb();
 	// Runs the auth migrations (and seeds the .env.local owner on a fresh DB).
@@ -468,6 +506,9 @@ async function main() {
 		console.log(`  + product ${product.input.title} (${id})`);
 	}
 
+	// ── Sizes ─────────────────────────────────────────────────────────────
+	seedSizePrices();
+
 	// ── Orders ────────────────────────────────────────────────────────────
 	const { n: orderCount } = db.query("SELECT COUNT(*) AS n FROM orders").get() as {
 		n: number;
@@ -506,4 +547,8 @@ ${accounts.map((a) => `  ${(a.role === "admin" ? "Owner" : a.role === "user" ? "
 `);
 }
 
-await (ORDERS_ONLY ? seedCatalogOrders() : main());
+await (ORDERS_ONLY
+	? seedCatalogOrders()
+	: SIZES_ONLY
+		? seedSizePrices()
+		: main());

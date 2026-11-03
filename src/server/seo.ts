@@ -12,6 +12,7 @@ export const PRIVATE_PATHS = [
 	"/pay",
 	"/api",
 	"/uploads/payments",
+	"/uploads/references",
 ];
 
 export function isPrivatePath(path: string) {

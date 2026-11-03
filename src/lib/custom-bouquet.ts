@@ -1,4 +1,5 @@
 import { FLOWER_KINDS, type FlowerKind } from "~/lib/flowers";
+import { type BouquetSizeInfo, builderSizes } from "~/lib/sizes";
 import type { RecipeItem } from "~/types/product";
 
 /** Cart and order lines for built bouquets use this in place of a product id. */
@@ -7,6 +8,10 @@ export const CUSTOM_IMAGE = "/images/bouquets/custom.svg";
 export const CUSTOM_BANNER_IMAGE = "/images/bouquets/florist.svg";
 /** Most stems of one flower and color in a single bouquet. */
 export const MAX_STEMS_PER_FLOWER = 100;
+/** Most reference photos a shopper can add to one built bouquet. */
+export const MAX_REFERENCE_IMAGES = 3;
+/** Where reference photos are served; anything else is dropped from a design. */
+const REFERENCE_IMAGE_URL = /^\/uploads\/references\/[a-z0-9-]{1,64}$/;
 
 /** Every flower has at least one color; a flower with one has no choice. */
 export const SINGLE_COLOR_NAME = "Natural";
@@ -137,6 +142,8 @@ export interface CustomBouquetSettings {
 	baseFee: number;
 	flowers: CustomFlowerOption[];
 	wrappers: CustomWrapper[];
+	/** Every size from Admin → Sizes; the builder offers the ones with a price. */
+	sizes: BouquetSizeInfo[];
 	money: MoneySettings;
 	/** False until staff save their own prices; the samples are placeholders. */
 	saved: boolean;
@@ -148,12 +155,16 @@ export interface BillCount {
 	count: number;
 }
 
-/** What the shopper built: flowers, cash and a wrapper. */
+/** What the shopper built: flowers, cash, a size, a wrapper and the look they want. */
 export interface CustomDesign {
 	items: RecipeItem[];
 	/** Money bouquets only. */
 	bills?: BillCount[];
+	/** Missing on bouquets built before sizes had a price. */
+	sizeId?: string;
 	wrapperId: string;
+	/** Photos of a look the shopper likes (`/uploads/references/…`), if any. */
+	referenceImages?: string[];
 }
 
 // Placeholder prices so the builder works before staff set real ones.
@@ -215,6 +226,7 @@ export const DEFAULT_CUSTOM_SETTINGS: CustomBouquetSettings = {
 			enabled: true,
 		},
 	],
+	sizes: [],
 	money: {
 		enabled: true,
 		feePerBill: 10,
@@ -303,11 +315,12 @@ export function flowersFromSettings(saved: {
 	});
 }
 
-/** Fills in saved settings; flowers and wrappers come from their tables. */
+/** Fills in saved settings; flowers, wrappers and sizes come from their tables. */
 export function withDefaults(
 	saved: Partial<CustomBouquetSettings>,
 	flowers: CustomFlowerOption[],
 	wrappers: CustomWrapper[],
+	sizes: BouquetSizeInfo[],
 ): CustomBouquetSettings {
 	return {
 		...DEFAULT_CUSTOM_SETTINGS,
@@ -319,6 +332,7 @@ export function withDefaults(
 		},
 		flowers,
 		wrappers,
+		sizes,
 	};
 }
 
@@ -371,10 +385,24 @@ export function normalizeDesign(raw: unknown): CustomDesign | null {
 			bills.push({ value, count: Math.floor(count) });
 		}
 	}
+	const referenceImages = Array.isArray(source.referenceImages)
+		? [
+				...new Set(
+					source.referenceImages.filter(
+						(url): url is string =>
+							typeof url === "string" && REFERENCE_IMAGE_URL.test(url),
+					),
+				),
+			].slice(0, MAX_REFERENCE_IMAGES)
+		: [];
 	return {
 		items: items.slice(0, 40),
 		...(bills.length ? { bills: bills.slice(0, PESO_BILLS.length) } : {}),
+		...(typeof source.sizeId === "string" && source.sizeId
+			? { sizeId: source.sizeId.slice(0, 64) }
+			: {}),
 		wrapperId: source.wrapperId.slice(0, 40),
+		...(referenceImages.length ? { referenceImages } : {}),
 	};
 }
 
@@ -397,6 +425,12 @@ export function designKey(design: CustomDesign) {
 		[...(design.bills ?? [])]
 			.map((b) => [b.value, b.count])
 			.sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0)),
+		// Only when set, so bouquets built before sizes keep their ids.
+		...(design.sizeId ? [design.sizeId] : []),
+		// A different look is a different bouquet; order doesn't matter.
+		...(design.referenceImages?.length
+			? [[...design.referenceImages].sort()]
+			: []),
 	]);
 	let hash = 5381;
 	for (let i = 0; i < canonical.length; i++)
@@ -407,6 +441,7 @@ export function designKey(design: CustomDesign) {
 export interface PricedDesign {
 	unitPrice: number;
 	wrapper?: CustomWrapper;
+	size?: BouquetSizeInfo;
 	/** Most of this bouquet the flower stock can make; missing if not counted. */
 	maxQuantity?: number;
 	/** Why it can't be ordered as built, if anything. */
@@ -466,10 +501,22 @@ export function priceDesign(
 		};
 	const billProblem = checkBills(bills, settings.money);
 	if (billProblem) return { unitPrice: 0, wrapper, problem: billProblem };
+	// A size is needed once the builder offers any.
+	const sizes = builderSizes(settings.sizes);
+	const size = sizes.find((s) => s.id === design.sizeId);
+	if (sizes.length > 0 && !size)
+		return {
+			unitPrice: 0,
+			wrapper,
+			problem: design.sizeId
+				? "Choose a size that’s available."
+				: "Choose a size.",
+		};
 
 	// Cash is charged at face value, plus the folding fee per bill.
 	let total =
 		settings.baseFee +
+		(size?.price ?? 0) +
 		wrapper.price +
 		cashTotal(bills) +
 		billCount(bills) * settings.money.feePerBill;
@@ -526,6 +573,7 @@ export function priceDesign(
 	return {
 		unitPrice: Math.round(total * 100) / 100,
 		wrapper,
+		...(size ? { size } : {}),
 		...(maxQuantity === undefined ? {} : { maxQuantity }),
 	};
 }

@@ -26,6 +26,7 @@ import {
 	flowerKinds,
 	flowerPhoto,
 	itemColor,
+	MAX_REFERENCE_IMAGES,
 	MAX_STEMS_PER_FLOWER,
 	priceDesign,
 	wrapperColors,
@@ -39,8 +40,10 @@ import {
 	swatchColors,
 } from "~/lib/product";
 import { pageHead } from "~/lib/site";
+import { builderSizes } from "~/lib/sizes";
 import { useCustomSettings } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
+import { uploadReferenceImage } from "~/server/custom";
 import type { RecipeItem } from "~/types/product";
 
 interface BuilderSearch {
@@ -56,7 +59,7 @@ export const Route = createFileRoute("/custom")({
 		pageHead({
 			title: "Build your own bouquet · ORAIA Baguio",
 			description:
-				"Design a custom bouquet at ORAIA, a Baguio City flower shop: pick your flowers, colors and wrapper, then order online.",
+				"Design a custom bouquet at ORAIA, a Baguio City flower shop: pick your flowers, colors, size and wrapper, share a look you like, then order online.",
 			path: "/custom",
 		}),
 	component: BuilderPage,
@@ -101,7 +104,12 @@ function BuilderPage() {
 	const settings = useCustomSettings();
 	// Chosen flowers: key → stem count.
 	const [picked, setPicked] = createStore<Record<string, number>>({});
+	const [sizeId, setSizeId] = createSignal("");
 	const [wrapperId, setWrapperId] = createSignal("");
+	// Photos of a look the shopper likes, as uploaded.
+	const [references, setReferences] = createSignal<string[]>([]);
+	const [uploading, setUploading] = createSignal(false);
+	const [uploadError, setUploadError] = createSignal("");
 	// Bills in a money bouquet: face value → how many.
 	const [cash, setCash] = createStore<Record<number, number>>({});
 	const money = () => settings().money;
@@ -133,6 +141,7 @@ function BuilderPage() {
 			colorOf(name, color)?.stock ?? MAX_STEMS_PER_FLOWER,
 		);
 	const wrappers = () => settings().wrappers.filter((w) => w.enabled);
+	const sizes = () => builderSizes(settings().sizes);
 
 	const design = createMemo<CustomDesign>(() => {
 		const items: RecipeItem[] = [];
@@ -156,7 +165,9 @@ function BuilderPage() {
 		return {
 			items,
 			...(bills.length ? { bills } : {}),
+			...(sizeId() ? { sizeId: sizeId() } : {}),
 			wrapperId: wrapperId(),
+			...(references().length ? { referenceImages: references() } : {}),
 		};
 	});
 	const priced = createMemo(() => priceDesign(design(), settings()));
@@ -166,6 +177,18 @@ function BuilderPage() {
 			return sum + (item.count ? price * item.count : price);
 		}, 0);
 	const wrapper = () => wrappers().find((w) => w.id === wrapperId());
+	const size = () => sizes().find((s) => s.id === sizeId());
+	const total = () =>
+		flowersTotal() +
+		cashTotal(bills()) +
+		billFees() +
+		(size()?.price ?? 0) +
+		(wrapper()?.price ?? 0) +
+		settings().baseFee;
+	const hasMoneyStep = () =>
+		money().enabled && money().denominations.length > 0;
+	/** 1 when the size step leads the builder, 0 when no size is offered. */
+	const sizeStep = () => (sizes().length > 0 ? 1 : 0);
 	const bills = () => design().bills ?? [];
 	const billFees = () => billCount(bills()) * money().feePerBill;
 	/** Bills still allowed before hitting the per-bouquet limit. */
@@ -173,6 +196,36 @@ function BuilderPage() {
 	const setBills = (value: number, count: number) => {
 		setAdded(false);
 		setCash(value, Math.max(0, count));
+	};
+
+	const addReferences = async (files: FileList | null) => {
+		const room = MAX_REFERENCE_IMAGES - references().length;
+		const chosen = [...(files ?? [])].slice(0, room);
+		if (!chosen.length) return;
+		setUploading(true);
+		setUploadError("");
+		setAdded(false);
+		try {
+			for (const file of chosen) {
+				const body = new FormData();
+				body.set("file", file);
+				const result = await uploadReferenceImage({ data: body });
+				if (!result.ok) {
+					setUploadError(result.message);
+					break;
+				}
+				setReferences((urls) => [...urls, result.url]);
+			}
+		} catch {
+			setUploadError("Couldn’t upload that photo. Please try again.");
+		} finally {
+			setUploading(false);
+		}
+	};
+	const removeReference = (url: string) => {
+		setAdded(false);
+		setUploadError("");
+		setReferences((urls) => urls.filter((u) => u !== url));
 	};
 
 	const setCount = (key: string, count: number) => {
@@ -209,12 +262,51 @@ function BuilderPage() {
 		const bills: Record<number, number> = {};
 		for (const bill of line.custom.bills ?? []) bills[bill.value] = bill.count;
 		setCash(reconcile(bills));
+		setSizeId(line.custom.sizeId ?? "");
 		setWrapperId(line.custom.wrapperId);
+		setReferences(line.custom.referenceImages ?? []);
 		setEditing({ key, quantity: line.quantity });
 	});
 
+	type StepId = "size" | "flowers" | "wrapper";
+	// Set once the shopper tries to add an unfinished bouquet: the summary
+	// then says what's missing and the steps to finish are outlined.
+	const [tried, setTried] = createSignal(false);
+	/** Steps still to do, in the order they appear. */
+	const missing = (): StepId[] => [
+		...(sizes().length > 0 && !size() ? (["size"] as const) : []),
+		...(design().items.length === 0 && bills().length === 0
+			? (["flowers"] as const)
+			: []),
+		...(!wrapper() ? (["wrapper"] as const) : []),
+	];
+	const MISSING_LABELS: Record<StepId, string> = {
+		size: "a size",
+		flowers: "some flowers (or money)",
+		wrapper: "a wrapper",
+	};
+	/** What stops the bouquet going in the bag, if anything. */
+	const blocker = () => {
+		if (uploading()) return "Wait for your photos to finish uploading.";
+		const steps = missing().map((step) => MISSING_LABELS[step]);
+		if (steps.length) {
+			const last = steps.pop();
+			return `Still to choose: ${steps.length ? `${steps.join(", ")} and ${last}` : last}.`;
+		}
+		return priced().problem;
+	};
+	const showMissing = (step: StepId) => tried() && missing().includes(step);
+
 	const addToBag = () => {
-		if (priced().problem) return;
+		if (blocker()) {
+			setTried(true);
+			const [first] = missing();
+			if (first)
+				document
+					.getElementById(`step-${first}`)
+					?.scrollIntoView({ behavior: "smooth", block: "start" });
+			return;
+		}
 		const built = design();
 		const replacing = editing();
 		if (replacing) removeFromCart(CUSTOM_PRODUCT_ID, replacing.key);
@@ -231,6 +323,7 @@ function BuilderPage() {
 			setEditing(null);
 			void navigate({ search: {}, replace: true });
 		}
+		setTried(false);
 		setAdded(true);
 		setCartOpen(true);
 	};
@@ -238,7 +331,7 @@ function BuilderPage() {
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
 			<SiteHeader />
-			<main class="mx-auto w-full max-w-6xl flex-1 px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+			<main class="mx-auto w-full max-w-6xl flex-1 px-4 pb-36 pt-8 sm:px-6 lg:px-8 lg:pb-20">
 				<Link
 					to="/shop"
 					class="text-sm text-petal-700 underline-offset-4 hover:underline"
@@ -249,8 +342,9 @@ function BuilderPage() {
 					Build your bouquet
 				</h1>
 				<p class="mt-2 max-w-xl text-petal-900/70">
-					Pick your flowers and colors, add money if you like, then choose a
-					wrapper. The price updates as you go.
+					Choose a size, pick your flowers and colors, then a wrapper. Add a
+					photo of a look you like or some money if you want. The price updates
+					as you go.
 				</p>
 				<Show when={settings().enabled}>
 					<p class="mt-2 max-w-xl text-sm text-petal-900/70">
@@ -309,7 +403,64 @@ function BuilderPage() {
 				>
 					<div class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
 						<div class="flex flex-col gap-6">
-							<Step number={1} title="Pick your flowers">
+							<Show when={sizes().length > 0}>
+								<Step
+									id="step-size"
+									number={1}
+									title="Choose a size"
+									missing={showMissing("size")}
+								>
+									<fieldset class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+										<legend class="sr-only">Size</legend>
+										<For each={sizes()}>
+											{(s) => (
+												<label class="cursor-pointer">
+													<input
+														type="radio"
+														name="size"
+														value={s.id}
+														checked={sizeId() === s.id}
+														onChange={() => {
+															setSizeId(s.id);
+															setAdded(false);
+														}}
+														class="peer sr-only"
+													/>
+													<span class="flex h-full flex-col items-center gap-2 rounded-2xl border border-petal-200 bg-white p-3 text-center transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
+														<Show when={s.image}>
+															{(src) => (
+																<img
+																	src={src()}
+																	alt={`Someone holding a ${s.name} bouquet`}
+																	class="h-28 w-[50px] rounded-lg bg-[#fdf9ea] object-contain"
+																/>
+															)}
+														</Show>
+														<span class="text-sm font-medium">{s.name}</span>
+														<Show when={s.description}>
+															<span class="text-xs text-petal-900/60">
+																{s.description}
+															</span>
+														</Show>
+														<span class="text-xs text-petal-900/60 tabular-nums">
+															{s.price
+																? `+${formatPrice(s.price, CURRENCY)}`
+																: "Free"}
+														</span>
+													</span>
+												</label>
+											)}
+										</For>
+									</fieldset>
+								</Step>
+							</Show>
+
+							<Step
+								id="step-flowers"
+								number={1 + sizeStep()}
+								title="Pick your flowers"
+								missing={showMissing("flowers")}
+							>
 								<ul class="grid gap-3 sm:grid-cols-2">
 									<For each={available()}>
 										{(kind) => {
@@ -464,54 +615,11 @@ function BuilderPage() {
 								</ul>
 							</Step>
 
-							<Show when={money().enabled && money().denominations.length > 0}>
-								<Step number={2} title="Add money (optional)">
-									<p class="-mt-2 mb-3 text-sm text-petal-900/60">
-										We fold real bills into the bouquet. You pay each bill’s
-										value plus {formatPrice(money().feePerBill, CURRENCY)} per
-										bill for folding. Up to {money().maxBills} bills.
-									</p>
-									<ul class="grid gap-2 sm:grid-cols-2">
-										<For each={money().denominations}>
-											{(value) => (
-												<li class="flex items-center justify-between gap-3 rounded-2xl border border-petal-100 bg-white px-4 py-3">
-													<span class="font-display type-soft text-lg font-semibold tabular-nums">
-														₱{value.toLocaleString("en-PH")}
-													</span>
-													<Stepper
-														label={`₱${value} bills`}
-														value={cash[value] ?? 0}
-														max={(cash[value] ?? 0) + billsLeft()}
-														onChange={(n) => setBills(value, n)}
-													/>
-												</li>
-											)}
-										</For>
-									</ul>
-									<Show when={bills().length > 0}>
-										<p class="mt-3 text-sm">
-											Cash in the bouquet:{" "}
-											<span class="font-semibold tabular-nums">
-												{formatPrice(cashTotal(bills()), CURRENCY)}
-											</span>{" "}
-											<span class="text-petal-900/60">
-												({billCount(bills())}{" "}
-												{billCount(bills()) === 1 ? "bill" : "bills"})
-											</span>
-										</p>
-									</Show>
-								</Step>
-							</Show>
-
 							<Step
-								number={
-									1 +
-									(money().enabled && money().denominations.length > 0
-										? 1
-										: 0) +
-									1
-								}
+								id="step-wrapper"
+								number={2 + sizeStep()}
 								title="Choose a wrapper"
+								missing={showMissing("wrapper")}
 							>
 								<fieldset class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 									<legend class="sr-only">Wrapper</legend>
@@ -575,6 +683,109 @@ function BuilderPage() {
 									</For>
 								</fieldset>
 							</Step>
+
+							<Step
+								number={3 + sizeStep()}
+								title="Show us a look you like (optional)"
+							>
+								<p class="-mt-2 mb-3 text-sm text-petal-900/60">
+									Add up to {MAX_REFERENCE_IMAGES} photos of bouquets, colors or
+									styles you like. Our florists use them as a guide; the flowers
+									you picked above set the price.
+								</p>
+								<ul class="grid grid-cols-3 gap-3 sm:grid-cols-4">
+									<For each={references()}>
+										{(url, index) => (
+											<li class="relative">
+												<ZoomableImage
+													src={url}
+													alt={`Reference photo ${index() + 1}`}
+													caption={`Reference photo ${index() + 1}`}
+													class="aspect-square w-full rounded-2xl border border-black/10 object-cover"
+												/>
+												<button
+													type="button"
+													onClick={() => removeReference(url)}
+													aria-label={`Remove reference photo ${index() + 1}`}
+													class="absolute right-1.5 top-1.5 flex size-8 items-center justify-center rounded-full bg-white/90 text-lg leading-none text-petal-900 shadow outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-petal-500"
+												>
+													×
+												</button>
+											</li>
+										)}
+									</For>
+									<Show when={references().length < MAX_REFERENCE_IMAGES}>
+										<li>
+											<label
+												class={cn(
+													"flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-petal-200 px-2 text-center text-sm text-petal-900/65 transition-colors focus-within:ring-2 focus-within:ring-petal-500 hover:border-petal-300 hover:bg-petal-50",
+													uploading() && "pointer-events-none opacity-60",
+												)}
+											>
+												<span aria-hidden="true" class="text-xl leading-none">
+													+
+												</span>
+												{uploading() ? "Uploading…" : "Add a photo"}
+												<input
+													type="file"
+													accept="image/png,image/jpeg,image/webp"
+													multiple
+													disabled={uploading()}
+													class="sr-only"
+													onChange={(e) => {
+														void addReferences(e.currentTarget.files);
+														e.currentTarget.value = "";
+													}}
+												/>
+											</label>
+										</li>
+									</Show>
+								</ul>
+								<Show when={uploadError()}>
+									<p role="alert" class="mt-3 text-sm text-error-foreground">
+										{uploadError()}
+									</p>
+								</Show>
+							</Step>
+
+							<Show when={hasMoneyStep()}>
+								<Step number={4 + sizeStep()} title="Add money (optional)">
+									<p class="-mt-2 mb-3 text-sm text-petal-900/60">
+										We fold real bills into the bouquet. You pay each bill’s
+										value plus {formatPrice(money().feePerBill, CURRENCY)} per
+										bill for folding. Up to {money().maxBills} bills.
+									</p>
+									<ul class="grid gap-2 sm:grid-cols-2">
+										<For each={money().denominations}>
+											{(value) => (
+												<li class="flex items-center justify-between gap-3 rounded-2xl border border-petal-100 bg-white px-4 py-3">
+													<span class="font-display type-soft text-lg font-semibold tabular-nums">
+														₱{value.toLocaleString("en-PH")}
+													</span>
+													<Stepper
+														label={`₱${value} bills`}
+														value={cash[value] ?? 0}
+														max={(cash[value] ?? 0) + billsLeft()}
+														onChange={(n) => setBills(value, n)}
+													/>
+												</li>
+											)}
+										</For>
+									</ul>
+									<Show when={bills().length > 0}>
+										<p class="mt-3 text-sm">
+											Cash in the bouquet:{" "}
+											<span class="font-semibold tabular-nums">
+												{formatPrice(cashTotal(bills()), CURRENCY)}
+											</span>{" "}
+											<span class="text-petal-900/60">
+												({billCount(bills())}{" "}
+												{billCount(bills()) === 1 ? "bill" : "bills"})
+											</span>
+										</p>
+									</Show>
+								</Step>
+							</Show>
 						</div>
 
 						<aside
@@ -587,18 +798,28 @@ function BuilderPage() {
 							>
 								Your bouquet
 							</h2>
+							<Show when={size()}>
+								{(s) => (
+									<p class="text-sm">
+										<span class="text-petal-900/60">Size:</span> {s().name}
+									</p>
+								)}
+							</Show>
 							<Show
 								when={design().items.length > 0 || bills().length > 0}
 								fallback={
 									<p class="text-sm text-petal-900/60">
-										Nothing yet. Start by picking some flowers.
+										{sizes().length > 0
+											? "Nothing yet. Start by choosing a size and some flowers."
+											: "Nothing yet. Start by picking some flowers."}
 									</p>
 								}
 							>
 								<Show when={design().items.length > 0}>
 									<div>
 										<p class="text-sm font-semibold tabular-nums">
-											{stemCount(design().items)} flowers
+											{stemCount(design().items)}{" "}
+											{stemCount(design().items) === 1 ? "flower" : "flowers"}
 										</p>
 										<ul class="mt-1 flex flex-col gap-0.5 text-sm text-petal-900/75">
 											<For each={design().items}>
@@ -631,7 +852,29 @@ function BuilderPage() {
 									</p>
 								)}
 							</Show>
+							<Show when={references().length > 0}>
+								<div>
+									<p class="text-sm text-petal-900/60">Look you like:</p>
+									<div class="mt-1 flex gap-2">
+										<For each={references()}>
+											{(url) => (
+												<img
+													src={url}
+													alt=""
+													class="size-12 rounded-lg border border-black/10 object-cover"
+												/>
+											)}
+										</For>
+									</div>
+								</div>
+							</Show>
 							<dl class="grid grid-cols-[1fr_auto] gap-y-1 border-t border-petal-100 pt-3 text-sm">
+								<Show when={sizes().length > 0}>
+									<dt class="text-petal-900/65">Size</dt>
+									<dd class="text-right tabular-nums">
+										{formatPrice(size()?.price ?? 0, CURRENCY)}
+									</dd>
+								</Show>
 								<dt class="text-petal-900/65">Flowers</dt>
 								<dd class="text-right tabular-nums">
 									{formatPrice(flowersTotal(), CURRENCY)}
@@ -656,32 +899,32 @@ function BuilderPage() {
 								</dd>
 								<dt class="pt-2 text-base font-semibold">Total</dt>
 								<dd class="pt-2 text-right text-base font-semibold tabular-nums">
-									{formatPrice(
-										flowersTotal() +
-											cashTotal(bills()) +
-											billFees() +
-											(wrapper()?.price ?? 0) +
-											settings().baseFee,
-										CURRENCY,
-									)}
+									{formatPrice(total(), CURRENCY)}
 								</dd>
 							</dl>
 							<Show
 								when={
-									priced().problem &&
-									design().items.length + (wrapperId() ? 1 : 0) > 0
+									blocker() &&
+									(tried() ||
+										design().items.length +
+											(wrapperId() ? 1 : 0) +
+											(sizeId() ? 1 : 0) >
+											0)
 								}
 							>
-								<p class="rounded-xl bg-petal-50 px-3 py-2 text-sm text-petal-900/75">
-									{priced().problem}
+								<p
+									role="alert"
+									class={cn(
+										"rounded-xl px-3 py-2 text-sm",
+										tried()
+											? "bg-error text-error-foreground"
+											: "bg-petal-50 text-petal-900/75",
+									)}
+								>
+									{blocker()}
 								</p>
 							</Show>
-							<button
-								type="button"
-								onClick={addToBag}
-								disabled={!!priced().problem}
-								class={pillPrimary}
-							>
+							<button type="button" onClick={addToBag} class={pillPrimary}>
 								{editing() ? "Update bouquet" : "Add to bag"}
 							</button>
 							<Show when={added()}>
@@ -691,6 +934,29 @@ function BuilderPage() {
 							</Show>
 						</aside>
 					</div>
+
+					{/* Phones: the summary sits below every step, so keep the total and
+					    the button in reach while building. */}
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+						<Show when={tried() && blocker()}>
+							<p class="mb-2 text-sm text-error-foreground">{blocker()}</p>
+						</Show>
+						<div class="flex items-center gap-4">
+							<p class="shrink-0">
+								<span class="block text-xs text-petal-900/60">Total</span>
+								<span class="text-lg font-semibold tabular-nums">
+									{formatPrice(total(), CURRENCY)}
+								</span>
+							</p>
+							<button
+								type="button"
+								onClick={addToBag}
+								class={cn(pillPrimary, "w-auto flex-1")}
+							>
+								{editing() ? "Update bouquet" : "Add to bag"}
+							</button>
+						</div>
+					</div>
 				</Show>
 			</main>
 			<SiteFooter />
@@ -698,9 +964,24 @@ function BuilderPage() {
 	);
 }
 
-function Step(props: { number: number; title: string; children: JSX.Element }) {
+function Step(props: {
+	id?: string;
+	number: number;
+	title: string;
+	/** Outlines the step: the shopper tried to add the bouquet without it. */
+	missing?: boolean;
+	children: JSX.Element;
+}) {
 	return (
-		<section class="rounded-3xl border border-petal-100 bg-white/60 p-5 sm:p-6">
+		<section
+			id={props.id}
+			class={cn(
+				"scroll-mt-24 rounded-3xl border bg-white/60 p-5 transition-colors sm:p-6",
+				props.missing
+					? "border-error-foreground/60 shadow-[inset_0_0_0_1px] shadow-error-foreground/60"
+					: "border-petal-100",
+			)}
+		>
 			<h2 class="mb-4 flex items-center gap-3 font-display type-soft text-xl font-semibold">
 				<span
 					aria-hidden="true"
@@ -709,12 +990,16 @@ function Step(props: { number: number; title: string; children: JSX.Element }) {
 					{props.number}
 				</span>
 				{props.title}
+				<Show when={props.missing}>
+					<span class="ml-auto font-sans text-sm font-medium text-error-foreground">
+						Required
+					</span>
+				</Show>
 			</h2>
 			{props.children}
 		</section>
 	);
 }
-/** − count + ; going below one takes it out. */
 /** − count + ; going below one takes it out. */
 function Stepper(props: {
 	label: string;

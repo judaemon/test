@@ -481,6 +481,11 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE wrappers ADD COLUMN extra_colors TEXT NOT NULL DEFAULT '[]';
 	`,
+	// v28: sizes get a price for the bouquet builder. NULL leaves the size out
+	// of the builder, so it stays as it was until staff set prices.
+	`
+	ALTER TABLE sizes ADD COLUMN price_cents INTEGER CHECK (price_cents >= 0);
+	`,
 ];
 
 declare global {

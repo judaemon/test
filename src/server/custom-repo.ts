@@ -5,19 +5,21 @@ import {
 } from "~/lib/custom-bouquet";
 import { getDb, nowIso } from "./db";
 import { listShopFlowers } from "./flowers-repo";
+import { listSizes } from "./sizes-repo";
 import { InputError } from "./validate";
 import { listWrappers } from "./wrappers-repo";
 
 const KEY = "custom_bouquet";
 
-/** The builder's fees, flowers and wrappers; sample fees until saved. */
+/** The builder's fees, flowers, wrappers and sizes; sample fees until saved. */
 export function getCustomSettings(): CustomBouquetSettings {
 	const row = getDb()
 		.query("SELECT value FROM settings WHERE key = $key")
 		.get({ key: KEY }) as { value: string } | null;
 	const flowers = listShopFlowers();
 	const wrappers = listWrappers();
-	if (!row) return { ...DEFAULT_CUSTOM_SETTINGS, flowers, wrappers };
+	const sizes = listSizes().map(({ usedIn: _usedIn, ...size }) => size);
+	if (!row) return { ...DEFAULT_CUSTOM_SETTINGS, flowers, wrappers, sizes };
 	return withDefaults(
 		{
 			...(JSON.parse(row.value) as Partial<CustomBouquetSettings>),
@@ -25,12 +27,16 @@ export function getCustomSettings(): CustomBouquetSettings {
 		},
 		flowers,
 		wrappers,
+		sizes,
 	);
 }
 
-/** Saves the fees and money settings; flowers and wrappers have their own tables. */
+/** Saves the fees and money settings; flowers, wrappers and sizes have their own tables. */
 export function saveCustomSettings(
-	settings: Omit<CustomBouquetSettings, "saved" | "flowers" | "wrappers">,
+	settings: Omit<
+		CustomBouquetSettings,
+		"saved" | "flowers" | "wrappers" | "sizes"
+	>,
 ) {
 	getDb()
 		.query(

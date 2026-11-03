@@ -192,6 +192,7 @@ function BagLine(props: {
 							line().custom?.bills?.length
 								? `Cash: ${formatBills(line().custom?.bills)}`
 								: "",
+							referenceLabel(line().custom?.referenceImages?.length ?? 0),
 						]
 							.filter(Boolean)
 							.join(" · ")}
@@ -275,4 +276,10 @@ function EmptyBag(props: { onShop: () => void }) {
 			</Link>
 		</div>
 	);
+}
+
+/** "2 reference photos", or nothing when there are none. */
+function referenceLabel(count: number) {
+	if (!count) return "";
+	return `${count} reference ${count === 1 ? "photo" : "photos"}`;
 }

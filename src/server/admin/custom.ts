@@ -16,7 +16,10 @@ export const getCustomSettingsAdmin = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-type SaveInput = Omit<CustomBouquetSettings, "saved" | "flowers" | "wrappers">;
+type SaveInput = Omit<
+	CustomBouquetSettings,
+	"saved" | "flowers" | "wrappers" | "sizes"
+>;
 
 export const saveCustomSettingsFn = createServerFn({ method: "POST" })
 	.validator((input: unknown): SaveInput => {

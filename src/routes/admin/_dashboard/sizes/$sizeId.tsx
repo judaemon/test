@@ -44,6 +44,8 @@ function SizeEditor() {
 		name: loaded()?.name ?? "",
 		description: loaded()?.description ?? "",
 		image: loaded()?.image ?? "",
+		// Kept as typed; empty leaves the size out of the builder.
+		price: loaded()?.price === undefined ? "" : String(loaded()?.price),
 	});
 	const [saving, setSaving] = createSignal(false);
 	const [uploading, setUploading] = createSignal(false);
@@ -84,6 +86,7 @@ function SizeEditor() {
 						name: draft.name,
 						description: draft.description,
 						image: draft.image,
+						price: draft.price.trim() === "" ? null : Number(draft.price),
 					},
 				},
 			});
@@ -185,6 +188,21 @@ function SizeEditor() {
 							maxLength={80}
 							placeholder="e.g. Small enough to hold in one hand"
 							class={adminInput}
+						/>
+					</Field>
+					<Field
+						label="Builder price (₱)"
+						hint="Added to a custom bouquet this size. Leave empty to leave this size out of Build your bouquet; 0 shows as “Free”."
+					>
+						<input
+							type="number"
+							min="0"
+							step="0.01"
+							inputMode="decimal"
+							value={draft.price}
+							onInput={(e) => setDraft("price", e.currentTarget.value)}
+							placeholder="Not in the builder"
+							class={cn(adminInput, "tabular-nums")}
 						/>
 					</Field>
 					<p class="text-xs text-petal-900/55">

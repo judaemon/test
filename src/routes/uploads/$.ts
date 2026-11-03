@@ -6,7 +6,8 @@ import {
 	type UploadKind,
 } from "~/server/uploads";
 
-// Product photos and payment QR codes uploaded from the admin.
+// Product photos and payment QR codes uploaded from the admin, and shoppers'
+// reference photos for built bouquets.
 export const Route = createFileRoute("/uploads/$")({
 	server: {
 		handlers: {

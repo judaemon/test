@@ -556,6 +556,21 @@ function OrdersPage() {
 												data-wide
 												class="px-5 py-2 md:px-3 md:py-3"
 											>
+												<Show when={line.custom?.referenceImages?.length}>
+													<span class="mb-1 flex gap-1">
+														<For each={line.custom?.referenceImages}>
+															{(url, index) => (
+																<ZoomableImage
+																	src={url}
+																	alt={`Reference photo ${index() + 1}`}
+																	caption={`#${order.number} · reference ${index() + 1}`}
+																	hoverPreview
+																	class="size-9 rounded-md border border-black/10 object-cover"
+																/>
+															)}
+														</For>
+													</span>
+												</Show>
 												<Show when={line.custom?.bills?.length}>
 													<p class="font-semibold tabular-nums">
 														{formatPrice(

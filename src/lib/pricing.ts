@@ -31,6 +31,8 @@ export interface PricedLine {
 	/** Snapshot of the bouquet's recipe; missing on orders placed before recipes. */
 	recipe?: RecipeItem[];
 	wrapperColor?: string;
+	/** Built bouquets' size, by name. */
+	sizeName?: string;
 	/** Set by staff on placed orders. */
 	wrapperStatus?: WrapperStatus;
 	/** The design, for built bouquets, so they can be ordered again. */
@@ -142,7 +144,7 @@ function priceCustomLine(
 	settings: CustomBouquetSettings,
 ): PricedLine {
 	const priced = priceDesign(design, settings);
-	const { unitPrice, wrapper, problem } = priced;
+	const { unitPrice, wrapper, size, problem } = priced;
 	const maxQuantity = Math.min(
 		MAX_PER_ORDER,
 		wrapper?.stock ?? MAX_PER_ORDER,
@@ -152,12 +154,16 @@ function priceCustomLine(
 		productId: CUSTOM_PRODUCT_ID,
 		variantId: line.variantId,
 		title: design.bills?.length ? "Money bouquet" : "Custom bouquet",
-		colorName: wrapper ? `${wrapper.name} wrapper` : "Custom",
+		colorName:
+			[size?.name, wrapper && `${wrapper.name} wrapper`]
+				.filter(Boolean)
+				.join(", ") || "Custom",
 		colorHex: wrapper?.colorHex,
 		sku: "Custom",
 		image: CUSTOM_IMAGE,
 		recipe: design.items,
 		wrapperColor: wrapper?.name,
+		...(size ? { sizeName: size.name } : {}),
 		custom: design,
 		quantity: line.quantity,
 		unitPrice,

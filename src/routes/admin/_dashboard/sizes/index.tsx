@@ -7,6 +7,7 @@ import {
 	PageHeader,
 	toastError,
 } from "~/components/admin/ui";
+import { formatPrice } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { listSizesAdmin, moveSizeFn } from "~/server/admin/sizes";
 
@@ -38,7 +39,7 @@ function SizesPage() {
 		<div class="mx-auto max-w-4xl">
 			<PageHeader
 				title="Sizes"
-				description="The sizes a signature bouquet can have, smallest first. The shop shows them side by side as the size guide, and shoppers can filter bouquets by size."
+				description="The sizes a signature bouquet can have, smallest first. The shop shows them side by side as the size guide, and shoppers can filter bouquets by size. Sizes with a builder price can be picked in Build your bouquet."
 				actions={
 					<Link
 						to="/admin/sizes/$sizeId"
@@ -87,6 +88,10 @@ function SizesPage() {
 											{size.usedIn
 												? `${size.usedIn} signature ${size.usedIn === 1 ? "bouquet" : "bouquets"}`
 												: "No bouquets yet"}
+											{" · "}
+											{size.price === undefined
+												? "Not in the builder"
+												: `Builder ${size.price > 0 ? `+${formatPrice(size.price, "PHP")}` : "free"}`}
 										</p>
 									</div>
 									<div class="flex items-center gap-1">

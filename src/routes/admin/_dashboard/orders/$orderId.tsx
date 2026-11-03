@@ -284,6 +284,29 @@ function OrderDetail() {
 													{formatBills(line.custom?.bills)}
 												</span>
 											</Show>
+											<Show when={line.custom?.referenceImages?.length}>
+												<span class="mt-2 block text-sm font-medium">
+													Look they want
+												</span>
+												<span class="mt-1 flex flex-wrap gap-2">
+													<For each={line.custom?.referenceImages}>
+														{(url, index) => (
+															<ZoomableImage
+																src={url}
+																alt={`Reference photo ${index() + 1}`}
+																caption={`#${order().number} · reference ${index() + 1}`}
+																hoverPreview
+																class="size-20 rounded-lg border border-black/10 object-cover"
+															/>
+														)}
+													</For>
+												</span>
+											</Show>
+											<Show when={line.sizeName}>
+												<span class="block text-sm">
+													<span class="font-medium">Size:</span> {line.sizeName}
+												</span>
+											</Show>
 											<Show when={line.wrapperColor}>
 												<span class="block text-sm">
 													<span class="font-medium">Wrapper:</span>{" "}
