@@ -14,8 +14,10 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as ActiveOrdersRouteImport } from './routes/active-orders'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CustomRouteImport } from './routes/custom'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AccountIndexRouteImport } from './routes/account/index'
 import { Route as AccountAddressesRouteImport } from './routes/account/addresses'
 import { Route as AccountOccasionsRouteImport } from './routes/account/occasions'
@@ -75,6 +77,11 @@ const CustomRoute = CustomRouteImport.update({
   path: '/custom',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopRoute = ShopRouteImport.update({
   id: '/shop',
   path: '/shop',
@@ -83,6 +90,11 @@ const ShopRoute = ShopRouteImport.update({
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountIndexRoute = AccountIndexRouteImport.update({
@@ -271,8 +283,10 @@ export interface FileRoutesByFullPath {
   '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
   '/custom': typeof CustomRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/account/addresses': typeof AccountAddressesRoute
   '/account/occasions': typeof AccountOccasionsRoute
   '/account/orders': typeof AccountOrdersRoute
@@ -312,8 +326,10 @@ export interface FileRoutesByTo {
   '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
   '/custom': typeof CustomRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/account/addresses': typeof AccountAddressesRoute
   '/account/occasions': typeof AccountOccasionsRoute
   '/account/orders': typeof AccountOrdersRoute
@@ -354,8 +370,10 @@ export interface FileRoutesById {
   '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
   '/custom': typeof CustomRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/account/addresses': typeof AccountAddressesRoute
   '/account/occasions': typeof AccountOccasionsRoute
   '/account/orders': typeof AccountOrdersRoute
@@ -398,8 +416,10 @@ export interface FileRouteTypes {
     | '/active-orders'
     | '/checkout'
     | '/custom'
+    | '/robots.txt'
     | '/shop'
     | '/sign-in'
+    | '/sitemap.xml'
     | '/account/addresses'
     | '/account/occasions'
     | '/account/orders'
@@ -439,8 +459,10 @@ export interface FileRouteTypes {
     | '/active-orders'
     | '/checkout'
     | '/custom'
+    | '/robots.txt'
     | '/shop'
     | '/sign-in'
+    | '/sitemap.xml'
     | '/account/addresses'
     | '/account/occasions'
     | '/account/orders'
@@ -480,8 +502,10 @@ export interface FileRouteTypes {
     | '/active-orders'
     | '/checkout'
     | '/custom'
+    | '/robots.txt'
     | '/shop'
     | '/sign-in'
+    | '/sitemap.xml'
     | '/account/addresses'
     | '/account/occasions'
     | '/account/orders'
@@ -523,8 +547,10 @@ export interface RootRouteChildren {
   ActiveOrdersRoute: typeof ActiveOrdersRoute
   CheckoutRoute: typeof CheckoutRoute
   CustomRoute: typeof CustomRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShopRoute: typeof ShopRoute
   SignInRoute: typeof SignInRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   AdminDashboardRoute: typeof AdminDashboardRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   AssetsSplatRoute: typeof AssetsSplatRoute
@@ -575,6 +601,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof CustomRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop': {
       id: '/shop'
       path: '/shop'
@@ -587,6 +620,13 @@ declare module '@tanstack/solid-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account/': {
@@ -895,8 +935,10 @@ const rootRouteChildren: RootRouteChildren = {
   ActiveOrdersRoute: ActiveOrdersRoute,
   CheckoutRoute: CheckoutRoute,
   CustomRoute: CustomRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   ShopRoute: ShopRoute,
   SignInRoute: SignInRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   AdminDashboardRoute: AdminDashboardRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   AssetsSplatRoute: AssetsSplatRoute,
