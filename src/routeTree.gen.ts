@@ -40,6 +40,7 @@ import { Route as AdminDashboardFlowersIndexRouteImport } from './routes/admin/_
 import { Route as AdminDashboardFlowersFlowerIdRouteImport } from './routes/admin/_dashboard/flowers/$flowerId'
 import { Route as AdminDashboardOrdersIndexRouteImport } from './routes/admin/_dashboard/orders/index'
 import { Route as AdminDashboardOrdersOrderIdRouteImport } from './routes/admin/_dashboard/orders/$orderId'
+import { Route as AdminDashboardOrdersNewRouteImport } from './routes/admin/_dashboard/orders/new'
 import { Route as AdminDashboardProductsIndexRouteImport } from './routes/admin/_dashboard/products/index'
 import { Route as AdminDashboardProductsProductIdRouteImport } from './routes/admin/_dashboard/products/$productId'
 import { Route as AdminDashboardSignatureBouquetsIndexRouteImport } from './routes/admin/_dashboard/signature-bouquets/index'
@@ -211,6 +212,11 @@ const AdminDashboardOrdersOrderIdRoute =
     path: '/orders/$orderId',
     getParentRoute: () => AdminDashboardRoute,
   } as any)
+const AdminDashboardOrdersNewRoute = AdminDashboardOrdersNewRouteImport.update({
+  id: '/orders/new',
+  path: '/orders/new',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
 const AdminDashboardProductsIndexRoute =
   AdminDashboardProductsIndexRouteImport.update({
     id: '/products/',
@@ -307,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminDashboardIndexRoute
   '/admin/flowers/$flowerId': typeof AdminDashboardFlowersFlowerIdRoute
   '/admin/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
+  '/admin/orders/new': typeof AdminDashboardOrdersNewRoute
   '/admin/products/$productId': typeof AdminDashboardProductsProductIdRoute
   '/admin/signature-bouquets/$productId': typeof AdminDashboardSignatureBouquetsProductIdRoute
   '/admin/signature-bouquets/arrange': typeof AdminDashboardSignatureBouquetsArrangeRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminDashboardIndexRoute
   '/admin/flowers/$flowerId': typeof AdminDashboardFlowersFlowerIdRoute
   '/admin/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
+  '/admin/orders/new': typeof AdminDashboardOrdersNewRoute
   '/admin/products/$productId': typeof AdminDashboardProductsProductIdRoute
   '/admin/signature-bouquets/$productId': typeof AdminDashboardSignatureBouquetsProductIdRoute
   '/admin/signature-bouquets/arrange': typeof AdminDashboardSignatureBouquetsArrangeRoute
@@ -394,6 +402,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/': typeof AdminDashboardIndexRoute
   '/admin/_dashboard/flowers/$flowerId': typeof AdminDashboardFlowersFlowerIdRoute
   '/admin/_dashboard/orders/$orderId': typeof AdminDashboardOrdersOrderIdRoute
+  '/admin/_dashboard/orders/new': typeof AdminDashboardOrdersNewRoute
   '/admin/_dashboard/products/$productId': typeof AdminDashboardProductsProductIdRoute
   '/admin/_dashboard/signature-bouquets/$productId': typeof AdminDashboardSignatureBouquetsProductIdRoute
   '/admin/_dashboard/signature-bouquets/arrange': typeof AdminDashboardSignatureBouquetsArrangeRoute
@@ -440,6 +449,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/admin/flowers/$flowerId'
     | '/admin/orders/$orderId'
+    | '/admin/orders/new'
     | '/admin/products/$productId'
     | '/admin/signature-bouquets/$productId'
     | '/admin/signature-bouquets/arrange'
@@ -482,6 +492,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin/flowers/$flowerId'
     | '/admin/orders/$orderId'
+    | '/admin/orders/new'
     | '/admin/products/$productId'
     | '/admin/signature-bouquets/$productId'
     | '/admin/signature-bouquets/arrange'
@@ -526,6 +537,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/'
     | '/admin/_dashboard/flowers/$flowerId'
     | '/admin/_dashboard/orders/$orderId'
+    | '/admin/_dashboard/orders/new'
     | '/admin/_dashboard/products/$productId'
     | '/admin/_dashboard/signature-bouquets/$productId'
     | '/admin/_dashboard/signature-bouquets/arrange'
@@ -783,6 +795,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AdminDashboardOrdersOrderIdRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
+    '/admin/_dashboard/orders/new': {
+      id: '/admin/_dashboard/orders/new'
+      path: '/orders/new'
+      fullPath: '/admin/orders/new'
+      preLoaderRoute: typeof AdminDashboardOrdersNewRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
     '/admin/_dashboard/products/': {
       id: '/admin/_dashboard/products/'
       path: '/products'
@@ -888,6 +907,7 @@ interface AdminDashboardRouteChildren {
   AdminDashboardIndexRoute: typeof AdminDashboardIndexRoute
   AdminDashboardFlowersFlowerIdRoute: typeof AdminDashboardFlowersFlowerIdRoute
   AdminDashboardOrdersOrderIdRoute: typeof AdminDashboardOrdersOrderIdRoute
+  AdminDashboardOrdersNewRoute: typeof AdminDashboardOrdersNewRoute
   AdminDashboardProductsProductIdRoute: typeof AdminDashboardProductsProductIdRoute
   AdminDashboardSignatureBouquetsProductIdRoute: typeof AdminDashboardSignatureBouquetsProductIdRoute
   AdminDashboardSignatureBouquetsArrangeRoute: typeof AdminDashboardSignatureBouquetsArrangeRoute
@@ -909,6 +929,7 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardIndexRoute: AdminDashboardIndexRoute,
   AdminDashboardFlowersFlowerIdRoute: AdminDashboardFlowersFlowerIdRoute,
   AdminDashboardOrdersOrderIdRoute: AdminDashboardOrdersOrderIdRoute,
+  AdminDashboardOrdersNewRoute: AdminDashboardOrdersNewRoute,
   AdminDashboardProductsProductIdRoute: AdminDashboardProductsProductIdRoute,
   AdminDashboardSignatureBouquetsProductIdRoute:
     AdminDashboardSignatureBouquetsProductIdRoute,

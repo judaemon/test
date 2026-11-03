@@ -32,6 +32,17 @@ export function isPaymentSettled(status: PaymentStatus) {
 	return status === "paid" || status === "verified";
 }
 
+/**
+ * Whether staff can start making the order: paid, or (for orders added from a
+ * chat) a deposit is in, with the rest due on the day.
+ */
+export function canStartMaking(payment: {
+	status: PaymentStatus;
+	amountPaid?: number;
+}) {
+	return isPaymentSettled(payment.status) || (payment.amountPaid ?? 0) > 0;
+}
+
 /** The shopper still has to send a payment: never sent, or it didn't match. */
 export function isPaymentDue(status: PaymentStatus) {
 	return status === "on_hold" || status === "rejected";
@@ -88,6 +99,8 @@ export interface OrderPayment {
 	cardLast4?: string;
 	reviewedBy?: string;
 	reviewedAt?: string;
+	/** Orders added from a chat: what the customer paid so far, e.g. a deposit. */
+	amountPaid?: number;
 }
 
 export interface OrderEvent {

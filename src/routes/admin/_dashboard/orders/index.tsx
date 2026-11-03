@@ -9,6 +9,7 @@ import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
 import {
+	adminButton,
 	adminCard,
 	adminInput,
 	PageHeader,
@@ -52,6 +53,7 @@ import {
 } from "~/server/admin/orders";
 import {
 	BOARD_STAGES,
+	canStartMaking,
 	isPaymentSettled,
 	type Order,
 	PAYMENT_STATUSES,
@@ -200,6 +202,11 @@ function OrdersPage() {
 			<PageHeader
 				title="Orders"
 				description="Every bouquet ordered, colored by company. Change a status right in its row, or open the order to check its payment."
+				actions={
+					<Link to="/admin/orders/new" class={adminButton.primary}>
+						+ Add custom order
+					</Link>
+				}
 			/>
 
 			<nav
@@ -517,6 +524,15 @@ function OrdersPage() {
 												class="px-5 py-2 md:px-3 md:py-3"
 											>
 												<PaymentStatusSelect order={order} />
+												<Show when={order.payment.amountPaid !== undefined}>
+													<p class="mt-1 whitespace-nowrap text-xs tabular-nums text-petal-900/65">
+														{formatPrice(
+															order.payment.amountPaid ?? 0,
+															order.currency,
+														)}{" "}
+														paid
+													</p>
+												</Show>
 											</td>
 											<td data-label="Method" class="px-5 py-2 md:px-3 md:py-3">
 												{PAYMENT_METHOD_LABELS[order.payment.method]}
@@ -796,9 +812,9 @@ function OrderStageSelect(props: { order: Order }) {
 				options={ROW_STAGES.map((value) => ({
 					value,
 					label: STAGE_LABELS[value],
-					// Unpaid orders stay in "New orders" until the payment is settled.
-					disabled:
-						value !== "new" && !isPaymentSettled(props.order.payment.status),
+					// Unpaid orders stay in "New orders" until the payment is settled
+					// (or, for orders added from a chat, a deposit is in).
+					disabled: value !== "new" && !canStartMaking(props.order.payment),
 				}))}
 				class={STAGE_CLASS[stage()]}
 				onSave={(value) =>

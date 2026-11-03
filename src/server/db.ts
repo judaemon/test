@@ -486,6 +486,11 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE sizes ADD COLUMN price_cents INTEGER CHECK (price_cents >= 0);
 	`,
+	// v29: orders staff add from a chat record what the customer paid so far
+	// (a deposit, say). NULL on shop orders, which are paid in full or not at all.
+	`
+	ALTER TABLE orders ADD COLUMN amount_paid_cents INTEGER CHECK (amount_paid_cents >= 0);
+	`,
 ];
 
 declare global {

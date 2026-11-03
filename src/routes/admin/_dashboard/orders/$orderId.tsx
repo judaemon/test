@@ -39,7 +39,7 @@ import {
 } from "~/server/admin/orders";
 import {
 	BOARD_STAGES,
-	isPaymentSettled,
+	canStartMaking,
 	type Order,
 	type OrderStage,
 	STAGE_LABELS,
@@ -209,7 +209,7 @@ function OrderDetail() {
 									)}
 								</For>
 							</fieldset>
-							<Show when={!isPaymentSettled(payment().status)}>
+							<Show when={!canStartMaking(payment())}>
 								<p class="mt-3 text-sm text-warning-foreground">
 									Verify the payment before moving this order past “New orders”.
 								</p>
@@ -421,6 +421,23 @@ function OrderDetail() {
 							<dd class="font-medium tabular-nums">
 								{formatPrice(order().total, order().currency)}
 							</dd>
+							{/* Orders added from a chat can be part-paid. */}
+							<Show when={payment().amountPaid}>
+								{(paid) => (
+									<>
+										<dt class="text-petal-900/60">Paid so far</dt>
+										<dd class="tabular-nums">
+											{formatPrice(paid(), order().currency)}
+										</dd>
+										<Show when={order().total - paid() > 0}>
+											<dt class="text-petal-900/60">Still to pay</dt>
+											<dd class="font-medium tabular-nums text-error-foreground">
+												{formatPrice(order().total - paid(), order().currency)}
+											</dd>
+										</Show>
+									</>
+								)}
+							</Show>
 							<Show when={payment().reviewedBy}>
 								<dt class="text-petal-900/60">Checked by</dt>
 								<dd>{payment().reviewedBy}</dd>

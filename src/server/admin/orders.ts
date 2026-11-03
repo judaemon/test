@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/solid-start";
+import { CHAT_MESSAGE_MAX, CHAT_PHOTOS_MAX } from "~/lib/chat-order";
+import { parseCheckoutDetails } from "~/lib/checkout";
+import { CUSTOM_IMAGE, CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { validateOrdersSearch } from "~/lib/order-filters";
+import { isPaymentMethod, type PaymentMethod } from "~/lib/payment";
 import {
 	type Order,
 	type OrderStage,
@@ -9,6 +13,7 @@ import {
 import { requireStaff } from "../admin-auth";
 import { queryOrderRows } from "../order-rows";
 import {
+	createOrder,
 	getOrderById,
 	OrderRuleError,
 	reviewPayment,
@@ -18,7 +23,12 @@ import {
 	setRider,
 	setWrapperStatus,
 } from "../orders-repo";
-import { deleteUpload, saveImage, UploadError } from "../uploads";
+import {
+	deleteUpload,
+	publicUploadUrl,
+	saveImage,
+	UploadError,
+} from "../uploads";
 import { asRecord, InputError, integer, oneOf, text } from "../validate";
 
 const ALL_STAGES = [
@@ -164,6 +174,110 @@ export const uploadDeliveryPhoto = createServerFn({ method: "POST" })
 		} catch (error) {
 			await deleteUpload("delivery", fileName);
 			if (error instanceof OrderRuleError)
+				return { ok: false, message: error.message };
+			throw error;
+		}
+	});
+
+export type ChatOrderResult =
+	| { ok: true; id: string; number: string }
+	| { ok: false; message: string };
+
+/**
+ * An order taken in a chat (Messenger, Telegram…), added by staff: the
+ * customer's message as its notes, their photos, the agreed total and what
+ * they've paid so far. It holds no flowers or wrappers from stock.
+ */
+export const createChatOrderFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		if (!(input instanceof FormData)) throw new Error("Expected form data");
+		const field = (key: string) => {
+			const value = input.get(key);
+			return typeof value === "string" ? value : "";
+		};
+		const message = field("message").trim();
+		if (!message) throw new InputError("Paste the customer’s message.");
+		if (message.length > CHAT_MESSAGE_MAX)
+			throw new InputError(
+				`Keep the message under ${CHAT_MESSAGE_MAX.toLocaleString()} characters.`,
+			);
+		const total = Number(field("total"));
+		if (!Number.isFinite(total) || total <= 0)
+			throw new InputError("Enter the order’s total.");
+		if (total > 1_000_000) throw new InputError("The total is too large.");
+		const paid = field("paid").trim() === "" ? 0 : Number(field("paid"));
+		if (!Number.isFinite(paid) || paid < 0)
+			throw new InputError("Paid so far must be zero or more.");
+		if (paid > total)
+			throw new InputError("Paid so far can’t be more than the total.");
+		const method = field("method");
+		if (!isPaymentMethod(method))
+			throw new InputError("Choose how the customer pays.");
+		const photos = input
+			.getAll("photos")
+			.filter((file): file is File => file instanceof File && file.size > 0);
+		if (photos.length > CHAT_PHOTOS_MAX)
+			throw new InputError(`Add up to ${CHAT_PHOTOS_MAX} photos.`);
+		return {
+			message,
+			total: Math.round(total * 100) / 100,
+			paid: Math.round(paid * 100) / 100,
+			method: method as PaymentMethod,
+			photos,
+		};
+	})
+	.handler(async ({ data }): Promise<ChatOrderResult> => {
+		await requireStaff();
+		const saved: string[] = [];
+		try {
+			// Served like shoppers' reference photos, under random names.
+			for (const photo of data.photos)
+				saved.push(await saveImage("references", photo));
+			const id = crypto.randomUUID();
+			const photoUrls = saved.map((file) =>
+				publicUploadUrl("references", file),
+			);
+			const order = createOrder({
+				id,
+				details: parseCheckoutDetails({ notes: data.message }),
+				cart: {
+					lines: [
+						{
+							productId: CUSTOM_PRODUCT_ID,
+							variantId: `chat-${id}`,
+							title: "Custom order",
+							colorName: "From chat",
+							sku: "Custom",
+							image: photoUrls[0] ?? CUSTOM_IMAGE,
+							// No flowers or wrapper: they're described in the message.
+							custom: {
+								items: [],
+								wrapperId: "",
+								...(photoUrls.length ? { referenceImages: photoUrls } : {}),
+							},
+							quantity: 1,
+							unitPrice: data.total,
+							lineTotal: data.total,
+							maxQuantity: 1,
+						},
+					],
+					subtotal: data.total,
+					deliveryFee: 0,
+					total: data.total,
+					currency: "PHP",
+					itemCount: 1,
+				},
+				payment: {
+					method: data.method,
+					// Paid in full is settled; anything owing waits like any unpaid order.
+					status: data.paid >= data.total ? "verified" : "on_hold",
+					amountPaid: data.paid,
+				},
+			});
+			return { ok: true, id: order.id, number: order.number };
+		} catch (error) {
+			for (const file of saved) await deleteUpload("references", file);
+			if (error instanceof UploadError || error instanceof OrderRuleError)
 				return { ok: false, message: error.message };
 			throw error;
 		}

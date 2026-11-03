@@ -9,6 +9,7 @@ import type { PricedCart, PricedLine } from "~/lib/pricing";
 import { lineName } from "~/lib/product";
 import {
 	type CustomerOrder,
+	canStartMaking,
 	isPaymentDue,
 	isPaymentSettled,
 	type Order,
@@ -59,6 +60,7 @@ interface OrderRow {
 	delivered_at: string | null;
 	cancel_reason: string | null;
 	is_test: number;
+	amount_paid_cents: number | null;
 }
 
 function loadEvents(ids: string[]): Map<string, OrderEvent[]> {
@@ -118,6 +120,9 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 			cardLast4: row.card_last4 ?? undefined,
 			reviewedBy: row.payment_reviewed_by ?? undefined,
 			reviewedAt: row.payment_reviewed_at ?? undefined,
+			...(row.amount_paid_cents === null
+				? {}
+				: { amountPaid: fromCents(row.amount_paid_cents) }),
 		},
 		customerId: row.customer_id ?? undefined,
 		delivery: {
@@ -211,11 +216,12 @@ export function createOrder(order: NewOrder): Order {
 			`INSERT INTO orders (id, number, created_at, stage, stage_updated_at, email, phone, recipient_name,
 			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, serial_number, class_name, notes,
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
-			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id)
+			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id,
+			   amount_paid_cents)
 			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
 			   $company, $serialNumber, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
-			   $customerId)`,
+			   $customerId, $amountPaid)`,
 		).run({
 			id: order.id,
 			number: String(nextNumber),
@@ -242,6 +248,10 @@ export function createOrder(order: NewOrder): Order {
 			cardBrand: order.payment.cardBrand ?? null,
 			cardLast4: order.payment.cardLast4 ?? null,
 			customerId: order.customerId ?? null,
+			amountPaid:
+				order.payment.amountPaid === undefined
+					? null
+					: toCents(order.payment.amountPaid),
 		});
 		addEvent(order.id, "new", now);
 	})();
@@ -419,7 +429,7 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 		if (order.stage === "cancelled")
 			throw new OrderRuleError("Cancelled orders can’t be moved.");
 		if (stage !== "new" && stage !== "cancelled") {
-			if (!isPaymentSettled(order.payment.status)) {
+			if (!canStartMaking(order.payment)) {
 				throw new OrderRuleError(
 					order.payment.status === "rejected"
 						? "This payment was rejected. Sort it out with the customer, then verify it."
