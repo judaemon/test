@@ -837,11 +837,8 @@ function ProductEditor() {
 										+ Add flower
 									</button>
 								</fieldset>
-								<Field
-									label="Wrapper"
-									hint="From Wrappers. Shown to shoppers and on each order."
-									class="sm:col-span-2"
-								>
+								<fieldset class="sm:col-span-2">
+									<legend class="mb-2 text-sm font-medium">Wrapper</legend>
 									<WrapperSelect
 										label="Wrapper"
 										wrappers={custom().wrappers}
@@ -850,7 +847,10 @@ function ProductEditor() {
 											updateVariant(index, { wrapperId })
 										}
 									/>
-								</Field>
+									<p class="mt-1.5 text-xs text-petal-900/55">
+										From Wrappers. Shown to shoppers and on each order.
+									</p>
+								</fieldset>
 							</div>
 
 							<div class="mt-5">
