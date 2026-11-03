@@ -306,16 +306,16 @@ function OrdersPage() {
 				<label class="flex items-center gap-2">
 					Sort
 					<select
-						value={search().sort ?? "oldest"}
+						value={search().sort ?? "newest"}
 						onChange={(e) =>
 							setSearch({
-								sort: e.currentTarget.value === "newest" ? "newest" : undefined,
+								sort: e.currentTarget.value === "oldest" ? "oldest" : undefined,
 							})
 						}
 						class={cn(adminInput, "h-9 w-auto py-0 pr-8 sm:h-9")}
 					>
-						<option value="oldest">First order on top</option>
 						<option value="newest">Latest order on top</option>
+						<option value="oldest">First order on top</option>
 					</select>
 				</label>
 			</div>

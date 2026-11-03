@@ -23,7 +23,8 @@ export interface OrdersSearch {
 	from?: string;
 	to?: string;
 	q?: string;
-	sort?: "newest";
+	/** Latest order on top unless "oldest". */
+	sort?: "oldest";
 	page?: number;
 	perPage?: number;
 }
@@ -81,7 +82,7 @@ export function validateOrdersSearch(
 		from: date("from"),
 		to: date("to"),
 		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 80) : undefined,
-		sort: search.sort === "newest" ? "newest" : undefined,
+		sort: search.sort === "oldest" ? "oldest" : undefined,
 		page: Number.isInteger(page) && page > 1 ? page : undefined,
 		perPage: (PAGE_SIZES as readonly number[]).includes(perPage)
 			? perPage

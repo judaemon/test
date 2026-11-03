@@ -189,7 +189,7 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 				Number(a.order.number) - Number(b.order.number) ||
 				a.order.createdAt.localeCompare(b.order.createdAt);
 			// An order's bouquets stay in their own order either way.
-			return (search.sort === "newest" ? -order : order) || a.index - b.index;
+			return (search.sort === "oldest" ? order : -order) || a.index - b.index;
 		});
 	const pageSize = search.perPage ?? DEFAULT_PAGE_SIZE;
 	const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
