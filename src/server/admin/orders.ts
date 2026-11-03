@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
+import { validateOrdersSearch } from "~/lib/order-filters";
 import {
 	type Order,
 	type OrderStage,
@@ -6,10 +7,9 @@ import {
 	WRAPPER_STATUSES,
 } from "~/types/order";
 import { requireStaff } from "../admin-auth";
+import { queryOrderRows } from "../order-rows";
 import {
 	getOrderById,
-	listOrders,
-	type OrderFilter,
 	OrderRuleError,
 	reviewPayment,
 	setDeliveryPhoto,
@@ -27,36 +27,17 @@ const ALL_STAGES = [
 	"done",
 	"cancelled",
 ] as const satisfies readonly OrderStage[];
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type OrderActionResult =
 	| { ok: true; order: Order }
 	| { ok: false; message: string };
 
-export const listAdminOrders = createServerFn({ method: "GET" })
-	.validator((input: unknown): OrderFilter => {
-		const source = asRecord(input ?? {});
-		const date = typeof source.date === "string" ? source.date : undefined;
-		const fromDate =
-			typeof source.fromDate === "string" ? source.fromDate : undefined;
-		return {
-			date: date && DATE.test(date) ? date : undefined,
-			fromDate: fromDate && DATE.test(fromDate) ? fromDate : undefined,
-			stages: Array.isArray(source.stages)
-				? source.stages.map((stage) => oneOf(stage, ALL_STAGES, "Stage"))
-				: undefined,
-			needsVerification: source.needsVerification === true,
-			onHold: source.onHold === true,
-			test: source.test === "only" ? "only" : undefined,
-			search:
-				typeof source.search === "string"
-					? source.search.trim().slice(0, 80) || undefined
-					: undefined,
-		};
-	})
+/** The orders table: one page of bouquet rows, and every filter's counts. */
+export const listAdminOrderRows = createServerFn({ method: "GET" })
+	.validator((input: unknown) => validateOrdersSearch(asRecord(input ?? {})))
 	.handler(async ({ data }) => {
 		await requireStaff();
-		return listOrders(data);
+		return queryOrderRows(data);
 	});
 
 export const getAdminOrder = createServerFn({ method: "GET" })
