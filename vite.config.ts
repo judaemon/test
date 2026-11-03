@@ -24,11 +24,17 @@ function devUploads(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const path = req.url?.split('?')[0] ?? ''
-        const match = /^\/uploads\/(products|payments|references)\/([a-z0-9-]+)$/.exec(path)
+        // `<id>`, `<id>.jpg`, or a card-sized copy `<id>-w640.jpg`; like the
+        // `/uploads/$` route, a copy that isn't made yet falls back to the photo.
+        const match =
+          /^\/uploads\/(products|payments|references)\/([a-z0-9-]+?)(-w\d+)?(?:\.(?:png|jpg|webp))?$/.exec(path)
         if (!match) return next()
-        for (const [ext, type] of Object.entries(types)) {
+        const names = match[3] ? [`${match[2]}${match[3]}`, match[2]] : [match[2]]
+        for (const [name, [ext, type]] of names.flatMap((n) =>
+          Object.entries(types).map((t) => [n, t] as const),
+        )) {
           try {
-            const bytes = await readFile(join(root, match[1], `${match[2]}.${ext}`))
+            const bytes = await readFile(join(root, match[1], `${name}.${ext}`))
             res.setHeader('Content-Type', type)
             res.setHeader('X-Content-Type-Options', 'nosniff')
             res.end(bytes)

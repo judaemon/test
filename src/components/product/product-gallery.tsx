@@ -2,8 +2,8 @@ import { createEffect, createSignal, For, on, Show } from "solid-js";
 
 import { Button } from "~/components/ui/button";
 import { Lightbox } from "~/components/zoom/zoomable-image";
+import { photoSrc } from "~/lib/photos";
 import { cn } from "~/lib/utils";
-
 import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
 
 const SWIPE_THRESHOLD_PX = 40;
@@ -104,7 +104,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 				<For each={props.photos}>
 					{(photo, index) => (
 						<img
-							src={photo.src}
+							src={photoSrc(photo.src)}
 							alt={index() === activeIndex() ? altFor(index()) : ""}
 							aria-hidden={index() !== activeIndex()}
 							width={800}
@@ -140,7 +140,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 						<Lightbox
 							open={viewing()}
 							onOpenChange={setViewing}
-							src={photo().src}
+							src={photoSrc(photo().src)}
 							alt={altFor(activeIndex())}
 							caption={photo().label}
 						/>
@@ -220,7 +220,7 @@ export function ProductGallery(props: ProductGalleryProps) {
 									)}
 								>
 									<img
-										src={photo.src}
+										src={photoSrc(photo.src, "thumb")}
 										alt=""
 										width={80}
 										height={80}

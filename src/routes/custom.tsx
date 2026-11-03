@@ -33,6 +33,7 @@ import {
 	wrapperInStock,
 } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
+import { photoSrc } from "~/lib/photos";
 import {
 	formatPrice,
 	MAX_PER_ORDER,
@@ -430,7 +431,7 @@ function BuilderPage() {
 														<Show when={s.image}>
 															{(src) => (
 																<img
-																	src={src()}
+																	src={photoSrc(src(), "thumb")}
 																	alt={`Someone holding a ${s.name} bouquet`}
 																	class="h-28 w-[50px] rounded-lg bg-[#fdf9ea] object-contain"
 																/>
@@ -480,7 +481,7 @@ function BuilderPage() {
 															<Show when={flowerPhoto(opt(), shownColor())}>
 																{(src) => (
 																	<ZoomableImage
-																		src={src()}
+																		src={photoSrc(src(), "thumb")}
 																		alt={kind.name}
 																		caption={kind.name}
 																		class="size-12 shrink-0 rounded-lg border border-black/10 object-cover"
@@ -580,7 +581,7 @@ function BuilderPage() {
 																		>
 																			{(src) => (
 																				<img
-																					src={src()}
+																					src={photoSrc(src(), "thumb")}
 																					alt=""
 																					class="size-7 rounded-md border border-black/10 object-cover"
 																				/>
@@ -658,7 +659,7 @@ function BuilderPage() {
 													>
 														{(src) => (
 															<img
-																src={src()}
+																src={photoSrc(src(), "thumb")}
 																alt=""
 																class="size-20 rounded-xl border border-black/10 object-cover"
 															/>

@@ -10,6 +10,7 @@ import {
 	matchesQuery,
 	textParam,
 } from "~/components/admin/list-toolbar";
+import { OptimizePhotos } from "~/components/admin/photo-thumbnails";
 import {
 	AdminIcons,
 	adminButton,
@@ -170,6 +171,7 @@ function InventoryPage() {
 
 	return (
 		<div>
+			<OptimizePhotos />
 			{/* Stays in view on wider screens; on phones it would fill the screen. */}
 			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
 				<PageHeader

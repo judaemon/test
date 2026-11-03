@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
+import { productPhotoId, THUMB_WIDTH } from "~/lib/photos";
 import { flowerCodeKey, isPhotoTag } from "~/lib/product";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
@@ -16,7 +17,15 @@ import {
 } from "../catalog-repo";
 import { getCustomSettings } from "../custom-repo";
 import { listSizes } from "../sizes-repo";
-import { publicUploadUrl, saveImage, UploadError } from "../uploads";
+import {
+	deleteUpload,
+	listUploads,
+	publicUploadUrl,
+	readUpload,
+	saveImage,
+	stripExtension,
+	UploadError,
+} from "../uploads";
 import {
 	asRecord,
 	bool,
@@ -285,6 +294,57 @@ export const uploadProductImage = createServerFn({ method: "POST" })
 			throw error;
 		}
 	});
+
+/** A card-sized copy is far smaller than any photo it stands for. */
+const THUMB_MAX_BYTES = 1024 * 1024;
+const thumbName = (id: string) => `${id}-w${THUMB_WIDTH}`;
+
+/** Saves the card-sized copy of an uploaded product photo (made in the browser). */
+export const saveProductThumbnail = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		if (!(input instanceof FormData)) throw new Error("Expected form data");
+		const url = input.get("url");
+		const file = input.get("file");
+		const id = typeof url === "string" ? productPhotoId(url) : undefined;
+		if (!id) throw new InputError("That isn’t an uploaded photo.");
+		if (!(file instanceof File)) throw new InputError("Choose an image.");
+		if (file.size > THUMB_MAX_BYTES)
+			throw new InputError("The smaller copy is too large.");
+		return { id, file };
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		if (!(await readUpload("products", data.id)))
+			return { ok: false as const, message: "That photo was deleted." };
+		try {
+			const fileName = await saveImage(
+				"products",
+				data.file,
+				thumbName(data.id),
+			);
+			// Cards ask for `.jpg`; anything else would never be found.
+			if (!fileName.endsWith(".jpg")) {
+				await deleteUpload("products", fileName);
+				return { ok: false as const, message: "Use a JPG for the copy." };
+			}
+			return { ok: true as const };
+		} catch (error) {
+			if (error instanceof UploadError)
+				return { ok: false as const, message: error.message };
+			throw error;
+		}
+	});
+
+/** Uploaded product photos that don't have a card-sized copy yet. */
+export const listPhotosWithoutThumbnails = createServerFn({
+	method: "GET",
+}).handler(async () => {
+	await requireStaff();
+	const names = new Set((await listUploads("products")).map(stripExtension));
+	return [...names]
+		.filter((name) => !/-w\d+$/.test(name) && !names.has(thumbName(name)))
+		.map((id) => publicUploadUrl("products", `${id}.jpg`));
+});
 
 export const deleteProductFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => ({

@@ -5,6 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { photoSrc } from "~/lib/photos";
 import { swatchBackground } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import type { ProductVariant } from "~/types/product";
@@ -124,7 +125,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 									>
 										{(src) => (
 											<img
-												src={src()}
+												src={photoSrc(src(), "thumb")}
 												alt=""
 												class={cn(
 													"size-full rounded-full border border-black/10 object-cover",

@@ -7,8 +7,8 @@ import {
 } from "@tanstack/solid-router";
 import { createSignal, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-
 import { createCropper } from "~/components/admin/image-cropper";
+import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	adminButton,
 	adminCard,
@@ -66,8 +66,11 @@ function SizeEditor() {
 			const body = new FormData();
 			body.set("file", file);
 			const result = await uploadProductImage({ data: body });
-			if (result.ok) setDraft("image", result.url);
-			else toastError(new Error(result.message));
+			if (result.ok) {
+				setDraft("image", result.url);
+				// The shop's smaller copy; it falls back to this photo without one.
+				void saveThumbnailFor(result.url, file).catch(() => undefined);
+			} else toastError(new Error(result.message));
 		} catch (error) {
 			toastError(error);
 		} finally {

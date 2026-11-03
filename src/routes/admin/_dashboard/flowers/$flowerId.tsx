@@ -7,8 +7,8 @@ import {
 } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-
 import { createCropper } from "~/components/admin/image-cropper";
+import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	adminButton,
 	adminCard,
@@ -128,8 +128,13 @@ function FlowerEditor() {
 			const body = new FormData();
 			body.set("file", file);
 			const result = await uploadProductImage({ data: body });
-			if (!result.ok) toastError(new Error(result.message));
-			else if (colorKey)
+			if (!result.ok) {
+				toastError(new Error(result.message));
+				return;
+			}
+			// The shop's smaller copy; it falls back to this photo without one.
+			void saveThumbnailFor(result.url, file).catch(() => undefined);
+			if (colorKey)
 				setDraft("colors", (c) => c.key === colorKey, "image", result.url);
 			else setDraft("image", result.url);
 		} catch (error) {

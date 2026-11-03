@@ -9,6 +9,7 @@ import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { FlowerSelect } from "~/components/admin/flower-select";
 import { createCropper } from "~/components/admin/image-cropper";
+import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	adminButton,
 	adminCard,
@@ -323,6 +324,8 @@ function ProductEditor() {
 					toastError(new Error(`${file.name}: ${result.message}`));
 					continue;
 				}
+				// The shop's smaller copy; it falls back to this photo without one.
+				void saveThumbnailFor(result.url, file).catch(() => undefined);
 				setDraft(
 					"variants",
 					index,

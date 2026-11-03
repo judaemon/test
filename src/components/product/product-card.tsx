@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
-
+import { photoSrc } from "~/lib/photos";
 import { formatPrice, getVariantPrice, swatchBackground } from "~/lib/product";
 import type { Product } from "~/types/product";
 
@@ -24,7 +24,7 @@ export function ProductCard(props: { product: Product }) {
 		>
 			<div class="relative aspect-square overflow-hidden rounded-3xl bg-petal-50 shadow-[0_18px_40px_-24px] shadow-petal-900/40">
 				<img
-					src={cover()?.images[0]}
+					src={photoSrc(cover()?.images[0], "thumb")}
 					alt=""
 					width={600}
 					height={600}

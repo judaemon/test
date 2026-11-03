@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/solid-router";
 import { Show } from "solid-js";
-
+import { photoSrc } from "~/lib/photos";
 import type { Product, ProductVariant } from "~/types/product";
 
 /** A bouquet's photo and name, opening its page on the given theme. */
@@ -17,7 +17,7 @@ export function BouquetCard(props: {
 		>
 			<div class="relative aspect-square overflow-hidden rounded-2xl bg-petal-50 shadow-[0_12px_28px_-20px] shadow-petal-900/40 sm:rounded-3xl">
 				<img
-					src={props.variant.images[0]}
+					src={photoSrc(props.variant.images[0], "thumb")}
 					alt={`${props.product.title}, ${props.variant.colorName}`}
 					width={600}
 					height={600}

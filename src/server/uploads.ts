@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { sniffImageType } from "~/lib/payment";
@@ -87,6 +87,17 @@ export async function readUpload(kind: UploadKind, name: string) {
 		}
 	}
 	return null;
+}
+
+/** Stored file names of one kind; empty if nothing's been uploaded yet. */
+export async function listUploads(kind: UploadKind) {
+	try {
+		return (await readdir(join(UPLOAD_ROOT, kind))).filter((name) =>
+			FILE_NAME.test(name),
+		);
+	} catch {
+		return [];
+	}
 }
 
 export async function deleteUpload(kind: UploadKind, fileName: string) {

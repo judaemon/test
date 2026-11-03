@@ -16,6 +16,7 @@ import {
 } from "~/lib/cart-store";
 import { CUSTOM_PRODUCT_ID, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem } from "~/lib/flowers";
+import { photoSrc } from "~/lib/photos";
 import type { PricedLine } from "~/lib/pricing";
 import {
 	formatPrice,
@@ -24,7 +25,6 @@ import {
 	swatchBackground,
 } from "~/lib/product";
 import { usePricedCart } from "~/lib/use-catalog";
-
 import { QuantityStepper } from "./quantity-stepper";
 
 export const pillPrimary =
@@ -143,7 +143,7 @@ function BagLine(props: {
 						class="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 					>
 						<img
-							src={line().image}
+							src={photoSrc(line().image, "thumb")}
 							alt={label()}
 							width={88}
 							height={88}
@@ -160,7 +160,7 @@ function BagLine(props: {
 					class="shrink-0 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 				>
 					<img
-						src={line().image}
+						src={photoSrc(line().image, "thumb")}
 						alt={label()}
 						width={88}
 						height={88}
