@@ -25,6 +25,7 @@ import {
 	parseList,
 	type ShopFilters,
 } from "~/lib/shop-filters";
+import { builderSizes } from "~/lib/sizes";
 import { useCatalog, useCustomSettings, useSizes } from "~/lib/use-catalog";
 import { SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
@@ -237,7 +238,7 @@ export function ShopPage() {
 										}
 									>
 										<p class="mt-2 max-w-xl text-petal-900/70">
-											Pick your flowers, colors and wrapper
+											Pick your size, flowers, colors and wrapper
 											{custom().money.enabled
 												? ", or add cash for a money bouquet"
 												: ""}
@@ -245,12 +246,16 @@ export function ShopPage() {
 										</p>
 										<ol class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-petal-900/80">
 											<For
+												// The builder's own order of steps.
 												each={[
+													...(builderSizes(custom().sizes).length
+														? ["Size"]
+														: []),
 													"Flowers & colors",
+													"Wrapper",
 													...(custom().money.enabled
 														? ["Money (optional)"]
 														: []),
-													"Wrapper",
 												]}
 											>
 												{(step, index) => (

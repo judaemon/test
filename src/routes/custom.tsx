@@ -5,6 +5,7 @@ import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
+import { BouquetCard } from "~/components/shop/bouquet-card";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
@@ -17,6 +18,7 @@ import {
 import { CONTACT } from "~/lib/contact";
 import {
 	billCount,
+	CUSTOM_BANNER_IMAGE,
 	CUSTOM_PRODUCT_ID,
 	type CustomDesign,
 	cashTotal,
@@ -42,7 +44,7 @@ import {
 } from "~/lib/product";
 import { pageHead } from "~/lib/site";
 import { builderSizes } from "~/lib/sizes";
-import { useCustomSettings } from "~/lib/use-catalog";
+import { useCatalog, useCustomSettings } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { uploadReferenceImage } from "~/server/custom";
 import type { RecipeItem } from "~/types/product";
@@ -342,12 +344,12 @@ function BuilderPage() {
 				<h1 class="mt-3 font-display type-soft text-4xl font-semibold tracking-tight">
 					Build your bouquet
 				</h1>
-				<p class="mt-2 max-w-xl text-petal-900/70">
-					Choose a size, pick your flowers and colors, then a wrapper. Add a
-					photo of a look you like or some money if you want. The price updates
-					as you go.
-				</p>
 				<Show when={settings().enabled}>
+					<p class="mt-2 max-w-xl text-petal-900/70">
+						Choose a size, pick your flowers and colors, then a wrapper. Add a
+						photo of a look you like or some money if you want. The price
+						updates as you go.
+					</p>
 					<p class="mt-2 max-w-xl text-sm text-petal-900/70">
 						Want something else? Message us on{" "}
 						<a
@@ -371,37 +373,7 @@ function BuilderPage() {
 					</p>
 				</Show>
 
-				<Show
-					when={settings().enabled}
-					fallback={
-						<div class="mt-10 rounded-3xl border border-petal-200 bg-white p-8 text-center">
-							<p class="font-display type-soft text-xl font-semibold">
-								Custom bouquets are paused for now
-							</p>
-							<p class="mt-2 text-petal-900/70">
-								Message us on{" "}
-								<a
-									href={CONTACT.facebookUrl}
-									target="_blank"
-									rel="noreferrer"
-									class="font-medium text-petal-700 underline"
-								>
-									Facebook
-								</a>{" "}
-								or{" "}
-								<a
-									href={CONTACT.telegramUrl}
-									target="_blank"
-									rel="noreferrer"
-									class="font-medium text-petal-700 underline"
-								>
-									Telegram
-								</a>
-								, or call {CONTACT.phone} and we'll make one for you.
-							</p>
-						</div>
-					}
-				>
+				<Show when={settings().enabled} fallback={<PausedBuilder />}>
 					<div class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
 						<div class="flex flex-col gap-6">
 							<Show when={sizes().length > 0}>
@@ -962,6 +934,125 @@ function BuilderPage() {
 			</main>
 			<SiteFooter />
 		</div>
+	);
+}
+
+/** How many signature bouquets the paused page suggests instead. */
+const SUGGESTED_BOUQUETS = 4;
+const buttonBase =
+	"inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-base font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2";
+
+/**
+ * While staff have the builder switched off: shoppers can still get a custom
+ * bouquet by message, or order a signature bouquet straight away.
+ */
+function PausedBuilder() {
+	const catalog = useCatalog();
+	// The shop's own order, one style each, only ones that can be ordered.
+	const suggestions = () =>
+		catalog()
+			.flatMap((product) => {
+				const variant = product.variants.find((v) => v.inStock);
+				return variant ? [{ product, variant }] : [];
+			})
+			.slice(0, SUGGESTED_BOUQUETS);
+	return (
+		<>
+			<section
+				aria-labelledby="paused-heading"
+				class="mt-8 flex flex-col items-center gap-6 rounded-3xl border border-petal-200 bg-white p-6 text-center sm:flex-row sm:items-center sm:gap-8 sm:p-10 sm:text-left"
+			>
+				<img
+					src={CUSTOM_BANNER_IMAGE}
+					alt=""
+					width={160}
+					height={160}
+					class="size-28 shrink-0 rounded-2xl sm:size-40"
+				/>
+				<div class="min-w-0 flex-1">
+					<p class="text-xs font-semibold uppercase tracking-[0.2em] text-petal-700">
+						Paused for now
+					</p>
+					<h2
+						id="paused-heading"
+						class="mt-1 text-balance font-display type-soft text-2xl font-semibold sm:text-3xl"
+					>
+						We’ll still make one for you
+					</h2>
+					<p class="mt-2 max-w-xl text-petal-900/70">
+						Building online is switched off at the moment, but our florists take
+						custom orders by message. Tell us the flowers, colors and budget you
+						have in mind; a photo of a look you like helps too.
+					</p>
+					<div class="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+						<a
+							href={CONTACT.facebookUrl}
+							target="_blank"
+							rel="noreferrer"
+							class={cn(
+								buttonBase,
+								"bg-petal-700 text-white hover:bg-petal-900",
+							)}
+						>
+							Message us on Facebook
+						</a>
+						<a
+							href={CONTACT.telegramUrl}
+							target="_blank"
+							rel="noreferrer"
+							class={cn(
+								buttonBase,
+								"border border-petal-200 bg-white hover:bg-petal-50",
+							)}
+						>
+							Telegram
+						</a>
+						<a
+							href={`tel:${CONTACT.phone.replace(/\s+/g, "")}`}
+							class={cn(
+								buttonBase,
+								"border border-petal-200 bg-white tabular-nums hover:bg-petal-50",
+							)}
+						>
+							Call {CONTACT.phone}
+						</a>
+					</div>
+				</div>
+			</section>
+
+			<Show when={suggestions().length > 0}>
+				<section aria-labelledby="ready-heading" class="mt-12">
+					<div class="flex flex-wrap items-end justify-between gap-2">
+						<div>
+							<h2
+								id="ready-heading"
+								class="font-display type-soft text-2xl font-semibold"
+							>
+								Ready to order now
+							</h2>
+							<p class="mt-1 text-sm text-petal-900/65">
+								Our signature bouquets, made by the same florists.
+							</p>
+						</div>
+						<Link
+							to="/shop"
+							class="text-sm font-medium text-petal-700 underline-offset-4 hover:underline"
+						>
+							See all bouquets →
+						</Link>
+					</div>
+					<ul class="mt-5 grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+						<For each={suggestions()}>
+							{({ product, variant }) => (
+								<li>
+									<BouquetCard product={product} variant={variant} />
+								</li>
+							)}
+						</For>
+					</ul>
+				</section>
+			</Show>
+		</>
 	);
 }
 
