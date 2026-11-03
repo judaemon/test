@@ -21,6 +21,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { WrapperSelect } from "~/components/admin/wrapper-select";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { findFlowerKind, flowerKinds } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
@@ -841,27 +842,14 @@ function ProductEditor() {
 									hint="From Wrappers. Shown to shoppers and on each order."
 									class="sm:col-span-2"
 								>
-									<select
+									<WrapperSelect
+										label="Wrapper"
+										wrappers={custom().wrappers}
 										value={variant().wrapperId}
-										onChange={(e) =>
-											updateVariant(index, { wrapperId: e.currentTarget.value })
+										onChange={(wrapperId) =>
+											updateVariant(index, { wrapperId })
 										}
-										class={adminInput}
-									>
-										<option value="" selected={!variant().wrapperId}>
-											No wrapper
-										</option>
-										<For each={custom().wrappers}>
-											{(wrapper) => (
-												<option
-													value={wrapper.id}
-													selected={wrapper.id === variant().wrapperId}
-												>
-													{wrapper.name}
-												</option>
-											)}
-										</For>
-									</select>
+									/>
 								</Field>
 							</div>
 
