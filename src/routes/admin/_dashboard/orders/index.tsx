@@ -263,6 +263,7 @@ function OrdersPage() {
 							<th class="px-3 py-3 font-medium">Company</th>
 							<th class="px-3 py-3 font-medium">Class</th>
 							<th class="px-3 py-3 font-medium">Status</th>
+							<th class="px-3 py-3 font-medium">Wrapper status</th>
 							<th class="px-3 py-3 text-right font-medium">Price</th>
 							<th class="px-3 py-3 font-medium">Payment</th>
 							<th class="px-3 py-3 font-medium">Method</th>
@@ -271,7 +272,6 @@ function OrdersPage() {
 							<th class="px-3 py-3 font-medium">Photo</th>
 							<th class="px-3 py-3 font-medium">Flowers</th>
 							<th class="px-3 py-3 font-medium">Wrapper</th>
-							<th class="px-3 py-3 font-medium">Wrapper status</th>
 							<th class="px-3 py-3 font-medium">Notes / Dedication</th>
 						</tr>
 					</thead>
@@ -393,6 +393,16 @@ function OrdersPage() {
 											<OrderStageSelect order={order} />
 										</td>
 										<td
+											data-label="Wrapper status"
+											class="px-5 py-2 md:px-3 md:py-3"
+										>
+											<WrapperStatusSelect
+												order={order}
+												line={line}
+												index={index}
+											/>
+										</td>
+										<td
 											data-label="Price"
 											class="px-5 py-2 md:px-3 md:py-3 font-medium tabular-nums md:text-right"
 										>
@@ -475,16 +485,6 @@ function OrdersPage() {
 										</td>
 										<td data-label="Wrapper" class="px-5 py-2 md:px-3 md:py-3">
 											{line.wrapperColor || "—"}
-										</td>
-										<td
-											data-label="Wrapper status"
-											class="px-5 py-2 md:px-3 md:py-3"
-										>
-											<WrapperStatusSelect
-												order={order}
-												line={line}
-												index={index}
-											/>
 										</td>
 										<td
 											data-label="Notes / Dedication"
