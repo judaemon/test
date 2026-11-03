@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/solid-router";
 
-import { TAGLINE } from "~/lib/contact";
+import { CONTACT, TAGLINE } from "~/lib/contact";
 import { FlowerMark } from "./brand";
 
 export function SiteFooter() {
@@ -20,6 +20,9 @@ export function SiteFooter() {
 					</Link>
 					<p class="font-display text-base italic text-petal-900/80">
 						{TAGLINE}
+					</p>
+					<p class="text-sm text-petal-900/70">
+						Flower shop in {CONTACT.location}
 					</p>
 				</div>
 				<div class="mt-8 flex flex-col-reverse items-center gap-3 border-t border-petal-100 pt-6 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">

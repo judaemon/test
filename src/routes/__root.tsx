@@ -16,6 +16,7 @@ import { Suspense, onCleanup, onMount } from 'solid-js'
 
 import { Toaster } from '~/components/ui/toast'
 import { startCartPersistence } from '~/lib/cart-store'
+import { SITE_NAME, absoluteUrl } from '~/lib/site'
 import { getCurrentUser } from '~/server/account'
 import { getCatalog } from '~/server/catalog'
 
@@ -32,10 +33,17 @@ export const Route = createRootRouteWithContext()({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      // Defaults for share previews; pages override the title, text and image.
+      { property: 'og:site_name', content: SITE_NAME },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:locale', content: 'en_PH' },
+      { property: 'og:image', content: absoluteUrl('/images/brand/logo.png') },
+      { name: 'twitter:card', content: 'summary_large_image' },
     ],
     links: [
       { rel: 'stylesheet', href: styleCss },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      { rel: 'apple-touch-icon', href: '/images/brand/logo.png' },
     ],
   }),
   shellComponent: RootComponent,

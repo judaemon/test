@@ -38,6 +38,7 @@ import {
 	swatchBackground,
 	swatchColors,
 } from "~/lib/product";
+import { pageHead } from "~/lib/site";
 import { useCustomSettings } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { RecipeItem } from "~/types/product";
@@ -51,16 +52,13 @@ export const Route = createFileRoute("/custom")({
 	validateSearch: (search: Record<string, unknown>): BuilderSearch => ({
 		edit: typeof search.edit === "string" ? search.edit : undefined,
 	}),
-	head: () => ({
-		meta: [
-			{ title: "Build your bouquet · ORAIA" },
-			{
-				name: "description",
-				content:
-					"Pick your flowers, colors and wrapper for a bouquet made just for you.",
-			},
-		],
-	}),
+	head: () =>
+		pageHead({
+			title: "Build your own bouquet · ORAIA Baguio",
+			description:
+				"Design a custom bouquet at ORAIA, a Baguio City flower shop: pick your flowers, colors and wrapper, then order online.",
+			path: "/custom",
+		}),
 	component: BuilderPage,
 });
 

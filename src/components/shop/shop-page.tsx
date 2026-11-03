@@ -160,21 +160,25 @@ export function ShopPage() {
 					<Sparkle class="pointer-events-none absolute right-[18%] top-[14%] w-5 text-butter motion-safe:animate-float" />
 					<Sparkle class="pointer-events-none absolute bottom-[22%] left-[16%] w-4 text-petal-300 motion-safe:animate-float-slow" />
 
-					<div class="flex items-center gap-3 sm:gap-4">
+					{/* The brand is the page's heading: it's what people search for. */}
+					<h1 class="flex items-center gap-3 sm:gap-4">
 						<FlowerMark class="size-16 sm:size-24" />
 						<span class="font-display type-soft text-5xl font-semibold tracking-[0.25em] text-black sm:text-7xl">
 							ORAIA
 						</span>
-					</div>
+					</h1>
 					<p class="mt-4 font-display text-xl italic text-petal-900/70 sm:text-3xl">
 						{TAGLINE}
+					</p>
+					<p class="mt-3 text-sm font-medium uppercase tracking-[0.2em] text-petal-900/60">
+						Flower shop · Baguio City
 					</p>
 					<p class="mt-10 text-sm font-medium uppercase tracking-[0.3em] text-petal-900/60 sm:mt-14 sm:text-base">
 						Soft launch for
 					</p>
-					<h1 class="mt-3 font-display type-soft text-5xl font-semibold leading-[0.95] tracking-tight text-balance sm:text-7xl lg:text-8xl">
+					<p class="mt-3 font-display type-soft text-5xl font-semibold leading-[0.95] tracking-tight text-balance sm:text-7xl lg:text-8xl">
 						BATTALION HOP 2027
-					</h1>
+					</p>
 					<div class="mt-10 flex flex-col items-center gap-3 sm:flex-row">
 						<button
 							type="button"

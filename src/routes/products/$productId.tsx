@@ -21,6 +21,7 @@ import {
 } from "~/components/ui/breadcrumb";
 import { buttonVariants } from "~/components/ui/button";
 import { bouquetPhotos, resolveVariant } from "~/lib/product";
+import { absoluteUrl, jsonLdScript, pageHead, SITE_NAME } from "~/lib/site";
 import { cn } from "~/lib/utils";
 import { findMovedProduct, getProduct } from "~/server/catalog";
 import type { ProductVariant } from "~/types/product";
@@ -53,13 +54,42 @@ export const Route = createFileRoute("/products/$productId")({
 			statusCode: 301,
 		});
 	},
-	head: ({ loaderData }) => ({
-		meta: [
-			{
-				title: loaderData ? `${loaderData.title} · ORAIA` : "ORAIA",
-			},
-		],
-	}),
+	head: ({ loaderData: product }) => {
+		if (!product) return { meta: [{ title: "ORAIA" }] };
+		const path = `/products/${product.id}`;
+		const photos = product.variants.flatMap((variant) => variant.images);
+		const head = pageHead({
+			title: `${product.title} bouquet · ORAIA Baguio flower shop`,
+			description:
+				product.description ||
+				`${product.title}, a signature bouquet from ORAIA, a Baguio City flower shop. Order online.`,
+			path,
+			image: photos[0],
+		});
+		return {
+			...head,
+			meta: [...head.meta, { property: "og:type", content: "product" }],
+			scripts: [
+				jsonLdScript({
+					"@context": "https://schema.org",
+					"@type": "Product",
+					name: product.title,
+					description: product.description || undefined,
+					image: photos.slice(0, 5).map(absoluteUrl),
+					brand: { "@type": "Brand", name: SITE_NAME },
+					offers: {
+						"@type": "Offer",
+						url: absoluteUrl(path),
+						price: product.basePrice,
+						priceCurrency: product.currency,
+						availability: product.variants.some((v) => v.inStock)
+							? "https://schema.org/InStock"
+							: "https://schema.org/OutOfStock",
+					},
+				}),
+			],
+		};
+	},
 	component: ProductPage,
 	notFoundComponent: ProductNotFound,
 });
