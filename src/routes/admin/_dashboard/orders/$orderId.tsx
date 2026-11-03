@@ -21,6 +21,7 @@ import { PaymentStatusPill } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
 import { PrivateImage } from "~/components/order/private-image";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { isChatOrder } from "~/lib/chat-order";
 import { formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
@@ -40,6 +41,7 @@ import {
 import {
 	BOARD_STAGES,
 	canStartMaking,
+	isPaymentSettled,
 	type Order,
 	type OrderStage,
 	STAGE_LABELS,
@@ -145,6 +147,16 @@ function OrderDetail() {
 				)}`}
 				actions={
 					<>
+						{/* Orders added from a chat are edited in their own form. */}
+						<Show when={isChatOrder(order()) && !cancelled()}>
+							<Link
+								to="/admin/orders/new"
+								search={{ edit: order().id }}
+								class={adminButton.primary}
+							>
+								Edit order
+							</Link>
+						</Show>
 						<button
 							type="button"
 							class={adminButton.secondary}
@@ -429,7 +441,12 @@ function OrderDetail() {
 										<dd class="tabular-nums">
 											{formatPrice(paid(), order().currency)}
 										</dd>
-										<Show when={order().total - paid() > 0}>
+										<Show
+											when={
+												order().total - paid() > 0 &&
+												!isPaymentSettled(payment().status)
+											}
+										>
 											<dt class="text-petal-900/60">Still to pay</dt>
 											<dd class="font-medium tabular-nums text-error-foreground">
 												{formatPrice(order().total - paid(), order().currency)}

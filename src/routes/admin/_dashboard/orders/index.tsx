@@ -524,7 +524,12 @@ function OrdersPage() {
 												class="px-5 py-2 md:px-3 md:py-3"
 											>
 												<PaymentStatusSelect order={order} />
-												<Show when={order.payment.amountPaid !== undefined}>
+												<Show
+													when={
+														order.payment.amountPaid !== undefined &&
+														!isPaymentSettled(order.payment.status)
+													}
+												>
 													<p class="mt-1 whitespace-nowrap text-xs tabular-nums text-petal-900/65">
 														{formatPrice(
 															order.payment.amountPaid ?? 0,

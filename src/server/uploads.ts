@@ -100,6 +100,13 @@ export async function listUploads(kind: UploadKind) {
 	}
 }
 
+/** Deletes an upload by its id (`abc-123`), whatever it was stored as. */
+export async function deleteUploadById(kind: UploadKind, id: string) {
+	if (!FILE_ID.test(id)) return;
+	for (const extension of Object.keys(CONTENT_TYPES))
+		await rm(join(UPLOAD_ROOT, kind, `${id}.${extension}`), { force: true });
+}
+
 export async function deleteUpload(kind: UploadKind, fileName: string) {
 	if (!FILE_NAME.test(fileName)) return;
 	await rm(join(UPLOAD_ROOT, kind, fileName), { force: true });

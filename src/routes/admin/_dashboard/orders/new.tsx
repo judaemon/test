@@ -1,5 +1,10 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	useNavigate,
+} from "@tanstack/solid-router";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 
 import {
@@ -37,33 +42,74 @@ import {
 import { formatPrice } from "~/lib/product";
 import { useCustomSettings } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
-import { createChatOrderFn } from "~/server/admin/orders";
+import {
+	createChatOrderFn,
+	getChatOrderAdmin,
+	updateChatOrderFn,
+} from "~/server/admin/orders";
+
+interface ChatOrderSearch {
+	/** An order added from a chat: change it instead of adding one. */
+	edit?: string;
+}
 
 export const Route = createFileRoute("/admin/_dashboard/orders/new")({
+	validateSearch: (search: Record<string, unknown>): ChatOrderSearch => ({
+		edit: typeof search.edit === "string" ? search.edit : undefined,
+	}),
+	loaderDeps: ({ search }) => ({ edit: search.edit }),
+	loader: async ({ deps }) => {
+		if (!deps.edit) return null;
+		const order = await getChatOrderAdmin({ data: deps.edit });
+		if (!order) throw notFound();
+		return order;
+	},
 	component: NewChatOrder,
 });
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-/** An order taken in a chat: the customer's message, photos, total and deposit. */
+/**
+ * An order taken in a chat: the customer, their message, photos, wrapper,
+ * total and deposit. With `?edit=<order id>`, changes that order instead.
+ */
 function NewChatOrder() {
 	const navigate = useNavigate();
-	const [message, setMessage] = createSignal("");
-	const [total, setTotal] = createSignal("");
-	const [paid, setPaid] = createSignal("");
-	const [method, setMethod] = createSignal<PaymentMethod>("gcash");
-	const [photos, setPhotos] = createSignal<{ file: File; url: string }[]>([]);
+	// The order being edited, read once: the form keeps its own copy.
+	const editing = Route.useLoaderData()();
+	const details = editing?.details;
+	const line = editing?.lines[0];
+	const [message, setMessage] = createSignal(details?.notes ?? "");
+	const [total, setTotal] = createSignal(editing ? String(editing.total) : "");
+	const [paid, setPaid] = createSignal(
+		editing?.payment.amountPaid ? String(editing.payment.amountPaid) : "",
+	);
+	const [method, setMethod] = createSignal<PaymentMethod>(
+		editing?.payment.method ?? "gcash",
+	);
+	// Photos already on the order (no file) and new ones (a file to upload).
+	const [photos, setPhotos] = createSignal<{ file?: File; url: string }[]>(
+		(line?.custom?.referenceImages ?? []).map((url) => ({ url })),
+	);
 	const [saving, setSaving] = createSignal(false);
+	/**
+	 * Server rendering leaves a textarea's text out and hydration doesn't add
+	 * it, so a refreshed edit page would start empty; set it once loaded.
+	 */
+	const startingText = (text: () => string) => (el: HTMLTextAreaElement) =>
+		onMount(() => {
+			el.value = text();
+		});
 	// What checkout asks every customer for, plus the optional card.
 	const [customer, setCustomer] = createStore({
-		firstName: "",
-		lastName: "",
-		email: "",
-		className: "",
-		company: "",
-		serialNumber: "",
-		dedicationFor: "",
-		dedicationMessage: "",
+		firstName: details?.firstName ?? "",
+		lastName: details?.lastName ?? "",
+		email: details?.email ?? "",
+		className: details?.className ?? "",
+		company: details?.company ?? "",
+		serialNumber: details?.serialNumber ?? "",
+		dedicationFor: details?.dedicationFor ?? "",
+		dedicationMessage: details?.dedicationMessage ?? "",
 	});
 	type CustomerField = keyof typeof customer;
 	const [errors, setErrors] = createSignal<FieldErrors>({});
@@ -72,7 +118,7 @@ function NewChatOrder() {
 		setErrors(({ [field as CheckoutField]: _cleared, ...rest }) => rest);
 	};
 	const cadet = () => isCadetClass(customer.className);
-	const [wrapperId, setWrapperId] = createSignal("");
+	const [wrapperId, setWrapperId] = createSignal(line?.custom?.wrapperId ?? "");
 	const custom = useCustomSettings();
 	const wrappers = () => custom().wrappers;
 
@@ -88,11 +134,12 @@ function NewChatOrder() {
 		]);
 	};
 	const removePhoto = (url: string) => {
-		URL.revokeObjectURL(url);
+		if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		setPhotos((list) => list.filter((p) => p.url !== url));
 	};
 	onCleanup(() => {
-		for (const photo of photos()) URL.revokeObjectURL(photo.url);
+		for (const photo of photos())
+			if (photo.file) URL.revokeObjectURL(photo.url);
 	});
 
 	const totalAmount = () => Number(total()) || 0;
@@ -110,16 +157,29 @@ function NewChatOrder() {
 		body.set("wrapperId", wrapperId());
 		for (const [field, value] of Object.entries(customer))
 			body.set(field, value);
-		for (const photo of photos()) body.append("photos", photo.file);
+		for (const photo of photos())
+			if (photo.file) body.append("photos", photo.file);
+			else body.append("keptPhotos", photo.url);
+		if (editing) body.set("id", editing.id);
 		setSaving(true);
 		try {
-			const result = await createChatOrderFn({ data: body });
+			const result = editing
+				? await updateChatOrderFn({ data: body })
+				: await createChatOrderFn({ data: body });
 			if (!result.ok) {
 				setErrors(result.fieldErrors ?? {});
 				throw new Error(result.message);
 			}
-			toastSuccess(`Order #${result.number} added.`);
-			await navigate({ to: "/admin/orders" });
+			if (editing) {
+				toastSuccess(`Order #${result.number} updated.`);
+				await navigate({
+					to: "/admin/orders/$orderId",
+					params: { orderId: result.id },
+				});
+			} else {
+				toastSuccess(`Order #${result.number} added.`);
+				await navigate({ to: "/admin/orders" });
+			}
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -162,12 +222,33 @@ function NewChatOrder() {
 			}}
 			class="mx-auto max-w-3xl pb-24"
 		>
-			<Link to="/admin/orders" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
-				← Orders
-			</Link>
+			<Show
+				when={editing}
+				fallback={
+					<Link to="/admin/orders" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
+						← Orders
+					</Link>
+				}
+			>
+				{(order) => (
+					<Link
+						to="/admin/orders/$orderId"
+						params={{ orderId: order().id }}
+						class={cn(adminButton.ghost, "-ml-2 mb-2")}
+					>
+						← Order #{order().number}
+					</Link>
+				)}
+			</Show>
 			<PageHeader
-				title="Add custom order"
-				description="For an order taken in a chat. Paste the customer’s message as it is: it becomes the order’s notes. Fill in the customer the way checkout would. The wrapper you pick comes out of stock; flowers don’t."
+				title={
+					editing ? `Edit custom order #${editing.number}` : "Add custom order"
+				}
+				description={
+					editing
+						? "Change anything here, then save. A different wrapper puts the old one back in stock and takes the new one."
+						: "For an order taken in a chat. Paste the customer’s message as it is: it becomes the order’s notes. Fill in the customer the way checkout would. The wrapper you pick comes out of stock; flowers don’t."
+				}
 			/>
 
 			<section class={cn(adminCard, "mb-5 grid gap-4 p-5")}>
@@ -281,6 +362,7 @@ function NewChatOrder() {
 					hint="Name, class, company, flowers, payment details: whatever they sent."
 				>
 					<textarea
+						ref={startingText(message)}
 						value={message()}
 						onInput={(e) => setMessage(e.currentTarget.value)}
 						required
@@ -437,6 +519,7 @@ function NewChatOrder() {
 				<div class="grid gap-1">
 					<Field label="Card message">
 						<textarea
+							ref={startingText(() => customer.dedicationMessage)}
 							value={customer.dedicationMessage}
 							onInput={(e) =>
 								setField("dedicationMessage", e.currentTarget.value)
@@ -452,11 +535,26 @@ function NewChatOrder() {
 
 			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[240px]">
 				<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
-					<Link to="/admin/orders" class={adminButton.secondary}>
-						Cancel
-					</Link>
+					<Show
+						when={editing}
+						fallback={
+							<Link to="/admin/orders" class={adminButton.secondary}>
+								Cancel
+							</Link>
+						}
+					>
+						{(order) => (
+							<Link
+								to="/admin/orders/$orderId"
+								params={{ orderId: order().id }}
+								class={adminButton.secondary}
+							>
+								Cancel
+							</Link>
+						)}
+					</Show>
 					<button type="submit" class={adminButton.primary} disabled={saving()}>
-						{saving() ? "Saving…" : "Save order"}
+						{saving() ? "Saving…" : editing ? "Save changes" : "Save order"}
 					</button>
 				</div>
 			</div>

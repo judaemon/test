@@ -521,6 +521,68 @@ export function reviewPayment(
 }
 
 /** Records how far the wrapper of one of the order's bouquets has got. */
+/**
+ * Replaces the details, bouquet line, total and payment of an order staff
+ * added from a chat. A changed wrapper goes back to stock and the new one is
+ * taken, unless the order holds no stock (test or cancelled).
+ */
+export function updateChatOrder(
+	id: string,
+	update: {
+		details: CheckoutDetails;
+		line: PricedLine;
+		payment: Pick<OrderPayment, "method" | "status" | "amountPaid">;
+	},
+): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("Cancelled orders can’t be changed.");
+		const lines = [update.line];
+		if (!order.isTest) {
+			adjustWrapperStock(order.lines, 1);
+			const short = adjustWrapperStock(lines, -1);
+			if (short)
+				throw new OrderRuleError(
+					`${short} wrappers are out of stock. Pick another, or add stock in Wrappers.`,
+				);
+		}
+		const total = toCents(update.line.lineTotal);
+		db.query(
+			`UPDATE orders SET email = $email, recipient_name = $fullName, first_name = $firstName,
+			   last_name = $lastName, full_name = $fullName, company = $company,
+			   serial_number = $serialNumber, class_name = $className, notes = $notes,
+			   dedication_for = $dedicationFor, gift_message = $dedicationMessage, lines = $lines,
+			   subtotal_cents = $total, total_cents = $total, payment_method = $method,
+			   payment_status = $status, amount_paid_cents = $amountPaid
+			 WHERE id = $id`,
+		).run({
+			id,
+			email: update.details.email,
+			firstName: update.details.firstName,
+			lastName: update.details.lastName,
+			fullName: update.details.fullName,
+			company: update.details.company,
+			serialNumber: update.details.serialNumber,
+			className: update.details.className,
+			notes: update.details.notes,
+			dedicationFor: update.details.dedicationFor,
+			dedicationMessage: update.details.dedicationMessage,
+			lines: JSON.stringify(lines),
+			total,
+			method: update.payment.method,
+			status: update.payment.status,
+			amountPaid:
+				update.payment.amountPaid === undefined
+					? null
+					: toCents(update.payment.amountPaid),
+		});
+	})();
+	return getOrderById(id) as Order;
+}
+
 export function setWrapperStatus(
 	id: string,
 	lineIndex: number,
