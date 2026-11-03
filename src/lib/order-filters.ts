@@ -1,3 +1,5 @@
+import { joinList, parseList } from "~/lib/shop-filters";
+
 /**
  * The admin orders table's filters, kept in the address so a view can be
  * shared or bookmarked. Each list filter is comma-separated keys, like the
@@ -17,7 +19,7 @@ export interface OrdersSearch {
 	wrapperStatus?: string;
 	/** "yes" or "no". */
 	card?: string;
-	/** "real" or "test". */
+	/** "real" or "test"; missing means real orders only, "all" means both. */
 	type?: string;
 	/** Shop-local dates, YYYY-MM-DD, both ends included. */
 	from?: string;
@@ -90,7 +92,19 @@ export function validateOrdersSearch(
 	};
 }
 
-/** Whether any filter narrows the list; the stage tab doesn't count. */
+/** The ticked real/test choices: real orders only, until staff say otherwise. */
+export function typeKeys(type?: string) {
+	if (!type) return ["real"];
+	return type === "all" ? [] : parseList(type);
+}
+
+/** The other way round: the default stays out of the address. */
+export function typeParam(keys: string[]) {
+	if (keys.length === 1 && keys[0] === "real") return undefined;
+	return joinList(keys) ?? "all";
+}
+
+/** Whether any filter is changed from its default; the stage tab doesn't count. */
 export function isFiltering(search: OrdersSearch) {
 	return (
 		FACETS.some((facet) => search[facet.id]) ||

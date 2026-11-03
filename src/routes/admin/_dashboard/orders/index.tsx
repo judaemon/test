@@ -33,6 +33,8 @@ import {
 	isFiltering,
 	type OrdersSearch,
 	PAGE_SIZES,
+	typeKeys,
+	typeParam,
 	validateOrdersSearch,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
@@ -269,9 +271,18 @@ function OrdersPage() {
 							<FacetFilter
 								label={facet.label}
 								options={facetOptions(facet.id)}
-								selected={parseList(search()[facet.id])}
+								selected={
+									facet.id === "type"
+										? typeKeys(search().type)
+										: parseList(search()[facet.id])
+								}
 								onChange={(chosen) =>
-									setSearch({ [facet.id]: joinList(chosen) })
+									setSearch({
+										[facet.id]:
+											facet.id === "type"
+												? typeParam(chosen)
+												: joinList(chosen),
+									})
 								}
 							/>
 						</Show>

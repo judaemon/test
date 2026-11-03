@@ -5,6 +5,7 @@ import {
 	type FacetId,
 	NONE,
 	type OrdersSearch,
+	typeKeys,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from "~/lib/payment";
 import type { PricedLine } from "~/lib/pricing";
@@ -136,7 +137,10 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 		);
 
 	const chosen = Object.fromEntries(
-		FACET_IDS.map((id) => [id, new Set(parseList(search[id]))]),
+		FACET_IDS.map((id) => [
+			id,
+			new Set(id === "type" ? typeKeys(search.type) : parseList(search[id])),
+		]),
 	) as Record<FacetId, Set<string>>;
 	const keys = rows.map(
 		(row) =>
