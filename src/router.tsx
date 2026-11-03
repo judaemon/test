@@ -10,8 +10,9 @@ export function getRouter() {
     context: getContext(),
 
     scrollRestoration: true,
+    // Pages start loading when a link is hovered or touched, and what's
+    // loaded is kept for the click that follows (30s, the router's default).
     defaultPreload: 'intent',
-    defaultPreloadStaleTime: 0,
   })
 
   return router
