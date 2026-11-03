@@ -268,8 +268,9 @@ function ReportsPage() {
 				/>
 				<p class="mb-4 text-sm text-petal-900/60">
 					On hold: ordered, no reference number yet. Pending: waiting for staff
-					to check the reference number. Paid: verified. Total: all of them
-					together.
+					to check the reference number. Paid: verified, plus down payments on
+					orders that still owe the rest (those columns show what’s still owed).
+					Total: all of them together.
 				</p>
 				<table class="w-full min-w-[720px] text-left text-sm print:min-w-0">
 					<thead class="text-xs uppercase tracking-wide text-petal-900/55">

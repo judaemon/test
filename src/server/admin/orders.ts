@@ -1,6 +1,12 @@
 import { createServerFn } from "@tanstack/solid-start";
 import { CHAT_MESSAGE_MAX, CHAT_PHOTOS_MAX } from "~/lib/chat-order";
-import { parseCheckoutDetails } from "~/lib/checkout";
+import {
+	type CheckoutDetails,
+	type FieldErrors,
+	hasErrors,
+	parseCheckoutDetails,
+	validateCheckoutDetails,
+} from "~/lib/checkout";
 import { CUSTOM_IMAGE, CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { validateOrdersSearch } from "~/lib/order-filters";
 import { isPaymentMethod, type PaymentMethod } from "~/lib/payment";
@@ -30,6 +36,7 @@ import {
 	UploadError,
 } from "../uploads";
 import { asRecord, InputError, integer, oneOf, text } from "../validate";
+import { getWrapper } from "../wrappers-repo";
 
 const ALL_STAGES = [
 	"new",
@@ -181,7 +188,7 @@ export const uploadDeliveryPhoto = createServerFn({ method: "POST" })
 
 export type ChatOrderResult =
 	| { ok: true; id: string; number: string }
-	| { ok: false; message: string };
+	| { ok: false; message: string; fieldErrors?: FieldErrors };
 
 /**
  * An order taken in a chat (Messenger, Telegram…), added by staff: the
@@ -218,7 +225,16 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 			.filter((file): file is File => file instanceof File && file.size > 0);
 		if (photos.length > CHAT_PHOTOS_MAX)
 			throw new InputError(`Add up to ${CHAT_PHOTOS_MAX} photos.`);
+		// The same customer details checkout asks for; the message is the notes.
+		const details: CheckoutDetails = parseCheckoutDetails({
+			...Object.fromEntries(
+				[...input.entries()].filter(([, value]) => typeof value === "string"),
+			),
+			notes: message,
+		});
 		return {
+			details,
+			wrapperId: field("wrapperId").slice(0, 64),
 			message,
 			total: Math.round(total * 100) / 100,
 			paid: Math.round(paid * 100) / 100,
@@ -228,6 +244,24 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }): Promise<ChatOrderResult> => {
 		await requireStaff();
+		// A pasted chat runs longer than checkout's notes allow; that's fine here.
+		const { notes: _notes, ...fieldErrors } = validateCheckoutDetails(
+			data.details,
+		);
+		if (hasErrors(fieldErrors))
+			return {
+				ok: false,
+				message: "Please check the highlighted fields.",
+				fieldErrors,
+			};
+		const wrapper = data.wrapperId ? getWrapper(data.wrapperId) : null;
+		if (data.wrapperId && !wrapper)
+			return { ok: false, message: "That wrapper was deleted. Pick another." };
+		if (wrapper?.stock === 0)
+			return {
+				ok: false,
+				message: `${wrapper.name} wrappers are out of stock. Pick another, or add stock in Wrappers.`,
+			};
 		const saved: string[] = [];
 		try {
 			// Served like shoppers' reference photos, under random names.
@@ -239,7 +273,7 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 			);
 			const order = createOrder({
 				id,
-				details: parseCheckoutDetails({ notes: data.message }),
+				details: data.details,
 				cart: {
 					lines: [
 						{
@@ -249,10 +283,14 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 							colorName: "From chat",
 							sku: "Custom",
 							image: photoUrls[0] ?? CUSTOM_IMAGE,
-							// No flowers or wrapper: they're described in the message.
+							...(wrapper
+								? { colorHex: wrapper.colorHex, wrapperColor: wrapper.name }
+								: {}),
+							// The flowers are described in the message; the wrapper, if
+							// picked, comes out of stock like a built bouquet's.
 							custom: {
 								items: [],
-								wrapperId: "",
+								wrapperId: wrapper?.id ?? "",
 								...(photoUrls.length ? { referenceImages: photoUrls } : {}),
 							},
 							quantity: 1,

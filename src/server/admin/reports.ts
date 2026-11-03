@@ -137,19 +137,34 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			...accounts.filter((a) => a.enabled).map((a) => a.method),
 			...active.map((o) => o.payment.method),
 		]);
+		// Money in hand: paid orders, and down payments on orders added from a
+		// chat that still owe the rest. Unpaid columns show what's still owed.
+		const received = (o: Order) =>
+			isPaymentSettled(o.payment.status)
+				? o.total
+				: Math.min(o.total, o.payment.amountPaid ?? 0);
+		const owing = (o: Order) => o.total - received(o);
 		const payments: PaymentRow[] = [...methods].map((method) => {
 			const orders = active.filter((o) => o.payment.method === method);
-			const cell = (list: Order[]): PaymentCell => ({
+			const cell = (
+				list: Order[],
+				amountOf: (o: Order) => number = (o) => o.total,
+			): PaymentCell => ({
 				...group(list),
-				amount: list.reduce((total, o) => total + o.total, 0),
+				amount: list.reduce((total, o) => total + amountOf(o), 0),
 			});
+			const withStatus = (status: Order["payment"]["status"]) =>
+				orders.filter((o) => o.payment.status === status);
 			return {
 				method,
 				label: methodLabel(method),
-				onHold: cell(orders.filter((o) => o.payment.status === "on_hold")),
-				pending: cell(orders.filter((o) => o.payment.status === "pending")),
-				paid: cell(orders.filter((o) => isPaymentSettled(o.payment.status))),
-				rejected: cell(orders.filter((o) => o.payment.status === "rejected")),
+				onHold: cell(withStatus("on_hold"), owing),
+				pending: cell(withStatus("pending"), owing),
+				paid: cell(
+					orders.filter((o) => received(o) > 0),
+					received,
+				),
+				rejected: cell(withStatus("rejected"), owing),
 				total: cell(orders),
 			};
 		});
