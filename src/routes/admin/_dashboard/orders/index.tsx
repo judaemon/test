@@ -557,6 +557,7 @@ function OrdersPage() {
 												</Show>
 												<p class="text-xs text-petal-900/60">
 													{line.title} · {line.colorName}
+													{line.preorder ? " · Pre-order" : ""}
 												</p>
 											</td>
 											<td data-label="Photo" class="px-5 py-2 md:px-3 md:py-3">

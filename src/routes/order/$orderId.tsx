@@ -209,6 +209,7 @@ function OrderConfirmation() {
 										<span class="block font-medium">{line.title}</span>
 										<span class="block text-sm text-petal-900/60">
 											{styleLabel(line)} · Qty {line.quantity}
+											{line.preorder ? " · Pre-order" : ""}
 										</span>
 									</span>
 									<span class="text-sm font-medium tabular-nums">

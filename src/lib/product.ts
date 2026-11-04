@@ -30,9 +30,25 @@ export function lineName(line: {
 		: `${line.title} · ${style}`;
 }
 
-/** Most of one style per order; none while it's unavailable. */
+/** Most of one style per order: what's left, up to 10; none while unavailable. */
 export function getMaxQuantity(variant: ProductVariant) {
-	return variant.inStock ? MAX_PER_ORDER : 0;
+	if (!variant.inStock) return 0;
+	return Math.min(MAX_PER_ORDER, variant.stock ?? MAX_PER_ORDER);
+}
+
+/**
+ * What the shop says about a style's availability: "Sold out", "Pre-order
+ * closed" or "Unavailable" when it can't be ordered, otherwise "5 left",
+ * "Pre-order · 5 slots left" or "Pre-order"; empty for a plain style.
+ */
+export function stockLabel(variant: ProductVariant) {
+	if (!variant.inStock) {
+		if (variant.stock !== 0) return "Unavailable";
+		return variant.preorder ? "Pre-order closed" : "Sold out";
+	}
+	if (variant.stock === undefined) return variant.preorder ? "Pre-order" : "";
+	if (!variant.preorder) return `${variant.stock} left`;
+	return `Pre-order · ${variant.stock} ${variant.stock === 1 ? "slot" : "slots"} left`;
 }
 
 export function getVariantPrice(product: Product, variant: ProductVariant) {

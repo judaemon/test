@@ -79,6 +79,11 @@ export const updateStyleFn = createServerFn({ method: "POST" })
 			...(source.price === undefined
 				? {}
 				: { price: money(source, "price", { label: "Price" }) }),
+			...(source.readyStock === undefined
+				? {}
+				: {
+						readyStock: stockCount(source, "readyStock", "Ready-made stock"),
+					}),
 		};
 	})
 	.handler(async ({ data }) => {
@@ -141,6 +146,13 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 		colorHex2,
 		price: money(source, "price", { label: `${label} price` }),
 		isAvailable: bool(source, "isAvailable"),
+		readyStock: stockCount(source, "readyStock", `${label} ready-made stock`),
+		takesPreorders: bool(source, "takesPreorders"),
+		preorderSlots: stockCount(
+			source,
+			"preorderSlots",
+			`${label} pre-order slots`,
+		),
 		aiPhotos: bool(source, "aiPhotos"),
 		images,
 		imageTags,
@@ -168,6 +180,16 @@ function bouquetName(source: Record<string, unknown>) {
 			"The name should start with a letter, like Odette or Corsage 1.",
 		);
 	return name;
+}
+
+/** A stock count staff may leave blank (null) for no limit. */
+function stockCount(
+	source: Record<string, unknown>,
+	key: string,
+	label: string,
+) {
+	if (source[key] === null || source[key] === undefined) return null;
+	return integer(source, key, { label, min: 0, max: 9999 });
 }
 
 function parseRecipe(raw: unknown, label: string): RecipeItem[] {

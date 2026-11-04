@@ -184,6 +184,7 @@ function BagLine(props: {
 						}}
 					/>
 					{styleLabel(line())} · {formatPrice(line().unitPrice, props.currency)}
+					{line().preorder ? " · Pre-order" : ""}
 				</p>
 				<Show when={line().custom}>
 					<p class="mt-1 text-xs text-petal-900/60">

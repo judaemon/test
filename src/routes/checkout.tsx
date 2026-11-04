@@ -565,6 +565,7 @@ function CheckoutForm(props: {
 									</span>
 									<span class="block text-sm text-petal-900/60">
 										{styleLabel(line)}
+										{line.preorder ? " · Pre-order" : ""}
 									</span>
 									<Show when={line.problem}>
 										<span class="block text-sm text-error-foreground">

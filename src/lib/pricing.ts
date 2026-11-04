@@ -33,6 +33,8 @@ export interface PricedLine {
 	wrapperColor?: string;
 	/** Built bouquets' size, by name. */
 	sizeName?: string;
+	/** A signature bouquet ordered as a pre-order (its ready-made ones ran out). */
+	preorder?: boolean;
 	/** Set by staff on placed orders. */
 	wrapperStatus?: WrapperStatus;
 	/** The design, for built bouquets, so they can be ordered again. */
@@ -43,8 +45,8 @@ export interface PricedLine {
 	maxQuantity: number;
 	/**
 	 * Why this line can't be ordered as-is, if anything: `sold-out` is a
-	 * bouquet style marked not available, `over-stock` more than one order
-	 * (or the custom bouquet's stock) allows, `unavailable` a custom bouquet
+	 * bouquet style marked not available or sold out, `over-stock` more than
+	 * one order (or what's left in stock) allows, `unavailable` a custom bouquet
 	 * that can't be made as built.
 	 */
 	problem?: "sold-out" | "over-stock" | "unavailable";
@@ -112,6 +114,7 @@ export function priceCart(
 			image: variant.images[0],
 			recipe: variant.recipe,
 			wrapperColor: variant.wrapperColor,
+			...(variant.preorder ? { preorder: true } : {}),
 			quantity: line.quantity,
 			unitPrice,
 			lineTotal: roundMoney(unitPrice * line.quantity),

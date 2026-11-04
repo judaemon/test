@@ -34,10 +34,20 @@ export interface ProductVariant {
 	/** Overrides `Product.basePrice` when set. */
 	price?: number;
 	/**
-	 * Can be ordered right now: marked available by staff. Unavailable
-	 * styles still show in the shop but can't go in the bag.
+	 * Can be ordered right now: marked available by staff and not sold out.
+	 * Other styles still show in the shop but can't go in the bag.
 	 */
 	inStock: boolean;
+	/**
+	 * Sold as a pre-order right now: its ready-made bouquets ran out (or it
+	 * had none) and staff take pre-orders for it.
+	 */
+	preorder?: boolean;
+	/**
+	 * How many are left to sell right now: ready-made bouquets, or pre-order
+	 * slots when `preorder`. Absent for no limit.
+	 */
+	stock?: number;
 	/** Gallery images specific to this color, in display order. */
 	images: string[];
 	/** What each image shows, by position; missing tags fall back by position. */
@@ -71,6 +81,12 @@ export interface Product {
 export interface AdminVariant extends ProductVariant {
 	/** Staff switch: unavailable styles show in the shop but can't be ordered. */
 	isAvailable: boolean;
+	/** Ready-made bouquets left; absent when made to order, with no limit. */
+	readyStock?: number;
+	/** Once ready-made ones run out, it's sold as a pre-order. */
+	takesPreorders: boolean;
+	/** Pre-orders still taken; absent for no limit. */
+	preorderSlots?: number;
 	/** The wrapper from Admin → Wrappers; `wrapperColor` is its name. */
 	wrapperId?: string;
 }

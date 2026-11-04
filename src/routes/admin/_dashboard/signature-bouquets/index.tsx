@@ -22,7 +22,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { formatRecipeItem, mainFlower } from "~/lib/flowers";
-import { formatPrice, swatchBackground } from "~/lib/product";
+import { formatPrice, stockLabel, swatchBackground } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { findSize } from "~/lib/sizes";
 import { useSizes } from "~/lib/use-catalog";
@@ -329,12 +329,15 @@ function InventoryPage() {
 									!product.isVisible && "opacity-60",
 								)}
 							>
-								<table class="stack-table w-full text-left text-sm md:min-w-[720px] md:table-fixed">
+								<table class="stack-table w-full text-left text-sm md:min-w-[900px] md:table-fixed">
 									<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 										<tr>
 											<th class="px-5 py-2 font-medium">Style</th>
 											<th class="px-3 py-2 font-medium md:w-52">Price</th>
 											<th class="px-3 py-2 font-medium md:w-56">Available</th>
+											<th class="px-3 py-2 font-medium md:w-56">
+												Ready-made stock
+											</th>
 											<th class="px-3 py-2 md:w-16">
 												<span class="sr-only">Actions</span>
 											</th>
@@ -418,7 +421,15 @@ function VariantRow(props: {
 }) {
 	const [saving, setSaving] = createSignal(false);
 	/** Which control just saved, for its "Saved ✓". */
-	const [saved, setSaved] = createSignal<"price" | "available" | null>(null);
+	const [saved, setSaved] = createSignal<
+		"price" | "available" | "stock" | null
+	>(null);
+	const currentStock = () =>
+		props.variant.readyStock === undefined
+			? ""
+			: String(props.variant.readyStock);
+	const [stock, setStock] = createSignal(currentStock());
+	createEffect(on(currentStock, (value) => setStock(value), { defer: true }));
 	const currentPrice = () =>
 		String(props.variant.price ?? props.product.basePrice);
 	const [price, setPrice] = createSignal(currentPrice());
@@ -452,8 +463,12 @@ function VariantRow(props: {
 	// Controls stay enabled while saving: disabling them would drop keyboard
 	// focus. Extra changes during a save are ignored instead.
 	const save = async (
-		field: "price" | "available",
-		patch: { isAvailable?: boolean; price?: number },
+		field: "price" | "available" | "stock",
+		patch: {
+			isAvailable?: boolean;
+			price?: number;
+			readyStock?: number | null;
+		},
 	) => {
 		if (saving()) return;
 		setSaving(true);
@@ -471,6 +486,7 @@ function VariantRow(props: {
 			savedTimer = setTimeout(() => setSaved(null), 1500);
 		} catch (error) {
 			setPrice(currentPrice());
+			setStock(currentStock());
 			toastError(error);
 		} finally {
 			setSaving(false);
@@ -487,6 +503,18 @@ function VariantRow(props: {
 		}
 		if (String(next) !== currentPrice()) void save("price", { price: next });
 		else setPrice(currentPrice());
+	};
+
+	/** Saves typed ready-made stock once it's left; blank is made to order. */
+	const commitStock = () => {
+		const typed = stock().trim();
+		const next = typed === "" ? null : Number(typed);
+		if (next !== null && (!Number.isInteger(next) || next < 0)) {
+			setStock(currentStock());
+			toastError(new Error("Stock must be a whole number, or blank."));
+			return;
+		}
+		if (typed !== currentStock()) void save("stock", { readyStock: next });
 	};
 
 	return (
@@ -599,6 +627,48 @@ function VariantRow(props: {
 					</span>
 					<span class="w-14 text-xs text-sage-600" aria-live="polite">
 						{saved() === "available" ? "Saved ✓" : ""}
+					</span>
+				</div>
+			</td>
+			<td
+				data-controls
+				data-label="Ready-made stock"
+				class="px-5 py-2 md:px-3 md:py-2.5"
+			>
+				<div class="flex items-center gap-2">
+					<input
+						type="number"
+						inputMode="numeric"
+						min="0"
+						step="1"
+						placeholder="No limit"
+						value={stock()}
+						aria-label={`${label()} ready-made stock`}
+						aria-busy={saving()}
+						onInput={(e) => setStock(e.currentTarget.value)}
+						onChange={commitStock}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") e.currentTarget.blur();
+							if (e.key === "Escape") {
+								setStock(currentStock());
+								e.currentTarget.blur();
+							}
+						}}
+						class="h-10 w-20 rounded-lg border border-petal-200 bg-white px-2.5 text-base tabular-nums outline-none transition-colors focus:border-petal-500 focus:ring-2 focus:ring-petal-500/30 hover:border-petal-300 sm:h-9 sm:text-sm"
+					/>
+					<span
+						class={cn(
+							"whitespace-nowrap text-xs",
+							props.variant.inStock
+								? "text-petal-900/60"
+								: "text-error-foreground",
+						)}
+					>
+						{saved() === "stock"
+							? "Saved ✓"
+							: props.variant.isAvailable
+								? stockLabel(props.variant)
+								: ""}
 					</span>
 				</div>
 			</td>

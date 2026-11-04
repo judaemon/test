@@ -30,6 +30,7 @@ import {
 	flowerCodeKey,
 	PHOTO_TAGS,
 	photoTag,
+	stockLabel,
 	swatchBackground,
 } from "~/lib/product";
 import type { BouquetSize } from "~/lib/sizes";
@@ -46,7 +47,7 @@ import {
 	saveProductFn,
 	uploadProductImage,
 } from "~/server/admin/catalog";
-import type { AdminProduct, PhotoTag } from "~/types/product";
+import type { AdminProduct, PhotoTag, ProductVariant } from "~/types/product";
 
 interface EditorSearch {
 	/** Opens scrolled to this style, from a row on Signature bouquets. */
@@ -79,6 +80,11 @@ interface VariantDraft {
 	colorHex2: string;
 	price: string;
 	isAvailable: boolean;
+	/** Ready-made bouquets; blank when made to order, with no limit. */
+	readyStock: string;
+	takesPreorders: boolean;
+	/** Blank for no limit. */
+	preorderSlots: string;
 	images: string[];
 	/** Kept in step with `images`. */
 	imageTags: PhotoTag[];
@@ -95,6 +101,26 @@ interface RecipeDraft {
 	count: string;
 	color: string;
 	filler: boolean;
+}
+
+/** A typed stock count; blank is no limit. */
+const stockInput = (value: string) =>
+	value.trim() === "" ? null : Number(value);
+
+/** What the shop will say about a style as drafted, e.g. "Available · 5 left". */
+function shopperSees(v: VariantDraft) {
+	if (!v.isAvailable) return "Unavailable";
+	const ready = stockInput(v.readyStock);
+	const slots = stockInput(v.preorderSlots);
+	const preorder = ready === 0 && v.takesPreorders;
+	const stock = preorder ? slots : ready;
+	const label = stockLabel({
+		inStock: stock !== 0,
+		preorder,
+		...(stock === null ? {} : { stock }),
+	} as ProductVariant);
+	if (preorder || stock === 0) return label;
+	return label ? `Available · ${label}` : "Available";
 }
 
 const newRecipeRow = (): RecipeDraft => ({
@@ -123,6 +149,9 @@ const newVariant = (): VariantDraft => ({
 	colorHex2: "",
 	price: "",
 	isAvailable: true,
+	readyStock: "",
+	takesPreorders: false,
+	preorderSlots: "",
 	images: [],
 	imageTags: [],
 	recipe: [newRecipeRow()],
@@ -153,6 +182,10 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			colorHex2: v.colorHex2 ?? "",
 			price: String(v.price ?? product.basePrice),
 			isAvailable: v.isAvailable,
+			readyStock: v.readyStock === undefined ? "" : String(v.readyStock),
+			takesPreorders: v.takesPreorders,
+			preorderSlots:
+				v.preorderSlots === undefined ? "" : String(v.preorderSlots),
 			images: [...v.images],
 			imageTags: v.images.map((_, i) => photoTag(v, i)),
 			recipe: v.recipe.map((item) => ({
@@ -402,6 +435,9 @@ function ProductEditor() {
 							colorHex2: v.colorHex2,
 							price: Number(v.price),
 							isAvailable: v.isAvailable,
+							readyStock: stockInput(v.readyStock),
+							takesPreorders: v.takesPreorders && v.readyStock.trim() !== "",
+							preorderSlots: stockInput(v.preorderSlots),
 							images: v.images,
 							imageTags: v.imageTags,
 							// Blank rows are left out rather than rejected.
@@ -690,6 +726,78 @@ function ProductEditor() {
 										When off, shoppers still see it but can’t order it.
 									</span>
 								</div>
+							</div>
+
+							<div class="mt-5 grid gap-4 rounded-xl border border-petal-100 bg-petal-50/40 p-4 sm:grid-cols-6">
+								<Field
+									label="Ready-made stock"
+									hint="Bouquets made ahead. Blank: made to order, no limit."
+									class="sm:col-span-2"
+								>
+									<input
+										type="number"
+										min="0"
+										max="9999"
+										step="1"
+										inputMode="numeric"
+										placeholder="No limit"
+										value={variant().readyStock}
+										onInput={(e) =>
+											updateVariant(index, {
+												readyStock: e.currentTarget.value,
+											})
+										}
+										class={cn(adminInput, "tabular-nums")}
+									/>
+								</Field>
+								<Show when={variant().readyStock.trim() !== ""}>
+									<div class="flex flex-col justify-center gap-1 sm:col-span-2">
+										<Toggle
+											label="Pre-order when sold out"
+											checked={variant().takesPreorders}
+											onChange={(checked) =>
+												updateVariant(index, { takesPreorders: checked })
+											}
+										/>
+										<span class="text-xs text-petal-900/55">
+											When off, it shows Sold out at 0.
+										</span>
+									</div>
+									<Show when={variant().takesPreorders}>
+										<Field
+											label="Pre-order slots"
+											hint="How many pre-orders to take. Blank: no limit."
+											class="sm:col-span-2"
+										>
+											<input
+												type="number"
+												min="0"
+												max="9999"
+												step="1"
+												inputMode="numeric"
+												placeholder="No limit"
+												value={variant().preorderSlots}
+												onInput={(e) =>
+													updateVariant(index, {
+														preorderSlots: e.currentTarget.value,
+													})
+												}
+												class={cn(adminInput, "tabular-nums")}
+											/>
+										</Field>
+									</Show>
+								</Show>
+								<p class="text-sm sm:col-span-6">
+									<span class="text-petal-900/60">Shoppers see: </span>
+									<strong class="font-semibold">
+										{shopperSees(variant())}
+									</strong>
+									<span class="text-petal-900/60">
+										{" "}
+										· Orders take one off as they’re placed, and cancelled
+										orders put it back.
+									</span>
+								</p>
 							</div>
 
 							<div class="mt-5 grid gap-4 sm:grid-cols-6">

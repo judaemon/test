@@ -496,6 +496,13 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE style_flowers ADD COLUMN is_filler INTEGER NOT NULL DEFAULT 0;
 	`,
+	// v31: styles can have ready-made stock (NULL: made to order, no limit),
+	// and take pre-orders once it runs out, with optional slots (NULL: no limit).
+	`
+	ALTER TABLE bouquet_styles ADD COLUMN stock_quantity INTEGER CHECK (stock_quantity >= 0);
+	ALTER TABLE bouquet_styles ADD COLUMN takes_preorders INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE bouquet_styles ADD COLUMN preorder_slots INTEGER CHECK (preorder_slots >= 0);
+	`,
 ];
 
 declare global {

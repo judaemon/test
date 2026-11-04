@@ -6,7 +6,7 @@ import {
 	TooltipTrigger,
 } from "~/components/ui/tooltip";
 import { photoSrc } from "~/lib/photos";
-import { swatchBackground } from "~/lib/product";
+import { stockLabel, swatchBackground } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import type { ProductVariant } from "~/types/product";
 
@@ -58,7 +58,10 @@ export function VariantSelector(props: VariantSelectorProps) {
 				<span class="text-muted-foreground">Theme: </span>
 				<span class="font-semibold">{displayed()?.colorName}</span>
 				<Show when={displayed() && !displayed()?.inStock}>
-					<span class="text-muted-foreground"> (not available)</span>
+					<span class="text-muted-foreground">
+						{" "}
+						({stockLabel(displayed() as ProductVariant).toLowerCase()})
+					</span>
 				</Show>
 			</p>
 
@@ -84,7 +87,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 									aria-label={
 										variant.inStock
 											? variant.colorName
-											: `${variant.colorName}, not available`
+											: `${variant.colorName}, ${stockLabel(variant).toLowerCase()}`
 									}
 									tabindex={isSelected() ? 0 : -1}
 									data-variant-id={variant.id}
@@ -146,7 +149,10 @@ export function VariantSelector(props: VariantSelectorProps) {
 								<TooltipContent class="px-2.5 py-1 text-xs">
 									{variant.colorName}
 									<Show when={!variant.inStock}>
-										<span class="text-muted-foreground"> · Not available</span>
+										<span class="text-muted-foreground">
+											{" "}
+											· {stockLabel(variant)}
+										</span>
 									</Show>
 								</TooltipContent>
 							</Tooltip>

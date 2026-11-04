@@ -1,3 +1,4 @@
+import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import type { BouquetSize } from "~/lib/sizes";
 import type {
 	AdminProduct,
@@ -28,6 +29,9 @@ interface StyleRow {
 	swatch_image: string | null;
 	price_cents: number;
 	is_available: number;
+	stock_quantity: number | null;
+	takes_preorders: number;
+	preorder_slots: number | null;
 	images: string;
 	image_tags: string;
 	ai_photos: number;
@@ -104,6 +108,17 @@ function toVariant(
 	recipes: RecipeRow[],
 ): AdminVariant {
 	const isAvailable = row.is_available === 1;
+	const readyStock = row.stock_quantity ?? undefined;
+	const preorderSlots = row.preorder_slots ?? undefined;
+	const takesPreorders = row.takes_preorders === 1;
+	// Ready-made bouquets sell first; once they're gone it's a pre-order
+	// (when staff take them) or sold out.
+	const preorder = readyStock === 0 && takesPreorders;
+	const stock = !isAvailable
+		? undefined
+		: readyStock === 0 && takesPreorders
+			? preorderSlots
+			: readyStock;
 	return {
 		id: row.slug,
 		sku: bouquet.name,
@@ -113,7 +128,12 @@ function toVariant(
 		swatchImage: row.swatch_image ?? undefined,
 		price: fromCents(row.price_cents),
 		isAvailable,
-		inStock: isAvailable,
+		inStock: isAvailable && stock !== 0,
+		...(isAvailable && preorder ? { preorder: true } : {}),
+		...(stock === undefined ? {} : { stock }),
+		...(readyStock === undefined ? {} : { readyStock }),
+		takesPreorders,
+		...(preorderSlots === undefined ? {} : { preorderSlots }),
 		images: JSON.parse(row.images) as string[],
 		imageTags: JSON.parse(row.image_tags) as PhotoTag[],
 		recipe: recipes
@@ -145,8 +165,14 @@ export function toPublicProduct(product: AdminProduct): Product {
 		currency: product.currency,
 		size: product.size,
 		variants: product.variants.map(
-			({ isAvailable: _available, wrapperId: _wrapperId, ...variant }) =>
-				variant,
+			({
+				isAvailable: _available,
+				wrapperId: _wrapperId,
+				readyStock: _readyStock,
+				takesPreorders: _takesPreorders,
+				preorderSlots: _preorderSlots,
+				...variant
+			}) => variant,
 		),
 	};
 }
@@ -178,6 +204,11 @@ export interface VariantInput {
 	colorHex2?: string;
 	price: number;
 	isAvailable: boolean;
+	/** Ready-made bouquets; null or missing when made to order, with no limit. */
+	readyStock?: number | null;
+	takesPreorders?: boolean;
+	/** Null or missing for no limit. */
+	preorderSlots?: number | null;
 	images: string[];
 	/** Missing means "by position". */
 	imageTags?: PhotoTag[];
@@ -257,12 +288,14 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 		);
 		const kept = new Set<string>();
 		const upsert = db.query(
-			`INSERT INTO bouquet_styles (id, bouquet_id, slug, name, color_hex, color_hex2, price_cents, is_available, images, image_tags, ai_photos, wrapper_id, sort)
-			 VALUES ($id, $bouquetId, $slug, $name, $colorHex, $colorHex2, $price, $available, $images,
-			   $imageTags, $aiPhotos, $wrapperId, $sort)
+			`INSERT INTO bouquet_styles (id, bouquet_id, slug, name, color_hex, color_hex2, price_cents, is_available,
+			   stock_quantity, takes_preorders, preorder_slots, images, image_tags, ai_photos, wrapper_id, sort)
+			 VALUES ($id, $bouquetId, $slug, $name, $colorHex, $colorHex2, $price, $available,
+			   $stock, $takesPreorders, $preorderSlots, $images, $imageTags, $aiPhotos, $wrapperId, $sort)
 			 ON CONFLICT (id) DO UPDATE SET slug = excluded.slug, name = excluded.name,
 			   color_hex = excluded.color_hex, color_hex2 = excluded.color_hex2, price_cents = excluded.price_cents,
-			   is_available = excluded.is_available,
+			   is_available = excluded.is_available, stock_quantity = excluded.stock_quantity,
+			   takes_preorders = excluded.takes_preorders, preorder_slots = excluded.preorder_slots,
 			   images = excluded.images, image_tags = excluded.image_tags, ai_photos = excluded.ai_photos,
 			   wrapper_id = excluded.wrapper_id, sort = excluded.sort`,
 		);
@@ -289,6 +322,9 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				colorHex2: variant.colorHex2 || null,
 				price: toCents(variant.price),
 				available: variant.isAvailable ? 1 : 0,
+				stock: variant.readyStock ?? null,
+				takesPreorders: variant.takesPreorders ? 1 : 0,
+				preorderSlots: variant.preorderSlots ?? null,
 				images: JSON.stringify(variant.images),
 				imageTags: JSON.stringify(variant.imageTags ?? []),
 				aiPhotos: variant.aiPhotos === false ? 0 : 1,
@@ -360,18 +396,22 @@ function flowerColorId(item: RecipeItem) {
 	return row.id;
 }
 
-/** Quick edits from the list of bouquets: a style's availability or price. */
+/**
+ * Quick edits from the list of bouquets: a style's availability, price or
+ * ready-made stock (null for made to order).
+ */
 export function updateStyle(
 	productId: string,
 	variantId: string,
-	patch: { isAvailable?: boolean; price?: number },
+	patch: { isAvailable?: boolean; price?: number; readyStock?: number | null },
 ) {
 	const db = getDb();
 	const result = db
 		.query(
 			`UPDATE bouquet_styles SET
 			   is_available = COALESCE($available, is_available),
-			   price_cents = COALESCE($price, price_cents)
+			   price_cents = COALESCE($price, price_cents),
+			   stock_quantity = CASE WHEN $setStock THEN $stock ELSE stock_quantity END
 			 WHERE bouquet_id = $productId AND slug = $variantId`,
 		)
 		.run({
@@ -380,6 +420,8 @@ export function updateStyle(
 			available:
 				patch.isAvailable === undefined ? null : patch.isAvailable ? 1 : 0,
 			price: patch.price === undefined ? null : toCents(patch.price),
+			setStock: patch.readyStock === undefined ? 0 : 1,
+			stock: patch.readyStock ?? null,
 		});
 	if (result.changes === 0) throw new Error("Style not found");
 	db.query(
@@ -426,4 +468,37 @@ export function deleteVariant(productId: string, variantId: string) {
 			"DELETE FROM bouquet_styles WHERE bouquet_id = $productId AND slug = $variantId",
 		).run({ productId, variantId });
 	})();
+}
+
+/**
+ * Takes signature bouquets out of stock (-1) or puts them back (1): ready-made
+ * ones, or pre-order slots for lines ordered as a pre-order. Styles with no
+ * limit are left alone. Returns the first line there aren't enough of.
+ */
+export function adjustStyleStock<
+	T extends {
+		productId: string;
+		variantId: string;
+		quantity: number;
+		preorder?: boolean;
+	},
+>(lines: T[], direction: 1 | -1): T | null {
+	const db = getDb();
+	for (const line of lines) {
+		if (line.productId === CUSTOM_PRODUCT_ID) continue;
+		const column = line.preorder ? "preorder_slots" : "stock_quantity";
+		const where = "bouquet_id = $productId AND slug = $variantId";
+		const keys = { productId: line.productId, variantId: line.variantId };
+		const row = db
+			.query(`SELECT ${column} AS left FROM bouquet_styles WHERE ${where}`)
+			.get(keys) as { left: number | null } | null;
+		if (row?.left === null || row === null) continue;
+		const left = row.left + direction * line.quantity;
+		if (left < 0) return line;
+		db.query(`UPDATE bouquet_styles SET ${column} = $left WHERE ${where}`).run({
+			...keys,
+			left,
+		});
+	}
+	return null;
 }

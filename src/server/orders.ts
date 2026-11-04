@@ -140,7 +140,7 @@ export const placeOrder = createServerFn({ method: "POST" })
 						? `Your custom bouquet can’t be made as built: ${unavailable.problemText} Remove it and build it again.`
 						: unavailable.problem === "sold-out"
 							? `${lineName(unavailable)} isn’t available right now. Remove it from your bag to continue.`
-							: `You can order up to ${unavailable.maxQuantity} of ${lineName(unavailable)} at a time. Lower the quantity to continue.`,
+							: `You can order up to ${unavailable.maxQuantity} of ${lineName(unavailable)} right now. Lower the quantity to continue.`,
 			};
 		}
 

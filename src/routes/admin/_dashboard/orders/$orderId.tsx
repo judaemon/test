@@ -180,6 +180,11 @@ function OrderDetail() {
 										<span class="min-w-0 flex-1">
 											<span class="block font-medium">
 												{line.quantity} × {line.colorName}
+												<Show when={line.preorder}>
+													<span class="ml-2 rounded-full bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">
+														Pre-order
+													</span>
+												</Show>
 											</span>
 											<span class="block text-xs text-petal-900/55">
 												{line.title === line.sku

@@ -259,6 +259,7 @@ export function OrderTracker(props: {
 							/>
 							<span>
 								{line.quantity} × {styleLabel(line)}
+								{line.preorder ? " · Pre-order" : ""}
 								<span class="block text-xs text-petal-900/55">
 									{line.title}
 								</span>

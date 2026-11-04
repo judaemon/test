@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 import { Show } from "solid-js";
 import { photoSrc } from "~/lib/photos";
+import { stockLabel } from "~/lib/product";
 import type { Product, ProductVariant } from "~/types/product";
 
 /** A bouquet's photo and name, opening its page on the given theme. */
@@ -24,9 +25,9 @@ export function BouquetCard(props: {
 					loading="lazy"
 					class="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
 				/>
-				<Show when={!props.variant.inStock}>
+				<Show when={!props.variant.inStock || props.variant.preorder}>
 					<span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
-						Not available
+						{props.variant.inStock ? "Pre-order" : stockLabel(props.variant)}
 					</span>
 				</Show>
 			</div>

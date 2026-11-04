@@ -22,7 +22,12 @@ import {
 	setCartOpen,
 } from "~/lib/cart-store";
 import { stemCount } from "~/lib/flowers";
-import { formatPrice, getMaxQuantity, getVariantPrice } from "~/lib/product";
+import {
+	formatPrice,
+	getMaxQuantity,
+	getVariantPrice,
+	stockLabel,
+} from "~/lib/product";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
 import { useFlowerPhotos, useSizes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
@@ -135,12 +140,16 @@ export function ProductInfo(props: ProductInfoProps) {
 					when={props.variant.inStock}
 					fallback={
 						<Badge variant="error" round>
-							Not available
+							{stockLabel(props.variant)}
 						</Badge>
 					}
 				>
-					<Badge variant="success" round>
-						Available
+					<Badge variant={props.variant.preorder ? "warning" : "success"} round>
+						{props.variant.preorder
+							? stockLabel(props.variant)
+							: props.variant.stock === undefined
+								? "Available"
+								: `Available · ${stockLabel(props.variant)}`}
 					</Badge>
 				</Show>
 			</div>
@@ -284,17 +293,24 @@ export function ProductInfo(props: ProductInfoProps) {
 					>
 						<Show
 							when={props.variant.inStock}
-							fallback={<span>Not available</span>}
+							fallback={<span>{stockLabel(props.variant)}</span>}
 						>
 							<BagIcon class="size-5" />
-							<span>{isAdding() ? "Adding…" : "Add to Bag"}</span>
+							<span>
+								{isAdding()
+									? "Adding…"
+									: props.variant.preorder
+										? "Pre-order"
+										: "Add to Bag"}
+							</span>
 						</Show>
 					</Button>
 				</Show>
 				<Show when={isMaxedOut()}>
 					<p class="text-center text-sm text-muted-foreground">
-						Your bag has {inBag()} {props.variant.colorName} bouquets, the most
-						for one order.
+						{props.variant.stock !== undefined && inBag() >= props.variant.stock
+							? `Your bag has the last ${inBag()} ${props.variant.colorName}.`
+							: `Your bag has ${inBag()} ${props.variant.colorName} bouquets, the most for one order.`}
 					</p>
 				</Show>
 				<Show when={!isMaxedOut() && inBag() > 0}>
@@ -304,8 +320,14 @@ export function ProductInfo(props: ProductInfoProps) {
 				</Show>
 				<Show when={!props.variant.inStock}>
 					<p class="text-center text-sm text-muted-foreground">
-						{props.variant.colorName} isn’t available right now. Pick another
-						theme above to order.
+						{props.variant.stock !== 0
+							? `${props.variant.colorName} isn’t available right now.`
+							: props.variant.preorder
+								? `Pre-orders for ${props.variant.colorName} are full.`
+								: `${props.variant.colorName} is sold out.`}
+						{props.product.variants.some((v) => v.inStock)
+							? " Pick another theme above to order."
+							: ""}
 					</p>
 				</Show>
 			</div>

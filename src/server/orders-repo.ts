@@ -19,6 +19,7 @@ import {
 	type PaymentStatus,
 	type WrapperStatus,
 } from "~/types/order";
+import { adjustStyleStock } from "./catalog-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { adjustFlowerStock } from "./flowers-repo";
 import { adjustWrapperStock } from "./wrappers-repo";
@@ -193,6 +194,11 @@ export function createOrder(order: NewOrder): Order {
 				);
 			}
 		}
+		const outOfStyle = adjustStyleStock(order.cart.lines, -1);
+		if (outOfStyle)
+			throw new OrderRuleError(
+				`There aren’t enough ${lineName(outOfStyle)} left. Lower the quantity to continue.`,
+			);
 		const outOfWrapper = adjustWrapperStock(order.cart.lines, -1);
 		if (outOfWrapper)
 			throw new OrderRuleError(
@@ -285,7 +291,9 @@ export function setOrderTest(id: string, isTest: boolean): Order {
 		if (order.isTest === isTest) return;
 		if (order.stage !== "cancelled") {
 			const direction = isTest ? 1 : -1;
+			const outOfStyle = adjustStyleStock(order.lines, direction);
 			const short =
+				(outOfStyle && lineName(outOfStyle)) ??
 				adjustWrapperStock(order.lines, direction) ??
 				adjustFlowerStock(order.lines, direction);
 			if (short)
@@ -439,7 +447,7 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 		}
 		// A test order already gave its stock back when it was marked.
 		if (stage === "cancelled" && !order.isTest) {
-			// Signature bouquets have no stock count; custom ones give back theirs.
+			adjustStyleStock(order.lines, 1);
 			adjustWrapperStock(order.lines, 1);
 			adjustFlowerStock(order.lines, 1);
 		}

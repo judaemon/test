@@ -1,7 +1,12 @@
 import { Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 import { photoSrc } from "~/lib/photos";
-import { formatPrice, getVariantPrice, swatchBackground } from "~/lib/product";
+import {
+	formatPrice,
+	getVariantPrice,
+	stockLabel,
+	swatchBackground,
+} from "~/lib/product";
 import type { Product } from "~/types/product";
 
 const MAX_DOTS = 5;
@@ -33,7 +38,7 @@ export function ProductCard(props: { product: Product }) {
 				/>
 				<Show when={soldOut()}>
 					<span class="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-petal-900">
-						Not available
+						{cover() ? stockLabel(cover()) : "Unavailable"}
 					</span>
 				</Show>
 			</div>
