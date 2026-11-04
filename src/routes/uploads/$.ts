@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 
+import { photoRedirect } from "~/server/photo-watermarks";
 import {
 	PUBLIC_UPLOAD_KINDS,
 	readUpload,
@@ -21,6 +22,15 @@ async function findUpload(kind: UploadKind, fileName: string) {
 	return original ? { file: original, standIn: !!sized } : null;
 }
 
+/** Where a re-stamped photo's file now lives, keeping its size and extension. */
+function movedPhoto(fileName: string) {
+	const match = /^([a-z0-9-]+?)(-w\d+)?(\.(?:png|jpg|webp))?$/.exec(fileName);
+	const next = match?.[1] && photoRedirect(match[1]);
+	return next
+		? `/uploads/products/${next}${match[2] ?? ""}${match[3] ?? ""}`
+		: undefined;
+}
+
 // Product photos and payment QR codes uploaded from the admin, and shoppers'
 // reference photos for built bouquets.
 export const Route = createFileRoute("/uploads/$")({
@@ -36,7 +46,20 @@ export const Route = createFileRoute("/uploads/$")({
 					return new Response("Not found", { status: 404 });
 				}
 				const found = await findUpload(kind as UploadKind, fileName);
-				if (!found) return new Response("Not found", { status: 404 });
+				if (!found) {
+					// A bouquet photo re-stamped with the watermark has a new id;
+					// old addresses (orders, shared links) go to it.
+					const moved = kind === "products" && movedPhoto(fileName);
+					if (moved)
+						return new Response(null, {
+							status: 301,
+							headers: {
+								Location: moved,
+								"Cache-Control": "public, max-age=31536000, immutable",
+							},
+						});
+					return new Response("Not found", { status: 404 });
+				}
 				return new Response(found.file.bytes, {
 					headers: {
 						"Content-Type": found.file.contentType,

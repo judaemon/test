@@ -11,6 +11,7 @@ import {
 	textParam,
 } from "~/components/admin/list-toolbar";
 import { OptimizePhotos } from "~/components/admin/photo-thumbnails";
+import { WatermarkPhotos } from "~/components/admin/photo-watermarks";
 import {
 	AdminIcons,
 	adminButton,
@@ -82,6 +83,7 @@ export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 
 function InventoryPage() {
 	const loaded = Route.useLoaderData();
+	const context = Route.useRouteContext();
 	const sizes = useSizes();
 	// A keyed store keeps each row's DOM (and keyboard focus) across saves.
 	const [products, setProducts] = createStore<AdminProduct[]>(loaded());
@@ -182,6 +184,7 @@ function InventoryPage() {
 
 	return (
 		<div>
+			<WatermarkPhotos />
 			<OptimizePhotos />
 			{/* Stays in view on wider screens; on phones it would fill the screen. */}
 			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
@@ -190,6 +193,17 @@ function InventoryPage() {
 					description="Changes here save straight away. Show in shop lists or hides the whole bouquet; a style that isn’t Available stays listed but can’t be ordered."
 					actions={
 						<>
+							{/* A copy of the photos without the watermark, off the server. */}
+							<Show when={context().user.role === "owner"}>
+								<a
+									href="/api/admin/photo-backup"
+									download=""
+									class={adminButton.secondary}
+									title="Every bouquet photo without the watermark, as a zip"
+								>
+									Download original photos
+								</a>
+							</Show>
 							<Link
 								to="/admin/signature-bouquets/arrange"
 								class={adminButton.secondary}

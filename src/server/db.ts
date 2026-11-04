@@ -514,6 +514,21 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE bouquet_styles ADD COLUMN image_captions TEXT NOT NULL DEFAULT '[]';
 	`,
+	// v34: watermarked bouquet photos. Each records the watermark's version
+	// (src/lib/watermark.ts); its clean original is kept under uploads/originals.
+	// Stamping a photo already in use gives it a new id (photo addresses are
+	// cached for good), and its old id redirects to the new one.
+	`
+	CREATE TABLE photo_watermarks (
+		photo_id TEXT PRIMARY KEY,
+		version INTEGER NOT NULL,
+		created_at TEXT NOT NULL
+	);
+	CREATE TABLE photo_redirects (
+		old_id TEXT PRIMARY KEY,
+		new_id TEXT NOT NULL
+	);
+	`,
 ];
 
 declare global {

@@ -1,4 +1,11 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 import { sniffImageType } from "~/lib/payment";
@@ -10,13 +17,19 @@ const UPLOAD_ROOT = process.env.UPLOAD_DIR ?? ".data/uploads";
  * staff-only; delivery photos are for staff and the order's customer.
  * References are shoppers' inspiration photos for a built bouquet, served by
  * their random names so the bag can show them before the order is placed.
+ * Originals are the clean, unwatermarked copies of bouquet photos, by the
+ * photo's id: staff only, kept so the watermark can be redone. Backups are a
+ * second clean copy of each photo the watermark replaced, by its old id; the
+ * app never deletes them.
  */
 export type UploadKind =
 	| "products"
 	| "payments"
 	| "proofs"
 	| "delivery"
-	| "references";
+	| "references"
+	| "originals"
+	| "backups";
 export const PUBLIC_UPLOAD_KINDS: UploadKind[] = [
 	"products",
 	"payments",
@@ -105,6 +118,24 @@ export async function deleteUploadById(kind: UploadKind, id: string) {
 	if (!FILE_ID.test(id)) return;
 	for (const extension of Object.keys(CONTENT_TYPES))
 		await rm(join(UPLOAD_ROOT, kind, `${id}.${extension}`), { force: true });
+}
+
+/** Moves an upload by id to another kind, keeping its name; no-op if missing. */
+export async function moveUploadById(
+	from: UploadKind,
+	to: UploadKind,
+	id: string,
+) {
+	if (!FILE_ID.test(id)) return;
+	await mkdir(join(UPLOAD_ROOT, to), { recursive: true });
+	for (const extension of Object.keys(CONTENT_TYPES)) {
+		const name = `${id}.${extension}`;
+		try {
+			await rename(join(UPLOAD_ROOT, from, name), join(UPLOAD_ROOT, to, name));
+		} catch {
+			// Not stored with this extension.
+		}
+	}
 }
 
 export async function deleteUpload(kind: UploadKind, fileName: string) {

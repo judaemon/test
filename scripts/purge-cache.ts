@@ -26,16 +26,16 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 
-import { SITE_URL } from "../src/lib/site";
+import {
+	cloudflareConfigured,
+	purgeCloudflare,
+	purgePaths,
+	siteUrl,
+} from "../src/server/cloudflare-cache";
 
-/** Cloudflare's limit on addresses per purge request (free plan). */
-const BATCH = 30;
 /** The built copy of public/, which is what the server sends. */
 const PUBLIC_DIR = ".output/public";
 
-const zone = process.env.CLOUDFLARE_ZONE_ID;
-const token = process.env.CLOUDFLARE_API_TOKEN;
-const site = (process.env.SITE_URL || SITE_URL).replace(/\/$/, "");
 /** Fingerprints from the last --changed run, next to the database. */
 const FINGERPRINTS =
 	process.env.CACHE_FINGERPRINTS_PATH ||
@@ -81,32 +81,10 @@ function changedPaths(
 	return [...paths].filter((path) => before[path] !== now[path]).sort();
 }
 
-async function purge(body: object) {
-	const response = await fetch(
-		`https://api.cloudflare.com/client/v4/zones/${zone}/purge_cache`,
-		{
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(body),
-		},
-	);
-	const result = (await response.json().catch(() => ({}))) as {
-		success?: boolean;
-		errors?: { message: string }[];
-	};
-	if (!response.ok || !result.success)
-		throw new Error(
-			`Cloudflare purge failed (${response.status}): ${result.errors?.map((e) => e.message).join("; ") || "no details"}`,
-		);
-}
-
 async function main() {
 	const args = process.argv.slice(2).filter((arg) => arg !== "--dry-run");
 	const dryRun = process.argv.includes("--dry-run");
-	if (!dryRun && (!zone || !token)) {
+	if (!dryRun && !cloudflareConfigured()) {
 		console.log(
 			"Cache purge skipped: set CLOUDFLARE_ZONE_ID and CLOUDFLARE_API_TOKEN to purge Cloudflare.",
 		);
@@ -114,7 +92,7 @@ async function main() {
 	}
 	if (args.includes("--everything")) {
 		if (dryRun) return console.log("Would purge everything.");
-		await purge({ purge_everything: true });
+		await purgeCloudflare({ purge_everything: true });
 		console.log("Purged everything from Cloudflare's cache.");
 		return;
 	}
@@ -126,16 +104,15 @@ async function main() {
 			console.log("Bundled images unchanged since the last deploy: nothing to purge.");
 			return;
 		}
-		const urls = paths.map((p) => `${site}${p}`);
 		if (dryRun) {
+			const urls = paths.map(siteUrl);
 			console.log(urls.join("\n"));
 			console.log(
 				`Would purge ${urls.length} ${before ? "changed" : "(first run: every)"} file(s).`,
 			);
 			return;
 		}
-		for (let i = 0; i < urls.length; i += BATCH)
-			await purge({ files: urls.slice(i, i + BATCH) });
+		const urls = await purgePaths(paths);
 		// Saved only once Cloudflare has taken the purge, so a failed one is retried next deploy.
 		await writeFile(FINGERPRINTS, `${JSON.stringify(now, null, "\t")}\n`);
 		console.log(
@@ -144,14 +121,13 @@ async function main() {
 		return;
 	}
 	const paths = args.length > 0 ? args : await bundledPaths();
-	const urls = paths.map((p) => `${site}${p.startsWith("/") ? p : `/${p}`}`);
 	if (dryRun) {
+		const urls = paths.map(siteUrl);
 		console.log(urls.join("\n"));
 		console.log(`Would purge ${urls.length} file(s).`);
 		return;
 	}
-	for (let i = 0; i < urls.length; i += BATCH)
-		await purge({ files: urls.slice(i, i + BATCH) });
+	const urls = await purgePaths(paths);
 	console.log(`Purged ${urls.length} file(s) from Cloudflare's cache.`);
 }
 

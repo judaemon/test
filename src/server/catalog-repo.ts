@@ -9,6 +9,7 @@ import type {
 } from "~/types/product";
 import { slugify, uniqueSlug } from "./bouquet-tables";
 import { fromCents, getDb, nowIso, toCents } from "./db";
+import { currentPhotoUrl } from "./photo-watermarks";
 import { InputError } from "./validate";
 
 interface BouquetRow {
@@ -348,7 +349,8 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				preorderSlots: variant.preorderSlots ?? null,
 				readyInDays: variant.readyInDays ?? null,
 				readyOn: variant.readyOn ?? null,
-				images: JSON.stringify(variant.images),
+				// An editor opened before a photo was re-stamped still has its old address.
+				images: JSON.stringify(variant.images.map(currentPhotoUrl)),
 				imageTags: JSON.stringify(variant.imageTags ?? []),
 				imageCaptions: JSON.stringify(variant.imageCaptions ?? []),
 				aiPhotos: variant.aiPhotos === false ? 0 : 1,

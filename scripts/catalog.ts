@@ -31,6 +31,12 @@ const SNAPSHOT_DIR = "catalog-snapshot";
 const SNAPSHOT_FILE = join(SNAPSHOT_DIR, "catalog.json");
 const SNAPSHOT_PHOTOS = join(SNAPSHOT_DIR, "photos");
 const UPLOAD_PHOTOS = join(process.env.UPLOAD_DIR ?? ".data/uploads", "products");
+/** Clean, unwatermarked copies of bouquet photos (see src/lib/watermark.ts). */
+const SNAPSHOT_ORIGINALS = join(SNAPSHOT_DIR, "originals");
+const UPLOAD_ORIGINALS = join(
+	process.env.UPLOAD_DIR ?? ".data/uploads",
+	"originals",
+);
 const SETTINGS_KEY = "custom_bouquet";
 
 type Row = Record<string, string | number | null>;
@@ -50,6 +56,9 @@ interface Snapshot {
 	flowers?: Row[];
 	flower_colors?: Row[];
 	wrappers?: Row[];
+	/** Missing from snapshots taken before bouquet photos were watermarked. */
+	photo_watermarks?: Row[];
+	photo_redirects?: Row[];
 }
 
 /** Tables the export saves, in an order that inserts cleanly. */
@@ -173,6 +182,13 @@ async function exportCatalog() {
 		snapshot[table] = db
 			.query(`SELECT * FROM ${table} ORDER BY rowid`)
 			.all() as Row[];
+	// Which photos carry the watermark, so an import never stamps them twice.
+	snapshot.photo_watermarks = db
+		.query("SELECT * FROM photo_watermarks ORDER BY photo_id")
+		.all() as Row[];
+	snapshot.photo_redirects = db
+		.query("SELECT * FROM photo_redirects ORDER BY old_id")
+		.all() as Row[];
 	const json = JSON.stringify(snapshot, null, "\t");
 
 	// Only the photos in use; old uploads may still be sitting in the folder.
@@ -193,6 +209,16 @@ async function exportCatalog() {
 	await Bun.write(SNAPSHOT_FILE, `${json}\n`);
 	for (const file of photos)
 		await copyFile(join(UPLOAD_PHOTOS, file), join(SNAPSHOT_PHOTOS, file));
+	// Their clean originals, for the photos in use that have one.
+	const originals = (
+		await readdir(UPLOAD_ORIGINALS).catch(() => [] as string[])
+	).filter((file) => names.has(file.split(".")[0] ?? ""));
+	await mkdir(SNAPSHOT_ORIGINALS, { recursive: true });
+	for (const file of originals)
+		await copyFile(
+			join(UPLOAD_ORIGINALS, file),
+			join(SNAPSHOT_ORIGINALS, file),
+		);
 	await writeReadableFiles(snapshot, photos);
 
 	console.log(
@@ -219,8 +245,21 @@ async function importCatalog() {
 	const photos = await readdir(SNAPSHOT_PHOTOS);
 	for (const photo of photos)
 		await copyFile(join(SNAPSHOT_PHOTOS, photo), join(UPLOAD_PHOTOS, photo));
+	await mkdir(UPLOAD_ORIGINALS, { recursive: true });
+	for (const file of await readdir(SNAPSHOT_ORIGINALS).catch(() => []))
+		await copyFile(
+			join(SNAPSHOT_ORIGINALS, file),
+			join(UPLOAD_ORIGINALS, file),
+		);
 
 	db.transaction(() => {
+		// Older snapshots don't say; then nothing is marked watermarked.
+		db.exec("DELETE FROM photo_watermarks");
+		db.exec("DELETE FROM photo_redirects");
+		for (const row of snapshot.photo_watermarks ?? [])
+			insertRow("photo_watermarks", row);
+		for (const row of snapshot.photo_redirects ?? [])
+			insertRow("photo_redirects", row);
 		// Styles, recipes and redirects go with their bouquets (ON DELETE
 		// CASCADE); then nothing uses the flowers and wrappers any more.
 		db.exec("DELETE FROM signature_bouquets");

@@ -44,12 +44,13 @@ import {
 	useSizes,
 } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
+import { watermarkPhoto } from "~/lib/watermark";
 import {
 	deleteProductFn,
 	getAdminProductFn,
 	listFlowerCodes,
 	saveProductFn,
-	uploadProductImage,
+	uploadBouquetPhoto,
 } from "~/server/admin/catalog";
 import type { AdminProduct, PhotoTag, ProductVariant } from "~/types/product";
 
@@ -381,15 +382,19 @@ function ProductEditor() {
 							: "Crop photo",
 				});
 				if (!file) continue;
+				// Every bouquet photo carries the watermark; the clean crop is
+				// kept (staff only) so the watermark can be redone later.
+				const stamped = await watermarkPhoto(file);
 				const body = new FormData();
-				body.set("file", file);
-				const result = await uploadProductImage({ data: body });
+				body.set("file", stamped, "photo.jpg");
+				body.set("original", file);
+				const result = await uploadBouquetPhoto({ data: body });
 				if (!result.ok) {
 					toastError(new Error(`${file.name}: ${result.message}`));
 					continue;
 				}
 				// The shop's smaller copy; it falls back to this photo without one.
-				void saveThumbnailFor(result.url, file).catch(() => undefined);
+				void saveThumbnailFor(result.url, stamped).catch(() => undefined);
 				setDraft(
 					"variants",
 					index,

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/solid-start";
 import { productPhotoId, THUMB_WIDTH } from "~/lib/photos";
 import { flowerCodeKey, isPhotoTag, PHOTO_CAPTION_MAX } from "~/lib/product";
+import { WATERMARK_VERSION } from "~/lib/watermark";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
 import {
@@ -15,11 +16,20 @@ import {
 	updateStyle,
 	type VariantInput,
 } from "../catalog-repo";
+import { cloudflareConfigured, purgePaths } from "../cloudflare-cache";
 import { getCustomSettings } from "../custom-repo";
+import {
+	cleanOriginal,
+	photosNeedingWatermark,
+	recordWatermark,
+	replacePhoto,
+} from "../photo-watermarks";
 import { listSizes } from "../sizes-repo";
 import {
 	deleteUpload,
+	deleteUploadById,
 	listUploads,
+	moveUploadById,
 	publicUploadUrl,
 	readUpload,
 	saveImage,
@@ -400,6 +410,119 @@ export const listPhotosWithoutThumbnails = createServerFn({
 		.filter((name) => !/-w\d+$/.test(name) && !names.has(thumbName(name)))
 		.map((id) => publicUploadUrl("products", `${id}.jpg`));
 });
+
+/** A file from a form, or an error naming what's missing. */
+function formFile(form: FormData, key: string, label: string) {
+	const file = form.get(key);
+	if (!(file instanceof File)) throw new InputError(`Choose ${label}.`);
+	return file;
+}
+
+/**
+ * A signature bouquet photo, watermarked in the browser, with its clean
+ * original. The photo is public; the original is kept for staff only, so the
+ * watermark can be redone from it.
+ */
+export const uploadBouquetPhoto = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		if (!(input instanceof FormData)) throw new Error("Expected form data");
+		return {
+			file: formFile(input, "file", "an image"),
+			original: formFile(input, "original", "the original image"),
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		const id = crypto.randomUUID();
+		try {
+			await saveImage("originals", data.original, id);
+			const fileName = await saveImage("products", data.file, id);
+			recordWatermark(id, WATERMARK_VERSION);
+			return { ok: true as const, url: publicUploadUrl("products", fileName) };
+		} catch (error) {
+			await deleteUploadById("originals", id);
+			if (error instanceof UploadError)
+				return { ok: false as const, message: error.message };
+			throw error;
+		}
+	});
+
+/** Bouquet photos that don't have the current watermark yet. */
+export const listPhotosToWatermark = createServerFn({ method: "GET" }).handler(
+	async () => {
+		await requireStaff();
+		return {
+			version: WATERMARK_VERSION,
+			...photosNeedingWatermark(WATERMARK_VERSION),
+		};
+	},
+);
+
+/**
+ * Swaps a bouquet photo already in use for a watermarked copy (made in the
+ * browser from its clean original) and the copy's card-sized version. The
+ * copy gets a new id, since photo addresses are cached for good; bouquets
+ * move to it and the old id redirects there. The old public photo is deleted
+ * and dropped from Cloudflare, so its clean version stops being served.
+ */
+export const replaceBouquetPhoto = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		if (!(input instanceof FormData)) throw new Error("Expected form data");
+		const url = input.get("url");
+		const id = typeof url === "string" ? productPhotoId(url) : undefined;
+		if (!id) throw new InputError("That isn’t an uploaded photo.");
+		const thumb = formFile(input, "thumb", "the smaller copy");
+		if (thumb.size > THUMB_MAX_BYTES)
+			throw new InputError("The smaller copy is too large.");
+		return { id, file: formFile(input, "file", "an image"), thumb };
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		const original = await cleanOriginal(data.id);
+		if (!original)
+			return {
+				ok: false as const,
+				message: "There’s no clean copy of that photo to watermark.",
+			};
+		const newId = crypto.randomUUID();
+		try {
+			await saveImage(
+				"originals",
+				new File([original.bytes], "original", { type: original.contentType }),
+				newId,
+			);
+			await saveImage("products", data.file, newId);
+			const thumbFile = await saveImage(
+				"products",
+				data.thumb,
+				thumbName(newId),
+			);
+			if (!thumbFile.endsWith(".jpg"))
+				throw new UploadError("Use a JPG for the copy.");
+		} catch (error) {
+			for (const kind of ["originals", "products"] as const)
+				await deleteUploadById(kind, newId);
+			await deleteUploadById("products", thumbName(newId));
+			if (error instanceof UploadError)
+				return { ok: false as const, message: error.message };
+			throw error;
+		}
+		replacePhoto(data.id, newId, WATERMARK_VERSION);
+		// The clean photo stops being public, but is never thrown away: it moves
+		// to the backups (a second clean copy beside the new original). What it
+		// replaced, if anything, was an older watermarked copy, which can go.
+		await moveUploadById(original.kind, "backups", data.id);
+		if (original.kind === "originals")
+			await deleteUploadById("products", data.id);
+		await deleteUploadById("products", thumbName(data.id));
+		if (cloudflareConfigured()) {
+			const old = `/uploads/products/${data.id}`;
+			await purgePaths([old, `${old}.jpg`, `${old}-w${THUMB_WIDTH}.jpg`]).catch(
+				(error) => console.error("Couldn’t purge the old photo:", error),
+			);
+		}
+		return { ok: true as const, url: `/uploads/products/${newId}` };
+	});
 
 export const deleteProductFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => ({
