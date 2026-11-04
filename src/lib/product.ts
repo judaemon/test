@@ -119,15 +119,20 @@ export function photoTag(variant: ProductVariant, index: number): PhotoTag {
 	return (["front", "top"] as const)[index] ?? "";
 }
 
-/** A bouquet's photos with what each one shows. */
+/** The longest caption staff can give a bouquet photo. */
+export const PHOTO_CAPTION_MAX = 180;
+
+/** A bouquet's photos with what each one shows, and staff's caption if any. */
 export function bouquetPhotos(variant: ProductVariant) {
 	return variant.images.map((src, index) => {
 		const tag = photoTag(variant, index);
+		const caption = variant.imageCaptions?.[index]?.trim();
 		return {
 			src,
 			label: tag
 				? (PHOTO_TAGS.find((t) => t.value === tag)?.label ?? "")
 				: "More photos",
+			...(caption ? { caption } : {}),
 		};
 	});
 }

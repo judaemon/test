@@ -56,6 +56,8 @@ export interface ProductVariant {
 	images: string[];
 	/** What each image shows, by position; missing tags fall back by position. */
 	imageTags?: PhotoTag[];
+	/** A line staff wrote about each image, by position; "" or missing for none. */
+	imageCaptions?: string[];
 	/** What goes into the bouquet; the stem count is the sum. */
 	recipe: RecipeItem[];
 	/** The bouquet's size (see the size guide); empty if not set. */

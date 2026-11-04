@@ -36,6 +36,7 @@ interface StyleRow {
 	preorder_date: string | null;
 	images: string;
 	image_tags: string;
+	image_captions: string;
 	ai_photos: number;
 	wrapper_id: string | null;
 	/** The linked wrapper's name, from the join. */
@@ -140,6 +141,7 @@ function toVariant(
 		...(row.preorder_date ? { readyOn: row.preorder_date } : {}),
 		images: JSON.parse(row.images) as string[],
 		imageTags: JSON.parse(row.image_tags) as PhotoTag[],
+		imageCaptions: JSON.parse(row.image_captions) as string[],
 		recipe: recipes
 			.filter((item) => item.style_id === row.id)
 			.map((item) => ({
@@ -223,6 +225,8 @@ export interface VariantInput {
 	images: string[];
 	/** Missing means "by position". */
 	imageTags?: PhotoTag[];
+	/** By position; missing means none. */
+	imageCaptions?: string[];
 	/** Flowers and colors by name, as in Admin → Flowers. */
 	recipe: RecipeItem[];
 	/** A row of the wrappers table; empty for none. */
@@ -301,16 +305,17 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 		const upsert = db.query(
 			`INSERT INTO bouquet_styles (id, bouquet_id, slug, name, color_hex, color_hex2, price_cents, is_available,
 			   stock_quantity, takes_preorders, preorder_slots, preorder_days, preorder_date,
-			   images, image_tags, ai_photos, wrapper_id, sort)
+			   images, image_tags, image_captions, ai_photos, wrapper_id, sort)
 			 VALUES ($id, $bouquetId, $slug, $name, $colorHex, $colorHex2, $price, $available,
 			   $stock, $takesPreorders, $preorderSlots, $readyInDays, $readyOn,
-			   $images, $imageTags, $aiPhotos, $wrapperId, $sort)
+			   $images, $imageTags, $imageCaptions, $aiPhotos, $wrapperId, $sort)
 			 ON CONFLICT (id) DO UPDATE SET slug = excluded.slug, name = excluded.name,
 			   color_hex = excluded.color_hex, color_hex2 = excluded.color_hex2, price_cents = excluded.price_cents,
 			   is_available = excluded.is_available, stock_quantity = excluded.stock_quantity,
 			   takes_preorders = excluded.takes_preorders, preorder_slots = excluded.preorder_slots,
 			   preorder_days = excluded.preorder_days, preorder_date = excluded.preorder_date,
-			   images = excluded.images, image_tags = excluded.image_tags, ai_photos = excluded.ai_photos,
+			   images = excluded.images, image_tags = excluded.image_tags,
+			   image_captions = excluded.image_captions, ai_photos = excluded.ai_photos,
 			   wrapper_id = excluded.wrapper_id, sort = excluded.sort`,
 		);
 		const clearRecipe = db.query(
@@ -343,6 +348,7 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				readyOn: variant.readyOn ?? null,
 				images: JSON.stringify(variant.images),
 				imageTags: JSON.stringify(variant.imageTags ?? []),
+				imageCaptions: JSON.stringify(variant.imageCaptions ?? []),
 				aiPhotos: variant.aiPhotos === false ? 0 : 1,
 				wrapperId: variant.wrapperId || null,
 				sort: index,

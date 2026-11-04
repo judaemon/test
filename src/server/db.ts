@@ -509,6 +509,11 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE bouquet_styles ADD COLUMN preorder_days INTEGER CHECK (preorder_days > 0);
 	ALTER TABLE bouquet_styles ADD COLUMN preorder_date TEXT;
 	`,
+	// v33: a caption staff write for each photo, kept in step with images.
+	// Empty means no caption.
+	`
+	ALTER TABLE bouquet_styles ADD COLUMN image_captions TEXT NOT NULL DEFAULT '[]';
+	`,
 ];
 
 declare global {

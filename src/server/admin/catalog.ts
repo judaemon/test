@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/solid-start";
 import { productPhotoId, THUMB_WIDTH } from "~/lib/photos";
-import { flowerCodeKey, isPhotoTag } from "~/lib/product";
+import { flowerCodeKey, isPhotoTag, PHOTO_CAPTION_MAX } from "~/lib/product";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
 import {
@@ -136,6 +136,19 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 	const imageTags = images.map((_, i) =>
 		isPhotoTag(rawTags[i]) ? rawTags[i] : "",
 	);
+	const rawCaptions = Array.isArray(source.imageCaptions)
+		? source.imageCaptions
+		: [];
+	const imageCaptions = images.map((_, i) => {
+		const caption = rawCaptions[i];
+		if (typeof caption !== "string") return "";
+		const clean = caption.replace(/\s+/g, " ").trim();
+		if (clean.length > PHOTO_CAPTION_MAX)
+			throw new InputError(
+				`${label} photo ${i + 1} caption is too long (${PHOTO_CAPTION_MAX} characters at most).`,
+			);
+		return clean;
+	});
 	return {
 		id:
 			typeof source.id === "string" && source.id
@@ -157,6 +170,7 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 		aiPhotos: bool(source, "aiPhotos"),
 		images,
 		imageTags,
+		imageCaptions,
 		recipe: parseRecipe(source.recipe, label),
 		wrapperId: wrapperId(source, label),
 	};

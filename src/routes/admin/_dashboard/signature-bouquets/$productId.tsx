@@ -29,6 +29,7 @@ import { randomFlowerCode } from "~/lib/flower-codes";
 import {
 	flowerCodeKey,
 	formatReadyDate,
+	PHOTO_CAPTION_MAX,
 	PHOTO_TAGS,
 	photoTag,
 	preorderReadyDate,
@@ -96,6 +97,8 @@ interface VariantDraft {
 	images: string[];
 	/** Kept in step with `images`. */
 	imageTags: PhotoTag[];
+	/** Kept in step with `images`; "" for none. */
+	imageCaptions: string[];
 	recipe: RecipeDraft[];
 	/** A wrapper from Admin → Wrappers; empty for none. */
 	wrapperId: string;
@@ -171,6 +174,7 @@ const newVariant = (): VariantDraft => ({
 	readyDate: "",
 	images: [],
 	imageTags: [],
+	imageCaptions: [],
 	recipe: [newRecipeRow()],
 	wrapperId: "",
 	aiPhotos: true,
@@ -208,6 +212,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			readyDate: v.readyOn ?? "",
 			images: [...v.images],
 			imageTags: v.images.map((_, i) => photoTag(v, i)),
+			imageCaptions: v.images.map((_, i) => v.imageCaptions?.[i] ?? ""),
 			recipe: v.recipe.map((item) => ({
 				key: crypto.randomUUID(),
 				flower: item.flower,
@@ -396,6 +401,7 @@ function ProductEditor() {
 							)?.value ?? "";
 						variant.images.push(result.url);
 						variant.imageTags.push(tag);
+						variant.imageCaptions.push("");
 					}),
 				);
 			}
@@ -413,9 +419,11 @@ function ProductEditor() {
 			produce((variant) => {
 				const [image] = variant.images.splice(from, 1);
 				const [tag] = variant.imageTags.splice(from, 1);
+				const [caption] = variant.imageCaptions.splice(from, 1);
 				if (image) {
 					variant.images.splice(to, 0, image);
 					variant.imageTags.splice(to, 0, tag ?? "");
+					variant.imageCaptions.splice(to, 0, caption ?? "");
 				}
 			}),
 		);
@@ -427,6 +435,7 @@ function ProductEditor() {
 			produce((variant) => {
 				variant.images.splice(at, 1);
 				variant.imageTags.splice(at, 1);
+				variant.imageCaptions.splice(at, 1);
 			}),
 		);
 
@@ -463,6 +472,7 @@ function ProductEditor() {
 							readyOn: v.readyMode === "date" ? v.readyDate : "",
 							images: v.images,
 							imageTags: v.imageTags,
+							imageCaptions: v.imageCaptions,
 							// Blank rows are left out rather than rejected.
 							recipe: v.recipe
 								.filter((item) => item.flower)
@@ -1110,7 +1120,8 @@ function ProductEditor() {
 								<p class="mb-2 text-sm font-medium">
 									Photos{" "}
 									<span class="font-normal text-petal-900/55">
-										— tag what each one shows; the first is the cover
+										— tag what each one shows and add a caption if you like; the
+										first is the cover
 									</span>
 								</p>
 								<div class="mb-3">
@@ -1129,12 +1140,12 @@ function ProductEditor() {
 								<ul class="flex flex-wrap gap-3">
 									<For each={variant().images}>
 										{(image, imageIndex) => (
-											<li class="group relative w-24">
+											<li class="group relative w-36">
 												<ZoomableImage
 													src={image}
 													alt={`${variant().colorName || "Style"}, view ${imageIndex() + 1}`}
 													caption={variant().colorName}
-													class="size-24 rounded-xl border border-petal-100 bg-petal-50 object-cover"
+													class="size-36 rounded-xl border border-petal-100 bg-petal-50 object-cover"
 												/>
 												<select
 													onChange={(e) =>
@@ -1163,6 +1174,23 @@ function ProductEditor() {
 														)}
 													</For>
 												</select>
+												<TextArea
+													value={variant().imageCaptions[imageIndex()] ?? ""}
+													onInput={(e) =>
+														setDraft(
+															"variants",
+															index,
+															"imageCaptions",
+															imageIndex(),
+															e.currentTarget.value,
+														)
+													}
+													maxLength={PHOTO_CAPTION_MAX}
+													rows={3}
+													placeholder="Caption (optional)"
+													aria-label={`Caption for photo ${imageIndex() + 1}`}
+													class="mt-1 block w-full resize-none rounded-lg border border-petal-200 bg-white px-2 py-1.5 text-base leading-snug text-petal-900 outline-none placeholder:text-petal-900/40 focus-visible:ring-2 focus-visible:ring-petal-500 sm:text-xs"
+												/>
 												<div class="mt-1 flex justify-between">
 													<button
 														type="button"
@@ -1206,7 +1234,7 @@ function ProductEditor() {
 									<li>
 										<label
 											class={cn(
-												"flex size-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-petal-200 bg-white text-center text-xs text-petal-900/60 transition-colors hover:border-petal-300 hover:bg-petal-50",
+												"flex size-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-petal-200 bg-white text-center text-xs text-petal-900/60 transition-colors hover:border-petal-300 hover:bg-petal-50",
 												uploading() === variant().key &&
 													"pointer-events-none opacity-60",
 											)}
