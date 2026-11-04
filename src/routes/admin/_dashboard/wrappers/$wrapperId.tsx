@@ -113,6 +113,22 @@ function WrapperEditor() {
 		}
 	};
 
+	/**
+	 * Back to the list as it was (filters, page and scroll) by stepping back
+	 * to it, so Back afterwards doesn't land on the form again. Opened in a
+	 * fresh tab, there's nothing to step back to and the list replaces it.
+	 */
+	const leave = async () => {
+		if (router.history.canGoBack()) router.history.back();
+		else await navigate({ to: "/admin/wrappers", replace: true });
+	};
+	/** For the back and Cancel links: step back instead of adding a page. */
+	const stepBack = (event: MouseEvent) => {
+		if (!router.history.canGoBack()) return;
+		event.preventDefault();
+		router.history.back();
+	};
+
 	const swatch = () =>
 		draft.colorHex ? swatchColors(wrapperColors(draft)) : "transparent";
 
@@ -143,7 +159,7 @@ function WrapperEditor() {
 			toastSuccess(isNew() ? "Wrapper added." : "Changes saved.");
 			// So the list shows this save straight away.
 			await router.invalidate();
-			await navigate({ to: "/admin/wrappers", replace: true });
+			await leave();
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -154,7 +170,11 @@ function WrapperEditor() {
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
 			{cropper.element()}
-			<Link to="/admin/wrappers" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
+			<Link
+				to="/admin/wrappers"
+				onClick={stepBack}
+				class={cn(adminButton.ghost, "-ml-2 mb-2")}
+			>
 				← Wrappers
 			</Link>
 			<PageHeader
@@ -371,7 +391,8 @@ function WrapperEditor() {
 								try {
 									await deleteWrapperFn({ data: { id: params().wrapperId } });
 									toastSuccess("Wrapper deleted.");
-									await navigate({ to: "/admin/wrappers" });
+									await router.invalidate();
+									await leave();
 								} catch (error) {
 									toastError(error);
 								}
@@ -380,7 +401,11 @@ function WrapperEditor() {
 							Delete
 						</ConfirmButton>
 					</Show>
-					<Link to="/admin/wrappers" class={adminButton.secondary}>
+					<Link
+						to="/admin/wrappers"
+						onClick={stepBack}
+						class={adminButton.secondary}
+					>
 						Cancel
 					</Link>
 					<button

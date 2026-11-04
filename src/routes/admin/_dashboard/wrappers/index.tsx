@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
-
+import { ListPager } from "~/components/admin/list-pager";
 import {
 	choiceParam,
 	type Facet,
@@ -29,6 +29,7 @@ import {
 } from "~/server/admin/wrappers";
 
 const SORTS = ["name", "name-desc", "price", "price-desc"] as const;
+const PAGE_SIZES = [25, 50, 100] as const;
 
 /** Search, filters and sort, kept in the address so Back returns to them. */
 interface WrappersSearch {
@@ -39,7 +40,17 @@ interface WrappersSearch {
 	stock?: string;
 	/** Missing: the builder's order. */
 	sort?: (typeof SORTS)[number];
+	/** Missing: the first. */
+	page?: number;
+	/** Missing: the smallest of `PAGE_SIZES`. */
+	perPage?: number;
 }
+
+/** A whole number from the address, if it's at least 1. */
+const countParam = (search: Record<string, unknown>, key: string) => {
+	const value = Number(search[key]);
+	return Number.isInteger(value) && value >= 1 ? value : undefined;
+};
 
 export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 	validateSearch: (search: Record<string, unknown>): WrappersSearch => ({
@@ -47,6 +58,8 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 		use: textParam(search, "use"),
 		stock: textParam(search, "stock"),
 		sort: choiceParam(search, "sort", SORTS),
+		page: countParam(search, "page"),
+		perPage: PAGE_SIZES.find((size) => size === Number(search.perPage)),
 	}),
 	loader: ({ abortController }) =>
 		listWrappersAdmin({ signal: abortController.signal }),
@@ -58,9 +71,10 @@ function WrappersPage() {
 	const router = useRouter();
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
+	/** Any change of filter starts again from the first page. */
 	const setSearch = (patch: Partial<WrappersSearch>) =>
 		navigate({
-			search: (prev) => ({ ...prev, ...patch }),
+			search: (prev) => ({ ...prev, page: undefined, ...patch }),
 			replace: true,
 			resetScroll: false,
 		});
@@ -108,6 +122,18 @@ function WrappersPage() {
 				? sign * (a.price - b.price) || a.name.localeCompare(b.name)
 				: sign * a.name.localeCompare(b.name),
 		);
+	};
+
+	const pageSize = () => search().perPage ?? PAGE_SIZES[0];
+	const pageCount = () =>
+		Math.max(1, Math.ceil(wrappers().length / pageSize()));
+	// Past the end (say, after a delete) shows the last page.
+	const page = () => Math.min(search().page ?? 1, pageCount());
+	const shown = () =>
+		wrappers().slice((page() - 1) * pageSize(), page() * pageSize());
+	const goToPage = (n: number) => {
+		setSearch({ page: n > 1 ? n : undefined });
+		window.scrollTo({ top: 0 });
 	};
 
 	const setEnabled = async (wrapper: CustomWrapper, enabled: boolean) => {
@@ -184,7 +210,7 @@ function WrappersPage() {
 					}
 				>
 					<ul class="divide-y divide-petal-50">
-						<For each={wrappers()}>
+						<For each={shown()}>
 							{(wrapper) => (
 								<li class="flex flex-wrap items-center gap-4 px-5 py-4">
 									<Show
@@ -279,6 +305,18 @@ function WrappersPage() {
 							)}
 						</For>
 					</ul>
+					<ListPager
+						page={page()}
+						pageCount={pageCount()}
+						pageSize={pageSize()}
+						pageSizes={PAGE_SIZES}
+						onPage={goToPage}
+						onPageSize={(perPage) =>
+							setSearch({
+								perPage: perPage === PAGE_SIZES[0] ? undefined : perPage,
+							})
+						}
+					/>
 				</Show>
 			</section>
 		</div>

@@ -8,6 +8,7 @@ import {
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
+import { ListPager } from "~/components/admin/list-pager";
 import {
 	adminButton,
 	adminCard,
@@ -87,16 +88,6 @@ export const Route = createFileRoute("/admin/_dashboard/orders/")({
 		listAdminOrderRows({ signal: abortController.signal, data: deps }),
 	component: OrdersPage,
 });
-
-/** Page numbers to offer: the ends, and a couple either side of this one. */
-function pageList(page: number, count: number) {
-	const pages: (number | "…")[] = [];
-	for (let n = 1; n <= count; n++) {
-		if (n === 1 || n === count || Math.abs(n - page) <= 1) pages.push(n);
-		else if (pages.at(-1) !== "…") pages.push("…");
-	}
-	return pages;
-}
 
 function OrdersPage() {
 	const data = Route.useLoaderData();
@@ -673,81 +664,18 @@ function OrdersPage() {
 						</tbody>
 					</table>
 				</div>
-				<div class="flex flex-wrap items-center justify-between gap-3 border-t border-petal-100 px-4 py-3 text-sm text-petal-900/65">
-					<label class="flex items-center gap-2">
-						Rows per page
-						<select
-							value={data().pageSize}
-							onChange={(e) =>
-								setSearch({ perPage: Number(e.currentTarget.value) })
-							}
-							class={cn(adminInput, "h-9 w-auto py-0 pr-8 sm:h-9")}
-						>
-							<For each={PAGE_SIZES}>
-								{(size) => <option value={size}>{size}</option>}
-							</For>
-						</select>
-					</label>
-					<Show when={data().pageCount > 1}>
-						<nav aria-label="Pages" class="flex items-center gap-1">
-							<button
-								type="button"
-								disabled={data().page <= 1}
-								onClick={() => goToPage(data().page - 1)}
-								class={PAGE_BUTTON}
-							>
-								<span aria-hidden="true">←</span> Previous
-							</button>
-							<For each={pageList(data().page, data().pageCount)}>
-								{(page) => (
-									<Show
-										when={typeof page === "number" && page}
-										fallback={
-											<span aria-hidden="true" class="px-1">
-												…
-											</span>
-										}
-									>
-										{(n) => (
-											<button
-												type="button"
-												onClick={() => goToPage(n())}
-												aria-current={n() === data().page ? "page" : undefined}
-												aria-label={`Page ${n()}`}
-												class={cn(
-													PAGE_BUTTON,
-													"hidden min-w-9 justify-center tabular-nums sm:inline-flex",
-													n() === data().page &&
-														"bg-petal-700 font-medium text-white hover:bg-petal-700",
-												)}
-											>
-												{n()}
-											</button>
-										)}
-									</Show>
-								)}
-							</For>
-							<span class="px-2 tabular-nums sm:hidden">
-								{data().page} / {data().pageCount}
-							</span>
-							<button
-								type="button"
-								disabled={data().page >= data().pageCount}
-								onClick={() => goToPage(data().page + 1)}
-								class={PAGE_BUTTON}
-							>
-								Next <span aria-hidden="true">→</span>
-							</button>
-						</nav>
-					</Show>
-				</div>
+				<ListPager
+					page={data().page}
+					pageCount={data().pageCount}
+					pageSize={data().pageSize}
+					pageSizes={PAGE_SIZES}
+					onPage={goToPage}
+					onPageSize={(perPage) => setSearch({ perPage })}
+				/>
 			</div>
 		</div>
 	);
 }
-
-const PAGE_BUTTON =
-	"inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-sm text-petal-900 transition-colors outline-none hover:bg-petal-100 focus-visible:ring-2 focus-visible:ring-petal-500 disabled:pointer-events-none disabled:opacity-40";
 
 /** A status changed right in its row. Saves as soon as it's picked. */
 function RowSelect<T extends string>(props: {
