@@ -17,6 +17,7 @@ interface BouquetRow {
 	description: string;
 	size_id: string | null;
 	is_visible: number;
+	created_at: string;
 }
 
 interface StyleRow {
@@ -99,6 +100,7 @@ export function listAdminProducts({
 			currency: "PHP",
 			size,
 			isVisible: row.is_visible === 1,
+			createdAt: row.created_at,
 			variants,
 		};
 	});

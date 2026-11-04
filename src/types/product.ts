@@ -99,5 +99,7 @@ export interface AdminVariant extends ProductVariant {
 
 export interface AdminProduct extends Omit<Product, "variants"> {
 	isVisible: boolean;
+	/** When the bouquet was added, ISO 8601; admin only. */
+	createdAt: string;
 	variants: AdminVariant[];
 }

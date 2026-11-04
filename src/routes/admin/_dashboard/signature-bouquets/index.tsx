@@ -36,7 +36,14 @@ import {
 } from "~/server/admin/catalog";
 import type { AdminProduct, AdminVariant } from "~/types/product";
 
-const SORTS = ["name", "name-desc", "price", "price-desc"] as const;
+const SORTS = [
+	"shop",
+	"oldest",
+	"name",
+	"name-desc",
+	"price",
+	"price-desc",
+] as const;
 
 /** Quiet until hovered, so a list of bouquets isn't a column of red. */
 const DELETE_ICON_BUTTON = cn(
@@ -55,7 +62,7 @@ interface InventorySearch {
 	themes?: string;
 	/** Comma-separated flower names. */
 	flower?: string;
-	/** Missing: the shop's order. */
+	/** Missing: newest first. "shop": the shop's order. */
 	sort?: (typeof SORTS)[number];
 }
 
@@ -146,13 +153,17 @@ function InventoryPage() {
 	});
 	const visible = () => {
 		const list = searched().filter((p) => fitsFacets(p, facets()));
-		const by = search().sort;
-		if (!by) return list;
-		const sign = by.endsWith("-desc") ? -1 : 1;
+		const by = search().sort ?? "newest";
+		if (by === "shop") return list;
+		const sign = by.endsWith("-desc") || by === "newest" ? -1 : 1;
 		return [...list].sort((a, b) =>
 			by.startsWith("price")
 				? sign * (a.basePrice - b.basePrice) || a.title.localeCompare(b.title)
-				: sign * a.title.localeCompare(b.title),
+				: by === "newest" || by === "oldest"
+					? // ISO dates sort as text; bouquets added together go by name.
+						sign * a.createdAt.localeCompare(b.createdAt) ||
+						a.title.localeCompare(b.title)
+					: sign * a.title.localeCompare(b.title),
 		);
 	};
 
@@ -222,7 +233,9 @@ function InventoryPage() {
 					sort={{
 						value: search().sort ?? "",
 						options: [
-							{ value: "", label: "Shop order" },
+							{ value: "", label: "Newest first" },
+							{ value: "oldest", label: "Oldest first" },
+							{ value: "shop", label: "Shop order" },
 							{ value: "name", label: "Name, A–Z" },
 							{ value: "name-desc", label: "Name, Z–A" },
 							{ value: "price", label: "Price, low to high" },
