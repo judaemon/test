@@ -7,7 +7,7 @@ export function PreorderTag(props: { readyBy?: string; class?: string }) {
 	return (
 		<span
 			class={cn(
-				"inline-flex w-fit items-center rounded-full border border-warning-foreground/30 bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground",
+				"inline-flex w-fit items-center whitespace-nowrap rounded-full border border-warning-foreground/30 bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground",
 				props.class,
 			)}
 		>

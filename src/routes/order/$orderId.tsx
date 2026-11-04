@@ -4,12 +4,13 @@ import { For, Show } from "solid-js";
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
+import { PreorderTag } from "~/components/product/preorder-tag";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT } from "~/lib/contact";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { formatPrice, preorderNote, styleLabel } from "~/lib/product";
+import { formatPrice, styleLabel } from "~/lib/product";
 import { useSessionUser } from "~/lib/use-catalog";
 import { getOrder } from "~/server/orders";
 import { isPaymentDue, type OrderPayment } from "~/types/order";
@@ -209,8 +210,10 @@ function OrderConfirmation() {
 										<span class="block font-medium">{line.title}</span>
 										<span class="block text-sm text-petal-900/60">
 											{styleLabel(line)} · Qty {line.quantity}
-											{line.preorder ? ` · ${preorderNote(line)}` : ""}
 										</span>
+										<Show when={line.preorder}>
+											<PreorderTag readyBy={line.readyBy} class="mt-1" />
+										</Show>
 									</span>
 									<span class="text-sm font-medium tabular-nums">
 										{formatPrice(line.lineTotal, order().currency)}

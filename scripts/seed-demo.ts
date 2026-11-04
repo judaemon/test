@@ -6,6 +6,7 @@
  *   bun run db:seed:orders     add orders for the bouquets already in the shop; nothing else
  *   bun run db:seed:orders 80  the same, with this many orders (40 if left out)
  *   bun run db:seed:sizes      give sizes builder prices and switch the builder on; nothing else
+ *   bun run db:seed:stock      reset the demo stock and pre-order cases (adds their bouquets if missing)
  *
  * Safe to run while the dev server is running. Refuses to run in production.
  */
@@ -49,6 +50,7 @@ if (process.env.NODE_ENV === "production") {
 const RESET = process.argv.includes("--reset");
 const ORDERS_ONLY = process.argv.includes("--orders");
 const SIZES_ONLY = process.argv.includes("--sizes");
+const STOCK_ONLY = process.argv.includes("--stock");
 const UPLOAD_DIR = process.env.UPLOAD_DIR ?? ".data/uploads";
 const REVIEWER = "Olivia Owner";
 
@@ -118,6 +120,122 @@ const demoBouquets = (): Array<{ id: string; input: ProductInput }> => [
 						{ flower: "Gypsophila", count: 1 },
 					],
 					wrapperId: wrapperIdByName("Kraft brown"),
+				},
+			],
+		},
+	},
+	{
+		// Two styles: ready-made then pre-order, and pre-order only.
+		id: "odette",
+		input: {
+			title: "Odette",
+			description: "Cluster of 10 delicate tulips, perfect for any occasions.",
+			size: "",
+			isVisible: true,
+			variants: [
+				{
+					colorName: "Cream",
+					colorHex: "#f3e7d3",
+					price: 2500,
+					isAvailable: true,
+					images: gallery("cream-white"),
+					recipe: [],
+					wrapperId: "",
+				},
+				{
+					colorName: "Pink",
+					colorHex: "#f4c6cf",
+					price: 2500,
+					isAvailable: true,
+					images: gallery("pastel-pink"),
+					recipe: [],
+					wrapperId: "",
+				},
+			],
+		},
+	},
+	{
+		// Ready-made stock: some left, sold out, and pre-orders full.
+		id: "celeste",
+		input: {
+			title: "Celeste",
+			description:
+				"A soft dome of roses and gypsophila, made ahead so it can go out the same day.",
+			size: "classic",
+			isVisible: true,
+			variants: [
+				{
+					colorName: "Lilac",
+					colorHex: "#c9b6e4",
+					price: 1899,
+					isAvailable: true,
+					images: gallery("pastel-pink"),
+					recipe: [
+						{ flower: "Roses", count: 10, color: "Pink" },
+						{ flower: "Gypsophila", count: 1, filler: true },
+					],
+					wrapperId: wrapperIdByName("White"),
+				},
+				{
+					colorName: "Peach",
+					colorHex: "#f6c1a1",
+					price: 1899,
+					isAvailable: true,
+					images: gallery("sunset-coral"),
+					recipe: [
+						{ flower: "Roses", count: 10, color: "Peach" },
+						{ flower: "Gypsophila", count: 1, filler: true },
+					],
+					wrapperId: wrapperIdByName("Kraft brown"),
+				},
+				{
+					colorName: "Snow",
+					colorHex: "#f7f4ee",
+					price: 1899,
+					isAvailable: true,
+					images: gallery("cream-white"),
+					recipe: [
+						{ flower: "Roses", count: 10, color: "White" },
+						{ flower: "Gypsophila", count: 1, filler: true },
+					],
+					wrapperId: wrapperIdByName("White"),
+				},
+			],
+		},
+	},
+	{
+		// Pre-orders only: on a set date, and with no date or limit.
+		id: "mirabel",
+		input: {
+			title: "Mirabel",
+			description:
+				"Imported blooms ordered in batches. Pre-order yours and we make it when the flowers land.",
+			size: "impressive",
+			isVisible: true,
+			variants: [
+				{
+					colorName: "Sunset",
+					colorHex: "#f08a5d",
+					price: 3299,
+					isAvailable: true,
+					images: gallery("sunset-coral"),
+					recipe: [
+						{ flower: "Roses", count: 18, color: "Peach" },
+						{ flower: "Misty", count: 2, color: "White", filler: true },
+					],
+					wrapperId: wrapperIdByName("Kraft brown"),
+				},
+				{
+					colorName: "Scarlet",
+					colorHex: "#a51c34",
+					price: 3299,
+					isAvailable: true,
+					images: gallery("red-velvet"),
+					recipe: [
+						{ flower: "Roses", count: 18, color: "Red" },
+						{ flower: "Misty", count: 2, color: "White", filler: true },
+					],
+					wrapperId: wrapperIdByName("Black"),
 				},
 			],
 		},
@@ -443,6 +561,59 @@ function seedSizePrices() {
 	console.log("  + switched the bouquet builder on (Admin → Custom bouquets)");
 }
 
+/**
+ * The stock and pre-order cases to try in the shop, one per style. Applied
+ * after the bouquets are added, and again by `db:seed:stock` to start over
+ * once test orders have used them up.
+ */
+const STOCK_CASES: Array<{
+	bouquet: string;
+	style: string;
+	/** What the shop should say, for the summary. */
+	shows: string;
+	ready: number | null;
+	preorders?: { slots: number | null; days?: number; inDays?: number };
+}> = [
+	{ bouquet: "odette", style: "cream", shows: "2 left, then pre-order (3 days, 5 slots)", ready: 2, preorders: { slots: 5, days: 3 } },
+	{ bouquet: "odette", style: "pink", shows: "Pre-order · 5 slots left, ready in 3 days", ready: 0, preorders: { slots: 5, days: 3 } },
+	{ bouquet: "celeste", style: "lilac", shows: "Available · 3 left", ready: 3 },
+	{ bouquet: "celeste", style: "peach", shows: "Sold out", ready: 0 },
+	{ bouquet: "celeste", style: "snow", shows: "Pre-order closed", ready: 0, preorders: { slots: 0, days: 2 } },
+	{ bouquet: "mirabel", style: "sunset", shows: "Pre-order · 8 slots left, ready on a set date (in 10 days)", ready: 0, preorders: { slots: 8, inDays: 10 } },
+	{ bouquet: "mirabel", style: "scarlet", shows: "Pre-order, no date or limit", ready: 0, preorders: { slots: null } },
+	{ bouquet: "bella", style: "ruby", shows: "Available · 1 left (the last one)", ready: 1 },
+];
+
+async function seedStockCases() {
+	for (const product of demoBouquets())
+		if (!getAdminProduct(product.id)) saveProduct(null, product.input);
+	const update = getDb().query(
+		`UPDATE bouquet_styles SET is_available = 1, stock_quantity = $ready,
+		   takes_preorders = $takes, preorder_slots = $slots,
+		   preorder_days = $days, preorder_date = $date
+		 WHERE bouquet_id = $bouquet AND slug = $style`,
+	);
+	const today = shopNow().date;
+	console.log("Stock and pre-order cases:");
+	for (const c of STOCK_CASES) {
+		const { changes } = update.run({
+			bouquet: c.bouquet,
+			style: c.style,
+			ready: c.ready,
+			takes: c.preorders ? 1 : 0,
+			slots: c.preorders?.slots ?? null,
+			days: c.preorders?.days ?? null,
+			date: c.preorders?.inDays ? addDays(today, c.preorders.inDays) : null,
+		});
+		const where = `/products/${c.bouquet}?theme=${c.style}`;
+		console.log(
+			changes
+				? `  + ${where.padEnd(34)} ${c.shows}`
+				: `  ! ${where.padEnd(34)} style not found; skipped`,
+		);
+	}
+}
+
 async function main() {
 	const db = getDb();
 	// Runs the auth migrations (and seeds the .env.local owner on a fresh DB).
@@ -541,6 +712,10 @@ async function main() {
 
 	await seedCustomerExtras();
 
+	// ── Stock and pre-orders ──────────────────────────────────────────────
+	// After the demo orders, so they don't use up the cases.
+	await seedStockCases();
+
 	console.log(`
 Done. Staff sign in at http://localhost:3000/admin, customers at /sign-in:
 ${accounts.map((a) => `  ${(a.role === "admin" ? "Owner" : a.role === "user" ? "Staff" : "Customer").padEnd(8)} ${a.email.padEnd(22)} ${a.password === envPassword ? "(your .env.local password)" : a.password}`).join("\n")}
@@ -551,4 +726,6 @@ await (ORDERS_ONLY
 	? seedCatalogOrders()
 	: SIZES_ONLY
 		? seedSizePrices()
-		: main());
+		: STOCK_ONLY
+			? seedStockCases()
+			: main());

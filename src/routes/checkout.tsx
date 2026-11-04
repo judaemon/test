@@ -883,9 +883,18 @@ function ReviewSummary(props: {
 			</Show>
 			<dt class="text-petal-900/60">Bouquets</dt>
 			<dd>
-				{props.cart.lines
-					.map((line) => `${line.quantity} × ${lineName(line)}`)
-					.join(", ")}
+				<ul class="flex flex-col gap-1">
+					<For each={props.cart.lines}>
+						{(line) => (
+							<li>
+								{line.quantity} × {lineName(line)}
+								<Show when={line.preorder}>
+									<PreorderTag readyBy={line.readyBy} class="ml-1.5" />
+								</Show>
+							</li>
+						)}
+					</For>
+				</ul>
 			</dd>
 			<Show when={props.paymentMethod}>
 				{(method) => (

@@ -10,6 +10,7 @@
     "db:seed": "bun scripts/seed-demo.ts",
     "db:seed:orders": "bun scripts/seed-demo.ts --orders",
     "db:seed:sizes": "bun scripts/seed-demo.ts --sizes",
+    "db:seed:stock": "bun scripts/seed-demo.ts --stock",
     "catalog:export": "bun scripts/catalog.ts export",
     "catalog:import": "bun scripts/catalog.ts import",
     "preview": "vite preview",

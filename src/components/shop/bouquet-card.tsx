@@ -5,7 +5,10 @@ import { formatPrice, startingPrice, stockLabel } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
-/** A bouquet's photo, name and price, opening its page on the given theme. */
+/**
+ * A bouquet's photo, name and price, opening its page on the given theme.
+ * Drawn as a card with a "View" button so it reads as something to tap.
+ */
 export function BouquetCard(props: {
 	product: Product;
 	variant: ProductVariant;
@@ -17,9 +20,9 @@ export function BouquetCard(props: {
 			to="/products/$productId"
 			params={{ productId: props.product.id }}
 			search={{ theme: props.variant.id }}
-			class="group block rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-4 focus-visible:ring-offset-cream"
+			class="group flex h-full flex-col rounded-2xl border border-petal-100 bg-white p-1.5 shadow-[0_8px_24px_-18px] shadow-petal-900/30 transition-all duration-300 outline-none hover:-translate-y-1 hover:border-petal-200 hover:shadow-[0_20px_40px_-20px] hover:shadow-petal-900/40 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-4 focus-visible:ring-offset-cream active:scale-[0.97] motion-reduce:transform-none sm:rounded-3xl sm:p-2.5"
 		>
-			<div class="relative aspect-square overflow-hidden rounded-2xl bg-petal-50 shadow-[0_12px_28px_-20px] shadow-petal-900/40 sm:rounded-3xl">
+			<div class="relative aspect-square overflow-hidden rounded-xl bg-petal-50 sm:rounded-2xl">
 				<img
 					src={photoSrc(props.variant.images[0], "thumb")}
 					alt={`${props.product.title}, ${props.variant.colorName}`}
@@ -37,13 +40,13 @@ export function BouquetCard(props: {
 					</span>
 				</Show>
 			</div>
-			<div class="mt-2.5 text-center sm:mt-3">
+			<div class="flex flex-1 flex-col items-center px-1 pt-2 pb-1 text-center sm:pt-3">
 				<p class="font-display type-soft text-base font-semibold leading-tight sm:text-lg">
 					{props.product.title}
 				</p>
 				<p
 					class={cn(
-						"mt-0.5 text-xs tabular-nums tracking-wide sm:mt-1 sm:text-sm",
+						"mt-0.5 mb-2 text-xs tabular-nums tracking-wide sm:mt-1 sm:mb-3 sm:text-sm",
 						soldOut() ? "text-petal-900/40" : "text-petal-900/70",
 					)}
 				>
@@ -54,6 +57,15 @@ export function BouquetCard(props: {
 						{formatPrice(price().amount, props.product.currency)}
 					</span>
 				</p>
+				<span
+					aria-hidden="true"
+					class="mt-auto inline-flex items-center gap-1 rounded-full bg-petal-50 px-3 py-1 text-xs font-medium text-petal-700 transition-colors duration-300 group-hover:bg-petal-700 group-hover:text-white sm:px-4 sm:py-1.5 sm:text-sm"
+				>
+					View
+					<span class="transition-transform duration-300 group-hover:translate-x-0.5">
+						→
+					</span>
+				</span>
 			</div>
 		</Link>
 	);

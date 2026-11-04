@@ -9,11 +9,11 @@ import {
 	Show,
 } from "solid-js";
 import { BouquetCard } from "~/components/shop/bouquet-card";
+import { FilterChips } from "~/components/shop/filter-chips";
 import { HowToOrder } from "~/components/shop/how-to-order";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
-import { FacetFilter } from "~/components/ui/facet-filter";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CUSTOM_BANNER_IMAGE } from "~/lib/custom-bouquet";
 import { startingPrice as bouquetPrice, formatPrice } from "~/lib/product";
@@ -356,8 +356,8 @@ export function ShopPage() {
 							Signature Bouquets
 						</h2>
 						<Show when={catalog().length > 0}>
-							<div class="mt-4 flex flex-wrap items-center gap-2">
-								<label class="flex h-10 w-full items-center gap-2 rounded-xl border border-petal-200 bg-white px-3 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 sm:w-64">
+							<div class="mt-4 space-y-5 rounded-3xl border border-petal-200 bg-white p-4 shadow-[0_12px_28px_-24px] shadow-petal-900/30 sm:p-6">
+								<label class="flex h-12 w-full items-center gap-2.5 rounded-full border border-petal-200 bg-petal-50/50 px-4 transition-colors focus-within:border-petal-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-petal-500/30 sm:max-w-md">
 									<svg
 										aria-hidden="true"
 										viewBox="0 0 24 24"
@@ -365,7 +365,7 @@ export function ShopPage() {
 										stroke="currentColor"
 										stroke-width="1.8"
 										stroke-linecap="round"
-										class="size-4 shrink-0 text-petal-900/45"
+										class="size-5 shrink-0 text-petal-900/50"
 									>
 										<circle cx="11" cy="11" r="6.5" />
 										<path d="m20 20-4.2-4.2" />
@@ -376,85 +376,100 @@ export function ShopPage() {
 										type="search"
 										value={query()}
 										onInput={(e) => typeQuery(e.currentTarget.value)}
-										placeholder="Search by name"
-										class="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-petal-900/40 sm:text-sm"
+										placeholder="Type a bouquet name…"
+										class="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-petal-900/45"
 									/>
 								</label>
-								<FacetFilter
-									label="Flower"
-									options={flowerOptions()}
-									selected={chosenFlowers()}
-									onChange={(flowers) =>
-										setFilter({ flower: joinList(flowers) })
-									}
-								/>
 								<Show when={sizeOptions().length > 1}>
-									<FacetFilter
+									<FilterChips
 										label="Size"
 										options={sizeOptions()}
 										selected={chosenSizes()}
 										onChange={(chosen) => setFilter({ size: joinList(chosen) })}
 									/>
 								</Show>
-								<Show when={filtering()}>
-									<button
-										type="button"
-										onClick={() => {
-											clearTimeout(debounce);
-											setQuery("");
-											setSearched("");
-											setFilter({
-												q: undefined,
-												flower: undefined,
-												size: undefined,
-											});
-										}}
-										class="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-petal-900/70 transition-colors outline-none hover:bg-petal-100 hover:text-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500"
-									>
-										Reset
-										<span aria-hidden="true">✕</span>
-									</button>
-								</Show>
-								<div class="ml-auto flex items-center gap-3">
-									<p class="text-sm text-petal-900/60" aria-live="polite">
+								<FilterChips
+									label="Flowers"
+									options={flowerOptions()}
+									selected={chosenFlowers()}
+									onChange={(flowers) =>
+										setFilter({ flower: joinList(flowers) })
+									}
+									limit={8}
+								/>
+								<div class="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-petal-100 pt-4">
+									<p class="text-sm text-petal-900/70" aria-live="polite">
 										<Show
 											when={filtering()}
-											fallback={`${catalog().length} bouquets`}
+											fallback={
+												<>
+													Showing all{" "}
+													<span class="font-semibold text-petal-900">
+														{catalog().length}
+													</span>{" "}
+													bouquets
+												</>
+											}
 										>
-											{bouquets().length} of {catalog().length} bouquets
+											Showing{" "}
+											<span class="font-semibold text-petal-900">
+												{bouquets().length}
+											</span>{" "}
+											of {catalog().length} bouquets
 										</Show>
 									</p>
-									<label class="relative flex items-center">
-										<span class="sr-only">Sort bouquets</span>
-										<select
-											value={search().sort ?? ""}
-											onChange={(e) =>
+									<Show when={filtering()}>
+										<button
+											type="button"
+											onClick={() => {
+												clearTimeout(debounce);
+												setQuery("");
+												setSearched("");
 												setFilter({
-													sort: (e.currentTarget.value || undefined) as
-														| ShopSort
-														| undefined,
-												})
-											}
-											class="h-10 cursor-pointer appearance-none rounded-xl border border-petal-200 bg-white pl-3 pr-9 text-base font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30 sm:text-sm"
+													q: undefined,
+													flower: undefined,
+													size: undefined,
+												});
+											}}
+											class="inline-flex h-9 items-center gap-1.5 rounded-full bg-petal-100 px-3.5 text-sm font-medium text-petal-900 transition-colors outline-none hover:bg-petal-200 focus-visible:ring-2 focus-visible:ring-petal-500"
 										>
-											<For each={SHOP_SORTS}>
-												{(sort) => (
-													<option value={sort.value}>{sort.label}</option>
-												)}
-											</For>
-										</select>
-										<svg
-											aria-hidden="true"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1.8"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											class="pointer-events-none absolute right-3 size-4 text-petal-900/50"
-										>
-											<path d="m6 9 6 6 6-6" />
-										</svg>
+											<span aria-hidden="true">✕</span>
+											Clear all
+										</button>
+									</Show>
+									<label class="ml-auto flex items-center gap-2 text-sm">
+										<span class="text-petal-900/70">Sort by</span>
+										<span class="relative flex items-center">
+											<select
+												value={search().sort ?? ""}
+												onChange={(e) =>
+													setFilter({
+														sort: (e.currentTarget.value || undefined) as
+															| ShopSort
+															| undefined,
+													})
+												}
+												class="h-10 cursor-pointer appearance-none rounded-full border border-petal-200 bg-white pl-4 pr-9 text-base font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30 sm:text-sm"
+											>
+												<For each={SHOP_SORTS}>
+													{(sort) => (
+														<option value={sort.value}>{sort.label}</option>
+													)}
+												</For>
+											</select>
+											<svg
+												aria-hidden="true"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="1.8"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												class="pointer-events-none absolute right-3 size-4 text-petal-900/50"
+											>
+												<path d="m6 9 6 6 6-6" />
+											</svg>
+										</span>
 									</label>
 								</div>
 							</div>
