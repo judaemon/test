@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 
 import { CONTACT, TAGLINE } from "~/lib/contact";
-import { FlowerMark } from "./brand";
+import { FlowerMark, Wordmark } from "./brand";
 
 export function SiteFooter() {
 	return (
@@ -14,9 +14,7 @@ export function SiteFooter() {
 						class="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 					>
 						<FlowerMark class="size-6" />
-						<span class="font-display type-soft text-lg font-semibold tracking-[0.25em] text-black">
-							ORAIA
-						</span>
+						<Wordmark class="text-lg" />
 					</Link>
 					<p class="font-display text-base italic text-petal-900/80">
 						{TAGLINE}

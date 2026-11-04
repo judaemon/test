@@ -9,7 +9,7 @@ import {
 import { createEffect, For, on, Show } from "solid-js";
 
 import { AdminIcons } from "~/components/admin/ui";
-import { FlowerMark } from "~/components/site/brand";
+import { FlowerMark, Wordmark } from "~/components/site/brand";
 import { authClient } from "~/lib/auth-client";
 import { getAdminSession } from "~/server/admin/settings";
 
@@ -91,9 +91,7 @@ function AdminLayout() {
 							class="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 						>
 							<FlowerMark class="size-7" />
-							<span class="font-display type-soft text-lg font-semibold tracking-[0.2em] text-black">
-								ORAIA
-							</span>
+							<Wordmark class="text-lg" />
 							<span class="rounded-full bg-petal-100 px-2 py-0.5 text-[11px] font-medium text-petal-700">
 								Admin
 							</span>

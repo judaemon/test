@@ -10,7 +10,7 @@ import {
 } from "solid-js";
 import { BouquetCard } from "~/components/shop/bouquet-card";
 import { HowToOrder } from "~/components/shop/how-to-order";
-import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
+import { FlowerMark, Petal, Sparkle, Wordmark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { FacetFilter } from "~/components/ui/facet-filter";
@@ -170,17 +170,15 @@ export function ShopPage() {
 			<main class="flex-1">
 				{/* Apple-style hero: most of a screen tall, big centered type, two pill buttons. */}
 				<header class="relative flex min-h-[calc(80svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_top,var(--color-petal-100),transparent_65%)] px-4 py-14 text-center">
-					<Petal class="pointer-events-none absolute left-[8%] top-[18%] w-8 rotate-[-30deg] text-petal-200 motion-safe:animate-float-slow sm:w-10" />
+					<Petal class="pointer-events-none absolute left-[6%] top-[7%] w-8 sm:left-[8%] sm:top-[18%] rotate-[-30deg] text-petal-200 motion-safe:animate-float-slow sm:w-10" />
 					<Petal class="pointer-events-none absolute bottom-[16%] right-[10%] w-10 rotate-[140deg] text-petal-200 motion-safe:animate-float sm:w-12" />
-					<Sparkle class="pointer-events-none absolute right-[18%] top-[14%] w-5 text-butter motion-safe:animate-float" />
+					<Sparkle class="pointer-events-none absolute right-[12%] top-[6%] w-5 sm:right-[18%] sm:top-[14%] text-butter motion-safe:animate-float" />
 					<Sparkle class="pointer-events-none absolute bottom-[22%] left-[16%] w-4 text-petal-300 motion-safe:animate-float-slow" />
 
 					{/* The brand is the page's heading: it's what people search for. */}
 					<h1 class="flex items-center gap-3 sm:gap-4">
 						<FlowerMark class="size-16 sm:size-24" />
-						<span class="font-display type-soft text-5xl font-semibold tracking-[0.25em] text-black sm:text-7xl">
-							ORAIA
-						</span>
+						<Wordmark class="-me-[0.2em] text-5xl tracking-[0.2em] sm:text-7xl" />
 					</h1>
 					<p class="mt-4 font-display text-xl italic text-petal-900/70 sm:text-3xl">
 						{TAGLINE}

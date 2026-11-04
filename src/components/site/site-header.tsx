@@ -6,7 +6,7 @@ import { BagIcon } from "~/components/product/icons";
 import { setCartOpen } from "~/lib/cart-store";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 
-import { FlowerMark } from "./brand";
+import { FlowerMark, Wordmark } from "./brand";
 
 const navLink =
 	"whitespace-nowrap rounded-full px-2 py-2.5 text-sm sm:px-3 text-petal-900/80 sm:py-1.5 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
@@ -25,9 +25,7 @@ export function SiteHeader() {
 					class="group flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 				>
 					<FlowerMark class="size-9" />
-					<span class="hidden font-display type-soft text-xl font-semibold tracking-[0.25em] text-black min-[440px]:inline">
-						ORAIA
-					</span>
+					<Wordmark class="hidden text-xl min-[440px]:inline" />
 				</Link>
 
 				<nav aria-label="Main" class="flex items-center gap-1 sm:gap-2">

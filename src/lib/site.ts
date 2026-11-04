@@ -15,7 +15,7 @@ export const HOME_DESCRIPTION =
 export const absoluteUrl = (path: string) =>
 	/^https?:\/\//.test(path) ? path : `${SITE_URL}${path}`;
 
-const LOGO = absoluteUrl("/images/brand/logo.png");
+const LOGO = absoluteUrl("/images/brand/share.png");
 
 /**
  * Structured data for Google, as a head `scripts` entry. `<` is escaped so a
