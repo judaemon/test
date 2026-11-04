@@ -42,6 +42,9 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/$wrapperId")({
 		if (!wrapper) throw notFound();
 		return wrapper;
 	},
+	// The form copies the wrapper once, so it must never open on a kept
+	// copy that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: WrapperEditor,
 });
 
@@ -157,8 +160,9 @@ function WrapperEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the wrapper.");
 			toastSuccess(isNew() ? "Wrapper added." : "Changes saved.");
-			// So the list shows this save straight away.
-			await router.invalidate();
+			// So the list, the shop and this form show the save straight away.
+			// `sync` waits for the reloads, or leaving could cut them short.
+			await router.invalidate({ sync: true });
 			await leave();
 		} catch (error) {
 			toastError(error);
@@ -391,7 +395,11 @@ function WrapperEditor() {
 								try {
 									await deleteWrapperFn({ data: { id: params().wrapperId } });
 									toastSuccess("Wrapper deleted.");
-									await router.invalidate();
+									// Not this page: its wrapper is gone.
+									await router.invalidate({
+										filter: (match) => match.routeId !== Route.id,
+										sync: true,
+									});
 									await leave();
 								} catch (error) {
 									toastError(error);
