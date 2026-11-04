@@ -145,31 +145,6 @@ function OrderDetail() {
 						timeStyle: "short",
 					},
 				)}`}
-				actions={
-					<>
-						{/* Orders added from a chat are edited in their own form. */}
-						<Show when={isChatOrder(order()) && !cancelled()}>
-							<Link
-								to="/admin/orders/new"
-								search={{ edit: order().id }}
-								class={adminButton.primary}
-							>
-								Edit order
-							</Link>
-						</Show>
-						<button
-							type="button"
-							class={adminButton.secondary}
-							disabled={busy()}
-							onClick={() => markTest(!order().isTest)}
-						>
-							{order().isTest ? "Not a test" : "Mark as test"}
-						</button>
-						<span class="rounded-full bg-white px-3 py-1 text-sm font-medium">
-							{STAGE_LABELS[order().stage]}
-						</span>
-					</>
-				}
 			/>
 
 			<Show when={order().isTest}>
@@ -189,46 +164,6 @@ function OrderDetail() {
 
 			<div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
 				<div class="flex flex-col gap-5">
-					<section class={cn(adminCard, "p-5")}>
-						<h2 class="mb-3 font-semibold">Stage</h2>
-						<Show
-							when={!cancelled()}
-							fallback={
-								<p class="text-sm text-petal-900/65">
-									This order was cancelled and its bouquets went back into
-									stock.
-								</p>
-							}
-						>
-							<fieldset class="flex flex-wrap gap-2">
-								<legend class="sr-only">Move to stage</legend>
-								<For each={BOARD_STAGES}>
-									{(stage) => (
-										<button
-											type="button"
-											disabled={busy() || order().stage === stage}
-											aria-pressed={order().stage === stage}
-											onClick={() => moveTo(stage)}
-											class={cn(
-												"rounded-full border px-3.5 py-1.5 text-sm transition-colors disabled:cursor-default",
-												order().stage === stage
-													? "border-petal-700 bg-petal-700 font-medium text-white"
-													: "border-petal-200 bg-white hover:bg-petal-50",
-											)}
-										>
-											{STAGE_LABELS[stage]}
-										</button>
-									)}
-								</For>
-							</fieldset>
-							<Show when={!canStartMaking(payment())}>
-								<p class="mt-3 text-sm text-warning-foreground">
-									Verify the payment before moving this order past “New orders”.
-								</p>
-							</Show>
-						</Show>
-					</section>
-
 					<section class={cn(adminCard, "p-5")}>
 						<h2 class="mb-3 font-semibold">Bouquets</h2>
 						<ul class="flex flex-col gap-3">
@@ -414,6 +349,46 @@ function OrderDetail() {
 
 				<aside class="flex flex-col gap-5 lg:sticky lg:top-6">
 					<section class={cn(adminCard, "p-5")}>
+						<h2 class="mb-3 font-semibold">Stage</h2>
+						<Show
+							when={!cancelled()}
+							fallback={
+								<p class="text-sm text-petal-900/65">
+									This order was cancelled and its bouquets went back into
+									stock.
+								</p>
+							}
+						>
+							<fieldset class="flex flex-wrap gap-2">
+								<legend class="sr-only">Move to stage</legend>
+								<For each={BOARD_STAGES}>
+									{(stage) => (
+										<button
+											type="button"
+											disabled={busy() || order().stage === stage}
+											aria-pressed={order().stage === stage}
+											onClick={() => moveTo(stage)}
+											class={cn(
+												"rounded-full border px-3.5 py-1.5 text-sm transition-colors disabled:cursor-default",
+												order().stage === stage
+													? "border-petal-700 bg-petal-700 font-medium text-white"
+													: "border-petal-200 bg-white hover:bg-petal-50",
+											)}
+										>
+											{STAGE_LABELS[stage]}
+										</button>
+									)}
+								</For>
+							</fieldset>
+							<Show when={!canStartMaking(payment())}>
+								<p class="mt-3 text-sm text-warning-foreground">
+									Verify the payment before moving this order past “New orders”.
+								</p>
+							</Show>
+						</Show>
+					</section>
+
+					<section class={cn(adminCard, "p-5")}>
 						<div class="mb-3 flex items-center justify-between gap-2">
 							<h2 class="font-semibold">Payment</h2>
 							<PaymentStatusPill status={payment().status} />
@@ -516,18 +491,38 @@ function OrderDetail() {
 						<DeliveryPanel order={order()} onChange={setOrder} />
 					</Show>
 
-					<Show when={!cancelled() && order().stage !== "done"}>
-						<ConfirmButton
-							class={cn(adminButton.danger, "w-full")}
+					<div class="flex flex-col gap-2">
+						{/* Orders added from a chat are edited in their own form. */}
+						<Show when={isChatOrder(order()) && !cancelled()}>
+							<Link
+								to="/admin/orders/new"
+								search={{ edit: order().id }}
+								class={cn(adminButton.secondary, "w-full")}
+							>
+								Edit order
+							</Link>
+						</Show>
+						<button
+							type="button"
+							class={cn(adminButton.secondary, "w-full")}
 							disabled={busy()}
-							title="Cancel this order?"
-							description="The bouquets go back into stock and the order leaves the board. Refund the customer separately if they already paid."
-							confirmLabel="Cancel order"
-							onConfirm={() => moveTo("cancelled")}
+							onClick={() => markTest(!order().isTest)}
 						>
-							Cancel order & restock
-						</ConfirmButton>
-					</Show>
+							{order().isTest ? "Not a test order" : "Mark as test order"}
+						</button>
+						<Show when={!cancelled() && order().stage !== "done"}>
+							<ConfirmButton
+								class={cn(adminButton.danger, "w-full")}
+								disabled={busy()}
+								title="Cancel this order?"
+								description="The bouquets go back into stock and the order leaves the board. Refund the customer separately if they already paid."
+								confirmLabel="Cancel order"
+								onConfirm={() => moveTo("cancelled")}
+							>
+								Cancel order & restock
+							</ConfirmButton>
+						</Show>
+					</div>
 				</aside>
 			</div>
 		</div>

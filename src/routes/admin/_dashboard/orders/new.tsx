@@ -3,6 +3,7 @@ import {
 	Link,
 	notFound,
 	useNavigate,
+	useRouter,
 } from "@tanstack/solid-router";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -75,6 +76,7 @@ const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
  */
 function NewChatOrder() {
 	const navigate = useNavigate();
+	const router = useRouter();
 	// The order being edited, read once: the form keeps its own copy.
 	const editing = Route.useLoaderData()();
 	const details = editing?.details;
@@ -172,19 +174,38 @@ function NewChatOrder() {
 			}
 			if (editing) {
 				toastSuccess(`Order #${result.number} updated.`);
-				await navigate({
-					to: "/admin/orders/$orderId",
-					params: { orderId: result.id },
-				});
+				await leave(() =>
+					navigate({
+						to: "/admin/orders/$orderId",
+						params: { orderId: result.id },
+						replace: true,
+					}),
+				);
 			} else {
 				toastSuccess(`Order #${result.number} added.`);
-				await navigate({ to: "/admin/orders" });
+				await leave(() => navigate({ to: "/admin/orders", replace: true }));
 			}
 		} catch (error) {
 			toastError(error);
 		} finally {
 			setSaving(false);
 		}
+	};
+
+	/**
+	 * Leaves the form by stepping back to the page that opened it, so Back
+	 * afterwards doesn't land on the form again. Opened in a fresh tab, there
+	 * is nothing to go back to and `fallback` replaces the form instead.
+	 */
+	const leave = async (fallback: () => Promise<void>) => {
+		if (router.history.canGoBack()) router.history.back();
+		else await fallback();
+	};
+	/** For the back and Cancel links: step back instead of adding a page. */
+	const stepBack = (event: MouseEvent) => {
+		if (!router.history.canGoBack()) return;
+		event.preventDefault();
+		router.history.back();
 	};
 
 	/** A text box for one customer field, with checkout's error under it. */
@@ -225,7 +246,12 @@ function NewChatOrder() {
 			<Show
 				when={editing}
 				fallback={
-					<Link to="/admin/orders" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
+					<Link
+						to="/admin/orders"
+						replace
+						onClick={stepBack}
+						class={cn(adminButton.ghost, "-ml-2 mb-2")}
+					>
 						← Orders
 					</Link>
 				}
@@ -234,6 +260,8 @@ function NewChatOrder() {
 					<Link
 						to="/admin/orders/$orderId"
 						params={{ orderId: order().id }}
+						replace
+						onClick={stepBack}
 						class={cn(adminButton.ghost, "-ml-2 mb-2")}
 					>
 						← Order #{order().number}
@@ -538,7 +566,12 @@ function NewChatOrder() {
 					<Show
 						when={editing}
 						fallback={
-							<Link to="/admin/orders" class={adminButton.secondary}>
+							<Link
+								to="/admin/orders"
+								replace
+								onClick={stepBack}
+								class={adminButton.secondary}
+							>
 								Cancel
 							</Link>
 						}
@@ -547,6 +580,8 @@ function NewChatOrder() {
 							<Link
 								to="/admin/orders/$orderId"
 								params={{ orderId: order().id }}
+								replace
+								onClick={stepBack}
 								class={adminButton.secondary}
 							>
 								Cancel
