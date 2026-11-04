@@ -153,6 +153,7 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 			"preorderSlots",
 			`${label} pre-order slots`,
 		),
+		...readyWhen(source, label),
 		aiPhotos: bool(source, "aiPhotos"),
 		images,
 		imageTags,
@@ -180,6 +181,23 @@ function bouquetName(source: Record<string, unknown>) {
 			"The name should start with a letter, like Odette or Corsage 1.",
 		);
 	return name;
+}
+
+/** When a style's pre-orders are ready: days after ordering, or a date. */
+function readyWhen(source: Record<string, unknown>, label: string) {
+	if (source.readyInDays !== null && source.readyInDays !== undefined)
+		return {
+			readyInDays: integer(source, "readyInDays", {
+				label: `${label} pre-order days`,
+				min: 1,
+				max: 365,
+			}),
+			readyOn: null,
+		};
+	const date = text(source, "readyOn", { max: 10, required: false });
+	if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date))
+		throw new InputError(`${label} pre-order date must be a date.`);
+	return { readyInDays: null, readyOn: date || null };
 }
 
 /** A stock count staff may leave blank (null) for no limit. */

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 import { Index, Show } from "solid-js";
 
+import { PreorderTag } from "~/components/product/preorder-tag";
 import { FlowerMark } from "~/components/site/brand";
 import {
 	Sheet,
@@ -184,8 +185,10 @@ function BagLine(props: {
 						}}
 					/>
 					{styleLabel(line())} · {formatPrice(line().unitPrice, props.currency)}
-					{line().preorder ? " · Pre-order" : ""}
 				</p>
+				<Show when={line().preorder}>
+					<PreorderTag readyBy={line().readyBy} class="mt-1" />
+				</Show>
 				<Show when={line().custom}>
 					<p class="mt-1 text-xs text-petal-900/60">
 						{[

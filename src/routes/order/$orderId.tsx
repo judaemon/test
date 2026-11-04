@@ -9,7 +9,7 @@ import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { CONTACT } from "~/lib/contact";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { formatPrice, styleLabel } from "~/lib/product";
+import { formatPrice, preorderNote, styleLabel } from "~/lib/product";
 import { useSessionUser } from "~/lib/use-catalog";
 import { getOrder } from "~/server/orders";
 import { isPaymentDue, type OrderPayment } from "~/types/order";
@@ -209,7 +209,7 @@ function OrderConfirmation() {
 										<span class="block font-medium">{line.title}</span>
 										<span class="block text-sm text-petal-900/60">
 											{styleLabel(line)} · Qty {line.quantity}
-											{line.preorder ? " · Pre-order" : ""}
+											{line.preorder ? ` · ${preorderNote(line)}` : ""}
 										</span>
 									</span>
 									<span class="text-sm font-medium tabular-nums">

@@ -7,7 +7,12 @@ import {
 	normalizeDesign,
 	priceDesign,
 } from "~/lib/custom-bouquet";
-import { getMaxQuantity, getVariantPrice, MAX_PER_ORDER } from "~/lib/product";
+import {
+	getMaxQuantity,
+	getVariantPrice,
+	MAX_PER_ORDER,
+	preorderReadyDate,
+} from "~/lib/product";
 import type { WrapperStatus } from "~/types/order";
 import type { Product, ProductVariant, RecipeItem } from "~/types/product";
 
@@ -35,6 +40,8 @@ export interface PricedLine {
 	sizeName?: string;
 	/** A signature bouquet ordered as a pre-order (its ready-made ones ran out). */
 	preorder?: boolean;
+	/** When that pre-order is ready, `YYYY-MM-DD`, if staff said. */
+	readyBy?: string;
 	/** Set by staff on placed orders. */
 	wrapperStatus?: WrapperStatus;
 	/** The design, for built bouquets, so they can be ordered again. */
@@ -115,6 +122,9 @@ export function priceCart(
 			recipe: variant.recipe,
 			wrapperColor: variant.wrapperColor,
 			...(variant.preorder ? { preorder: true } : {}),
+			...(variant.preorder && preorderReadyDate(variant)
+				? { readyBy: preorderReadyDate(variant) }
+				: {}),
 			quantity: line.quantity,
 			unitPrice,
 			lineTotal: roundMoney(unitPrice * line.quantity),

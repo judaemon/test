@@ -8,6 +8,7 @@ import { pillPrimary } from "~/components/cart/cart-sheet";
 import { ChoiceSelect } from "~/components/checkout/choice-select";
 import { PaymentSection } from "~/components/checkout/payment-section";
 import { ColorSwatch } from "~/components/order/company-label";
+import { PreorderTag } from "~/components/product/preorder-tag";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
@@ -59,7 +60,12 @@ import {
 	validateReferenceNumber,
 } from "~/lib/payment";
 import type { PricedCart } from "~/lib/pricing";
-import { formatPrice, lineName, styleLabel } from "~/lib/product";
+import {
+	formatPrice,
+	formatReadyDate,
+	lineName,
+	styleLabel,
+} from "~/lib/product";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { getCheckoutConfig, placeOrder } from "~/server/orders";
@@ -565,8 +571,10 @@ function CheckoutForm(props: {
 									</span>
 									<span class="block text-sm text-petal-900/60">
 										{styleLabel(line)}
-										{line.preorder ? " · Pre-order" : ""}
 									</span>
+									<Show when={line.preorder}>
+										<PreorderTag readyBy={line.readyBy} class="mt-1" />
+									</Show>
 									<Show when={line.problem}>
 										<span class="block text-sm text-error-foreground">
 											{line.problem === "unavailable"
@@ -584,6 +592,40 @@ function CheckoutForm(props: {
 						)}
 					</For>
 				</ul>
+
+				<Show when={props.cart.lines.filter((line) => line.preorder)}>
+					{(preorders) => (
+						<Show when={preorders().length > 0}>
+							<div class="rounded-2xl border border-warning-foreground/25 bg-warning px-4 py-3 text-sm text-warning-foreground">
+								<p class="font-semibold">
+									{preorders().length === props.cart.lines.length
+										? "This is a pre-order"
+										: "Your order includes a pre-order"}
+								</p>
+								<ul class="mt-1 flex flex-col gap-0.5">
+									<For each={preorders()}>
+										{(line) => (
+											<li>
+												{lineName(line)}{" "}
+												{line.readyBy ? (
+													<>
+														will be ready on{" "}
+														<strong class="font-semibold">
+															{formatReadyDate(line.readyBy)}
+														</strong>
+														.
+													</>
+												) : (
+													"is made after you order. We’ll let you know when it’s ready."
+												)}
+											</li>
+										)}
+									</For>
+								</ul>
+							</div>
+						</Show>
+					)}
+				</Show>
 
 				<dl class="grid grid-cols-[1fr_auto] gap-y-1.5 border-t border-petal-100 pt-4 text-sm">
 					<dt class="text-petal-900/70">Subtotal</dt>

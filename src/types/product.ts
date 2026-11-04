@@ -48,6 +48,10 @@ export interface ProductVariant {
 	 * slots when `preorder`. Absent for no limit.
 	 */
 	stock?: number;
+	/** Pre-orders are ready this many days after they're placed… */
+	readyInDays?: number;
+	/** …or on this date, `YYYY-MM-DD` (for a batch of flowers, say). */
+	readyOn?: string;
 	/** Gallery images specific to this color, in display order. */
 	images: string[];
 	/** What each image shows, by position; missing tags fall back by position. */

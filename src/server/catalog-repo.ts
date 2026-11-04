@@ -32,6 +32,8 @@ interface StyleRow {
 	stock_quantity: number | null;
 	takes_preorders: number;
 	preorder_slots: number | null;
+	preorder_days: number | null;
+	preorder_date: string | null;
 	images: string;
 	image_tags: string;
 	ai_photos: number;
@@ -134,6 +136,8 @@ function toVariant(
 		...(readyStock === undefined ? {} : { readyStock }),
 		takesPreorders,
 		...(preorderSlots === undefined ? {} : { preorderSlots }),
+		...(row.preorder_days ? { readyInDays: row.preorder_days } : {}),
+		...(row.preorder_date ? { readyOn: row.preorder_date } : {}),
 		images: JSON.parse(row.images) as string[],
 		imageTags: JSON.parse(row.image_tags) as PhotoTag[],
 		recipe: recipes
@@ -171,8 +175,12 @@ export function toPublicProduct(product: AdminProduct): Product {
 				readyStock: _readyStock,
 				takesPreorders: _takesPreorders,
 				preorderSlots: _preorderSlots,
+				readyInDays,
+				readyOn,
 				...variant
-			}) => variant,
+			}) =>
+				// The shop only needs when pre-orders are ready while it's one.
+				variant.preorder ? { ...variant, readyInDays, readyOn } : variant,
 		),
 	};
 }
@@ -209,6 +217,9 @@ export interface VariantInput {
 	takesPreorders?: boolean;
 	/** Null or missing for no limit. */
 	preorderSlots?: number | null;
+	/** When pre-orders are ready: days after ordering, or a date; at most one. */
+	readyInDays?: number | null;
+	readyOn?: string | null;
 	images: string[];
 	/** Missing means "by position". */
 	imageTags?: PhotoTag[];
@@ -289,13 +300,16 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 		const kept = new Set<string>();
 		const upsert = db.query(
 			`INSERT INTO bouquet_styles (id, bouquet_id, slug, name, color_hex, color_hex2, price_cents, is_available,
-			   stock_quantity, takes_preorders, preorder_slots, images, image_tags, ai_photos, wrapper_id, sort)
+			   stock_quantity, takes_preorders, preorder_slots, preorder_days, preorder_date,
+			   images, image_tags, ai_photos, wrapper_id, sort)
 			 VALUES ($id, $bouquetId, $slug, $name, $colorHex, $colorHex2, $price, $available,
-			   $stock, $takesPreorders, $preorderSlots, $images, $imageTags, $aiPhotos, $wrapperId, $sort)
+			   $stock, $takesPreorders, $preorderSlots, $readyInDays, $readyOn,
+			   $images, $imageTags, $aiPhotos, $wrapperId, $sort)
 			 ON CONFLICT (id) DO UPDATE SET slug = excluded.slug, name = excluded.name,
 			   color_hex = excluded.color_hex, color_hex2 = excluded.color_hex2, price_cents = excluded.price_cents,
 			   is_available = excluded.is_available, stock_quantity = excluded.stock_quantity,
 			   takes_preorders = excluded.takes_preorders, preorder_slots = excluded.preorder_slots,
+			   preorder_days = excluded.preorder_days, preorder_date = excluded.preorder_date,
 			   images = excluded.images, image_tags = excluded.image_tags, ai_photos = excluded.ai_photos,
 			   wrapper_id = excluded.wrapper_id, sort = excluded.sort`,
 		);
@@ -325,6 +339,8 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				stock: variant.readyStock ?? null,
 				takesPreorders: variant.takesPreorders ? 1 : 0,
 				preorderSlots: variant.preorderSlots ?? null,
+				readyInDays: variant.readyInDays ?? null,
+				readyOn: variant.readyOn ?? null,
 				images: JSON.stringify(variant.images),
 				imageTags: JSON.stringify(variant.imageTags ?? []),
 				aiPhotos: variant.aiPhotos === false ? 0 : 1,

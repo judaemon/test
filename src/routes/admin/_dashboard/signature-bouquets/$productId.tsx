@@ -28,12 +28,15 @@ import { findFlowerKind, flowerKinds } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
 import {
 	flowerCodeKey,
+	formatReadyDate,
 	PHOTO_TAGS,
 	photoTag,
+	preorderReadyDate,
 	stockLabel,
 	swatchBackground,
 } from "~/lib/product";
 import type { BouquetSize } from "~/lib/sizes";
+import { shopNow } from "~/lib/time";
 import {
 	useCustomSettings,
 	useFlowerPhotos,
@@ -85,6 +88,11 @@ interface VariantDraft {
 	takesPreorders: boolean;
 	/** Blank for no limit. */
 	preorderSlots: string;
+	/** How the pre-order's ready time is given, if at all. */
+	readyMode: "" | "days" | "date";
+	readyDays: string;
+	/** `YYYY-MM-DD`. */
+	readyDate: string;
 	images: string[];
 	/** Kept in step with `images`. */
 	imageTags: PhotoTag[];
@@ -119,8 +127,14 @@ function shopperSees(v: VariantDraft) {
 		preorder,
 		...(stock === null ? {} : { stock }),
 	} as ProductVariant);
-	if (preorder || stock === 0) return label;
-	return label ? `Available · ${label}` : "Available";
+	if (stock === 0) return label;
+	if (!preorder) return label ? `Available · ${label}` : "Available";
+	const readyBy = preorderReadyDate({
+		readyInDays:
+			v.readyMode === "days" ? Number(v.readyDays) || undefined : undefined,
+		readyOn: v.readyMode === "date" ? v.readyDate : undefined,
+	});
+	return readyBy ? `${label} · ready ${formatReadyDate(readyBy)}` : label;
 }
 
 const newRecipeRow = (): RecipeDraft => ({
@@ -152,6 +166,9 @@ const newVariant = (): VariantDraft => ({
 	readyStock: "",
 	takesPreorders: false,
 	preorderSlots: "",
+	readyMode: "",
+	readyDays: "3",
+	readyDate: "",
 	images: [],
 	imageTags: [],
 	recipe: [newRecipeRow()],
@@ -186,6 +203,9 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			takesPreorders: v.takesPreorders,
 			preorderSlots:
 				v.preorderSlots === undefined ? "" : String(v.preorderSlots),
+			readyMode: v.readyOn ? "date" : v.readyInDays ? "days" : "",
+			readyDays: String(v.readyInDays ?? 3),
+			readyDate: v.readyOn ?? "",
 			images: [...v.images],
 			imageTags: v.images.map((_, i) => photoTag(v, i)),
 			recipe: v.recipe.map((item) => ({
@@ -438,6 +458,9 @@ function ProductEditor() {
 							readyStock: stockInput(v.readyStock),
 							takesPreorders: v.takesPreorders && v.readyStock.trim() !== "",
 							preorderSlots: stockInput(v.preorderSlots),
+							readyInDays:
+								v.readyMode === "days" ? stockInput(v.readyDays) : null,
+							readyOn: v.readyMode === "date" ? v.readyDate : "",
 							images: v.images,
 							imageTags: v.imageTags,
 							// Blank rows are left out rather than rejected.
@@ -785,6 +808,97 @@ function ProductEditor() {
 												class={cn(adminInput, "tabular-nums")}
 											/>
 										</Field>
+										<fieldset class="sm:col-span-6">
+											<legend class="mb-1.5 text-sm font-medium">
+												Pre-orders are ready
+											</legend>
+											<div class="flex flex-wrap items-center gap-2">
+												<select
+													aria-label="How the ready time is set"
+													onChange={(e) =>
+														updateVariant(index, {
+															readyMode: e.currentTarget
+																.value as VariantDraft["readyMode"],
+														})
+													}
+													class={cn(adminInput, "w-auto")}
+												>
+													<option
+														value=""
+														selected={variant().readyMode === ""}
+													>
+														Not set
+													</option>
+													<option
+														value="days"
+														selected={variant().readyMode === "days"}
+													>
+														A number of days after ordering
+													</option>
+													<option
+														value="date"
+														selected={variant().readyMode === "date"}
+													>
+														On a set date
+													</option>
+												</select>
+												<Show when={variant().readyMode === "days"}>
+													<input
+														type="number"
+														min="1"
+														max="365"
+														step="1"
+														inputMode="numeric"
+														value={variant().readyDays}
+														onInput={(e) =>
+															updateVariant(index, {
+																readyDays: e.currentTarget.value,
+															})
+														}
+														aria-label="Days after ordering"
+														class={cn(adminInput, "w-20 tabular-nums")}
+													/>
+													<span class="text-sm text-petal-900/70">
+														days after ordering
+													</span>
+												</Show>
+												<Show when={variant().readyMode === "date"}>
+													<input
+														type="date"
+														min={shopNow().date}
+														value={variant().readyDate}
+														onInput={(e) =>
+															updateVariant(index, {
+																readyDate: e.currentTarget.value,
+															})
+														}
+														required
+														aria-label="Ready date"
+														class={cn(adminInput, "w-auto")}
+													/>
+												</Show>
+											</div>
+											<p
+												class={cn(
+													"mt-1 text-xs",
+													variant().readyMode === "date" &&
+														variant().readyDate &&
+														variant().readyDate < shopNow().date
+														? "text-error-foreground"
+														: "text-petal-900/55",
+												)}
+											>
+												{variant().readyMode === "date" &&
+												variant().readyDate &&
+												variant().readyDate < shopNow().date
+													? "This date has passed, so shoppers won’t see a ready date. Pick a new one."
+													: variant().readyMode === "days"
+														? "Like “ships in 3 days”: each order gets its own date."
+														: variant().readyMode === "date"
+															? "Every pre-order is ready on this day, e.g. when a batch of flowers arrives."
+															: "Shoppers are told you’ll let them know when it’s ready."}
+											</p>
+										</fieldset>
 									</Show>
 								</Show>
 								<p class="text-sm sm:col-span-6">

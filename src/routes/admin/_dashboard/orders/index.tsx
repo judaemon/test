@@ -40,7 +40,7 @@ import {
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import type { PricedLine } from "~/lib/pricing";
-import { formatPrice } from "~/lib/product";
+import { formatPrice, preorderNote } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 import {
@@ -557,7 +557,7 @@ function OrdersPage() {
 												</Show>
 												<p class="text-xs text-petal-900/60">
 													{line.title} · {line.colorName}
-													{line.preorder ? " · Pre-order" : ""}
+													{line.preorder ? ` · ${preorderNote(line)}` : ""}
 												</p>
 											</td>
 											<td data-label="Photo" class="px-5 py-2 md:px-3 md:py-3">

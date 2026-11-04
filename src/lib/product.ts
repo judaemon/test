@@ -1,3 +1,4 @@
+import { addDays, formatDate, shopNow } from "~/lib/time";
 import type { PhotoTag, Product, ProductVariant } from "~/types/product";
 
 export const LOW_STOCK_THRESHOLD = 5;
@@ -147,4 +148,35 @@ export function swatchColors(colors: string[]) {
 		(color, i) => `${color} ${slice * i}% ${slice * (i + 1)}%`,
 	);
 	return `conic-gradient(${stops.join(", ")})`;
+}
+
+/**
+ * When a pre-order placed `today` would be ready, `YYYY-MM-DD`: the set date,
+ * or so many days on. None if staff haven't said, or the set date has passed.
+ */
+export function preorderReadyDate(
+	variant: Pick<ProductVariant, "readyInDays" | "readyOn">,
+	today = shopNow().date,
+) {
+	if (variant.readyOn)
+		return variant.readyOn >= today ? variant.readyOn : undefined;
+	if (variant.readyInDays) return addDays(today, variant.readyInDays);
+	return undefined;
+}
+
+/** "Sat, Nov 8" */
+export function formatReadyDate(isoDate: string) {
+	return formatDate(isoDate, {
+		weekday: "short",
+		month: "short",
+		day: "numeric",
+	});
+}
+
+/** An order line's pre-order note: "Pre-order · ready Sat, Nov 8", or "". */
+export function preorderNote(line: { preorder?: boolean; readyBy?: string }) {
+	if (!line.preorder) return "";
+	return line.readyBy
+		? `Pre-order · ready ${formatReadyDate(line.readyBy)}`
+		: "Pre-order";
 }

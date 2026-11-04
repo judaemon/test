@@ -503,6 +503,12 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE bouquet_styles ADD COLUMN takes_preorders INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE bouquet_styles ADD COLUMN preorder_slots INTEGER CHECK (preorder_slots >= 0);
 	`,
+	// v32: when a pre-order is ready: a number of days after it's placed, or a
+	// set date (YYYY-MM-DD). Both NULL: not said.
+	`
+	ALTER TABLE bouquet_styles ADD COLUMN preorder_days INTEGER CHECK (preorder_days > 0);
+	ALTER TABLE bouquet_styles ADD COLUMN preorder_date TEXT;
+	`,
 ];
 
 declare global {

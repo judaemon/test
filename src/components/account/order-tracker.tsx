@@ -9,7 +9,7 @@ import { showToast } from "~/components/ui/toast";
 import { setCartOpen } from "~/lib/cart-store";
 import { orderDay } from "~/lib/checkout";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { formatPrice, styleLabel } from "~/lib/product";
+import { formatPrice, preorderNote, styleLabel } from "~/lib/product";
 import { reorderToCart } from "~/lib/reorder";
 import { formatDate, SHOP_TIME_ZONE } from "~/lib/time";
 import { useCatalog } from "~/lib/use-catalog";
@@ -259,7 +259,7 @@ export function OrderTracker(props: {
 							/>
 							<span>
 								{line.quantity} × {styleLabel(line)}
-								{line.preorder ? " · Pre-order" : ""}
+								{line.preorder ? ` · ${preorderNote(line)}` : ""}
 								<span class="block text-xs text-petal-900/55">
 									{line.title}
 								</span>

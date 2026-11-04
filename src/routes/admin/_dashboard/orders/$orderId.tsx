@@ -26,7 +26,7 @@ import { formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { formatPrice } from "~/lib/product";
+import { formatPrice, preorderNote } from "~/lib/product";
 import { useFlowerPhotos } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import {
@@ -182,7 +182,7 @@ function OrderDetail() {
 												{line.quantity} × {line.colorName}
 												<Show when={line.preorder}>
 													<span class="ml-2 rounded-full bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">
-														Pre-order
+														{preorderNote(line)}
 													</span>
 												</Show>
 											</span>

@@ -24,8 +24,10 @@ import {
 import { stemCount } from "~/lib/flowers";
 import {
 	formatPrice,
+	formatReadyDate,
 	getMaxQuantity,
 	getVariantPrice,
+	preorderReadyDate,
 	stockLabel,
 } from "~/lib/product";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
@@ -153,6 +155,27 @@ export function ProductInfo(props: ProductInfoProps) {
 					</Badge>
 				</Show>
 			</div>
+
+			<Show when={props.variant.preorder && props.variant.inStock}>
+				<p class="-mt-2 rounded-lg bg-warning/60 px-3 py-2 text-sm text-warning-foreground">
+					<strong class="font-semibold">Pre-order.</strong>{" "}
+					<Show
+						when={preorderReadyDate(props.variant)}
+						fallback="We make it after you order and let you know when it’s ready."
+					>
+						{(date) => (
+							<>
+								Ready{" "}
+								{props.variant.readyInDays && !props.variant.readyOn
+									? `${props.variant.readyInDays} ${props.variant.readyInDays === 1 ? "day" : "days"} after you order, on `
+									: "on "}
+								<strong class="font-semibold">{formatReadyDate(date())}</strong>
+								.
+							</>
+						)}
+					</Show>
+				</p>
+			</Show>
 
 			<Separator />
 
@@ -300,7 +323,9 @@ export function ProductInfo(props: ProductInfoProps) {
 								{isAdding()
 									? "Adding…"
 									: props.variant.preorder
-										? "Pre-order"
+										? preorderReadyDate(props.variant)
+											? `Pre-order · Ready ${formatReadyDate(preorderReadyDate(props.variant) ?? "")}`
+											: "Pre-order"
 										: "Add to Bag"}
 							</span>
 						</Show>
