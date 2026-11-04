@@ -359,6 +359,15 @@ function BuilderPage() {
 							class="font-medium text-petal-700 underline"
 						>
 							Facebook
+						</a>
+						,{" "}
+						<a
+							href={CONTACT.signalUrl}
+							target="_blank"
+							rel="noreferrer"
+							class="font-medium text-petal-700 underline"
+						>
+							Signal
 						</a>{" "}
 						or{" "}
 						<a
@@ -995,6 +1004,17 @@ function PausedBuilder() {
 							)}
 						>
 							Message us on Facebook
+						</a>
+						<a
+							href={CONTACT.signalUrl}
+							target="_blank"
+							rel="noreferrer"
+							class={cn(
+								buttonBase,
+								"border border-petal-200 bg-white hover:bg-petal-50",
+							)}
+						>
+							Signal
 						</a>
 						<a
 							href={CONTACT.telegramUrl}

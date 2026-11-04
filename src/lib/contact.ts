@@ -10,6 +10,9 @@ export const CONTACT = {
 	 */
 	facebookUrl: "https://www.facebook.com/SZSN.TheSeasons",
 	telegramUrl: "https://t.me/judaya_lennie",
+	/** Signal on the shop's number, as Oraiashop.18. */
+	signalUrl:
+		"https://signal.me/#eu/7ZItRenZ6nCBbabIuVMwLFIVgl8Ao2r_pDVpEJ1dDeg1loJMRGpIiayiP02aqhYO",
 	facebookQr: "/images/contact/facebook-qr.svg",
 } as const;
 
