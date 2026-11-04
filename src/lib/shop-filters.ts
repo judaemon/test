@@ -8,7 +8,21 @@ export interface ShopFilters {
 	flower?: string;
 	/** Sizes' ids, comma-separated, e.g. "petite,classic". */
 	size?: string;
+	/** Cheapest or dearest first; the shop's own order when missing. */
+	sort?: ShopSort;
 }
+
+export type ShopSort = "price-asc" | "price-desc";
+
+/** The ways the bouquets can be ordered, the shop's own first. */
+export const SHOP_SORTS: { value: ShopSort | ""; label: string }[] = [
+	{ value: "", label: "Featured" },
+	{ value: "price-asc", label: "Price: low to high" },
+	{ value: "price-desc", label: "Price: high to low" },
+];
+
+const isShopSort = (value: unknown): value is ShopSort =>
+	SHOP_SORTS.some((sort) => sort.value && sort.value === value);
 
 /** "roses,tulips" → ["roses", "tulips"]. */
 export const parseList = (value?: string) =>
@@ -38,6 +52,7 @@ export function validateShopFilters(
 		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 120) : undefined,
 		flower: value("flower"),
 		size: value("size"),
+		sort: isShopSort(search.sort) ? search.sort : undefined,
 	};
 }
 

@@ -56,6 +56,20 @@ export function getVariantPrice(product: Product, variant: ProductVariant) {
 }
 
 /**
+ * What a bouquet costs at least, among the themes that can be ordered (all of
+ * them if none can), and whether some cost more: ₱1,200, or "From ₱1,200".
+ */
+export function startingPrice(product: Product) {
+	const open = product.variants.filter((variant) => variant.inStock);
+	const prices = (open.length ? open : product.variants).map((variant) =>
+		getVariantPrice(product, variant),
+	);
+	if (!prices.length) return { amount: product.basePrice, varies: false };
+	const amount = Math.min(...prices);
+	return { amount, varies: prices.some((price) => price !== amount) };
+}
+
+/**
  * Resolves the variant named in the URL. Unknown or missing ids fall back to
  * the first in-stock variant so a stale shared link still lands somewhere
  * useful.

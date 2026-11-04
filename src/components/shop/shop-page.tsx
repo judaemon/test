@@ -16,14 +16,16 @@ import { SiteHeader } from "~/components/site/site-header";
 import { FacetFilter } from "~/components/ui/facet-filter";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CUSTOM_BANNER_IMAGE } from "~/lib/custom-bouquet";
-import { formatPrice } from "~/lib/product";
+import { startingPrice as bouquetPrice, formatPrice } from "~/lib/product";
 import {
 	bouquetFlowers,
 	filterKey,
 	joinList,
 	nameMatches,
 	parseList,
+	SHOP_SORTS,
 	type ShopFilters,
+	type ShopSort,
 } from "~/lib/shop-filters";
 import { builderSizes } from "~/lib/sizes";
 import { useCatalog, useCustomSettings, useSizes } from "~/lib/use-catalog";
@@ -47,7 +49,7 @@ export function ShopPage() {
 	const setFilter = (patch: ShopFilters) =>
 		navigate({
 			to: ".",
-			search: (prev: ShopFilters) => ({ ...prev, ...patch }),
+			search: (prev) => ({ ...prev, ...patch }),
 			replace: true,
 			resetScroll: false,
 		});
@@ -131,9 +133,9 @@ export function ShopPage() {
 
 	// One card per signature bouquet; its themes are on the bouquet's page.
 	// The card leads with an available theme, one with a chosen flower if
-	// filtering by flower.
-	const bouquets = () =>
-		catalog().flatMap((product) => {
+	// filtering by flower. Sorted by price, sold-out bouquets go last.
+	const bouquets = () => {
+		const cards = catalog().flatMap((product) => {
 			if (!hasName(product) || !hasSize(product, chosenSizes())) return [];
 			const flowers = chosenFlowers();
 			const themes = product.variants.filter(
@@ -146,6 +148,18 @@ export function ShopPage() {
 			const variant = themes.find((theme) => theme.inStock) ?? themes[0];
 			return variant ? [{ product, variant }] : [];
 		});
+		const sort = search().sort;
+		if (!sort) return cards;
+		const direction = sort === "price-asc" ? 1 : -1;
+		const soldOut = (product: Product) =>
+			product.variants.some((v) => v.inStock) ? 0 : 1;
+		return cards.sort(
+			(a, b) =>
+				soldOut(a.product) - soldOut(b.product) ||
+				direction *
+					(bouquetPrice(a.product).amount - bouquetPrice(b.product).amount),
+		);
+	};
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
@@ -401,14 +415,48 @@ export function ShopPage() {
 										<span aria-hidden="true">✕</span>
 									</button>
 								</Show>
-								<p class="ml-auto text-sm text-petal-900/60" aria-live="polite">
-									<Show
-										when={filtering()}
-										fallback={`${catalog().length} bouquets`}
-									>
-										{bouquets().length} of {catalog().length} bouquets
-									</Show>
-								</p>
+								<div class="ml-auto flex items-center gap-3">
+									<p class="text-sm text-petal-900/60" aria-live="polite">
+										<Show
+											when={filtering()}
+											fallback={`${catalog().length} bouquets`}
+										>
+											{bouquets().length} of {catalog().length} bouquets
+										</Show>
+									</p>
+									<label class="relative flex items-center">
+										<span class="sr-only">Sort bouquets</span>
+										<select
+											value={search().sort ?? ""}
+											onChange={(e) =>
+												setFilter({
+													sort: (e.currentTarget.value || undefined) as
+														| ShopSort
+														| undefined,
+												})
+											}
+											class="h-10 cursor-pointer appearance-none rounded-xl border border-petal-200 bg-white pl-3 pr-9 text-base font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30 sm:text-sm"
+										>
+											<For each={SHOP_SORTS}>
+												{(sort) => (
+													<option value={sort.value}>{sort.label}</option>
+												)}
+											</For>
+										</select>
+										<svg
+											aria-hidden="true"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.8"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											class="pointer-events-none absolute right-3 size-4 text-petal-900/50"
+										>
+											<path d="m6 9 6 6 6-6" />
+										</svg>
+									</label>
+								</div>
 							</div>
 						</Show>
 						<Show
