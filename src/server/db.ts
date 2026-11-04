@@ -491,6 +491,11 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE orders ADD COLUMN amount_paid_cents INTEGER CHECK (amount_paid_cents >= 0);
 	`,
+	// v30: a recipe line can be filler (gypsophila, misty), which isn't counted
+	// in the bouquet's number of flowers.
+	`
+	ALTER TABLE style_flowers ADD COLUMN is_filler INTEGER NOT NULL DEFAULT 0;
+	`,
 ];
 
 declare global {

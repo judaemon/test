@@ -94,6 +94,7 @@ interface RecipeDraft {
 	flower: string;
 	count: string;
 	color: string;
+	filler: boolean;
 }
 
 const newRecipeRow = (): RecipeDraft => ({
@@ -101,6 +102,7 @@ const newRecipeRow = (): RecipeDraft => ({
 	flower: "",
 	count: "1",
 	color: "",
+	filler: false,
 });
 
 interface ProductDraft {
@@ -158,6 +160,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 				flower: item.flower,
 				count: String(item.count ?? 1),
 				color: item.color ?? "",
+				filler: item.filler ?? false,
 			})),
 			wrapperId: v.wrapperId ?? "",
 			aiPhotos: v.aiPhotos ?? true,
@@ -181,11 +184,14 @@ function ProductEditor() {
 	const flowerGroups = () => [
 		{ label: "Flowers", kinds: flowerKinds(custom()) },
 	];
-	/** Live total while editing. */
+	/** Live total while editing; filler isn't counted. */
 	const recipeStems = (recipe: RecipeDraft[]) =>
 		recipe.reduce(
 			(sum, item) =>
-				sum + (item.flower ? Math.max(0, Number(item.count) || 0) : 0),
+				sum +
+				(item.flower && !item.filler
+					? Math.max(0, Number(item.count) || 0)
+					: 0),
 			0,
 		);
 	const data = Route.useLoaderData();
@@ -407,6 +413,7 @@ function ProductEditor() {
 										flower: item.flower,
 										count: Number(item.count),
 										...(kind?.colors ? { color: item.color } : {}),
+										...(item.filler ? { filler: true } : {}),
 									};
 								}),
 							wrapperId: v.wrapperId,
@@ -807,6 +814,27 @@ function ProductEditor() {
 															aria-label={`How many ${item().flower}`}
 															class={cn(adminInput, "w-20 tabular-nums")}
 														/>
+														<label
+															title="Filler isn’t counted in the number of flowers"
+															class="flex shrink-0 cursor-pointer items-center gap-1.5 text-sm text-petal-900/70"
+														>
+															<input
+																type="checkbox"
+																checked={item().filler}
+																onChange={(e) =>
+																	setDraft(
+																		"variants",
+																		index,
+																		"recipe",
+																		row,
+																		"filler",
+																		e.currentTarget.checked,
+																	)
+																}
+																class="size-4 accent-petal-700"
+															/>
+															Filler
+														</label>
 													</Show>
 													<button
 														type="button"
@@ -880,9 +908,10 @@ function ProductEditor() {
 									<For each={variant().images}>
 										{(image, imageIndex) => (
 											<li class="group relative w-24">
-												<img
+												<ZoomableImage
 													src={image}
-													alt=""
+													alt={`${variant().colorName || "Style"}, view ${imageIndex() + 1}`}
+													caption={variant().colorName}
 													class="size-24 rounded-xl border border-petal-100 bg-petal-50 object-cover"
 												/>
 												<select

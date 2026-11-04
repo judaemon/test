@@ -7,6 +7,8 @@ export interface RecipeItem {
 	count?: number;
 	/** For flowers that come in colors, e.g. Roses · "Red". */
 	color?: string;
+	/** Filler (gypsophila, misty): in the bouquet but not in its flower count. */
+	filler?: boolean;
 }
 
 /** What a bouquet photo shows, tagged by staff; "" for an untagged extra. */

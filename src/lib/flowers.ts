@@ -41,20 +41,27 @@ export function flowerKind(name: string) {
 	return FLOWER_KINDS.find((kind) => kind.name === name);
 }
 
-/** Total flowers in a bouquet; old cluster items (no count) don't add to it. */
+/**
+ * Total flowers in a bouquet. Filler and old cluster items (no count) don't
+ * add to it.
+ */
 export function stemCount(recipe: RecipeItem[] = []) {
-	return recipe.reduce((sum, item) => sum + (item.count ?? 0), 0);
+	return recipe.reduce(
+		(sum, item) => sum + (item.filler ? 0 : (item.count ?? 0)),
+		0,
+	);
 }
 
 /** "18 × Roses · Red"; items from before everything was counted read "Aster · Violet (cluster)". */
 export function formatRecipeItem(item: RecipeItem) {
 	const name = item.color ? `${item.flower} · ${item.color}` : item.flower;
-	return item.count ? `${item.count} × ${name}` : `${name} (cluster)`;
+	if (!item.count) return `${name} (cluster)`;
+	return `${item.count} × ${name}${item.filler ? " (filler)" : ""}`;
 }
 
 /** The flower a bouquet is mostly made of: the one with the most stems. */
 export function mainFlower(recipe: RecipeItem[] = []) {
 	return [...recipe]
-		.filter((item) => item.count)
+		.filter((item) => item.count && !item.filler)
 		.sort((a, b) => (b.count ?? 0) - (a.count ?? 0))[0];
 }

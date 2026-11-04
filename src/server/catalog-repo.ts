@@ -41,6 +41,7 @@ interface RecipeRow {
 	flower: string;
 	color: string;
 	count: number;
+	is_filler: number;
 	/** How many colors the flower has; with one, recipes name none. */
 	colors: number;
 }
@@ -67,7 +68,7 @@ export function listAdminProducts({
 		.all() as StyleRow[];
 	const recipes = db
 		.query(
-			`SELECT sf.style_id, f.name AS flower, c.name AS color, sf.count,
+			`SELECT sf.style_id, f.name AS flower, c.name AS color, sf.count, sf.is_filler,
 			   (SELECT COUNT(*) FROM flower_colors WHERE flower_id = f.id) AS colors
 			 FROM style_flowers sf
 			 JOIN flower_colors c ON c.id = sf.flower_color_id
@@ -121,6 +122,7 @@ function toVariant(
 				flower: item.flower,
 				count: item.count,
 				...(item.colors > 1 ? { color: item.color } : {}),
+				...(item.is_filler ? { filler: true } : {}),
 			})),
 		size,
 		wrapperColor: row.wrapper_name ?? "",
@@ -268,8 +270,8 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 			"DELETE FROM style_flowers WHERE style_id = $styleId",
 		);
 		const addFlower = db.query(
-			`INSERT INTO style_flowers (style_id, flower_color_id, count, sort)
-			 VALUES ($styleId, $colorId, $count, $sort)`,
+			`INSERT INTO style_flowers (style_id, flower_color_id, count, is_filler, sort)
+			 VALUES ($styleId, $colorId, $count, $filler, $sort)`,
 		);
 		input.variants.forEach((variant, index) => {
 			const slug =
@@ -299,6 +301,7 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 					styleId,
 					colorId: flowerColorId(item),
 					count: item.count ?? 1,
+					filler: item.filler ? 1 : 0,
 					sort,
 				});
 			});

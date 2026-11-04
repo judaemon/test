@@ -157,15 +157,15 @@ function wrapperId(source: Record<string, unknown>, label: string) {
 	return id;
 }
 
-/** Bouquets are named after girls, e.g. "Odette" or "Mary Ann". */
+/** Bouquets are named after girls, e.g. "Odette", "Mary Ann" or "Corsage 1". */
 function bouquetName(source: Record<string, unknown>) {
 	const name = text(source, "title", { label: "Name", max: 30 }).replace(
 		/\s+/g,
 		" ",
 	);
-	if (!/^\p{L}[\p{L} '.-]*$/u.test(name))
+	if (!/^\p{L}[\p{L}\p{N} '.-]*$/u.test(name))
 		throw new InputError(
-			"The name should be a name, like Odette — letters only.",
+			"The name should start with a letter, like Odette or Corsage 1.",
 		);
 	return name;
 }
@@ -201,6 +201,7 @@ function parseRecipe(raw: unknown, label: string): RecipeItem[] {
 			min: 1,
 			max: 500,
 		});
+		if (item.filler === true) parsed.filler = true;
 		return parsed;
 	});
 }
