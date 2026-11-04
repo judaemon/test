@@ -49,12 +49,25 @@ function devUploads(): Plugin {
   }
 }
 
+/** Browsers revalidate every time; Cloudflare (s-maxage) keeps a week. */
+const STATIC_IMAGE_CACHE = 'public, max-age=0, must-revalidate, s-maxage=604800'
+
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   plugins: [
     devUploads(),
     devtools(),
-    nitro(),
+    nitro({
+      // Bundled images in public/ (logo, size guide, sample bouquets). Unlike
+      // /assets/ and uploads, their names stay the same when the file changes,
+      // so browsers check each time (a quick 304 from Cloudflare) while
+      // Cloudflare keeps them a week. Each deploy purges them from Cloudflare
+      // (scripts/purge-cache.ts), so a replaced image shows at once.
+      routeRules: {
+        '/images/**': { headers: { 'cache-control': STATIC_IMAGE_CACHE } },
+        '/favicon.svg': { headers: { 'cache-control': STATIC_IMAGE_CACHE } },
+      },
+    }),
     tailwindcss(),
     tanstackStart(),
     solidPlugin({ ssr: true }),
