@@ -20,7 +20,8 @@ const UPLOAD_ROOT = process.env.UPLOAD_DIR ?? ".data/uploads";
  * Originals are the clean, unwatermarked copies of bouquet photos, by the
  * photo's id: staff only, kept so the watermark can be redone. Backups are a
  * second clean copy of each photo the watermark replaced, by its old id; the
- * app never deletes them.
+ * app never deletes them. Cancellations are photos staff attach as proof when
+ * cancelling an order: staff only.
  */
 export type UploadKind =
 	| "products"
@@ -29,7 +30,8 @@ export type UploadKind =
 	| "delivery"
 	| "references"
 	| "originals"
-	| "backups";
+	| "backups"
+	| "cancellations";
 export const PUBLIC_UPLOAD_KINDS: UploadKind[] = [
 	"products",
 	"payments",

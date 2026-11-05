@@ -16,15 +16,18 @@ import { validateOrdersSearch } from "~/lib/order-filters";
 import { isPaymentMethod, type PaymentMethod } from "~/lib/payment";
 import type { PricedLine } from "~/lib/pricing";
 import {
+	BOARD_STAGES,
+	CANCEL_REASON_MAX,
 	canStartMaking,
 	type Order,
-	type OrderStage,
 	PAYMENT_STATUSES,
 	WRAPPER_STATUSES,
 } from "~/types/order";
 import { requireStaff } from "../admin-auth";
 import { queryOrderRows } from "../order-rows";
 import {
+	cancelBouquet,
+	cancelOrder,
 	createOrder,
 	getOrderById,
 	OrderRuleError,
@@ -45,13 +48,6 @@ import {
 } from "../uploads";
 import { asRecord, InputError, integer, oneOf, text } from "../validate";
 import { getWrapper } from "../wrappers-repo";
-
-const ALL_STAGES = [
-	"new",
-	"making",
-	"done",
-	"cancelled",
-] as const satisfies readonly OrderStage[];
 
 export type OrderActionResult =
 	| { ok: true; order: Order }
@@ -90,12 +86,95 @@ export const moveOrder = createServerFn({ method: "POST" })
 		const source = asRecord(input);
 		return {
 			id: text(source, "id", { max: 64 }),
-			stage: oneOf(source.stage, ALL_STAGES, "Stage"),
+			stage: oneOf(source.stage, BOARD_STAGES, "Stage"),
 		};
 	})
 	.handler(async ({ data }) => {
 		await requireStaff();
 		return runAction(() => setOrderStage(data.id, data.stage));
+	});
+
+/** The reason and optional photo that every cancellation carries. */
+function parseCancellation(input: unknown) {
+	if (!(input instanceof FormData)) throw new Error("Expected form data");
+	const proof = input.get("proof");
+	const reason = input.get("reason");
+	return {
+		form: input,
+		id: text({ id: input.get("id") }, "id", { max: 64 }),
+		// Forms send line breaks as \r\n; the box counted them as one character.
+		reason: text(
+			{
+				reason:
+					typeof reason === "string" ? reason.replace(/\r\n?/g, "\n") : "",
+			},
+			"reason",
+			{ label: "A reason", max: CANCEL_REASON_MAX },
+		),
+		proof: proof instanceof File && proof.size > 0 ? proof : undefined,
+	};
+}
+
+/** Saves the photo, runs the cancellation, and removes the photo if it's refused. */
+async function withCancelProof(
+	proof: File | undefined,
+	cancel: (proofFile: string | undefined) => Order,
+): Promise<OrderActionResult> {
+	let proofFile: string | undefined;
+	try {
+		if (proof) proofFile = await saveImage("cancellations", proof);
+	} catch (error) {
+		if (error instanceof UploadError)
+			return { ok: false, message: error.message };
+		throw error;
+	}
+	try {
+		return { ok: true, order: cancel(proofFile) };
+	} catch (error) {
+		if (proofFile) await deleteUpload("cancellations", proofFile);
+		if (error instanceof OrderRuleError)
+			return { ok: false, message: error.message };
+		throw error;
+	}
+}
+
+/** Cancels the whole order. A reason is required; the photo is optional. */
+export const cancelOrderFn = createServerFn({ method: "POST" })
+	.validator(parseCancellation)
+	.handler(async ({ data }): Promise<OrderActionResult> => {
+		const user = await requireStaff();
+		return withCancelProof(data.proof, (proofFile) =>
+			cancelOrder(data.id, {
+				reason: data.reason,
+				cancelledBy: user.name,
+				proofFile,
+			}),
+		);
+	});
+
+/** Cancels one bouquet from an order; the rest of it carries on. */
+export const cancelBouquetFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const parsed = parseCancellation(input);
+		return {
+			...parsed,
+			lineKey: text({ lineKey: parsed.form.get("lineKey") }, "lineKey", {
+				max: 300,
+			}),
+			unit: Number(parsed.form.get("unit")),
+		};
+	})
+	.handler(async ({ data }): Promise<OrderActionResult> => {
+		const user = await requireStaff();
+		return withCancelProof(data.proof, (proofFile) =>
+			cancelBouquet(data.id, {
+				lineKey: data.lineKey,
+				unit: data.unit,
+				reason: data.reason,
+				cancelledBy: user.name,
+				proofFile,
+			}),
+		);
 	});
 
 export const markOrderTest = createServerFn({ method: "POST" })

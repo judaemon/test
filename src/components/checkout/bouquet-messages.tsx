@@ -56,6 +56,8 @@ export function BouquetMessages(props: {
 	onChange: (key: string, patch: Partial<BouquetMessage>) => void;
 	errors: Record<string, BouquetMessageErrors>;
 	clearError: (key: string, field: keyof BouquetMessage) => void;
+	/** Editing a placed order: take this bouquet off it, card and note too. */
+	onRemove?: (bouquet: BagBouquet) => void;
 }) {
 	const many = () => props.bouquets.length > 1;
 	return (
@@ -79,6 +81,11 @@ export function BouquetMessages(props: {
 						onChange={(patch) => props.onChange(bouquet.key, patch)}
 						errors={props.errors[bouquet.key] ?? {}}
 						clearError={(field) => props.clearError(bouquet.key, field)}
+						onRemove={
+							many() && props.onRemove
+								? () => props.onRemove?.(bouquet)
+								: undefined
+						}
 					/>
 				)}
 			</For>
@@ -97,6 +104,7 @@ function BouquetPanel(props: {
 	onChange: (patch: Partial<BouquetMessage>) => void;
 	errors: BouquetMessageErrors;
 	clearError: (field: keyof BouquetMessage) => void;
+	onRemove?: () => void;
 }) {
 	// Open when asked for, and whenever there's something written (or wrong).
 	const [cardAsked, setCardAsked] = createSignal(false);
@@ -187,6 +195,16 @@ function BouquetPanel(props: {
 					</span>
 				</Show>
 			</header>
+
+			<Show when={props.onRemove}>
+				<button
+					type="button"
+					onClick={() => props.onRemove?.()}
+					class="mt-2 rounded-full py-1 text-sm font-medium text-destructive underline underline-offset-2 outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-petal-500"
+				>
+					Remove this bouquet
+				</button>
+			</Show>
 
 			<Show when={cardOpen()}>
 				<fieldset class="mt-3 flex min-w-0 flex-col gap-3 rounded-xl bg-petal-50 p-3 sm:p-4">

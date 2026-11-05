@@ -233,6 +233,6 @@ export function sanitizeCartLines(raw: unknown): CartLine[] {
 	return [...merged.values()];
 }
 
-function roundMoney(amount: number) {
+export function roundMoney(amount: number) {
 	return Math.round(amount * 100) / 100;
 }

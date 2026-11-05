@@ -23,12 +23,12 @@ const STEPS: { title: string; body: () => JSX.Element }[] = [
 	{
 		title: "Pay",
 		body: () =>
-			"Choose how to pay, send the amount shown, then enter your reference number. Paying later? Tick “Reference number to follow”. Your order is confirmed, but it stays on hold until we receive your payment.",
+			"Choose how to pay, send the amount shown, then enter your reference number. Paying later? Tick “Pay later”. We’ll hold your order until we receive your payment, and you can still edit it for 24 hours until you send it, after confirming your email.",
 	},
 	{
 		title: "Review and place your order",
 		body: () =>
-			"Check everything first, because orders can’t be cancelled. Tick the box to confirm, then press Place order.",
+			"Check everything first, because orders can’t be cancelled once placed. Tick the box to confirm, then press Place order.",
 	},
 	{
 		title: "Follow your order",

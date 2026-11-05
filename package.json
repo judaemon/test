@@ -16,6 +16,7 @@
     "data:import": "bun scripts/data.ts import",
     "data:pull": "bun scripts/data.ts pull",
     "cache:purge": "bun scripts/purge-cache.ts",
+    "test": "bun test src",
     "preview": "vite preview",
     "format": "biome format",
     "lint": "biome lint",

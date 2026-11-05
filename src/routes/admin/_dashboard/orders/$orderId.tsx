@@ -5,12 +5,11 @@ import {
 	useRouter,
 } from "@tanstack/solid-router";
 import { createEffect, createSignal, For, on, Show } from "solid-js";
-
+import { CancelOrderButton } from "~/components/admin/cancel-order";
 import {
 	adminButton,
 	adminCard,
 	adminInput,
-	ConfirmButton,
 	Field,
 	PageHeader,
 	toastError,
@@ -26,6 +25,7 @@ import { isChatOrder } from "~/lib/chat-order";
 import { formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
+import { canCancelOneBouquet, ORDER_EDIT_HOURS } from "~/lib/order-edit";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice, preorderNote } from "~/lib/product";
 import { useFlowerPhotos } from "~/lib/use-catalog";
@@ -41,10 +41,10 @@ import {
 } from "~/server/admin/orders";
 import {
 	BOARD_STAGES,
+	type BoardStage,
 	canStartMaking,
 	isPaymentSettled,
 	type Order,
-	type OrderStage,
 	STAGE_LABELS,
 } from "~/types/order";
 
@@ -101,7 +101,7 @@ function OrderDetail() {
 		}
 	};
 
-	const moveTo = (stage: OrderStage) =>
+	const moveTo = (stage: BoardStage) =>
 		run(
 			() => moveOrder({ data: { id: order().id, stage } }),
 			`Moved to ${STAGE_LABELS[stage]}.`,
@@ -156,17 +156,114 @@ function OrderDetail() {
 				</p>
 			</Show>
 
+			<Show when={order().customerEditedAt}>
+				{(at) => (
+					<p class="mb-5 rounded-2xl border border-petal-200 bg-petal-50 px-4 py-3 text-sm">
+						<strong class="font-semibold">Edited by the customer</strong> on{" "}
+						{new Date(at()).toLocaleString("en-PH", {
+							timeZone: "Asia/Manila",
+							dateStyle: "medium",
+							timeStyle: "short",
+						})}
+						. Check its bouquets and total, and reprint any card you printed
+						before then.
+					</p>
+				)}
+			</Show>
+
 			<Show when={order().cancelReason}>
-				<p class="mb-5 rounded-2xl border border-error-foreground/25 bg-error px-4 py-3 text-sm text-error-foreground">
-					<strong class="font-semibold">Cancelled by the customer.</strong>{" "}
-					Reason: {order().cancelReason}
-				</p>
+				<div class="mb-5 rounded-2xl border border-error-foreground/25 bg-error px-4 py-3 text-sm text-error-foreground">
+					<p class="whitespace-pre-line wrap-anywhere">
+						<strong class="font-semibold">
+							Cancelled by {order().cancelledBy ?? "the customer"}.
+						</strong>{" "}
+						Reason: {order().cancelReason}
+					</p>
+					<Show when={order().cancelProof}>
+						{(file) => (
+							<a
+								href={`/api/admin/cancel-proofs/${proofId(file())}`}
+								target="_blank"
+								rel="noreferrer"
+								class="mt-3 block max-w-sm overflow-hidden rounded-xl border border-petal-100 bg-white"
+							>
+								<PrivateImage
+									url={`/api/admin/cancel-proofs/${proofId(file())}`}
+									alt={`Proof for cancelling order ${order().number}`}
+									class="max-h-72 w-full object-contain"
+								/>
+								<span class="block px-3 py-2 text-center text-xs text-petal-700">
+									Open full size
+								</span>
+							</a>
+						)}
+					</Show>
+				</div>
 			</Show>
 
 			<div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
 				<div class="flex flex-col gap-5">
+					<Show when={order().cancelledBouquets.length > 0}>
+						<section class={cn(adminCard, "p-5")}>
+							<h2 class="mb-3 font-semibold">Cancelled bouquets</h2>
+							<ul class="flex flex-col gap-3 text-sm">
+								<For each={order().cancelledBouquets}>
+									{(bouquet) => (
+										<li class="wrap-anywhere">
+											<p class="font-medium">
+												{bouquet.name} ·{" "}
+												{formatPrice(bouquet.price, order().currency)}
+											</p>
+											<p class="whitespace-pre-line text-error-foreground">
+												Reason: {bouquet.reason}
+											</p>
+											<p class="text-xs text-petal-900/55">
+												By {bouquet.cancelledBy} ·{" "}
+												{new Date(bouquet.at).toLocaleString("en-PH", {
+													timeZone: "Asia/Manila",
+													dateStyle: "medium",
+													timeStyle: "short",
+												})}
+											</p>
+											<Show when={bouquet.proofFile}>
+												{(file) => (
+													<a
+														href={`/api/admin/cancel-proofs/${proofId(file())}`}
+														target="_blank"
+														rel="noreferrer"
+														class="mt-2 block max-w-xs overflow-hidden rounded-xl border border-petal-100 bg-petal-50"
+													>
+														<PrivateImage
+															url={`/api/admin/cancel-proofs/${proofId(file())}`}
+															alt={`Proof for cancelling ${bouquet.name}`}
+															class="max-h-60 w-full object-contain"
+														/>
+													</a>
+												)}
+											</Show>
+										</li>
+									)}
+								</For>
+							</ul>
+						</section>
+					</Show>
+
 					<section class={cn(adminCard, "p-5")}>
 						<h2 class="mb-3 font-semibold">Bouquets</h2>
+						<Show
+							when={
+								!cancelled() &&
+								order().stage !== "done" &&
+								order().itemCount > 1 &&
+								!canCancelOneBouquet(order())
+							}
+						>
+							<p class="mb-3 rounded-xl bg-petal-50 px-3 py-2 text-sm">
+								A single bouquet can only be cancelled within {ORDER_EDIT_HOURS}{" "}
+								hours and before payment is sent, so here you can only cancel
+								the whole order.
+							</p>
+						</Show>
 						<ul class="flex flex-col gap-3">
 							<For each={order().lines}>
 								{(line) => (
@@ -192,6 +289,16 @@ function OrderDetail() {
 													? line.title
 													: `${line.title} · ${line.sku}`}
 											</span>
+											<Show when={canCancelOneBouquet(order())}>
+												<CancelOrderButton
+													order={order()}
+													line={line}
+													class="mt-1 py-1 text-sm font-medium text-destructive underline underline-offset-2 hover:opacity-80"
+													onCancelled={setOrder}
+												>
+													Cancel this bouquet
+												</CancelOrderButton>
+											</Show>
 											<Show when={line.recipe?.length}>
 												<Show when={stemCount(line.recipe)}>
 													{(count) => (
@@ -571,16 +678,16 @@ function OrderDetail() {
 							{order().isTest ? "Not a test order" : "Mark as test order"}
 						</button>
 						<Show when={!cancelled() && order().stage !== "done"}>
-							<ConfirmButton
+							<CancelOrderButton
+								order={order()}
 								class={cn(adminButton.danger, "w-full")}
 								disabled={busy()}
-								title="Cancel this order?"
-								description="The bouquets go back into stock and the order leaves the board. Refund the customer separately if they already paid."
-								confirmLabel="Cancel order"
-								onConfirm={() => moveTo("cancelled")}
+								onCancelled={setOrder}
 							>
-								Cancel order & restock
-							</ConfirmButton>
+								{order().itemCount > 1
+									? "Cancel whole order & restock"
+									: "Cancel order & restock"}
+							</CancelOrderButton>
 						</Show>
 					</div>
 				</aside>

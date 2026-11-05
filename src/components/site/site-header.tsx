@@ -41,7 +41,9 @@ export function SiteHeader() {
 						class={navLink}
 						activeProps={{ "aria-current": "page" }}
 					>
-						Check your order
+						{/* The short name keeps the header on one line on small phones. */}
+						<span class="min-[375px]:hidden">My order</span>
+						<span class="hidden min-[375px]:inline">Check your order</span>
 					</Link>
 					<Link
 						to="/custom"

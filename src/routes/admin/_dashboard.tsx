@@ -49,6 +49,7 @@ const NAV = [
 		owner: true,
 	},
 	{ to: "/admin/staff", label: "Staff", icon: AdminIcons.staff, owner: true },
+	{ to: "/admin/password", label: "My password", icon: AdminIcons.staff },
 ] as const;
 
 const navLink =

@@ -2,7 +2,16 @@ import * as Dialog from "@kobalte/core/dialog";
 import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	Match,
+	on,
+	Show,
+	Switch,
+} from "solid-js";
 import { createStore } from "solid-js/store";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
@@ -63,6 +72,12 @@ import {
 	validateCheckoutDetails,
 } from "~/lib/checkout";
 import {
+	clearCheckoutDraft,
+	readCheckoutDraft,
+	writeCheckoutDraft,
+} from "~/lib/checkout-draft";
+import { ORDER_EDIT_HOURS } from "~/lib/order-edit";
+import {
 	type CardInput,
 	cardDigits,
 	detectCardBrand,
@@ -91,7 +106,12 @@ export const Route = createFileRoute("/checkout")({
 	component: CheckoutPage,
 });
 
+const DETAILS_SECTION = "checkout-details";
+const PAYMENT_SECTION = "checkout-payment";
+
 function CheckoutPage() {
+	/** The order went through: the bag is empty, on the way to the order page. */
+	const [placed, setPlaced] = createSignal(false);
 	const cartState = useSelector(cartStore);
 	const cart = usePricedCart();
 	const config = Route.useLoaderData();
@@ -106,19 +126,29 @@ function CheckoutPage() {
 						Checkout
 					</h1>
 					<Show
-						when={user()}
+						when={!user()?.isStaff && user()}
 						fallback={
-							<p class="text-sm text-petal-900/65">
-								No account needed. Have one?{" "}
-								<Link
-									to="/sign-in"
-									search={{ redirect: "/checkout" }}
-									class="font-medium text-petal-700 underline underline-offset-2"
-								>
-									Sign in
-								</Link>{" "}
-								to track this order.
-							</p>
+							<Show
+								when={!user()?.isStaff}
+								fallback={
+									<p class="text-sm text-petal-900/65">
+										You’re signed in as staff, so this order won’t go on your
+										account.
+									</p>
+								}
+							>
+								<p class="text-sm text-petal-900/65">
+									No account needed. Have one?{" "}
+									<Link
+										to="/sign-in"
+										search={{ redirect: "/checkout" }}
+										class="font-medium text-petal-700 underline underline-offset-2"
+									>
+										Sign in
+									</Link>{" "}
+									to track this order.
+								</p>
+							</Show>
 						}
 					>
 						{(signedIn) => (
@@ -130,6 +160,11 @@ function CheckoutPage() {
 					</Show>
 				</div>
 				<Switch>
+					<Match when={placed()}>
+						<output class="mx-auto mt-12 block max-w-md rounded-3xl bg-white px-6 py-12 text-center text-petal-900/70">
+							Your order is placed. Taking you to it…
+						</output>
+					</Match>
 					{/* The bag lives in localStorage, so wait for it before deciding it's empty. */}
 					<Match when={!cartState().hydrated}>
 						<div
@@ -148,8 +183,9 @@ function CheckoutPage() {
 						<CheckoutForm
 							cart={cart()}
 							paymentAccounts={config().paymentAccounts}
-							name={user()?.name}
-							email={user()?.email}
+							name={user()?.isStaff ? undefined : user()?.name}
+							email={user()?.isStaff ? undefined : user()?.email}
+							onPlaced={() => setPlaced(true)}
 						/>
 					</Match>
 				</Switch>
@@ -166,17 +202,47 @@ function CheckoutForm(props: {
 	name?: string;
 	/** And their email, for the email field. */
 	email?: string;
+	onPlaced: () => void;
 }) {
 	const navigate = useNavigate();
 	const [errors, setErrors] = createSignal<FieldErrors>({});
 	const [formError, setFormError] = createSignal<string | null>(null);
 	const [submitting, setSubmitting] = createSignal(false);
-	const [className, setClassName] = createSignal("");
-	const [company, setCompany] = createSignal("");
-	const [serialNumber, setSerialNumber] = createSignal("");
+	// What was typed before a reload or a look back at the shop.
+	const draft = readCheckoutDraft();
+	const [className, setClassName] = createSignal(draft?.className ?? "");
+	const [company, setCompany] = createSignal(draft?.company ?? "");
+	const [serialNumber, setSerialNumber] = createSignal(
+		draft?.serialNumber ?? "",
+	);
 	/** Each bouquet's card and note, by `unitKey`. */
 	const [messages, setMessages] = createStore<Record<string, BouquetMessage>>(
-		{},
+		draft?.messages ?? {},
+	);
+	const saveDraft = () => {
+		const form = new FormData(formRef);
+		const field = (key: string) => {
+			const value = form.get(key);
+			return typeof value === "string" ? value : "";
+		};
+		writeCheckoutDraft({
+			className: className(),
+			company: company(),
+			serialNumber: serialNumber(),
+			lastName: field("lastName"),
+			firstName: field("firstName"),
+			email: field("email"),
+			messages: JSON.parse(JSON.stringify(messages)),
+		});
+	};
+	// After every change to the controlled fields and the cards; typing in the
+	// name and email fields saves through the form's onInput.
+	createEffect(
+		on(
+			[className, company, serialNumber, () => JSON.stringify(messages)],
+			saveDraft,
+			{ defer: true },
+		),
 	);
 	const [bouquetErrors, setBouquetErrors] = createSignal<
 		Record<string, BouquetMessageErrors>
@@ -233,10 +299,23 @@ function CheckoutForm(props: {
 			)?.focus({ preventScroll: true });
 		});
 	};
+	/** From the review: back to the details or payment part of the form. */
+	const editSection = (id: string) => {
+		setReviewing(false);
+		requestAnimationFrame(() => {
+			const section = document.getElementById(id);
+			section?.scrollIntoView({ behavior: "smooth", block: "start" });
+			// The section itself, so no phone keyboard or dropdown pops open.
+			section?.focus({ preventScroll: true });
+		});
+	};
 	/** Open once the form is valid: a last look (and edit) before placing. */
 	const [reviewing, setReviewing] = createSignal(false);
 	/** Ticked in the review: orders can't be cancelled once placed. */
 	const [noCancelAccepted, setNoCancelAccepted] = createSignal(false);
+	/** They pressed Place order without ticking it: point at the box. */
+	const [noCancelMissing, setNoCancelMissing] = createSignal(false);
+	let noCancelBox: HTMLInputElement | undefined;
 	/** "To follow": order now, send the reference number later. */
 	const [referenceLater, setReferenceLater] = createSignal(false);
 	let formRef!: HTMLFormElement;
@@ -315,13 +394,19 @@ function CheckoutForm(props: {
 		if (submitting() || hasProblem()) return;
 		if (validateForm()) {
 			setNoCancelAccepted(false);
+			setNoCancelMissing(false);
 			setReviewing(true);
 		} else focusFirstInvalid(formRef);
 	};
 
 	/** Places the order from the review dialog, with any edits made there. */
 	const placeNow = async () => {
-		if (submitting() || hasProblem() || !noCancelAccepted()) return;
+		if (submitting() || hasProblem()) return;
+		if (!noCancelAccepted()) {
+			setNoCancelMissing(true);
+			noCancelBox?.focus();
+			return;
+		}
 		const valid = validateForm();
 		if (!valid) {
 			setReviewing(false);
@@ -368,12 +453,17 @@ function CheckoutForm(props: {
 				}
 				return;
 			}
-			// Leave the page before emptying the bag so it never flashes "empty".
+			// Empty the bag the moment the order exists, so reloading or going back
+			// can't order it twice. `onPlaced` keeps "empty" from flashing meanwhile.
+			props.onPlaced();
+			clearCart();
+			clearCheckoutDraft();
+			const orderPage = `/order/${result.orderId}`;
+			// The order is placed even if this page change fails: never say otherwise.
 			await navigate({
 				to: "/order/$orderId",
 				params: { orderId: result.orderId },
-			});
-			clearCart();
+			}).catch(() => window.location.assign(orderPage));
 		} catch {
 			setFormError(
 				"We couldn’t place your order. Check your connection and try again.",
@@ -388,10 +478,11 @@ function CheckoutForm(props: {
 			ref={formRef}
 			noValidate
 			onSubmit={handleSubmit}
+			onInput={saveDraft}
 			class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]"
 		>
 			<div class="flex flex-col gap-6">
-				<Section title="Your details" step={1}>
+				<Section id={DETAILS_SECTION} title="Your details" step={1}>
 					<div class="flex flex-col gap-4">
 						<ChoiceSelect
 							name="className"
@@ -470,7 +561,7 @@ function CheckoutForm(props: {
 							label="Last name"
 							autocomplete="family-name"
 							maxLength={NAME_MAX}
-							defaultValue={nameParts().last}
+							defaultValue={draft?.lastName ?? nameParts().last}
 							error={errors().lastName}
 							onInput={() => clearError("lastName")}
 						/>
@@ -479,7 +570,7 @@ function CheckoutForm(props: {
 							label="First name"
 							autocomplete="given-name"
 							maxLength={NAME_MAX}
-							defaultValue={nameParts().first}
+							defaultValue={draft?.firstName ?? nameParts().first}
 							error={errors().firstName}
 							onInput={() => clearError("firstName")}
 						/>
@@ -492,7 +583,7 @@ function CheckoutForm(props: {
 							// TODO: bring this back once order emails are sent; see TODO.md.
 							// description="We’ll send your order details to this email."
 							maxLength={EMAIL_MAX}
-							defaultValue={props.email}
+							defaultValue={draft?.email ?? props.email}
 							error={errors().email}
 							onInput={() => clearError("email")}
 						/>
@@ -513,7 +604,7 @@ function CheckoutForm(props: {
 					/>
 				</Section>
 
-				<Section title="Payment" step={3}>
+				<Section id={PAYMENT_SECTION} title="Payment" step={3}>
 					<PaymentSection
 						accounts={props.paymentAccounts}
 						total={props.cart.total}
@@ -683,84 +774,138 @@ function CheckoutForm(props: {
 			>
 				<Dialog.Portal>
 					<Dialog.Overlay class="fixed inset-0 z-50 bg-petal-900/40 backdrop-blur-sm" />
-					<div class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-						<Dialog.Content class="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white text-petal-900 shadow-xl outline-none sm:rounded-3xl">
-							<div class="overflow-y-auto p-6">
-								<Dialog.Title class="font-display type-soft text-2xl font-semibold">
-									Review your order
-								</Dialog.Title>
-								<Dialog.Description class="mt-1 text-sm text-petal-900/65">
-									{bouquets().length > 1
-										? "Check what goes with each bouquet. Tap Edit to change a card or note."
-										: "Check your card and note. Tap Edit to change them."}
-								</Dialog.Description>
+					<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+						<Dialog.Content class="flex max-h-[94dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white text-petal-900 shadow-xl outline-none sm:max-h-[90dvh] sm:rounded-3xl">
+							<header class="flex shrink-0 items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+								<div class="min-w-0">
+									<Dialog.Title class="font-display type-soft text-xl font-semibold sm:text-2xl">
+										Review your order
+									</Dialog.Title>
+									<Dialog.Description class="text-sm text-petal-900/65">
+										One last look before you place it.
+									</Dialog.Description>
+								</div>
+								<Dialog.CloseButton
+									disabled={submitting()}
+									aria-label="Back to checkout"
+									class="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-full text-xl text-petal-900/60 outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									<span aria-hidden="true">×</span>
+								</Dialog.CloseButton>
+							</header>
 
-								<ReviewSummary
-									form={formRef}
-									cart={props.cart}
-									paymentMethod={paymentMethod()}
-									referenceLater={onHold()}
-								/>
-								<Show when={onHold()}>
-									<div class="mt-3">
-										<p class="rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
-											{ON_HOLD_NOTICE}
-										</p>
-									</div>
-								</Show>
-
-								<ReviewMessages
+							<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6">
+								<ReviewBouquets
 									bouquets={bouquets()}
 									messageFor={messageFor}
+									currency={props.cart.currency}
+									total={props.cart.total}
 									onEdit={editBouquet}
 								/>
+								<ReviewDetails
+									form={formRef}
+									paymentMethod={paymentMethod()}
+									referenceLater={onHold()}
+									onEdit={editSection}
+								/>
+								<Show
+									when={onHold()}
+									fallback={
+										<p class="mt-3 rounded-2xl bg-petal-50 px-4 py-3 text-sm">
+											Your payment goes in with this order, so you won’t be able
+											to edit it afterwards.
+											<Show
+												when={(() => {
+													const method = paymentMethod();
+													return !!method && isQrPayment(method);
+												})()}
+											>
+												{" "}
+												<button
+													type="button"
+													onClick={() => setReferenceLater(true)}
+													class="font-medium text-petal-700 underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+												>
+													Pay later instead
+												</button>{" "}
+												to keep {ORDER_EDIT_HOURS} hours for changes.
+											</Show>
+										</p>
+									}
+								>
+									<p class="mt-3 rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
+										We’ll hold your order until your payment arrives. You can
+										edit it for {ORDER_EDIT_HOURS} hours, until you send your
+										payment.
+									</p>
+								</Show>
+								{/* Hints at more below the fold, under the pinned footer. */}
+								<div
+									aria-hidden="true"
+									class="pointer-events-none sticky bottom-0 h-5 bg-linear-to-t from-white to-transparent"
+								/>
+							</div>
 
+							<footer class="shrink-0 border-t border-petal-100 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
+								<label
+									class={cn(
+										"flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-sm",
+										noCancelMissing()
+											? "border-error-foreground bg-error"
+											: "border-petal-100",
+									)}
+								>
+									<input
+										ref={noCancelBox}
+										type="checkbox"
+										checked={noCancelAccepted()}
+										aria-invalid={noCancelMissing() ? "true" : undefined}
+										onChange={(e) => {
+											setNoCancelAccepted(e.currentTarget.checked);
+											setNoCancelMissing(false);
+										}}
+										class="mt-0.5 size-6 shrink-0 accent-petal-700"
+									/>
+									<span>
+										<span class="block font-extrabold tracking-wide text-error-foreground">
+											NO CANCELLATION OF ORDERS
+										</span>
+										I understand my order can’t be cancelled once it’s placed.
+									</span>
+								</label>
+								<Show when={noCancelMissing()}>
+									<p role="alert" class="mt-2 text-sm text-error-foreground">
+										Tick the box above to place your order.
+									</p>
+								</Show>
 								<Show when={formError()}>
 									<p
 										role="alert"
-										class="mt-4 rounded-xl bg-error px-3 py-2 text-sm text-error-foreground"
+										class="mt-2 rounded-xl bg-error px-3 py-2 text-sm text-error-foreground"
 									>
 										{formError()}
 									</p>
 								</Show>
-							</div>
-
-							<div class="border-t border-petal-100 px-4 pt-4 text-center">
-								<p class="text-xl font-extrabold tracking-wide text-error-foreground">
-									NO CANCELLATION OF ORDERS
-								</p>
-								<label class="mx-auto mt-2 flex max-w-sm cursor-pointer items-start gap-3 py-1 text-left text-sm font-medium">
-									<input
-										type="checkbox"
-										checked={noCancelAccepted()}
-										onChange={(e) =>
-											setNoCancelAccepted(e.currentTarget.checked)
-										}
-										class="mt-0.5 size-5 shrink-0 accent-petal-700"
-									/>
-									I understand that my order can’t be cancelled once it’s
-									placed.
-								</label>
-							</div>
-							<div class="flex flex-col-reverse gap-2 p-4 sm:flex-row sm:justify-end">
-								<Dialog.CloseButton
-									disabled={submitting()}
-									class="h-12 rounded-full border border-petal-200 bg-white px-6 text-base font-medium transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-								>
-									Back to checkout
-								</Dialog.CloseButton>
-								<button
-									type="button"
-									onClick={placeNow}
-									disabled={submitting() || hasProblem() || !noCancelAccepted()}
-									aria-busy={submitting()}
-									class={cn(pillPrimary, "sm:w-auto sm:px-8")}
-								>
-									{submitting()
-										? "Placing your order…"
-										: `Place order · ${formatPrice(props.cart.total, props.cart.currency)}`}
-								</button>
-							</div>
+								<div class="mt-3 flex gap-2">
+									<Dialog.CloseButton
+										disabled={submitting()}
+										class="hidden h-12 shrink-0 rounded-full border border-petal-200 bg-white px-6 text-base font-medium transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:block"
+									>
+										Back
+									</Dialog.CloseButton>
+									<button
+										type="button"
+										onClick={placeNow}
+										disabled={submitting() || hasProblem()}
+										aria-busy={submitting()}
+										class={pillPrimary}
+									>
+										{submitting()
+											? "Placing your order…"
+											: `Place order · ${formatPrice(props.cart.total, props.cart.currency)}`}
+									</button>
+								</div>
+							</footer>
 						</Dialog.Content>
 					</div>
 				</Dialog.Portal>
@@ -769,45 +914,53 @@ function CheckoutForm(props: {
 	);
 }
 
-/** The review's list of bouquets, each with its card and note (or none). */
-function ReviewMessages(props: {
+/** Every bouquet once, with its price, its card and note, and how to change them. */
+function ReviewBouquets(props: {
 	bouquets: BagBouquet[];
 	messageFor: (key: string) => BouquetMessage;
+	currency: string;
+	total: number;
 	onEdit: (key: string) => void;
 }) {
 	return (
-		<section aria-labelledby="review-messages" class="mt-5">
-			<h3 id="review-messages" class="text-sm font-semibold">
-				{props.bouquets.length > 1 ? "Cards & notes" : "Card & note"}
+		<section aria-labelledby="review-bouquets">
+			<h3 id="review-bouquets" class="sr-only">
+				Your bouquets
 			</h3>
-			<ul class="mt-2 flex flex-col gap-2">
+			<ul class="divide-y divide-petal-100 rounded-2xl border border-petal-100">
 				<For each={props.bouquets}>
 					{(bouquet) => {
 						const message = () => props.messageFor(bouquet.key);
+						const empty = () => !hasContent(message());
 						return (
-							<li class="flex items-start gap-3 rounded-2xl bg-petal-50 p-3">
+							<li class="flex items-start gap-3 p-3">
 								<img
 									src={bouquet.line.image}
 									alt=""
-									width={40}
-									height={40}
-									class="size-10 shrink-0 rounded-lg bg-white object-cover"
+									width={56}
+									height={56}
+									class="size-14 shrink-0 rounded-xl bg-petal-50 object-cover"
 								/>
 								<div class="min-w-0 flex-1 text-sm wrap-anywhere">
-									<p class="font-medium">
-										{lineName(bouquet.line)}
-										<Show when={bouquet.of > 1}>
-											<span class="font-normal text-petal-900/60">
-												{" "}
-												· {bouquet.unit + 1} of {bouquet.of}
-											</span>
-										</Show>
+									<p class="flex justify-between gap-2">
+										<span class="min-w-0 font-medium">
+											{lineName(bouquet.line)}
+											<Show when={bouquet.of > 1}>
+												<span class="font-normal text-petal-900/60">
+													{" "}
+													· {bouquet.unit + 1} of {bouquet.of}
+												</span>
+											</Show>
+										</span>
+										<span class="shrink-0 font-medium tabular-nums">
+											{formatPrice(bouquet.line.unitPrice, props.currency)}
+										</span>
 									</p>
-									<Show
-										when={hasCard(message())}
-										fallback={<p class="mt-0.5 text-petal-900/55">No card</p>}
-									>
-										<p class="mt-1 rounded-xl bg-white px-3 py-2">
+									<Show when={bouquet.line.preorder}>
+										<PreorderTag readyBy={bouquet.line.readyBy} class="mt-1" />
+									</Show>
+									<Show when={hasCard(message())}>
+										<p class="mt-1.5 rounded-xl bg-petal-50 px-3 py-2">
 											<Show when={message().to}>
 												<span class="block text-xs font-medium">
 													To: {message().to}
@@ -819,108 +972,113 @@ function ReviewMessages(props: {
 										</p>
 									</Show>
 									<Show when={message().note}>
-										<p class="mt-1 line-clamp-2 whitespace-pre-line text-petal-900/75">
+										<p class="mt-1.5 line-clamp-2 whitespace-pre-line text-petal-900/75">
 											<span class="font-medium text-petal-900">Note:</span>{" "}
 											{message().note}
 										</p>
 									</Show>
+									<button
+										type="button"
+										onClick={() => props.onEdit(bouquet.key)}
+										class="-ml-1 mt-0.5 min-h-10 rounded-full px-1 text-sm font-medium text-petal-700 underline-offset-2 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+									>
+										{empty() ? "Add a card or note" : "Edit card or note"}
+										<span class="sr-only"> for {lineName(bouquet.line)}</span>
+									</button>
 								</div>
-								<button
-									type="button"
-									onClick={() => props.onEdit(bouquet.key)}
-									class="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-petal-700 underline-offset-2 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-								>
-									Edit
-									<span class="sr-only">
-										{" "}
-										card and note for {lineName(bouquet.line)}
-									</span>
-								</button>
 							</li>
 						);
 					}}
 				</For>
+				<li class="flex items-baseline justify-between gap-3 p-3 font-semibold">
+					<span>Total</span>
+					<span class="text-lg tabular-nums">
+						{formatPrice(props.total, props.currency)}
+					</span>
+				</li>
 			</ul>
 		</section>
 	);
 }
 
-/** The parts of the order that can't change in the review: who, what, how. */
-function ReviewSummary(props: {
+/** Who's ordering and how they're paying, a line each, with a way to change it. */
+function ReviewDetails(props: {
 	form: HTMLFormElement;
-	cart: PricedCart;
 	paymentMethod: PaymentMethod | null;
 	referenceLater: boolean;
+	onEdit: (sectionId: string) => void;
 }) {
 	// Read once when the review opens; these fields stay on the form.
 	const data = new FormData(props.form);
 	const details = readCheckoutForm(data);
 	const reference = data.get("referenceNumber");
 	return (
-		<dl class="mt-5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 rounded-2xl border border-petal-100 p-4 text-sm">
-			<dt class="text-petal-900/60">Name</dt>
-			<dd class="font-medium">
-				{details.lastName}, {details.firstName}
-			</dd>
-			<dt class="text-petal-900/60">Class</dt>
-			<dd>
-				{CLASS_LABELS[details.className as keyof typeof CLASS_LABELS] ??
-					details.className}
-			</dd>
-			<Show when={details.company}>
-				<dt class="text-petal-900/60">Company</dt>
-				<dd class="flex items-center gap-1.5">
-					<ColorSwatch color={companyColor(details.company)} />
-					{details.company}
-				</dd>
-			</Show>
-			<Show when={details.serialNumber}>
-				<dt class="text-petal-900/60">Serial number</dt>
-				<dd class="tabular-nums">{formatSerialNumber(details.serialNumber)}</dd>
-			</Show>
-			<dt class="text-petal-900/60">Bouquets</dt>
-			<dd>
-				<ul class="flex flex-col gap-1">
-					<For each={props.cart.lines}>
-						{(line) => (
-							<li>
-								{line.quantity} × {lineName(line)}
-								<Show when={line.preorder}>
-									<PreorderTag readyBy={line.readyBy} class="ml-1.5" />
-								</Show>
-							</li>
-						)}
-					</For>
-				</ul>
-			</dd>
-			<Show when={props.paymentMethod}>
-				{(method) => (
-					<>
-						<dt class="text-petal-900/60">Payment</dt>
-						<dd>
-							{PAYMENT_METHOD_LABELS[method()]}
-							<Show
-								when={!props.referenceLater}
-								fallback=" · Reference number to follow"
-							>
-								<Show when={typeof reference === "string" && reference}>
-									{" "}
-									· Ref {String(reference)}
-								</Show>
+		<dl class="mt-3 divide-y divide-petal-100 rounded-2xl border border-petal-100 text-sm">
+			<div class="flex items-start justify-between gap-3 p-3">
+				<div class="min-w-0 wrap-anywhere">
+					<dt class="text-xs text-petal-900/60">Ordered by</dt>
+					<dd class="font-medium">
+						{details.lastName}, {details.firstName}
+					</dd>
+					<dd class="flex flex-wrap items-center gap-x-1.5 text-petal-900/70">
+						{CLASS_LABELS[details.className as keyof typeof CLASS_LABELS] ??
+							details.className}
+						<Show when={details.company}>
+							<span aria-hidden="true">·</span>
+							<ColorSwatch color={companyColor(details.company)} />
+							{details.company}
+						</Show>
+						<Show when={details.serialNumber}>
+							<span aria-hidden="true">·</span>
+							<span class="tabular-nums">
+								{formatSerialNumber(details.serialNumber)}
+							</span>
+						</Show>
+					</dd>
+				</div>
+				<ReviewEdit
+					label="your details"
+					onClick={() => props.onEdit(DETAILS_SECTION)}
+				/>
+			</div>
+			<div class="flex items-start justify-between gap-3 p-3">
+				<div class="min-w-0 wrap-anywhere">
+					<dt class="text-xs text-petal-900/60">Payment</dt>
+					<dd class="font-medium">
+						<Show when={props.paymentMethod}>
+							{(method) => PAYMENT_METHOD_LABELS[method()]}
+						</Show>
+						<Show when={!props.referenceLater} fallback=" · Paying later">
+							<Show when={typeof reference === "string" && reference}>
+								{" "}
+								· Ref {String(reference)}
 							</Show>
-						</dd>
-					</>
-				)}
-			</Show>
-			<dt class="font-semibold">Total</dt>
-			<dd class="font-semibold tabular-nums">
-				{formatPrice(props.cart.total, props.cart.currency)}
-			</dd>
+						</Show>
+					</dd>
+				</div>
+				<ReviewEdit
+					label="your payment"
+					onClick={() => props.onEdit(PAYMENT_SECTION)}
+				/>
+			</div>
 		</dl>
 	);
 }
 
+function ReviewEdit(props: { label: string; onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={props.onClick}
+			class="-my-2 min-h-10 shrink-0 rounded-full px-2 text-sm font-medium text-petal-700 underline-offset-2 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+		>
+			Edit<span class="sr-only"> {props.label}</span>
+		</button>
+	);
+}
+
 function Section(props: {
+	id?: string;
 	title: string;
 	/** A word after the title, e.g. "Optional". */
 	note?: string;
@@ -928,7 +1086,11 @@ function Section(props: {
 	children: JSX.Element;
 }) {
 	return (
-		<section class="rounded-3xl border border-petal-100 bg-white p-6">
+		<section
+			id={props.id}
+			tabIndex={props.id ? -1 : undefined}
+			class="scroll-mt-28 rounded-3xl border border-petal-100 bg-white p-6 outline-none"
+		>
 			<h2 class="mb-4 flex items-center gap-3 font-display type-soft text-xl font-semibold">
 				<span
 					aria-hidden="true"

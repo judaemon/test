@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/solid-start";
 import { getRequestHeaders } from "@tanstack/solid-start/server";
 import { PAYMENT_METHODS } from "~/lib/payment";
-import { getStaffUser, requireOwner } from "../admin-auth";
+import { getStaffUser, requireOwner, requireStaff } from "../admin-auth";
 import { getAuth } from "../auth";
 import { getDb } from "../db";
 import { listPaymentAccounts, updatePaymentAccount } from "../payments-repo";
@@ -193,6 +193,73 @@ export const createStaff = createServerFn({ method: "POST" })
 				/exist/i.test(message)
 					? "Someone already uses that email."
 					: "Couldn’t add that person. Please try again.",
+			);
+		}
+		return { ok: true as const };
+	});
+
+const newPasswordFrom = (source: Record<string, unknown>) => {
+	const password =
+		typeof source.newPassword === "string" ? source.newPassword : "";
+	if (password.length < 10)
+		throw new InputError("Use a password with at least 10 characters.");
+	if (password.length > 128) throw new InputError("That password is too long.");
+	return password;
+};
+
+/** The owner sets a new password for someone who lost theirs, and signs them out. */
+export const resetStaffPassword = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			userId: text(source, "userId", { max: 64 }),
+			newPassword: newPasswordFrom(source),
+		};
+	})
+	.handler(async ({ data }) => {
+		const owner = await requireOwner();
+		if (data.userId === owner.id)
+			throw new InputError("Change your own password under My password.");
+		const target = getDb()
+			.query('SELECT role FROM "user" WHERE id = $id')
+			.get({ id: data.userId }) as { role: string | null } | null;
+		if (target?.role !== "admin" && target?.role !== "user")
+			throw new InputError("That account isn’t a staff member.");
+		const auth = await getAuth();
+		await auth.api.setUserPassword({
+			headers: authHeaders(),
+			body: { userId: data.userId, newPassword: data.newPassword },
+		});
+		await auth.api.revokeUserSessions({
+			headers: authHeaders(),
+			body: { userId: data.userId },
+		});
+		return { ok: true as const };
+	});
+
+/** Anyone on staff changes their own password; other devices get signed out. */
+export const changeMyPassword = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		const currentPassword =
+			typeof source.currentPassword === "string" ? source.currentPassword : "";
+		if (!currentPassword) throw new InputError("Enter your current password.");
+		return { currentPassword, newPassword: newPasswordFrom(source) };
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		const auth = await getAuth();
+		try {
+			await auth.api.changePassword({
+				headers: authHeaders(),
+				body: { ...data, revokeOtherSessions: true },
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "";
+			throw new InputError(
+				/invalid|incorrect/i.test(message)
+					? "Your current password isn’t right."
+					: "Couldn’t change your password. Please try again.",
 			);
 		}
 		return { ok: true as const };

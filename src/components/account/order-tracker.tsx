@@ -9,6 +9,11 @@ import { showToast } from "~/components/ui/toast";
 import { orderFor } from "~/lib/bouquet-messages";
 import { setCartOpen } from "~/lib/cart-store";
 import { orderDay } from "~/lib/checkout";
+import {
+	formatEditDeadline,
+	ORDER_EDIT_RULE,
+	orderEditState,
+} from "~/lib/order-edit";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice, styleLabel } from "~/lib/product";
 import { reorderToCart } from "~/lib/reorder";
@@ -104,11 +109,27 @@ export function OrderTracker(props: {
 				</Show>
 			</header>
 
+			<Show when={order().cancelledBouquets.length > 0}>
+				<ul class="mt-4 flex flex-col gap-1 rounded-2xl bg-petal-50 px-4 py-3 text-sm wrap-anywhere text-petal-900/75">
+					<For each={order().cancelledBouquets}>
+						{(bouquet) => (
+							<li>
+								{bouquet.name} was cancelled. Reason: {bouquet.reason}
+							</li>
+						)}
+					</For>
+				</ul>
+			</Show>
 			<Show
 				when={order().stage !== "cancelled"}
 				fallback={
 					<p class="mt-4 rounded-2xl bg-petal-50 px-4 py-3 text-sm text-petal-900/75">
-						This order was cancelled. If you already paid, we’ll refund you.
+						This order was cancelled.
+						<Show when={order().cancelReason}>
+							{" "}
+							Reason: {order().cancelReason}.
+						</Show>{" "}
+						If you already paid, message us with your order number for a refund.
 					</p>
 				}
 			>
@@ -282,6 +303,17 @@ export function OrderTracker(props: {
 							class={cn(pillPrimary, "h-10 w-auto px-5 text-sm")}
 						>
 							Pay now
+						</Link>
+					</Show>
+					<Show when={orderEditState(order()).editable}>
+						<Link
+							to="/order/$orderId/edit"
+							params={{ orderId: order().id }}
+							title={ORDER_EDIT_RULE}
+							class="inline-flex h-10 items-center justify-center rounded-full border border-petal-200 bg-white px-5 text-sm font-medium outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							Edit order (until{" "}
+							{formatEditDeadline(orderEditState(order()).until)})
 						</Link>
 					</Show>
 					<ReorderButton order={order()} />

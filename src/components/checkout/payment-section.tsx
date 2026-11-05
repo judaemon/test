@@ -9,6 +9,7 @@ import {
 	TextFieldLabel,
 } from "~/components/ui/text-field";
 import type { FieldErrors, PaymentField } from "~/lib/checkout";
+import { ORDER_EDIT_HOW, ORDER_EDIT_RULE } from "~/lib/order-edit";
 import {
 	CARD_BRAND_LABELS,
 	type CardInput,
@@ -330,9 +331,10 @@ function QrPayment(props: {
 						class="mt-0.5 size-5 shrink-0 accent-petal-700"
 					/>
 					<span>
-						<span class="block font-medium">Reference number to follow</span>
+						<span class="block font-medium">Pay later</span>
 						<span class="text-petal-900/65">
-							Pay later and send it from Check your order or by signing in.
+							Place your order now, then send your payment and reference number
+							from your order page or Check your order.
 						</span>
 					</span>
 				</label>
@@ -343,6 +345,9 @@ function QrPayment(props: {
 				fallback={
 					<p class="rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
 						{ON_HOLD_NOTICE}
+						<span class="mt-1 block">
+							{ORDER_EDIT_RULE} {ORDER_EDIT_HOW}
+						</span>
 					</p>
 				}
 			>

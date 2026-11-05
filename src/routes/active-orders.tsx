@@ -7,6 +7,7 @@ import {
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 
 import { CompanyLabel } from "~/components/order/company-label";
+import { OrderEmailCheck } from "~/components/order/order-email-check";
 import {
 	OrderStatusPill,
 	PaymentStatusPill,
@@ -15,6 +16,7 @@ import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { orderDay } from "~/lib/checkout";
+import { formatEditDeadline } from "~/lib/order-edit";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { formatDate } from "~/lib/time";
@@ -182,6 +184,8 @@ function OrderLookupPage() {
 function OrderCard(props: { order: ActiveOrder }) {
 	const navigate = useNavigate();
 	const order = () => props.order;
+	/** Tapped Edit order: now asking for the order's email. */
+	const [editing, setEditing] = createSignal(false);
 	const payable = () =>
 		order().status === "on_hold" || order().status === "payment_check";
 
@@ -214,6 +218,23 @@ function OrderCard(props: { order: ActiveOrder }) {
 
 			<Show when={order().stage !== "cancelled"}>
 				<Tracker stage={order().stage} />
+			</Show>
+			<Show when={order().cancelledBouquets.length > 0}>
+				<ul class="mt-3 flex flex-col gap-1 rounded-2xl bg-error px-4 py-3 text-sm wrap-anywhere text-error-foreground">
+					<For each={order().cancelledBouquets}>
+						{(bouquet) => (
+							<li>
+								<strong class="font-semibold">{bouquet.name} cancelled.</strong>{" "}
+								Reason: {bouquet.reason}
+							</li>
+						)}
+					</For>
+				</ul>
+			</Show>
+			<Show when={order().cancelReason}>
+				<p class="mt-3 rounded-2xl bg-error px-4 py-3 text-sm whitespace-pre-line wrap-anywhere text-error-foreground">
+					<strong class="font-semibold">Reason:</strong> {order().cancelReason}
+				</p>
 			</Show>
 
 			<ul class="mt-4 flex flex-col gap-3 border-t border-petal-50 pt-4 text-sm">
@@ -277,6 +298,45 @@ function OrderCard(props: { order: ActiveOrder }) {
 				>
 					Pay now
 				</button>
+			</Show>
+
+			<Show when={order().canEdit}>
+				<div class="mt-3 rounded-2xl bg-petal-50 p-4">
+					<p class="text-sm">
+						You can edit this order until{" "}
+						<strong class="font-semibold">
+							{formatEditDeadline(order().editUntil)}
+						</strong>
+						, as long as you haven’t sent your payment. You’ll need to confirm
+						the email you used when you ordered.
+					</p>
+					<Show
+						when={editing()}
+						fallback={
+							<button
+								type="button"
+								aria-label={`Edit order ${order().number}`}
+								onClick={() => setEditing(true)}
+								class="mt-3 inline-flex h-11 w-full items-center justify-center rounded-full border border-petal-200 bg-white px-5 text-sm font-medium outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+							>
+								Edit order
+							</button>
+						}
+					>
+						<div class="mt-3">
+							<OrderEmailCheck
+								number={order().number}
+								onCancel={() => setEditing(false)}
+								onConfirmed={(orderId) =>
+									navigate({
+										to: "/order/$orderId/edit",
+										params: { orderId },
+									})
+								}
+							/>
+						</div>
+					</Show>
+				</div>
 			</Show>
 		</li>
 	);

@@ -529,6 +529,20 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		new_id TEXT NOT NULL
 	);
 	`,
+	// v35: staff give a reason when cancelling, and can attach a photo. An older
+	// cancel_reason with no cancelled_by was written by the shopper.
+	`
+	ALTER TABLE orders ADD COLUMN cancelled_by TEXT;
+	ALTER TABLE orders ADD COLUMN cancel_proof TEXT;
+	`,
+	// v36: when the shopper last edited their order, so staff can recheck it.
+	`
+	ALTER TABLE orders ADD COLUMN customer_edited_at TEXT;
+	`,
+	// v37: bouquets staff cancelled from an order that carries on without them.
+	`
+	ALTER TABLE orders ADD COLUMN cancelled_bouquets TEXT NOT NULL DEFAULT '[]';
+	`,
 ];
 
 declare global {

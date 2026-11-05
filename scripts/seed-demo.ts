@@ -26,6 +26,7 @@ import {
 import { getCustomSettings, saveCustomSettings } from "~/server/custom-repo";
 import { getDb, seedStarterData } from "~/server/db";
 import {
+	cancelOrder,
 	createOrder,
 	type NewOrder,
 	reviewPayment,
@@ -400,11 +401,15 @@ async function placeDemoOrder(
 	});
 	if (demo.review) reviewPayment(id, demo.review, REVIEWER);
 	// Walk through each stage like staff would, so the timeline is complete.
-	const path =
-		demo.stage === "cancelled"
-			? (["cancelled"] as const)
-			: BOARD_STAGES.slice(1, BOARD_STAGES.indexOf(demo.stage) + 1);
-	for (const stage of path) setOrderStage(id, stage);
+	if (demo.stage === "cancelled") {
+		cancelOrder(id, {
+			reason: "The customer asked to cancel before payment.",
+			cancelledBy: REVIEWER,
+		});
+	} else {
+		const path = BOARD_STAGES.slice(1, BOARD_STAGES.indexOf(demo.stage) + 1);
+		for (const stage of path) setOrderStage(id, stage);
+	}
 	if (demo.stage === "done") {
 		setRider(id, RIDERS[index % RIDERS.length] as (typeof RIDERS)[number]);
 	}
@@ -638,7 +643,7 @@ async function main() {
 				db.run(`DELETE FROM "${table}"`);
 			}
 		})();
-		for (const kind of ["proofs", "delivery"]) {
+		for (const kind of ["proofs", "delivery", "cancellations"]) {
 			await rm(join(UPLOAD_DIR, kind), { recursive: true, force: true });
 		}
 		seedStarterData(db);

@@ -1,5 +1,11 @@
+import { hasContent, lineKey } from "~/lib/bouquet-messages";
 import type { CheckoutDetails } from "~/lib/checkout";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import {
+	ORDER_EDIT_HOURS,
+	ORDER_EDIT_LOCKED,
+	orderEditState,
+} from "~/lib/order-edit";
 import {
 	type CardBrand,
 	normalizeReferenceNumber,
@@ -8,6 +14,8 @@ import {
 import type { PricedCart, PricedLine } from "~/lib/pricing";
 import { lineName } from "~/lib/product";
 import {
+	type BoardStage,
+	type CancelledBouquet,
 	type CustomerOrder,
 	canStartMaking,
 	isPaymentDue,
@@ -60,6 +68,10 @@ interface OrderRow {
 	delivery_photo: string | null;
 	delivered_at: string | null;
 	cancel_reason: string | null;
+	cancelled_by: string | null;
+	cancel_proof: string | null;
+	customer_edited_at: string | null;
+	cancelled_bouquets: string;
 	is_test: number;
 	amount_paid_cents: number | null;
 }
@@ -134,6 +146,10 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 		},
 		events,
 		cancelReason: row.cancel_reason ?? undefined,
+		cancelledBy: row.cancelled_by ?? undefined,
+		cancelProof: row.cancel_proof ?? undefined,
+		customerEditedAt: row.customer_edited_at ?? undefined,
+		cancelledBouquets: JSON.parse(row.cancelled_bouquets) as CancelledBouquet[],
 		isTest: row.is_test === 1,
 	};
 }
@@ -145,9 +161,19 @@ export function toCustomerOrder(order: Order): CustomerOrder {
 		isTest: _isTest,
 		payment: { proofFile: _proof, reviewedBy: _reviewer, ...payment },
 		delivery: { photoFile, ...delivery },
+		cancelledBy: _cancelledBy,
+		cancelProof: _cancelProof,
+		cancelledBouquets,
 		...rest
 	} = order;
-	return { ...rest, payment, delivery: { ...delivery, hasPhoto: !!photoFile } };
+	return {
+		...rest,
+		cancelledBouquets: cancelledBouquets.map(
+			({ cancelledBy: _by, proofFile: _file, ...bouquet }) => bouquet,
+		),
+		payment,
+		delivery: { ...delivery, hasPhoto: !!photoFile },
+	};
 }
 
 function addEvent(id: string, stage: OrderStage, at = nowIso()) {
@@ -428,9 +454,9 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
 
 /**
  * Moves an order through the workflow. Unpaid QR orders stay in "New" until
- * their payment is verified, and cancelling puts the bouquets back in stock.
+ * their payment is verified. Cancelling has its own step: `cancelOrder`.
  */
-export function setOrderStage(id: string, stage: OrderStage): Order {
+export function setOrderStage(id: string, stage: BoardStage): Order {
 	const db = getDb();
 	db.transaction(() => {
 		const order = getOrderById(id);
@@ -438,7 +464,7 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 		if (order.stage === stage) return;
 		if (order.stage === "cancelled")
 			throw new OrderRuleError("Cancelled orders can’t be moved.");
-		if (stage !== "new" && stage !== "cancelled") {
+		if (stage !== "new") {
 			if (!canStartMaking(order.payment)) {
 				throw new OrderRuleError(
 					order.payment.status === "rejected"
@@ -447,12 +473,6 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 				);
 			}
 		}
-		// A test order already gave its stock back when it was marked.
-		if (stage === "cancelled" && !order.isTest) {
-			adjustStyleStock(order.lines, 1);
-			adjustWrapperStock(order.lines, 1);
-			adjustFlowerStock(order.lines, 1);
-		}
 		const now = nowIso();
 		db.query(
 			`UPDATE orders SET stage = $stage, stage_updated_at = $now,
@@ -460,6 +480,219 @@ export function setOrderStage(id: string, stage: OrderStage): Order {
 			 WHERE id = $id`,
 		).run({ id, stage, now });
 		addEvent(id, stage, now);
+	})();
+	return getOrderById(id) as Order;
+}
+
+/**
+ * The shopper edits their own order: details, cards and notes, and which
+ * bouquets and how many. The rule is checked here, in the transaction, so a payment sent or a deadline passed
+ * while the page was open still stops it. Stock follows the new quantities.
+ */
+export function updateCustomerOrder(
+	id: string,
+	update: { details: CheckoutDetails; lines: PricedLine[] },
+): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		const state = orderEditState(order);
+		if (!state.editable)
+			throw new OrderRuleError(ORDER_EDIT_LOCKED[state.lock ?? "progress"]);
+		const before = (line: PricedLine) =>
+			order.lines.find(
+				(old) =>
+					old.productId === line.productId && old.variantId === line.variantId,
+			)?.quantity ?? 0;
+		for (const line of update.lines) {
+			if (line.productId === CUSTOM_PRODUCT_ID || line.quantity <= before(line))
+				continue;
+			const available = db
+				.query(
+					`SELECT 1 FROM bouquet_styles
+					 WHERE bouquet_id = $productId AND slug = $variantId AND is_available = 1`,
+				)
+				.get({ productId: line.productId, variantId: line.variantId });
+			if (!available)
+				throw new OrderRuleError(
+					`${lineName(line)} isn’t available right now. Choose another bouquet.`,
+				);
+		}
+		// A test order holds no stock. Failing partway rolls all of this back.
+		if (!order.isTest) {
+			adjustStyleStock(order.lines, 1);
+			adjustWrapperStock(order.lines, 1);
+			adjustFlowerStock(order.lines, 1);
+			const short = adjustStyleStock(update.lines, -1);
+			if (short)
+				throw new OrderRuleError(
+					`There aren’t enough ${lineName(short)} left. Lower the quantity to continue.`,
+				);
+			const wrapper = adjustWrapperStock(update.lines, -1);
+			if (wrapper)
+				throw new OrderRuleError(
+					`There aren’t enough ${wrapper} wrappers left. Lower the quantity to continue.`,
+				);
+			const flower = adjustFlowerStock(update.lines, -1);
+			if (flower)
+				throw new OrderRuleError(
+					`There aren’t enough ${flower} left. Lower the quantity to continue.`,
+				);
+		}
+		const subtotal = update.lines.reduce(
+			(sum, line) => sum + toCents(line.lineTotal),
+			0,
+		);
+		db.query(
+			`UPDATE orders SET email = $email, recipient_name = $fullName, first_name = $firstName,
+			   last_name = $lastName, full_name = $fullName, company = $company,
+			   serial_number = $serialNumber, class_name = $className, lines = $lines,
+			   subtotal_cents = $subtotal, total_cents = $subtotal + delivery_fee_cents,
+			   customer_edited_at = $now
+			 WHERE id = $id`,
+		).run({
+			id,
+			email: update.details.email,
+			firstName: update.details.firstName,
+			lastName: update.details.lastName,
+			fullName: update.details.fullName,
+			company: update.details.company,
+			serialNumber: update.details.serialNumber,
+			className: update.details.className,
+			lines: JSON.stringify(update.lines),
+			subtotal,
+			now: nowIso(),
+		});
+	})();
+	return getOrderById(id) as Order;
+}
+
+/**
+ * Staff cancel one bouquet: it goes back in stock and off the total, its card
+ * and note go with it, and the rest of the order carries on. Only while the
+ * shopper could still edit the order: within the time limit and before payment.
+ */
+export function cancelBouquet(
+	id: string,
+	cancellation: {
+		lineKey: string;
+		unit: number;
+		reason: string;
+		cancelledBy: string;
+		proofFile?: string;
+	},
+): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		const state = orderEditState(order);
+		if (!state.editable)
+			throw new OrderRuleError(
+				`A single bouquet can only be cancelled within ${ORDER_EDIT_HOURS} hours and before payment is sent. You can still cancel the whole order.`,
+			);
+		const line = order.lines.find(
+			(candidate) => lineKey(candidate) === cancellation.lineKey,
+		);
+		if (
+			!line ||
+			!Number.isInteger(cancellation.unit) ||
+			cancellation.unit < 0 ||
+			cancellation.unit >= line.quantity
+		)
+			throw new OrderRuleError("That bouquet isn’t on this order anymore.");
+		if (order.itemCount <= 1)
+			throw new OrderRuleError(
+				"This is the order’s only bouquet. Cancel the whole order instead.",
+			);
+		// A test order holds no stock.
+		if (!order.isTest) {
+			const one = [{ ...line, quantity: 1 }];
+			adjustStyleStock(one, 1);
+			adjustWrapperStock(one, 1);
+			adjustFlowerStock(one, 1);
+		}
+		const lines = order.lines.flatMap((candidate) => {
+			if (candidate !== line) return [candidate];
+			if (candidate.quantity === 1) return [];
+			const { messages, ...rest } = candidate;
+			const kept = messages?.filter((_, unit) => unit !== cancellation.unit);
+			return [
+				{
+					...rest,
+					quantity: candidate.quantity - 1,
+					lineTotal: fromCents(
+						toCents(candidate.unitPrice) * (candidate.quantity - 1),
+					),
+					...(kept?.some(hasContent) ? { messages: kept } : {}),
+				},
+			];
+		});
+		const subtotal = lines.reduce(
+			(sum, candidate) => sum + toCents(candidate.lineTotal),
+			0,
+		);
+		const cancelled: CancelledBouquet = {
+			name: lineName(line),
+			...(line.image ? { image: line.image } : {}),
+			price: line.unitPrice,
+			reason: cancellation.reason,
+			at: nowIso(),
+			cancelledBy: cancellation.cancelledBy,
+			...(cancellation.proofFile ? { proofFile: cancellation.proofFile } : {}),
+		};
+		db.query(
+			`UPDATE orders SET lines = $lines, subtotal_cents = $subtotal,
+			   total_cents = $subtotal + delivery_fee_cents,
+			   cancelled_bouquets = $cancelled
+			 WHERE id = $id`,
+		).run({
+			id,
+			lines: JSON.stringify(lines),
+			subtotal,
+			cancelled: JSON.stringify([...order.cancelledBouquets, cancelled]),
+		});
+	})();
+	return getOrderById(id) as Order;
+}
+
+/**
+ * Staff cancel an order, saying why (and optionally attaching a photo). Its
+ * bouquets go back in stock. Finished orders can't be cancelled.
+ */
+export function cancelOrder(
+	id: string,
+	cancellation: { reason: string; cancelledBy: string; proofFile?: string },
+): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("This order was already cancelled.");
+		if (order.stage === "done")
+			throw new OrderRuleError("Done orders can’t be cancelled.");
+		// A test order already gave its stock back when it was marked.
+		if (!order.isTest) {
+			adjustStyleStock(order.lines, 1);
+			adjustWrapperStock(order.lines, 1);
+			adjustFlowerStock(order.lines, 1);
+		}
+		const now = nowIso();
+		db.query(
+			`UPDATE orders SET stage = 'cancelled', stage_updated_at = $now,
+			   delivered_at = NULL, cancel_reason = $reason,
+			   cancelled_by = $cancelledBy, cancel_proof = $proofFile
+			 WHERE id = $id`,
+		).run({
+			id,
+			now,
+			reason: cancellation.reason,
+			cancelledBy: cancellation.cancelledBy,
+			proofFile: cancellation.proofFile ?? null,
+		});
+		addEvent(id, "cancelled", now);
 	})();
 	return getOrderById(id) as Order;
 }

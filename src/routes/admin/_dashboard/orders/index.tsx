@@ -6,7 +6,7 @@ import {
 	useRouterState,
 } from "@tanstack/solid-router";
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
-
+import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
 import { ListPager } from "~/components/admin/list-pager";
 import {
@@ -31,6 +31,7 @@ import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
 import { orderColor } from "~/lib/cadets";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
+import { canCancelOneBouquet } from "~/lib/order-edit";
 import {
 	FACETS,
 	isFiltering,
@@ -398,12 +399,11 @@ function OrdersPage() {
 											// The whole row opens the order; the order number stays a
 											// real link for keyboard users and opening in a new tab.
 											onClick={(event) => {
-												if (
-													(event.target as HTMLElement).closest(
-														"a, button, select",
-													)
-												)
-													return;
+												const target = event.target as HTMLElement;
+												// Dialogs opened from a row aren't inside it, but their
+												// clicks still bubble to it.
+												if (!event.currentTarget.contains(target)) return;
+												if (target.closest("a, button, select")) return;
 												// Don't hijack selecting text to copy it.
 												if (window.getSelection()?.toString()) return;
 												if (event.ctrlKey || event.metaKey) {
@@ -454,10 +454,18 @@ function OrdersPage() {
 														minute: "2-digit",
 													})}
 												</p>
+												<Show when={order.cancelledBouquets.length > 0}>
+													<p class="max-w-40 text-xs text-error-foreground">
+														{order.cancelledBouquets.length} bouquet
+														{order.cancelledBouquets.length === 1 ? "" : "s"}{" "}
+														cancelled
+													</p>
+												</Show>
 												<Show when={order.cancelReason}>
 													{(reason) => (
-														<p class="max-w-40 text-xs text-error-foreground">
-															By customer: {reason()}
+														<p class="max-w-40 text-xs wrap-anywhere text-error-foreground">
+															{order.cancelledBy ? "Reason" : "By customer"}:{" "}
+															{reason()}
 														</p>
 													)}
 												</Show>
@@ -469,6 +477,31 @@ function OrdersPage() {
 												>
 													{order.isTest ? "Not a test" : "Mark as test"}
 												</button>
+												<Show
+													when={
+														order.stage === "new" || order.stage === "making"
+													}
+												>
+													<Show when={canCancelOneBouquet(order)}>
+														<CancelOrderButton
+															order={order}
+															line={line}
+															class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
+															onCancelled={() => router.invalidate()}
+														>
+															Cancel this bouquet
+														</CancelOrderButton>
+													</Show>
+													<CancelOrderButton
+														order={order}
+														class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
+														onCancelled={() => router.invalidate()}
+													>
+														{order.itemCount > 1
+															? "Cancel whole order"
+															: "Cancel order"}
+													</CancelOrderButton>
+												</Show>
 											</td>
 											<td
 												data-label="Name"
@@ -760,8 +793,8 @@ function OrderStageSelect(props: { order: Order }) {
 	const stage = () => props.order.stage as RowStage;
 	return (
 		<Show
-			// Cancelling restocks and can't be undone: it stays on the order page,
-			// behind its confirmation.
+			// Cancelling restocks and can't be undone: it has its own button and
+			// dialog, which asks why.
 			when={props.order.stage !== "cancelled"}
 			fallback={<OrderStatusPill status="cancelled" />}
 		>

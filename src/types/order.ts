@@ -7,6 +7,9 @@ export const BOARD_STAGES = ["new", "making", "done"] as const;
 export type BoardStage = (typeof BOARD_STAGES)[number];
 export type OrderStage = BoardStage | "cancelled";
 
+/** Longest reason staff can give for cancelling an order. */
+export const CANCEL_REASON_MAX = 500;
+
 export const STAGE_LABELS: Record<OrderStage, string> = {
 	new: "New orders",
 	making: "Being made",
@@ -116,6 +119,19 @@ export interface OrderDelivery {
 	deliveredAt?: string;
 }
 
+/** One bouquet staff cancelled from an order, and why. */
+export interface CancelledBouquet {
+	name: string;
+	image?: string;
+	price: number;
+	reason: string;
+	at: string;
+	/** Staff only, like the photo. */
+	cancelledBy?: string;
+	/** Stored photo staff attached; staff only. */
+	proofFile?: string;
+}
+
 export interface Order extends PricedCart {
 	id: string;
 	number: string;
@@ -129,15 +145,36 @@ export interface Order extends PricedCart {
 	delivery: OrderDelivery;
 	/** When each stage was reached, oldest first. */
 	events: OrderEvent[];
-	/** On older orders the shopper cancelled themselves: their reason. */
+	/**
+	 * Why it was cancelled. Staff give one with `cancelledBy` set; on older orders
+	 * without it, the shopper cancelled themselves and this is their reason.
+	 */
 	cancelReason?: string;
+	/** The staff member who cancelled the order. */
+	cancelledBy?: string;
+	/** Stored photo staff attached when cancelling; staff-only. */
+	cancelProof?: string;
+	/** When the shopper last edited the order themselves. */
+	customerEditedAt?: string;
+	/** Single bouquets staff cancelled; the rest of the order carries on. */
+	cancelledBouquets: CancelledBouquet[];
 	/** Marked by staff: left out of reports, and holds no stock. */
 	isTest: boolean;
 }
 
 /** A customer's view of their own order: no staff-only details or file names. */
 export interface CustomerOrder
-	extends Omit<Order, "payment" | "delivery" | "customerId" | "isTest"> {
+	extends Omit<
+		Order,
+		| "payment"
+		| "delivery"
+		| "customerId"
+		| "isTest"
+		| "cancelledBy"
+		| "cancelProof"
+		| "cancelledBouquets"
+	> {
+	cancelledBouquets: Omit<CancelledBouquet, "cancelledBy" | "proofFile">[];
 	payment: Omit<OrderPayment, "proofFile" | "reviewedBy">;
 	delivery: Omit<OrderDelivery, "photoFile"> & { hasPhoto: boolean };
 }
@@ -165,6 +202,13 @@ export interface ActiveOrder {
 	status: OrderStatus;
 	paymentMethod: PaymentMethod;
 	paymentStatus: PaymentStatus;
+	/** Why it was cancelled; not who did it, or the photo. */
+	cancelReason?: string;
+	/** Single bouquets cancelled from it, and why. */
+	cancelledBouquets: { name: string; reason: string }[];
+	/** Still within the rules for the shopper to edit it, and until when. */
+	canEdit: boolean;
+	editUntil: string;
 }
 
 /** The customer-facing tracker, in order. Cancelled orders skip it. */

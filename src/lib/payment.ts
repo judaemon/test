@@ -15,7 +15,7 @@ export function isPaymentMethod(value: unknown): value is PaymentMethod {
 
 /** Shown wherever a shopper chooses to send their reference number later. */
 export const ON_HOLD_NOTICE =
-	"Your order is confirmed. To keep things moving, please complete your payment as soon as possible.";
+	"We’ll hold your order until we receive your payment, so please send it as soon as you can.";
 
 /** QR methods are settled outside the site, so they need a reference number. */
 export function isQrPayment(method: PaymentMethod): method is QrPaymentMethod {

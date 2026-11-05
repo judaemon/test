@@ -11,8 +11,20 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import {
+	AlertDialog,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogTitle,
+} from "~/components/ui/alert-dialog";
 import { cn } from "~/lib/utils";
-import { createStaff, listStaff, removeStaff } from "~/server/admin/settings";
+import {
+	createStaff,
+	listStaff,
+	removeStaff,
+	resetStaffPassword,
+	type StaffMember,
+} from "~/server/admin/settings";
 
 export const Route = createFileRoute("/admin/_dashboard/staff")({
 	beforeLoad: ({ context }) => {
@@ -96,6 +108,7 @@ function StaffPage() {
 									{member.role === "owner" ? "Owner" : "Staff"}
 								</span>
 								<Show when={member.id !== context().user.id}>
+									<ResetPasswordButton member={member} />
 									<ConfirmButton
 										class={cn(adminButton.ghost, "text-error-foreground")}
 										title={`Remove ${member.name}?`}
@@ -123,7 +136,10 @@ function StaffPage() {
 				<Field label="Email">
 					<input name="email" type="email" required class={adminInput} />
 				</Field>
-				<Field label="Temporary password" hint="At least 10 characters.">
+				<Field
+					label="Temporary password"
+					hint="At least 10 characters. They can change it under My password."
+				>
 					<input
 						name="password"
 						type="text"
@@ -175,5 +191,87 @@ function StaffPage() {
 				</div>
 			</section>
 		</div>
+	);
+}
+
+/** For someone who forgot their password: the owner sets a temporary one. */
+function ResetPasswordButton(props: { member: StaffMember }) {
+	const [open, setOpen] = createSignal(false);
+	const [saving, setSaving] = createSignal(false);
+
+	const save = async (event: SubmitEvent) => {
+		event.preventDefault();
+		const form = new FormData(event.currentTarget as HTMLFormElement);
+		setSaving(true);
+		try {
+			await resetStaffPassword({
+				data: {
+					userId: props.member.id,
+					newPassword: String(form.get("newPassword") ?? ""),
+				},
+			});
+			setOpen(false);
+			toastSuccess(
+				`Password reset. Share it with ${props.member.name} privately.`,
+			);
+		} catch (error) {
+			toastError(error);
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	return (
+		<>
+			<button
+				type="button"
+				class={adminButton.ghost}
+				onClick={() => setOpen(true)}
+			>
+				Reset password
+			</button>
+			<AlertDialog open={open()} onOpenChange={setOpen}>
+				<AlertDialogContent class="max-w-sm rounded-2xl bg-white text-petal-900">
+					<AlertDialogTitle class="font-display type-soft text-xl">
+						Reset {props.member.name}’s password?
+					</AlertDialogTitle>
+					<AlertDialogDescription class="text-sm text-petal-900/70">
+						Their old password stops working and they’re signed out everywhere.
+					</AlertDialogDescription>
+					<form onSubmit={save} class="grid gap-4">
+						<Field
+							label="Temporary password"
+							hint="At least 10 characters. They can change it under My password."
+						>
+							<input
+								name="newPassword"
+								type="text"
+								required
+								minLength={10}
+								maxLength={128}
+								autocomplete="off"
+								class={adminInput}
+							/>
+						</Field>
+						<div class="flex justify-end gap-2">
+							<button
+								type="button"
+								class={adminButton.secondary}
+								onClick={() => setOpen(false)}
+							>
+								Keep it
+							</button>
+							<button
+								type="submit"
+								class={adminButton.primary}
+								disabled={saving()}
+							>
+								{saving() ? "Saving…" : "Reset password"}
+							</button>
+						</div>
+					</form>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
 	);
 }

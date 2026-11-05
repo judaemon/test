@@ -9,6 +9,7 @@ import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { PaymentSection } from "~/components/checkout/payment-section";
+import { OrderEmailCheck } from "~/components/order/order-email-check";
 import { OrderStatusPill } from "~/components/order/payment-status";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
@@ -120,6 +121,8 @@ function Submitted(props: { number: string }) {
 
 function PayForm(props: { order: PayableOrder }) {
 	const navigate = useNavigate();
+	/** Tapped "Edit order": now asking for the order's email. */
+	const [editing, setEditing] = createSignal(false);
 	const [method, setMethod] = createSignal<PaymentMethod | null>(
 		props.order.paymentAccounts.some((a) => a.method === props.order.method)
 			? props.order.method
@@ -184,6 +187,36 @@ function PayForm(props: { order: PayableOrder }) {
 			<h2 class="mb-4 font-display type-soft text-xl font-semibold">
 				Send your payment
 			</h2>
+			<Show when={props.order.canEdit}>
+				<div class="mb-4 rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
+					<p>
+						Sending your payment locks this order, so you won’t be able to edit
+						it afterwards.
+					</p>
+					<Show
+						when={editing()}
+						fallback={
+							<button
+								type="button"
+								onClick={() => setEditing(true)}
+								class="mt-2 min-h-10 rounded-full font-medium underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+							>
+								Need a change first? Edit order
+							</button>
+						}
+					>
+						<div class="mt-3 rounded-2xl bg-white p-4 text-petal-900">
+							<OrderEmailCheck
+								number={props.order.number}
+								onCancel={() => setEditing(false)}
+								onConfirmed={(orderId) =>
+									navigate({ to: "/order/$orderId/edit", params: { orderId } })
+								}
+							/>
+						</div>
+					</Show>
+				</div>
+			</Show>
 			<PaymentSection
 				accounts={props.order.paymentAccounts}
 				total={props.order.total}
