@@ -47,6 +47,8 @@ Back up `.data/` regularly. The database is created and seeded with the starter 
 
 **Catalog snapshot.** `.data/` is never committed, because it also holds orders, accounts and payment details. To keep the catalog in git, run `bun run catalog:export` before committing: it saves products, stock, custom bouquet settings and their photos to `catalog-snapshot/`. On a fresh install, `bun run catalog:import` restores them. It refuses if the shop already has orders, since its stock may be newer; `--force` replaces the catalog anyway and leaves orders alone.
 
+**Copy of the live shop.** To test with the real shop (bouquets, flowers, orders, accounts and every photo), the owner can click **Download all data** under Admin → Staff, then run `bun run data:import <file.zip>` with the dev server stopped. Or set `DATA_EXPORT_TOKEN` on the live server and `PROD_URL` + the same token in your local `.env`, and run `bun run data:pull`. Your current `.data/` is moved to `.data-backups/` first, never deleted. Login sessions are left out of the export, so sign in with your own password. The zip holds real customers' data: keep it private.
+
 ## Styling
 
 This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.

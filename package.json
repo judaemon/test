@@ -13,6 +13,8 @@
     "db:seed:stock": "bun scripts/seed-demo.ts --stock",
     "catalog:export": "bun scripts/catalog.ts export",
     "catalog:import": "bun scripts/catalog.ts import",
+    "data:import": "bun scripts/data.ts import",
+    "data:pull": "bun scripts/data.ts pull",
     "cache:purge": "bun scripts/purge-cache.ts",
     "preview": "vite preview",
     "format": "biome format",

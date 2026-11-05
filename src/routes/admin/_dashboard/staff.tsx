@@ -145,6 +145,35 @@ function StaffPage() {
 					</button>
 				</div>
 			</form>
+
+			{/* For the developer: a copy of the live shop to test with locally. */}
+			<section class={cn(adminCard, "mt-8 flex flex-col gap-3 p-5")}>
+				<div>
+					<h2 class="font-semibold">Copy the shop to your computer</h2>
+					<p class="mt-1 text-sm text-petal-900/65">
+						Everything in one zip — bouquets, flowers, wrappers, orders,
+						accounts, settings and every photo — to test with locally. Login
+						sessions are left out. Load it with{" "}
+						<code class="rounded bg-petal-50 px-1 font-mono text-xs">
+							bun run data:import &lt;file.zip&gt;
+						</code>
+						.
+					</p>
+					<p class="mt-2 text-sm text-petal-900/65">
+						It holds real customers’ names, emails and payment proofs: keep it
+						private and delete it when you’re done.
+					</p>
+				</div>
+				<div>
+					<a
+						href="/api/admin/data-export"
+						download=""
+						class={adminButton.secondary}
+					>
+						Download all data
+					</a>
+				</div>
+			</section>
 		</div>
 	);
 }

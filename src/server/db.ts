@@ -558,6 +558,9 @@ export function getDb(): Database {
 	return db;
 }
 
+/** The schema version this code migrates databases up to. */
+export const SCHEMA_VERSION = MIGRATIONS.length;
+
 function migrate(db: Database) {
 	const { user_version: version } = db.query("PRAGMA user_version").get() as {
 		user_version: number;

@@ -35,6 +35,7 @@ import { Route as AdminDashboardPaymentsRouteImport } from './routes/admin/_dash
 import { Route as AdminDashboardReportsRouteImport } from './routes/admin/_dashboard/reports'
 import { Route as AdminDashboardStaffRouteImport } from './routes/admin/_dashboard/staff'
 import { Route as AdminCardOrderIdRouteImport } from './routes/admin/card.$orderId'
+import { Route as ApiAdminDataExportRouteImport } from './routes/api/admin/data-export'
 import { Route as ApiAdminPhotoBackupRouteImport } from './routes/api/admin/photo-backup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AdminDashboardFlowersIndexRouteImport } from './routes/admin/_dashboard/flowers/index'
@@ -185,6 +186,11 @@ const AdminCardOrderIdRoute = AdminCardOrderIdRouteImport.update({
   path: '/admin/card/$orderId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAdminDataExportRoute = ApiAdminDataExportRouteImport.update({
+  id: '/api/admin/data-export',
+  path: '/api/admin/data-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAdminPhotoBackupRoute = ApiAdminPhotoBackupRouteImport.update({
   id: '/api/admin/photo-backup',
   path: '/api/admin/photo-backup',
@@ -322,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminDashboardReportsRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
   '/admin/card/$orderId': typeof AdminCardOrderIdRoute
+  '/api/admin/data-export': typeof ApiAdminDataExportRoute
   '/api/admin/photo-backup': typeof ApiAdminPhotoBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin/': typeof AdminDashboardIndexRoute
@@ -367,6 +374,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminDashboardReportsRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
   '/admin/card/$orderId': typeof AdminCardOrderIdRoute
+  '/api/admin/data-export': typeof ApiAdminDataExportRoute
   '/api/admin/photo-backup': typeof ApiAdminPhotoBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin': typeof AdminDashboardIndexRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/reports': typeof AdminDashboardReportsRoute
   '/admin/_dashboard/staff': typeof AdminDashboardStaffRoute
   '/admin/card/$orderId': typeof AdminCardOrderIdRoute
+  '/api/admin/data-export': typeof ApiAdminDataExportRoute
   '/api/admin/photo-backup': typeof ApiAdminPhotoBackupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin/_dashboard/': typeof AdminDashboardIndexRoute
@@ -464,6 +473,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/staff'
     | '/admin/card/$orderId'
+    | '/api/admin/data-export'
     | '/api/admin/photo-backup'
     | '/api/auth/$'
     | '/admin/'
@@ -509,6 +519,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/staff'
     | '/admin/card/$orderId'
+    | '/api/admin/data-export'
     | '/api/admin/photo-backup'
     | '/api/auth/$'
     | '/admin'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/reports'
     | '/admin/_dashboard/staff'
     | '/admin/card/$orderId'
+    | '/api/admin/data-export'
     | '/api/admin/photo-backup'
     | '/api/auth/$'
     | '/admin/_dashboard/'
@@ -596,6 +608,7 @@ export interface RootRouteChildren {
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   UploadsSplatRoute: typeof UploadsSplatRoute
   AdminCardOrderIdRoute: typeof AdminCardOrderIdRoute
+  ApiAdminDataExportRoute: typeof ApiAdminDataExportRoute
   ApiAdminPhotoBackupRoute: typeof ApiAdminPhotoBackupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAdminPhotoOriginalsSplatRoute: typeof ApiAdminPhotoOriginalsSplatRoute
@@ -785,6 +798,13 @@ declare module '@tanstack/solid-router' {
       path: '/admin/card/$orderId'
       fullPath: '/admin/card/$orderId'
       preLoaderRoute: typeof AdminCardOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/admin/data-export': {
+      id: '/api/admin/data-export'
+      path: '/api/admin/data-export'
+      fullPath: '/api/admin/data-export'
+      preLoaderRoute: typeof ApiAdminDataExportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/admin/photo-backup': {
@@ -1009,6 +1029,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsProductIdRoute: ProductsProductIdRoute,
   UploadsSplatRoute: UploadsSplatRoute,
   AdminCardOrderIdRoute: AdminCardOrderIdRoute,
+  ApiAdminDataExportRoute: ApiAdminDataExportRoute,
   ApiAdminPhotoBackupRoute: ApiAdminPhotoBackupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAdminPhotoOriginalsSplatRoute: ApiAdminPhotoOriginalsSplatRoute,

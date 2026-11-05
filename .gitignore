@@ -11,3 +11,6 @@ dist-ssr
 .vinxi
 __unconfig*
 .data
+.data-backups
+.data-imports
+oraia-data-*.zip
