@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/solid-start";
 import {
+	attachMessages,
+	type BouquetMessageErrors,
+} from "~/lib/bouquet-messages";
+import {
 	type CheckoutDetails,
 	type FieldErrors,
 	hasErrors,
@@ -43,10 +47,18 @@ import { deleteUpload, saveImage, UploadError } from "./uploads";
 
 export type PlaceOrderResult =
 	| { ok: true; orderId: string; number: string }
-	| { ok: false; message: string; fieldErrors?: FieldErrors };
+	| {
+			ok: false;
+			message: string;
+			fieldErrors?: FieldErrors;
+			/** Problems with bouquets' cards and notes, by `unitKey`. */
+			bouquetErrors?: Record<string, BouquetMessageErrors>;
+	  };
 
 interface PlaceOrderInput {
 	lines: CartLine[];
+	/** Each bouquet's card and note, by `lineKey`: one entry per unit. */
+	messages: unknown;
 	details: CheckoutDetails;
 	paymentMethod: string;
 	referenceNumber: string;
@@ -77,8 +89,15 @@ export const placeOrder = createServerFn({ method: "POST" })
 		} catch {
 			lines = [];
 		}
+		let messages: unknown = {};
+		try {
+			messages = JSON.parse(text("messages") || "{}");
+		} catch {
+			messages = {};
+		}
 		return {
 			lines,
+			messages,
 			details: parseCheckoutDetails(Object.fromEntries(input.entries())),
 			paymentMethod: text("paymentMethod"),
 			referenceNumber: text("referenceNumber"),
@@ -143,6 +162,16 @@ export const placeOrder = createServerFn({ method: "POST" })
 							: `You can order up to ${unavailable.maxQuantity} of ${lineName(unavailable)} right now. Lower the quantity to continue.`,
 			};
 		}
+
+		const withMessages = attachMessages(cart.lines, data.messages);
+		if (Object.keys(withMessages.errors).length > 0) {
+			return {
+				ok: false,
+				message: "Please check the cards and notes.",
+				bouquetErrors: withMessages.errors,
+			};
+		}
+		cart.lines = withMessages.lines;
 
 		const id = crypto.randomUUID();
 		let payment: NewOrder["payment"];

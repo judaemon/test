@@ -1,3 +1,4 @@
+import type { BouquetMessage } from "~/lib/bouquet-messages";
 import {
 	CUSTOM_IMAGE,
 	CUSTOM_PRODUCT_ID,
@@ -46,6 +47,11 @@ export interface PricedLine {
 	wrapperStatus?: WrapperStatus;
 	/** The design, for built bouquets, so they can be ordered again. */
 	custom?: CustomDesign;
+	/**
+	 * Placed orders: each bouquet's dedication card and florist note, one per
+	 * unit of `quantity`. Missing when nothing was written for this line.
+	 */
+	messages?: BouquetMessage[];
 	quantity: number;
 	unitPrice: number;
 	lineTotal: number;

@@ -7,6 +7,7 @@ import {
 import type { JSX } from "solid-js";
 import { createEffect, For, on, Show } from "solid-js";
 
+import { orderCards } from "~/lib/bouquet-messages";
 import { CONTACT } from "~/lib/contact";
 import { cn } from "~/lib/utils";
 import { getAdminOrder } from "~/server/admin/orders";
@@ -32,6 +33,8 @@ interface CardSearch {
 	autoprint?: boolean;
 	/** Defaults to A5. */
 	size?: CardSize;
+	/** Which of the order's cards (from 0); every card, a page each, if unset. */
+	card?: number;
 }
 
 /**
@@ -43,6 +46,10 @@ export const Route = createFileRoute("/admin/card/$orderId")({
 		// The router parses "?autoprint=1" into the number 1.
 		autoprint: [true, 1, "1"].includes(search.autoprint as never),
 		size: search.size === "a6" ? "a6" : undefined,
+		card:
+			Number.isInteger(Number(search.card)) && search.card !== undefined
+				? Number(search.card)
+				: undefined,
 	}),
 	beforeLoad: async ({ location }) => {
 		const user = await getAdminSession();
@@ -72,17 +79,28 @@ function DedicationCard() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const size = (): CardSize => search().size ?? "a5";
 	const paper = () => SIZES[size()];
-	let box!: HTMLDivElement;
-	let message!: HTMLQuoteElement;
+	const allCards = () => orderCards(order());
+	/** The cards on this page: the one asked for, or all of them. */
+	const cards = () => {
+		const which = search().card;
+		const all = allCards();
+		return which === undefined ? all : all.slice(which, which + 1);
+	};
 	let printed = false;
 
-	/** Biggest message size that still fits its area, never below the minimum. */
+	/** Each message at the biggest size that fits its area, never below the minimum. */
 	const fit = () => {
-		let pt = MAX_FONT_PT;
-		message.style.fontSize = `${pt}pt`;
-		while (pt > MIN_FONT_PT && box.scrollHeight > box.clientHeight) {
-			pt -= 0.5;
+		for (const box of document.querySelectorAll<HTMLElement>(
+			"[data-card-box]",
+		)) {
+			const message = box.querySelector<HTMLElement>("blockquote");
+			if (!message) continue;
+			let pt = MAX_FONT_PT;
 			message.style.fontSize = `${pt}pt`;
+			while (pt > MIN_FONT_PT && box.scrollHeight > box.clientHeight) {
+				pt -= 0.5;
+				message.style.fontSize = `${pt}pt`;
+			}
 		}
 	};
 
@@ -116,10 +134,21 @@ function DedicationCard() {
 					.no-print { display: none !important; }
 					/* Nothing behind the ink, so any paper color works. */
 					.card { background: transparent !important; box-shadow: none !important; margin: 0 !important; }
+					/* One card per sheet. */
+					.card + .card { break-before: page; }
 				}
 			`}</style>
 			<div class="no-print flex flex-wrap items-center justify-center gap-3 py-4 text-sm text-petal-900/70">
-				<span>Order #{order().number}</span>
+				<span>
+					Order #{order().number}
+					<Show when={allCards().length > 1}>
+						{" "}
+						·{" "}
+						{search().card === undefined
+							? `all ${allCards().length} cards`
+							: `card ${(search().card ?? 0) + 1} of ${allCards().length}`}
+					</Show>
+				</span>
 				<fieldset class="flex rounded-full border border-petal-200 bg-white p-1">
 					<legend class="sr-only">Paper size</legend>
 					<For each={Object.keys(SIZES) as CardSize[]}>
@@ -156,43 +185,55 @@ function DedicationCard() {
 					Print
 				</button>
 			</div>
-			<article
-				class="card mx-auto box-border flex flex-col bg-white text-[#111]"
-				style={{
-					width: `${paper().width}mm`,
-					height: `${paper().height}mm`,
-					"box-shadow": "0 2px 12px rgb(0 0 0 / 0.12)",
-				}}
+			<Show
+				when={cards().length > 0}
+				fallback={
+					<p class="no-print py-10 text-center text-sm text-petal-900/60">
+						This order has no dedication card.
+					</p>
+				}
 			>
-				{/* The message: the whole A6 card, or the top half of A5. */}
-				<div
-					class="box-border flex min-h-0 flex-col"
-					style={{
-						height: size() === "a5" ? "50%" : "100%",
-						padding: size() === "a5" ? "12mm 14mm" : "14mm 12mm",
-					}}
-				>
-					<div
-						ref={box}
-						class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden"
-					>
-						<Show when={order().details.dedicationFor}>
-							<p class="mb-4 font-sans text-[11pt] font-semibold tracking-wide">
-								To: {order().details.dedicationFor}
-							</p>
-						</Show>
-						<blockquote
-							ref={message}
-							class="m-0 whitespace-pre-line break-words font-display italic leading-snug"
-						>
-							{order().details.dedicationMessage}
-						</blockquote>
-					</div>
+				<div class="flex flex-col items-center gap-6 pb-6 print:gap-0 print:pb-0">
+					<For each={cards()}>
+						{(card) => (
+							<article
+								class="card box-border flex flex-col bg-white text-[#111]"
+								style={{
+									width: `${paper().width}mm`,
+									height: `${paper().height}mm`,
+									"box-shadow": "0 2px 12px rgb(0 0 0 / 0.12)",
+								}}
+							>
+								{/* The message: the whole A6 card, or the top half of A5. */}
+								<div
+									class="box-border flex min-h-0 flex-col"
+									style={{
+										height: size() === "a5" ? "50%" : "100%",
+										padding: size() === "a5" ? "12mm 14mm" : "14mm 12mm",
+									}}
+								>
+									<div
+										data-card-box
+										class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden"
+									>
+										<Show when={card.to}>
+											<p class="mb-4 font-sans text-[11pt] font-semibold tracking-wide">
+												To: {card.to}
+											</p>
+										</Show>
+										<blockquote class="m-0 whitespace-pre-line break-words font-display italic leading-snug">
+											{card.message}
+										</blockquote>
+									</div>
+								</div>
+								<Show when={size() === "a5"}>
+									<ContactBlock />
+								</Show>
+							</article>
+						)}
+					</For>
 				</div>
-				<Show when={size() === "a5"}>
-					<ContactBlock />
-				</Show>
-			</article>
+			</Show>
 		</>
 	);
 }

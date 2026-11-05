@@ -2,9 +2,16 @@ import * as Dialog from "@kobalte/core/dialog";
 import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
-import { createSignal, For, Match, Show, Switch } from "solid-js";
+import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createStore } from "solid-js/store";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
+import {
+	type BagBouquet,
+	BouquetMessages,
+	bagBouquets,
+	bouquetPanelId,
+} from "~/components/checkout/bouquet-messages";
 import { ChoiceSelect } from "~/components/checkout/choice-select";
 import { PaymentSection } from "~/components/checkout/payment-section";
 import { ColorSwatch } from "~/components/order/company-label";
@@ -23,8 +30,17 @@ import {
 	TextFieldErrorMessage,
 	TextFieldInput,
 	TextFieldLabel,
-	TextFieldTextArea,
 } from "~/components/ui/text-field";
+import {
+	type BouquetMessage,
+	type BouquetMessageErrors,
+	EMPTY_MESSAGE,
+	hasCard,
+	hasContent,
+	lineKey,
+	parseBouquetMessage,
+	validateBouquetMessage,
+} from "~/lib/bouquet-messages";
 import {
 	CIVILIAN,
 	CLASS_LABELS,
@@ -35,13 +51,11 @@ import {
 import { cartStore, clearCart, setCartOpen } from "~/lib/cart-store";
 import {
 	type CheckoutField,
-	DEDICATION_MESSAGE_MAX,
 	EMAIL_MAX,
 	type FieldErrors,
 	formatSerialNumber,
 	hasErrors,
 	NAME_MAX,
-	NOTES_MAX,
 	type PaymentField,
 	readCheckoutForm,
 	SERIAL_NUMBER_MAX,
@@ -145,9 +159,6 @@ function CheckoutPage() {
 	);
 }
 
-const textAreaClass =
-	"rounded-xl border-petal-200 bg-white text-base placeholder:text-petal-900/35 focus-visible:ring-petal-500 sm:text-sm";
-
 function CheckoutForm(props: {
 	cart: PricedCart;
 	paymentAccounts: PaymentAccount[];
@@ -163,12 +174,65 @@ function CheckoutForm(props: {
 	const [className, setClassName] = createSignal("");
 	const [company, setCompany] = createSignal("");
 	const [serialNumber, setSerialNumber] = createSignal("");
-	// Controlled, so the review step edits the same text as the form.
-	const [notes, setNotes] = createSignal("");
-	const [dedicationFor, setDedicationFor] = createSignal("");
-	const [dedicationMessage, setDedicationMessage] = createSignal("");
+	/** Each bouquet's card and note, by `unitKey`. */
+	const [messages, setMessages] = createStore<Record<string, BouquetMessage>>(
+		{},
+	);
+	const [bouquetErrors, setBouquetErrors] = createSignal<
+		Record<string, BouquetMessageErrors>
+	>({});
+	const bouquets = createMemo(() => bagBouquets(props.cart.lines));
+	const messageFor = (key: string) =>
+		parseBouquetMessage(messages[key] ?? EMPTY_MESSAGE);
 	/** A card is printed only when there's a message for it. */
-	const addDedication = () => dedicationMessage().trim() !== "";
+	const cardCount = () =>
+		bouquets().filter((bouquet) => hasCard(messageFor(bouquet.key))).length;
+	const updateMessage = (key: string, patch: Partial<BouquetMessage>) =>
+		setMessages(key, (current) => ({
+			...(current ?? EMPTY_MESSAGE),
+			...patch,
+		}));
+	const clearBouquetError = (key: string, field: keyof BouquetMessage) => {
+		if (!bouquetErrors()[key]?.[field]) return;
+		setBouquetErrors(({ [key]: current, ...rest }) => {
+			const { [field]: _, ...left } = current ?? {};
+			return Object.keys(left).length ? { ...rest, [key]: left } : rest;
+		});
+	};
+	/** Checks every bouquet's card and note; returns what's wrong, by bouquet. */
+	const validateMessages = () =>
+		Object.fromEntries(
+			bouquets()
+				.map((bouquet) => [
+					bouquet.key,
+					validateBouquetMessage(messageFor(bouquet.key)),
+				])
+				.filter(([, problems]) => Object.keys(problems).length > 0),
+		) as Record<string, BouquetMessageErrors>;
+	/** What's sent with the order: each line's units, for lines with any. */
+	const messagesPayload = () => {
+		const byLine: Record<string, BouquetMessage[]> = {};
+		for (const line of props.cart.lines) {
+			const units = bouquets()
+				.filter((bouquet) => bouquet.line === line)
+				.map((bouquet) => messageFor(bouquet.key));
+			if (units.some(hasContent)) byLine[lineKey(line)] = units;
+		}
+		return byLine;
+	};
+	/** From the review: back to a bouquet's panel to change its card or note. */
+	const editBouquet = (key: string) => {
+		setReviewing(false);
+		requestAnimationFrame(() => {
+			const panel = document.getElementById(bouquetPanelId(key));
+			panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+			// The first field if a card or note is open, else the first "Add" button.
+			(
+				panel?.querySelector<HTMLElement>("input, textarea") ??
+				panel?.querySelector<HTMLElement>("button")
+			)?.focus({ preventScroll: true });
+		});
+	};
 	/** Open once the form is valid: a last look (and edit) before placing. */
 	const [reviewing, setReviewing] = createSignal(false);
 	/** Ticked in the review: orders can't be cancelled once placed. */
@@ -236,9 +300,13 @@ function CheckoutForm(props: {
 			...validateCheckoutDetails(details),
 			...validatePayment(formData),
 		});
+		const messageErrors = validateMessages();
 		setErrors(fieldErrors);
+		setBouquetErrors(messageErrors);
 		setFormError(null);
-		return hasErrors(fieldErrors) ? null : { formData, details };
+		return hasErrors(fieldErrors) || Object.keys(messageErrors).length > 0
+			? null
+			: { formData, details };
 	};
 
 	// "Place order" on the form opens the review; nothing is saved yet.
@@ -256,14 +324,8 @@ function CheckoutForm(props: {
 		if (submitting() || hasProblem() || !noCancelAccepted()) return;
 		const valid = validateForm();
 		if (!valid) {
-			// Notes and dedication problems can be fixed right in the review.
-			const inReview = Object.keys(errors()).every((field) =>
-				["notes", "dedicationFor", "dedicationMessage"].includes(field),
-			);
-			if (!inReview) {
-				setReviewing(false);
-				focusFirstInvalid(formRef);
-			}
+			setReviewing(false);
+			focusFirstInvalid(formRef);
 			return;
 		}
 		const { formData, details } = valid;
@@ -279,6 +341,7 @@ function CheckoutForm(props: {
 				payload.set(field, String(value));
 			}
 			payload.set("lines", JSON.stringify(cartStore.state.lines));
+			payload.set("messages", JSON.stringify(messagesPayload()));
 			payload.set("noCancellationAccepted", String(noCancelAccepted()));
 			const method = paymentMethod() as PaymentMethod;
 			payload.set("paymentMethod", method);
@@ -297,8 +360,9 @@ function CheckoutForm(props: {
 			const result = await placeOrder({ data: payload });
 			if (!result.ok) {
 				setFormError(result.message);
-				if (result.fieldErrors) {
-					setErrors(result.fieldErrors);
+				if (result.fieldErrors || result.bouquetErrors) {
+					setErrors(result.fieldErrors ?? {});
+					setBouquetErrors(result.bouquetErrors ?? {});
 					setReviewing(false);
 					focusFirstInvalid(form);
 				}
@@ -435,81 +499,21 @@ function CheckoutForm(props: {
 					</div>
 				</Section>
 
-				<Section title="Dedication card" note="Optional" step={2}>
-					<div class="flex flex-col gap-4">
-						<p class="text-sm text-petal-900/60">
-							Printed and tucked into the bouquet, free.
-						</p>
-						<Field
-							name="dedicationFor"
-							label="To"
-							placeholder="Who the card is addressed to"
-							autocomplete="off"
-							maxLength={NAME_MAX}
-							value={dedicationFor()}
-							onValueChange={setDedicationFor}
-							error={errors().dedicationFor}
-							onInput={() => {
-								clearError("dedicationFor");
-								clearError("dedicationMessage");
-							}}
-						/>
-						<TextField
-							name="dedicationMessage"
-							value={dedicationMessage()}
-							onChange={setDedicationMessage}
-							validationState={errors().dedicationMessage ? "invalid" : "valid"}
-							class="gap-2"
-						>
-							<TextFieldLabel class="text-petal-900">Message</TextFieldLabel>
-							<TextFieldTextArea
-								maxLength={DEDICATION_MESSAGE_MAX}
-								rows={4}
-								placeholder="Happy birthday, sunshine! 🌷"
-								onInput={() => clearError("dedicationMessage")}
-								class={textAreaClass}
-							/>
-							<div class="flex justify-between gap-4">
-								<TextFieldDescription class="text-petal-900/60">
-									Leave it empty for no card.
-								</TextFieldDescription>
-								<span
-									class="shrink-0 text-xs tabular-nums text-petal-900/50"
-									aria-hidden="true"
-								>
-									{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
-								</span>
-							</div>
-							<TextFieldErrorMessage>
-								{errors().dedicationMessage}
-							</TextFieldErrorMessage>
-						</TextField>
-					</div>
+				<Section
+					title={bouquets().length > 1 ? "Cards & notes" : "Card & note"}
+					note="Optional"
+					step={2}
+				>
+					<BouquetMessages
+						bouquets={bouquets()}
+						messages={messages}
+						onChange={updateMessage}
+						errors={bouquetErrors()}
+						clearError={clearBouquetError}
+					/>
 				</Section>
 
-				<Section title="Note for the florist" note="Optional" step={3}>
-					<TextField
-						name="notes"
-						value={notes()}
-						onChange={setNotes}
-						validationState={errors().notes ? "invalid" : "valid"}
-						class="gap-2"
-					>
-						<TextFieldLabel class="sr-only">
-							Note for the florist
-						</TextFieldLabel>
-						<TextFieldTextArea
-							maxLength={NOTES_MAX}
-							rows={2}
-							placeholder="Anything we should know about your order"
-							onInput={() => clearError("notes")}
-							class={textAreaClass}
-						/>
-						<TextFieldErrorMessage>{errors().notes}</TextFieldErrorMessage>
-					</TextField>
-				</Section>
-
-				<Section title="Payment" step={4}>
+				<Section title="Payment" step={3}>
 					<PaymentSection
 						accounts={props.paymentAccounts}
 						total={props.cart.total}
@@ -632,8 +636,12 @@ function CheckoutForm(props: {
 					<dd class="text-right tabular-nums">
 						{formatPrice(props.cart.subtotal, props.cart.currency)}
 					</dd>
-					<Show when={addDedication()}>
-						<dt class="text-petal-900/70">Dedication card</dt>
+					<Show when={cardCount() > 0}>
+						<dt class="text-petal-900/70">
+							{cardCount() === 1
+								? "Dedication card"
+								: `Dedication cards (${cardCount()})`}
+						</dt>
 						<dd class="text-right font-medium text-sage-600">Free</dd>
 					</Show>
 					<dt class="pt-2 text-base font-semibold">Total</dt>
@@ -682,8 +690,9 @@ function CheckoutForm(props: {
 									Review your order
 								</Dialog.Title>
 								<Dialog.Description class="mt-1 text-sm text-petal-900/65">
-									Check your notes and card message. You can still change them
-									before placing the order.
+									{bouquets().length > 1
+										? "Check what goes with each bouquet. Tap Edit to change a card or note."
+										: "Check your card and note. Tap Edit to change them."}
 								</Dialog.Description>
 
 								<ReviewSummary
@@ -700,96 +709,11 @@ function CheckoutForm(props: {
 									</div>
 								</Show>
 
-								<div class="mt-5 flex flex-col gap-4">
-									<label class="flex flex-col gap-2">
-										<span class="text-sm font-medium">
-											Note for the florist{" "}
-											<span class="font-normal text-petal-900/50">
-												(optional)
-											</span>
-										</span>
-										<textarea
-											value={notes()}
-											onInput={(e) => {
-												setNotes(e.currentTarget.value);
-												clearError("notes");
-											}}
-											maxLength={NOTES_MAX}
-											rows={2}
-											placeholder="Anything we should know about your order"
-											aria-invalid={errors().notes ? "true" : undefined}
-											class={cn(reviewInput, "py-2")}
-										/>
-										<Show when={errors().notes}>
-											<span class="text-xs text-destructive">
-												{errors().notes}
-											</span>
-										</Show>
-									</label>
-
-									<div class="flex flex-col gap-3 rounded-2xl bg-petal-50 p-4">
-										<span class="text-sm font-semibold">
-											Dedication card{" "}
-											<span class="font-normal text-petal-900/60">
-												·{" "}
-												{addDedication() ? "free" : "no card without a message"}
-											</span>
-										</span>
-										<label class="flex flex-col gap-1.5">
-											<span class="text-sm font-medium">To</span>
-											<input
-												value={dedicationFor()}
-												onInput={(e) => {
-													setDedicationFor(e.currentTarget.value);
-													clearError("dedicationFor");
-												}}
-												maxLength={NAME_MAX}
-												placeholder="Who the card is addressed to"
-												aria-invalid={
-													errors().dedicationFor ? "true" : undefined
-												}
-												class={cn(reviewInput, "h-11")}
-											/>
-											<Show when={errors().dedicationFor}>
-												<span class="text-xs text-destructive">
-													{errors().dedicationFor}
-												</span>
-											</Show>
-										</label>
-										<label class="flex flex-col gap-1.5">
-											<span class="flex justify-between text-sm font-medium">
-												Message
-												<span
-													class="text-xs font-normal tabular-nums text-petal-900/50"
-													aria-hidden="true"
-												>
-													{dedicationMessage().length}/{DEDICATION_MESSAGE_MAX}
-												</span>
-											</span>
-											<textarea
-												value={dedicationMessage()}
-												onInput={(e) => {
-													setDedicationMessage(e.currentTarget.value);
-													clearError("dedicationMessage");
-												}}
-												maxLength={DEDICATION_MESSAGE_MAX}
-												rows={5}
-												aria-invalid={
-													errors().dedicationMessage ? "true" : undefined
-												}
-												class={cn(
-													reviewInput,
-													"py-2 font-display text-base italic",
-												)}
-											/>
-											<Show when={errors().dedicationMessage}>
-												<span class="text-xs text-destructive">
-													{errors().dedicationMessage}
-												</span>
-											</Show>
-										</label>
-									</div>
-								</div>
+								<ReviewMessages
+									bouquets={bouquets()}
+									messageFor={messageFor}
+									onEdit={editBouquet}
+								/>
 
 								<Show when={formError()}>
 									<p
@@ -845,8 +769,81 @@ function CheckoutForm(props: {
 	);
 }
 
-const reviewInput =
-	"w-full rounded-xl border border-petal-200 bg-white px-3 text-base placeholder:text-petal-900/35 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 aria-[invalid=true]:border-destructive sm:text-sm";
+/** The review's list of bouquets, each with its card and note (or none). */
+function ReviewMessages(props: {
+	bouquets: BagBouquet[];
+	messageFor: (key: string) => BouquetMessage;
+	onEdit: (key: string) => void;
+}) {
+	return (
+		<section aria-labelledby="review-messages" class="mt-5">
+			<h3 id="review-messages" class="text-sm font-semibold">
+				{props.bouquets.length > 1 ? "Cards & notes" : "Card & note"}
+			</h3>
+			<ul class="mt-2 flex flex-col gap-2">
+				<For each={props.bouquets}>
+					{(bouquet) => {
+						const message = () => props.messageFor(bouquet.key);
+						return (
+							<li class="flex items-start gap-3 rounded-2xl bg-petal-50 p-3">
+								<img
+									src={bouquet.line.image}
+									alt=""
+									width={40}
+									height={40}
+									class="size-10 shrink-0 rounded-lg bg-white object-cover"
+								/>
+								<div class="min-w-0 flex-1 text-sm wrap-anywhere">
+									<p class="font-medium">
+										{lineName(bouquet.line)}
+										<Show when={bouquet.of > 1}>
+											<span class="font-normal text-petal-900/60">
+												{" "}
+												· {bouquet.unit + 1} of {bouquet.of}
+											</span>
+										</Show>
+									</p>
+									<Show
+										when={hasCard(message())}
+										fallback={<p class="mt-0.5 text-petal-900/55">No card</p>}
+									>
+										<p class="mt-1 rounded-xl bg-white px-3 py-2">
+											<Show when={message().to}>
+												<span class="block text-xs font-medium">
+													To: {message().to}
+												</span>
+											</Show>
+											<span class="line-clamp-3 whitespace-pre-line font-display italic">
+												“{message().message}”
+											</span>
+										</p>
+									</Show>
+									<Show when={message().note}>
+										<p class="mt-1 line-clamp-2 whitespace-pre-line text-petal-900/75">
+											<span class="font-medium text-petal-900">Note:</span>{" "}
+											{message().note}
+										</p>
+									</Show>
+								</div>
+								<button
+									type="button"
+									onClick={() => props.onEdit(bouquet.key)}
+									class="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-petal-700 underline-offset-2 hover:underline outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									Edit
+									<span class="sr-only">
+										{" "}
+										card and note for {lineName(bouquet.line)}
+									</span>
+								</button>
+							</li>
+						);
+					}}
+				</For>
+			</ul>
+		</section>
+	);
+}
 
 /** The parts of the order that can't change in the review: who, what, how. */
 function ReviewSummary(props: {

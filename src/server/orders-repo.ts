@@ -410,7 +410,9 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
 	if (filter.search) {
 		where.push(
 			`(number LIKE $q OR full_name LIKE $q OR company LIKE $q OR class_name LIKE $q
-			  OR dedication_for LIKE $q OR reference_number LIKE $q)`,
+			  OR dedication_for LIKE $q OR reference_number LIKE $q
+			  OR EXISTS (SELECT 1 FROM json_each(lines) AS line, json_each(line.value, '$.messages') AS card
+			             WHERE json_extract(card.value, '$.to') LIKE $q))`,
 		);
 		params.q = `%${filter.search.replace(/[%_]/g, "")}%`;
 	}

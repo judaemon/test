@@ -1,3 +1,4 @@
+import { hasCard } from "~/lib/bouquet-messages";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import {
 	DEFAULT_PAGE_SIZE,
@@ -103,7 +104,12 @@ const FIELDS: Record<
 			WRAPPER_STATUS_LABELS[key as keyof typeof WRAPPER_STATUS_LABELS],
 	},
 	card: {
-		keys: ({ order }) => [order.details.addDedication ? "yes" : "no"],
+		// This bouquet's own card, or an older order's card for the whole order.
+		keys: ({ order, line }) => [
+			order.details.addDedication || line.messages?.some(hasCard)
+				? "yes"
+				: "no",
+		],
 		fixed: ["yes", "no"],
 		label: (key) => (key === "yes" ? "With card" : "No card"),
 	},

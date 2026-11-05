@@ -15,9 +15,12 @@ export interface CheckoutDetails {
 	serialNumber: string;
 	/** Where the order's details are sent; older orders have none. */
 	email: string;
-	/** Optional note for the florist. */
+	/**
+	 * Order-wide note for the florist. Checkout now takes notes and cards per
+	 * bouquet (`PricedLine.messages`); older orders and chat orders use these.
+	 */
 	notes: string;
-	/** The bouquet carries a dedication card: there's a message for it. */
+	/** The order-wide dedication card has a message. */
 	addDedication: boolean;
 	/** The receiver named on the card ("To: …"); optional. */
 	dedicationFor: string;
@@ -148,11 +151,6 @@ export function validateCheckoutDetails(details: CheckoutDetails): FieldErrors {
 
 export function hasErrors(errors: FieldErrors) {
 	return Object.keys(errors).length > 0;
-}
-
-/** Who the bouquet is for: the dedication's receiver, else the buyer. */
-export function orderFor(details: CheckoutDetails) {
-	return details.dedicationFor || details.fullName;
 }
 
 /** Shop-local calendar date an order was placed, `YYYY-MM-DD`. */

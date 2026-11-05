@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { createMemo, For, Show } from "solid-js";
 
-import { orderDay, orderFor } from "~/lib/checkout";
+import { orderFor } from "~/lib/bouquet-messages";
+import { orderDay } from "~/lib/checkout";
 import { sortByNext } from "~/lib/occasions";
 import { formatDate, shopNow } from "~/lib/time";
 import {
@@ -83,7 +84,7 @@ function Overview() {
 								/>
 								<div class="min-w-0 flex-1">
 									<p class="font-medium">
-										{step()} · for {orderFor(order().details)}
+										{step()} · for {orderFor(order())}
 									</p>
 									<p class="text-sm text-petal-900/60">
 										Placed {formatDate(orderDay(order().createdAt))}

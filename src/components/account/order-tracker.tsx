@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/solid-router";
 import { createMemo, For, Show } from "solid-js";
-
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { PrivateImage } from "~/components/order/private-image";
 import { PreorderTag } from "~/components/product/preorder-tag";
 import { showToast } from "~/components/ui/toast";
+import { orderFor } from "~/lib/bouquet-messages";
 import { setCartOpen } from "~/lib/cart-store";
 import { orderDay } from "~/lib/checkout";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
@@ -211,8 +211,9 @@ export function OrderTracker(props: {
 					</p>
 					<p class="mt-2 text-petal-900/70">
 						Placed {formatDate(orderDay(order().createdAt))}
-						<Show when={order().details.dedicationFor}>
-							{(name) => <> · for {name()}</>}
+						<Show when={orderFor(order()) !== order().details.fullName}>
+							{" "}
+							· for {orderFor(order())}
 						</Show>
 					</p>
 				</div>

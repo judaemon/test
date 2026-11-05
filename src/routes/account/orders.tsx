@@ -13,7 +13,8 @@ import {
 	ReorderButton,
 } from "~/components/account/order-tracker";
 import { pillPrimary } from "~/components/cart/cart-sheet";
-import { orderDay, orderFor } from "~/lib/checkout";
+import { orderFor } from "~/lib/bouquet-messages";
+import { orderDay } from "~/lib/checkout";
 import { formatPrice, styleLabel } from "~/lib/product";
 import { formatDate } from "~/lib/time";
 import { listMyOrders } from "~/server/account";
@@ -119,7 +120,7 @@ function PastOrder(props: { order: CustomerOrder }) {
 							year: "numeric",
 						})}{" "}
 						· {formatPrice(order().total, order().currency)} · for{" "}
-						{orderFor(order().details)}
+						{orderFor(order())}
 						<Show when={order().delivery.hasPhoto}> · Photo available</Show>
 					</p>
 				</div>

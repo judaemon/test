@@ -27,6 +27,7 @@ import {
 import { printDedicationCard } from "~/components/order/print-card";
 import { FacetFilter } from "~/components/ui/facet-filter";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
 import { orderColor } from "~/lib/cadets";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
@@ -630,31 +631,55 @@ function OrdersPage() {
 												class="px-5 py-2 md:px-3 md:py-3 text-xs md:max-w-64"
 											>
 												<Show
-													when={details.notes || details.addDedication}
+													when={rowMessages(order, index).length > 0}
 													fallback="—"
 												>
-													<Show when={details.notes}>
-														<p class="whitespace-pre-line">
-															<span class="font-semibold">Notes:</span>{" "}
-															{details.notes}
-														</p>
-													</Show>
-													<Show when={details.addDedication}>
-														<button
-															type="button"
-															onClick={() => printDedicationCard(order.id)}
-															title="Print this dedication card (A5)"
-															class="-mx-1 mt-1 block w-[calc(100%+0.5rem)] rounded-md px-1 py-0.5 text-left whitespace-pre-line outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-petal-500"
-														>
-															<span class="font-semibold">
-																To {details.dedicationFor || "—"}:
-															</span>{" "}
-															“{details.dedicationMessage}”
-															<span class="mt-0.5 block font-medium text-petal-700">
-																🖨 Print card
-															</span>
-														</button>
-													</Show>
+													<ul class="flex flex-col gap-1.5 wrap-anywhere">
+														<For each={rowMessages(order, index)}>
+															{(entry) => (
+																<li>
+																	<Show when={(entry.of ?? 1) > 1}>
+																		<p class="font-semibold text-petal-900/60">
+																			Bouquet {(entry.unit ?? 0) + 1} of{" "}
+																			{entry.of}
+																		</p>
+																	</Show>
+																	<Show when={entry.note}>
+																		<p class="whitespace-pre-line">
+																			<span class="font-semibold">Notes:</span>{" "}
+																			{entry.note}
+																		</p>
+																	</Show>
+																	<Show when={hasCard(entry)}>
+																		<button
+																			type="button"
+																			onClick={() =>
+																				printDedicationCard(
+																					order.id,
+																					orderCards(order).findIndex(
+																						(card) =>
+																							card.lineIndex ===
+																								entry.lineIndex &&
+																							card.unit === entry.unit,
+																					),
+																				)
+																			}
+																			title="Print this dedication card (A5)"
+																			class="-mx-1 mt-1 block w-[calc(100%+0.5rem)] rounded-md px-1 py-0.5 text-left whitespace-pre-line outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-petal-500"
+																		>
+																			<span class="font-semibold">
+																				To {entry.to || "—"}:
+																			</span>{" "}
+																			“{entry.message}”
+																			<span class="mt-0.5 block font-medium text-petal-700">
+																				🖨 Print card
+																			</span>
+																		</button>
+																	</Show>
+																</li>
+															)}
+														</For>
+													</ul>
 												</Show>
 											</td>
 										</tr>
@@ -819,5 +844,18 @@ function WrapperStatusSelect(props: {
 				/>
 			</Show>
 		</Show>
+	);
+}
+
+/**
+ * A table row's cards and notes: its bouquet's own, plus (on older orders)
+ * the one for the whole order.
+ */
+function rowMessages(
+	order: Parameters<typeof orderMessages>[0],
+	index: number,
+) {
+	return orderMessages(order).filter(
+		(entry) => entry.lineIndex === undefined || entry.lineIndex === index,
 	);
 }

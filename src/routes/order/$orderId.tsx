@@ -8,6 +8,7 @@ import { PreorderTag } from "~/components/product/preorder-tag";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
+import { hasCard, hasContent, orderCards } from "~/lib/bouquet-messages";
 import { CONTACT } from "~/lib/contact";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { formatPrice, styleLabel } from "~/lib/product";
@@ -34,6 +35,14 @@ function OrderConfirmation() {
 	const paymentDue = () =>
 		order().stage === "new" && isPaymentDue(order().payment.status);
 	const user = useSessionUser();
+	/** Everyone the cards are addressed to. */
+	const recipients = () => [
+		...new Set(
+			orderCards(order())
+				.map((card) => card.to)
+				.filter(Boolean),
+		),
+	];
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
@@ -55,14 +64,21 @@ function OrderConfirmation() {
 								? "We’ve got your order! Once we verify your payment, we’ll hand-tie"
 								: "Your order is confirmed. We’ll hand-tie"}{" "}
 						{order().itemCount === 1 ? "it" : "them"} fresh
-						<Show when={details().dedicationFor}>
-							{(name) => (
-								<>
-									{" "}
-									for{" "}
-									<strong class="font-semibold text-petal-900">{name()}</strong>
-								</>
-							)}
+						<Show when={recipients().length > 0}>
+							{" "}
+							for{" "}
+							<For each={recipients()}>
+								{(name, index) => (
+									<>
+										{index() === 0
+											? ""
+											: index() === recipients().length - 1
+												? " and "
+												: ", "}
+										<strong class="font-semibold text-petal-900">{name}</strong>
+									</>
+								)}
+							</For>
 						</Show>
 						.
 					</p>
@@ -162,10 +178,15 @@ function OrderConfirmation() {
 							On the card
 						</h2>
 						<Show
+							// Older orders have one card for the whole order.
 							when={details().addDedication}
 							fallback={
 								<p class="mt-2 text-sm text-petal-900/65">
-									No dedication this time — the flowers will do the talking.
+									{orderCards(order()).length === 0
+										? "No dedication this time — the flowers will do the talking."
+										: orderCards(order()).length === 1
+											? "Your card is shown with its bouquet below."
+											: `Your ${orderCards(order()).length} cards are shown with their bouquets below.`}
 								</p>
 							}
 						>
@@ -198,7 +219,7 @@ function OrderConfirmation() {
 					<ul class="mt-4 flex flex-col gap-4">
 						<For each={order().lines}>
 							{(line) => (
-								<li class="flex items-center gap-4">
+								<li class="flex flex-wrap items-center gap-x-4 gap-y-3">
 									<img
 										src={line.image}
 										alt=""
@@ -218,6 +239,48 @@ function OrderConfirmation() {
 									<span class="text-sm font-medium tabular-nums">
 										{formatPrice(line.lineTotal, order().currency)}
 									</span>
+									<Show when={line.messages?.some(hasContent)}>
+										<div class="flex w-full flex-col gap-2 wrap-anywhere sm:pl-20">
+											<For each={line.messages}>
+												{(message, unit) => (
+													<Show when={hasContent(message)}>
+														<span class="block rounded-2xl bg-petal-50 px-4 py-3 text-sm">
+															<Show when={line.quantity > 1}>
+																<span class="block text-xs font-semibold text-petal-900/60">
+																	Bouquet {unit() + 1} of {line.quantity}
+																</span>
+															</Show>
+															<Show
+																when={hasCard(message)}
+																fallback={
+																	<span class="block text-petal-900/60">
+																		No card
+																	</span>
+																}
+															>
+																<Show when={message.to}>
+																	<span class="block font-medium">
+																		To: {message.to}
+																	</span>
+																</Show>
+																<span class="block whitespace-pre-line font-display text-base italic leading-snug">
+																	“{message.message}”
+																</span>
+															</Show>
+															<Show when={message.note}>
+																<span class="mt-1 block whitespace-pre-line text-petal-900/75">
+																	<span class="font-medium text-petal-900">
+																		Note:
+																	</span>{" "}
+																	{message.note}
+																</span>
+															</Show>
+														</span>
+													</Show>
+												)}
+											</For>
+										</div>
+									</Show>
 								</li>
 							)}
 						</For>

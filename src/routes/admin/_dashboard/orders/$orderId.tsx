@@ -21,6 +21,7 @@ import { PaymentStatusPill } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
 import { PrivateImage } from "~/components/order/private-image";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
 import { isChatOrder } from "~/lib/chat-order";
 import { formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
@@ -323,31 +324,85 @@ function OrderDetail() {
 					</section>
 
 					<section class={cn(adminCard, "p-5")}>
-						<h2 class="mb-2 font-semibold">Dedication</h2>
+						<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+							<h2 class="font-semibold">Cards &amp; notes</h2>
+							<Show when={orderCards(order()).length > 1}>
+								<button
+									type="button"
+									onClick={() => printDedicationCard(order().id)}
+									class="rounded-full border border-petal-200 px-3 py-1.5 text-sm font-medium text-petal-700 transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									🖨 Print all {orderCards(order()).length} cards
+								</button>
+							</Show>
+						</div>
 						<Show
-							when={details().addDedication}
+							when={orderMessages(order()).some(
+								// The order-wide note is shown with the customer above.
+								(entry) => hasCard(entry) || entry.lineIndex !== undefined,
+							)}
 							fallback={
 								<p class="text-sm text-petal-900/55">No dedication message.</p>
 							}
 						>
-							<button
-								type="button"
-								onClick={() => printDedicationCard(order().id)}
-								title="Print this dedication card (A5)"
-								class="block w-full rounded-xl bg-petal-50 px-4 py-3 text-left transition-colors outline-none hover:bg-petal-100 focus-visible:ring-2 focus-visible:ring-petal-500"
-							>
-								<Show when={details().dedicationFor}>
-									<span class="block text-sm font-medium">
-										To: {details().dedicationFor}
-									</span>
-								</Show>
-								<span class="mt-1 block whitespace-pre-line font-display text-lg italic">
-									“{details().dedicationMessage}”
-								</span>
-								<span class="mt-2 block text-sm font-medium text-petal-700">
-									🖨 Click to print the card (A5)
-								</span>
-							</button>
+							<ul class="flex flex-col gap-3">
+								<For each={orderMessages(order())}>
+									{(entry) => {
+										const cardIndex = () =>
+											orderCards(order()).findIndex(
+												(card) =>
+													card.lineIndex === entry.lineIndex &&
+													card.unit === entry.unit,
+											);
+										return (
+											<Show
+												when={hasCard(entry) || entry.lineIndex !== undefined}
+											>
+												<li class="flex min-w-0 flex-col gap-1.5 wrap-anywhere">
+													<Show when={entry.label}>
+														<p class="text-sm font-semibold">{entry.label}</p>
+													</Show>
+													<Show
+														when={hasCard(entry)}
+														fallback={
+															<p class="text-sm text-petal-900/55">No card.</p>
+														}
+													>
+														<button
+															type="button"
+															onClick={() =>
+																printDedicationCard(order().id, cardIndex())
+															}
+															title="Print this dedication card (A5)"
+															class="block w-full rounded-xl bg-petal-50 px-4 py-3 text-left transition-colors outline-none hover:bg-petal-100 focus-visible:ring-2 focus-visible:ring-petal-500"
+														>
+															<Show when={entry.to}>
+																<span class="block text-sm font-medium">
+																	To: {entry.to}
+																</span>
+															</Show>
+															<span class="mt-1 block whitespace-pre-line font-display text-lg italic">
+																“{entry.message}”
+															</span>
+															<span class="mt-2 block text-sm font-medium text-petal-700">
+																🖨 Click to print the card (A5)
+															</span>
+														</button>
+													</Show>
+													<Show
+														when={entry.lineIndex !== undefined && entry.note}
+													>
+														<p class="whitespace-pre-line text-sm">
+															<span class="font-semibold">Note:</span>{" "}
+															{entry.note}
+														</p>
+													</Show>
+												</li>
+											</Show>
+										);
+									}}
+								</For>
+							</ul>
 						</Show>
 					</section>
 				</div>

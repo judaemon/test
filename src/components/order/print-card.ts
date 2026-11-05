@@ -3,9 +3,10 @@ const FRAME_ID = "oraia-card-print";
 /**
  * Prints an order's dedication card (A5: message on top, ORAIA's contact
  * details below) without leaving the page. The card loads in a hidden frame,
- * which opens the print dialog itself.
+ * which opens the print dialog itself. `card` is which of the order's cards
+ * (see `orderCards`); leave it out to print them all, a page each.
  */
-export function printDedicationCard(orderId: string) {
+export function printDedicationCard(orderId: string, card?: number) {
 	document.getElementById(FRAME_ID)?.remove();
 	const frame = document.createElement("iframe");
 	frame.id = FRAME_ID;
@@ -19,7 +20,8 @@ export function printDedicationCard(orderId: string) {
 		height: "210mm",
 		border: "0",
 	});
-	frame.src = `/admin/card/${encodeURIComponent(orderId)}?autoprint=1`;
+	const which = card === undefined ? "" : `&card=${card}`;
+	frame.src = `/admin/card/${encodeURIComponent(orderId)}?autoprint=1${which}`;
 
 	const cleanUp = (event: MessageEvent) => {
 		if (event.source !== frame.contentWindow) return;
