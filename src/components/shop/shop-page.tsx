@@ -330,6 +330,21 @@ export function ShopPage() {
 									Message on Facebook
 								</a>
 								<a
+									href={CONTACT.signalUrl}
+									target="_blank"
+									rel="noreferrer"
+									class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									<svg
+										aria-hidden="true"
+										viewBox="0 0 24 24"
+										class="size-4 shrink-0 fill-[#3a76f0]"
+									>
+										<path d="M12 1.5C6.2 1.5 1.5 5.9 1.5 11.4c0 2.1.7 4 1.9 5.6L2.2 21.8l4.9-1.3c1.5.8 3.2 1.2 4.9 1.2 5.8 0 10.5-4.4 10.5-9.9S17.8 1.5 12 1.5Z" />
+									</svg>
+									Message on Signal
+								</a>
+								<a
 									href={CONTACT.telegramUrl}
 									target="_blank"
 									rel="noreferrer"
@@ -344,6 +359,16 @@ export function ShopPage() {
 									</svg>
 									Message on Telegram
 								</a>
+								<p class="text-sm text-petal-900/65">
+									Or call or text{" "}
+									<a
+										href={`tel:${CONTACT.phone.replace(/\s/g, "")}`}
+										class="font-medium text-petal-700 underline underline-offset-2"
+									>
+										{CONTACT.phone}
+									</a>
+									.
+								</p>
 							</div>
 						</section>
 
