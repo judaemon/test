@@ -37,7 +37,7 @@ export const savePaymentAccount = createServerFn({ method: "POST" })
 		const method = oneOf(source.method, PAYMENT_METHODS, "Payment method");
 		const enabled = bool(source, "enabled");
 		const label = text(source, "label", { label: "Name", max: 40 });
-		if (method === "card") {
+		if (method === "card" || method === "cash") {
 			return {
 				method,
 				account: {

@@ -12,6 +12,7 @@ import type { FieldErrors, PaymentField } from "~/lib/checkout";
 import { ORDER_EDIT_HOW, ORDER_EDIT_RULE } from "~/lib/order-edit";
 import {
 	CARD_BRAND_LABELS,
+	CASH_NOTICE,
 	type CardInput,
 	cardDigits,
 	detectCardBrand,
@@ -61,6 +62,10 @@ const METHOD_DISPLAY: Record<
 	bank: {
 		hint: (account) => account.bankName || "InstaPay / QR Ph",
 		badge: () => <BankIcon class="size-5" />,
+	},
+	cash: {
+		hint: () => "Pay in person · cadets only",
+		badge: () => <CashIcon class="size-5" />,
 	},
 };
 
@@ -119,7 +124,25 @@ export function PaymentSection(props: PaymentSectionProps) {
 						clearError={props.clearError}
 					/>
 				</Match>
-				<Match when={props.method !== "card" && props.method}>
+				<Match when={props.method === "cash"}>
+					<div class="flex flex-col gap-2 rounded-2xl bg-petal-50 p-5">
+						<div>
+							<p class="text-sm text-petal-900/65">Amount to pay</p>
+							<p class="font-display type-soft text-3xl font-semibold tabular-nums">
+								{formatPrice(props.total, props.currency)}
+							</p>
+						</div>
+						<p class="text-sm text-petal-900/75">{CASH_NOTICE}</p>
+						<p class="text-sm text-petal-900/60">
+							{ORDER_EDIT_RULE} {ORDER_EDIT_HOW}
+						</p>
+					</div>
+				</Match>
+				<Match
+					when={
+						props.method !== "card" && props.method !== "cash" && props.method
+					}
+				>
 					{(method) => (
 						<QrPayment
 							method={method() as QrPaymentMethod}
@@ -436,6 +459,16 @@ function CardIcon(props: { class?: string }) {
 		<svg aria-hidden="true" {...iconBase} class={props.class}>
 			<rect x="3" y="5" width="18" height="14" rx="3" />
 			<path d="M3 10h18M7 15h3" />
+		</svg>
+	);
+}
+
+function CashIcon(props: { class?: string }) {
+	return (
+		<svg aria-hidden="true" {...iconBase} class={props.class}>
+			<rect x="2" y="6" width="20" height="12" rx="2" />
+			<circle cx="12" cy="12" r="2.5" />
+			<path d="M6 12h.01M18 12h.01" />
 		</svg>
 	);
 }

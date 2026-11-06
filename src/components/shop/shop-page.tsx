@@ -14,6 +14,7 @@ import { FlowerMark, Petal, Sparkle, Wordmark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { FacetFilter } from "~/components/ui/facet-filter";
+import { sizesForType } from "~/lib/arrangements";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CUSTOM_BANNER_IMAGE } from "~/lib/custom-bouquet";
 import { startingPrice as bouquetPrice, formatPrice } from "~/lib/product";
@@ -28,8 +29,13 @@ import {
 	type ShopSort,
 } from "~/lib/shop-filters";
 import { builderSizes } from "~/lib/sizes";
-import { useCatalog, useCustomSettings, useSizes } from "~/lib/use-catalog";
-import { SEARCH_DEBOUNCE_MS } from "~/lib/utils";
+import {
+	useArrangementTypes,
+	useCatalog,
+	useCustomSettings,
+	useSizes,
+} from "~/lib/use-catalog";
+import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
 /** Smooth-scrolls to a section, or jumps there if the viewer prefers less motion. */
@@ -42,7 +48,7 @@ function scrollToId(id: string) {
 
 /** The storefront: Battalion Hop hero, the builder, the catalog, then how to order. */
 export function ShopPage() {
-	const catalog = useCatalog();
+	const allProducts = useCatalog();
 	const sizes = useSizes();
 	const search = useSearch({ strict: false }) as () => ShopFilters;
 	const navigate = useNavigate();
@@ -66,8 +72,24 @@ export function ShopPage() {
 		if (!stems.length || !wrappers.length) return undefined;
 		return settings.baseFee + Math.min(...stems) + Math.min(...wrappers);
 	};
+	// One kind of arrangement at a time; tabs switch kinds. Only kinds with
+	// something to show get a tab, and the first is shown by default.
+	const arrangementTypes = useArrangementTypes();
+	const types = () =>
+		arrangementTypes().filter((kind) =>
+			allProducts().some((p) => p.arrangement === kind.id),
+		);
+	const current = () =>
+		types().find((kind) => kind.id === search().type) ?? types()[0];
+	const type = () => current()?.id ?? "";
+	const catalog = () => allProducts().filter((p) => p.arrangement === type());
+	const noun = () => current()?.pluralName.toLowerCase() ?? "arrangements";
+	const typeSizes = () => sizesForType(sizes(), type());
 	const chosenFlowers = () => parseList(search().flower);
-	const chosenSizes = () => parseList(search().size);
+	const chosenSizes = () => {
+		const ids = new Set(typeSizes().map((size) => size.id));
+		return parseList(search().size).filter((id) => ids.has(id));
+	};
 	// The box shows each keystroke; the list and address follow a pause.
 	const [query, setQuery] = createSignal(search().q ?? "");
 	const [searched, setSearched] = createSignal(query());
@@ -122,7 +144,7 @@ export function ShopPage() {
 			.map(([name, count]) => ({ key: filterKey(name), label: name, count }));
 	});
 	const sizeOptions = createMemo(() =>
-		sizes().flatMap((size) => {
+		typeSizes().flatMap((size) => {
 			const all = catalog().filter((p) => p.size === size.id);
 			const count = all.filter(
 				(p) => hasName(p) && hasFlower(p, chosenFlowers()),
@@ -376,8 +398,39 @@ export function ShopPage() {
 							id="bouquets"
 							class="mt-14 scroll-mt-24 font-display type-soft text-2xl font-semibold"
 						>
-							Signature Bouquets
+							Floral Arrangements
 						</h2>
+						<Show when={types().length > 1}>
+							<div
+								role="tablist"
+								aria-label="Kind of arrangement"
+								class="mt-4 flex flex-wrap gap-2"
+							>
+								<For each={types()}>
+									{(kind, index) => (
+										<button
+											type="button"
+											role="tab"
+											aria-selected={type() === kind.id}
+											onClick={() =>
+												setFilter({
+													type: index() === 0 ? undefined : kind.id,
+													size: undefined,
+												})
+											}
+											class={cn(
+												"h-10 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+												type() === kind.id
+													? "border-petal-700 bg-petal-700 text-white"
+													: "border-petal-200 bg-white text-petal-900 hover:bg-petal-50",
+											)}
+										>
+											{kind.pluralName}
+										</button>
+									)}
+								</For>
+							</div>
+						</Show>
 						<Show when={catalog().length > 0}>
 							<div class="mt-4 flex flex-wrap items-center gap-2">
 								<label class="flex h-10 w-full items-center gap-2 rounded-xl border border-petal-200 bg-white px-3 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 sm:w-64">
@@ -443,9 +496,9 @@ export function ShopPage() {
 									<p class="text-sm text-petal-900/60" aria-live="polite">
 										<Show
 											when={filtering()}
-											fallback={`${catalog().length} bouquets`}
+											fallback={`${catalog().length} ${noun()}`}
 										>
-											{bouquets().length} of {catalog().length} bouquets
+											{bouquets().length} of {catalog().length} {noun()}
 										</Show>
 									</p>
 									<label class="relative flex items-center">

@@ -1,4 +1,5 @@
 import type { BouquetMessage } from "~/lib/bouquet-messages";
+import type { ContactPlatform } from "~/lib/chat-order";
 import {
 	CUSTOM_IMAGE,
 	CUSTOM_PRODUCT_ID,
@@ -45,6 +46,10 @@ export interface PricedLine {
 	readyBy?: string;
 	/** Set by staff on placed orders. */
 	wrapperStatus?: WrapperStatus;
+	/** Its arrangement type's id when ordered, e.g. "corsage"; older orders lack it. */
+	arrangement?: string;
+	/** Orders added from a chat: where the customer contacted the owner. */
+	contactPlatform?: ContactPlatform;
 	/** The design, for built bouquets, so they can be ordered again. */
 	custom?: CustomDesign;
 	/**
@@ -120,6 +125,7 @@ export function priceCart(
 			productId: product.id,
 			variantId: variant.id,
 			title: product.title,
+			arrangement: product.arrangement,
 			colorName: variant.colorName,
 			colorHex: variant.colorHex,
 			colorHex2: variant.colorHex2,
@@ -235,4 +241,14 @@ export function sanitizeCartLines(raw: unknown): CartLine[] {
 
 export function roundMoney(amount: number) {
 	return Math.round(amount * 100) / 100;
+}
+
+/**
+ * Bouquets with a wrapper track how far it is. Custom orders always do: one
+ * added from a chat often has its wrapper described in the message instead.
+ */
+export function tracksWrapper(
+	line: Pick<PricedLine, "wrapperColor" | "productId">,
+) {
+	return !!line.wrapperColor || line.productId === CUSTOM_PRODUCT_ID;
 }

@@ -24,6 +24,7 @@ import {
 } from "~/components/admin/ui";
 import { WrapperSelect } from "~/components/admin/wrapper-select";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { DEFAULT_ARRANGEMENT, sizesForType } from "~/lib/arrangements";
 import { findFlowerKind, flowerKinds } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
 import { formatRecipeItem, sameRecipe } from "~/lib/flowers";
@@ -40,6 +41,7 @@ import {
 import type { BouquetSize } from "~/lib/sizes";
 import { shopNow } from "~/lib/time";
 import {
+	useArrangementTypes,
 	useCustomSettings,
 	useFlowerPhotos,
 	useSizes,
@@ -161,6 +163,8 @@ const newRecipeRow = (): RecipeDraft => ({
 interface ProductDraft {
 	title: string;
 	description: string;
+	/** An id from Admin → Arrangement types. */
+	arrangement: string;
 	size: BouquetSize | "";
 	isVisible: boolean;
 	recipe: RecipeDraft[];
@@ -206,6 +210,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 		return {
 			title: "",
 			description: "",
+			arrangement: DEFAULT_ARRANGEMENT,
 			size: "",
 			isVisible: true,
 			recipe: [newRecipeRow()],
@@ -215,6 +220,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 	return {
 		title: product.title,
 		description: product.description,
+		arrangement: product.arrangement,
 		size: product.size,
 		isVisible: product.isVisible,
 		recipe: toRecipeDraft(product.recipe),
@@ -248,6 +254,9 @@ function ProductEditor() {
 	// The flower list is the one staff keep in Admin → Flowers.
 	const custom = useCustomSettings();
 	const sizes = useSizes();
+	const arrangementTypes = useArrangementTypes();
+	/** The sizes this arrangement's type comes in. */
+	const typeSizes = () => sizesForType(sizes(), draft.arrangement);
 	const flowerKind = (name: string) => findFlowerKind(name, custom());
 	const flowerPhoto = useFlowerPhotos();
 	/** For the picker, where no color is chosen yet: any photo of the flower. */
@@ -685,7 +694,10 @@ function ProductEditor() {
 					product: {
 						title: draft.title,
 						description: draft.description,
-						size: draft.size,
+						arrangement: draft.arrangement,
+						size: typeSizes().some((s) => s.id === draft.size)
+							? draft.size
+							: "",
 						isVisible: draft.isVisible,
 						recipe: recipeToSave(draft.recipe),
 						variants: draft.variants.map((v) => ({
@@ -730,10 +742,12 @@ function ProductEditor() {
 				to="/admin/signature-bouquets"
 				class={cn(adminButton.ghost, "-ml-2 mb-2")}
 			>
-				← Signature bouquets
+				← Floral arrangements
 			</Link>
 			<PageHeader
-				title={isNew() ? "New bouquet" : draft.title || "Untitled bouquet"}
+				title={
+					isNew() ? "New arrangement" : draft.title || "Untitled arrangement"
+				}
 				actions={
 					<Show when={!isNew() && loaded()?.isVisible}>
 						<a
@@ -810,28 +824,32 @@ function ProductEditor() {
 					</span>
 				</div>
 				<fieldset class="sm:col-span-2">
-					<legend class="mb-2 text-sm font-medium">
-						Size{" "}
-						<span class="font-normal text-petal-900/55">
-							— shown with the size guide
-						</span>
-					</legend>
-					<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-						<For each={sizes()}>
-							{(size) => (
+					<legend class="mb-2 text-sm font-medium">Type</legend>
+					<div class="grid gap-2 sm:grid-cols-3">
+						<For each={arrangementTypes()}>
+							{(type) => (
 								<label class="cursor-pointer">
 									<input
 										type="radio"
-										name="size"
-										value={size.id}
-										checked={draft.size === size.id}
-										onChange={() => setDraft("size", size.id)}
+										name="arrangement"
+										value={type.id}
+										checked={draft.arrangement === type.id}
+										onChange={() => {
+											setDraft("arrangement", type.id);
+											// A size belongs to one type; it can't come along.
+											if (
+												!sizesForType(sizes(), type.id).some(
+													(size) => size.id === draft.size,
+												)
+											)
+												setDraft("size", "");
+										}}
 										class="peer sr-only"
 									/>
 									<span class="flex h-full flex-col rounded-xl border border-petal-200 bg-white px-3 py-2 text-sm transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
-										<span class="font-semibold">{size.name}</span>
+										<span class="font-semibold">{type.name}</span>
 										<span class="text-xs text-petal-900/60">
-											{size.description}
+											{type.description}
 										</span>
 									</span>
 								</label>
@@ -839,19 +857,61 @@ function ProductEditor() {
 						</For>
 					</div>
 					<p class="mt-1.5 text-xs text-petal-900/55">
-						<Show when={!draft.size}>
-							No size chosen yet; the shop won’t show one.{" "}
-						</Show>
-						Sizes and their pictures are set in{" "}
+						Types are set in{" "}
 						<Link
-							to="/admin/sizes"
+							to="/admin/arrangement-types"
 							class="underline underline-offset-2 hover:text-petal-900"
 						>
-							Sizes
+							Arrangement types
 						</Link>
 						.
 					</p>
 				</fieldset>
+				<Show when={typeSizes().length > 0}>
+					<fieldset class="sm:col-span-2">
+						<legend class="mb-2 text-sm font-medium">
+							Size{" "}
+							<span class="font-normal text-petal-900/55">
+								— shown with the size guide
+							</span>
+						</legend>
+						<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+							<For each={typeSizes()}>
+								{(size) => (
+									<label class="cursor-pointer">
+										<input
+											type="radio"
+											name="size"
+											value={size.id}
+											checked={draft.size === size.id}
+											onChange={() => setDraft("size", size.id)}
+											class="peer sr-only"
+										/>
+										<span class="flex h-full flex-col rounded-xl border border-petal-200 bg-white px-3 py-2 text-sm transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
+											<span class="font-semibold">{size.name}</span>
+											<span class="text-xs text-petal-900/60">
+												{size.description}
+											</span>
+										</span>
+									</label>
+								)}
+							</For>
+						</div>
+						<p class="mt-1.5 text-xs text-petal-900/55">
+							<Show when={!draft.size}>
+								No size chosen yet; the shop won’t show one.{" "}
+							</Show>
+							Sizes for each type, and their pictures, are set in{" "}
+							<Link
+								to="/admin/sizes"
+								class="underline underline-offset-2 hover:text-petal-900"
+							>
+								Sizes
+							</Link>
+							.
+						</p>
+					</fieldset>
+				</Show>
 			</section>
 
 			<h2 class="text-lg font-semibold">Flowers</h2>
@@ -1431,22 +1491,22 @@ function ProductEditor() {
 					<Show when={!isNew()}>
 						<ConfirmButton
 							class={cn(adminButton.danger, barButton)}
-							title={`Delete ${draft.title || "this bouquet"}?`}
-							description="This removes the bouquet and all its styles from the shop for good. Past orders keep their details."
-							confirmLabel="Delete bouquet"
+							title={`Delete ${draft.title || "this arrangement"}?`}
+							description="This removes the arrangement and all its styles from the shop for good. Past orders keep their details."
+							confirmLabel="Delete arrangement"
 							onConfirm={async () => {
 								try {
 									await deleteProductFn({
 										data: { productId: params().productId },
 									});
-									toastSuccess("Bouquet deleted.");
+									toastSuccess("Arrangement deleted.");
 									await navigate({ to: "/admin/signature-bouquets" });
 								} catch (error) {
 									toastError(error);
 								}
 							}}
 						>
-							Delete<span class="hidden sm:inline"> bouquet</span>
+							Delete<span class="hidden sm:inline"> arrangement</span>
 						</ConfirmButton>
 					</Show>
 					<button

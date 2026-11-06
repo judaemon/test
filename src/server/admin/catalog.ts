@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/solid-start";
+import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { productPhotoId, THUMB_WIDTH } from "~/lib/photos";
 import { flowerCodeKey, isPhotoTag, PHOTO_CAPTION_MAX } from "~/lib/product";
 import { WATERMARK_VERSION } from "~/lib/watermark";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
+import { listArrangementTypes } from "../arrangement-types-repo";
 import {
 	deleteProduct,
 	deleteVariant,
@@ -284,6 +286,11 @@ export const saveProductFn = createServerFn({ method: "POST" })
 				max: 2000,
 				required: false,
 			}),
+			arrangement: oneOf(
+				product.arrangement ?? DEFAULT_ARRANGEMENT,
+				listArrangementTypes().map((type) => type.id),
+				"Type",
+			),
 			size: product.size
 				? oneOf(
 						product.size,

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
-
+import { listArrangementTypes } from "./arrangement-types-repo";
 import {
 	findBouquetRedirect,
 	getAdminProduct,
@@ -25,6 +25,10 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 			},
 			// For the size guide and the shop's size filter.
 			sizes: listSizes().map(({ usedIn: _usedIn, ...size }) => size),
+			// The shop's tabs, and each arrangement's type.
+			arrangementTypes: listArrangementTypes().map(
+				({ usedIn: _usedIn, sizeCount: _sizeCount, ...type }) => type,
+			),
 		};
 	},
 );

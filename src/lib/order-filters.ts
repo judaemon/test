@@ -12,6 +12,8 @@ export interface OrdersSearch {
 	method?: string;
 	company?: string;
 	class?: string;
+	/** Arrangement type ids, or "custom" for custom bouquets. */
+	arrangement?: string;
 	/** Bouquet codes, e.g. "SB-01,Custom". */
 	style?: string;
 	flower?: string;
@@ -37,6 +39,7 @@ export const FACETS = [
 	{ id: "method", label: "Method" },
 	{ id: "company", label: "Company" },
 	{ id: "class", label: "Class" },
+	{ id: "arrangement", label: "Arrangement" },
 	{ id: "style", label: "Bouquet" },
 	{ id: "flower", label: "Flower" },
 	{ id: "wrapper", label: "Wrapper" },
@@ -51,6 +54,9 @@ export const DEFAULT_PAGE_SIZE = 50;
 
 /** Stands in for an empty company, class or wrapper. */
 export const NONE = "none";
+
+/** The arrangement filter's key for custom bouquets, built or from a chat. */
+export const CUSTOM_ARRANGEMENT = "custom";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -75,6 +81,7 @@ export function validateOrdersSearch(
 		method: list("method"),
 		company: list("company"),
 		class: list("class"),
+		arrangement: list("arrangement"),
 		style: list("style"),
 		flower: list("flower"),
 		wrapper: list("wrapper"),

@@ -157,6 +157,16 @@ export const seedPaymentAccounts: PaymentAccount[] = [
 		],
 	},
 	{
+		method: "cash",
+		enabled: true,
+		label: "Cash - 1st Class RICARDE Foxtrot",
+		accountName: "",
+		accountNumber: "",
+		bankName: "",
+		qrImage: "",
+		steps: [],
+	},
+	{
 		method: "maya",
 		enabled: false,
 		label: "Maya",

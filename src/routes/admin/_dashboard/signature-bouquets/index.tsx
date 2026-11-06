@@ -22,11 +22,12 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { findArrangementType, sizesForType } from "~/lib/arrangements";
 import { formatRecipeItem, mainFlower } from "~/lib/flowers";
 import { formatPrice, stockLabel, swatchBackground } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { findSize } from "~/lib/sizes";
-import { useSizes } from "~/lib/use-catalog";
+import { useArrangementTypes, useSizes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import {
 	deleteProductFn,
@@ -55,6 +56,8 @@ const DELETE_ICON_BUTTON = cn(
 /** Search, filters and sort, kept in the address so Back returns to them. */
 interface InventorySearch {
 	q?: string;
+	/** Comma-separated: bouquet, corsage, boutonniere. */
+	type?: string;
 	/** Comma-separated: size ids, or "none" for bouquets without one. */
 	size?: string;
 	/** Comma-separated: "shown", "hidden". */
@@ -70,6 +73,7 @@ interface InventorySearch {
 export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 	validateSearch: (search: Record<string, unknown>): InventorySearch => ({
 		q: textParam(search, "q"),
+		type: textParam(search, "type"),
 		size: textParam(search, "size"),
 		status: textParam(search, "status"),
 		themes: textParam(search, "themes"),
@@ -85,6 +89,7 @@ function InventoryPage() {
 	const loaded = Route.useLoaderData();
 	const context = Route.useRouteContext();
 	const sizes = useSizes();
+	const arrangementTypes = useArrangementTypes();
 	// A keyed store keeps each row's DOM (and keyboard focus) across saves.
 	const [products, setProducts] = createStore<AdminProduct[]>(loaded());
 	createEffect(
@@ -104,6 +109,7 @@ function InventoryPage() {
 	const filtered = () =>
 		!!(
 			search().q ||
+			search().type ||
 			search().size ||
 			search().status ||
 			search().themes ||
@@ -122,6 +128,10 @@ function InventoryPage() {
 		);
 	const searched = () => products.filter((p) => colorsOf(p).length > 0);
 	const facets = (): Record<string, Facet<AdminProduct>> => ({
+		type: {
+			chosen: parseList(search().type),
+			matches: (p, key) => p.arrangement === key,
+		},
 		size: {
 			chosen: parseList(search().size),
 			matches: (p, key) => (p.size || "none") === key,
@@ -189,7 +199,7 @@ function InventoryPage() {
 			{/* Stays in view on wider screens; on phones it would fill the screen. */}
 			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
 				<PageHeader
-					title="Signature bouquets"
+					title="Floral arrangements"
 					description="Changes here save straight away. Show in shop lists or hides the whole bouquet; a style that isn’t Available stays listed but can’t be ordered."
 					actions={
 						<>
@@ -216,7 +226,7 @@ function InventoryPage() {
 								params={{ productId: "new" }}
 								class={adminButton.primary}
 							>
-								+ New bouquet
+								+ New arrangement
 							</Link>
 						</>
 					}
@@ -224,8 +234,16 @@ function InventoryPage() {
 				<ListToolbar
 					query={search().q ?? ""}
 					onQuery={(q) => setSearch({ q: q || undefined })}
-					placeholder="Bouquet or style name"
+					placeholder="Arrangement or style name"
 					filters={[
+						filterOf(
+							"type",
+							"Type",
+							arrangementTypes().map((type) => ({
+								key: type.id,
+								label: type.pluralName,
+							})),
+						),
 						filterOf("size", "Size", [
 							...sizes().map((size) => ({ key: size.id, label: size.name })),
 							{ key: "none", label: "No size set" },
@@ -262,13 +280,14 @@ function InventoryPage() {
 					}}
 					summary={
 						filtered()
-							? `${visible().length} of ${products.length} bouquets`
-							: `${products.length} bouquets`
+							? `${visible().length} of ${products.length} arrangements`
+							: `${products.length} arrangements`
 					}
 					filtered={filtered()}
 					onClear={() =>
 						setSearch({
 							q: undefined,
+							type: undefined,
 							size: undefined,
 							status: undefined,
 							themes: undefined,
@@ -307,8 +326,19 @@ function InventoryPage() {
 										</Show>
 									</h2>
 									<p class="text-xs text-petal-900/55">
-										{findSize(sizes(), product.size)?.name ?? "No size set"} ·{" "}
-										{product.variants.length}{" "}
+										{findArrangementType(
+											arrangementTypes(),
+											product.arrangement,
+										)?.name ?? "No type"}
+										<Show
+											when={
+												sizesForType(sizes(), product.arrangement).length > 0
+											}
+										>
+											{" "}
+											· {findSize(sizes(), product.size)?.name ?? "No size set"}
+										</Show>{" "}
+										· {product.variants.length}{" "}
 										{product.variants.length === 1 ? "style" : "styles"} · from{" "}
 										{formatPrice(product.basePrice, product.currency)}
 									</p>

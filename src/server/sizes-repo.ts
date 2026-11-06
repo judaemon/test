@@ -4,7 +4,7 @@ import { fromCents, getDb, nowIso, toCents } from "./db";
 import { InputError } from "./validate";
 
 export interface SizeRecord extends BouquetSizeInfo {
-	/** Signature bouquets with this size. */
+	/** Floral arrangements with this size. */
 	usedIn: number;
 }
 
@@ -13,6 +13,7 @@ export function listSizes(): SizeRecord[] {
 	const rows = getDb()
 		.query(
 			`SELECT s.id, s.name, s.description, s.image, s.price_cents,
+			   COALESCE(s.arrangement, 'bouquet') AS arrangement,
 			   (SELECT COUNT(*) FROM signature_bouquets b WHERE b.size_id = s.id) AS usedIn
 			 FROM sizes s ORDER BY s.sort, s.name`,
 		)
@@ -56,10 +57,15 @@ export function saveSize(id: string | null, input: SizeInput) {
 		const { changes } = db
 			.query(
 				`UPDATE sizes SET name = $name, description = $description, image = $image,
-				   price_cents = $priceCents, updated_at = $now WHERE id = $id`,
+				   arrangement = $arrangement, price_cents = $priceCents, updated_at = $now
+				 WHERE id = $id`,
 			)
 			.run({ id, ...params });
 		if (changes === 0) throw new Error("Size not found");
+		// Arrangements of another type can't keep a size that isn't theirs.
+		db.query(
+			"UPDATE signature_bouquets SET size_id = NULL WHERE size_id = $id AND arrangement != $arrangement",
+		).run({ id, arrangement: input.arrangement });
 		return id;
 	}
 	const taken = new Set(
@@ -69,20 +75,28 @@ export function saveSize(id: string | null, input: SizeInput) {
 	);
 	const newId = uniqueSlug(slugify(input.name), taken);
 	db.query(
-		`INSERT INTO sizes (id, name, description, image, price_cents, sort, created_at, updated_at)
-		 VALUES ($id, $name, $description, $image, $priceCents,
+		`INSERT INTO sizes (id, name, description, image, arrangement, price_cents, sort, created_at, updated_at)
+		 VALUES ($id, $name, $description, $image, $arrangement, $priceCents,
 		   (SELECT COALESCE(MAX(sort), -1) + 1 FROM sizes), $now, $now)`,
 	).run({ id: newId, ...params });
 	return newId;
 }
 
-/** Moves a size one place smaller (-1) or larger (+1) in the size guide. */
+/**
+ * Moves a size one place smaller (-1) or larger (+1) in its type's size
+ * guide, past the next size of the same type.
+ */
 export function moveSize(id: string, direction: -1 | 1) {
 	const db = getDb();
-	const ids = listSizes().map((size) => size.id);
+	const sizes = listSizes();
+	const ids = sizes.map((size) => size.id);
 	const from = ids.indexOf(id);
-	const to = from + direction;
-	if (from === -1 || to < 0 || to >= ids.length) return;
+	const type = sizes[from]?.arrangement;
+	const siblings = sizes.flatMap((size, index) =>
+		size.arrangement === type ? [index] : [],
+	);
+	const to = siblings[siblings.indexOf(from) + direction];
+	if (from === -1 || to === undefined) return;
 	[ids[from], ids[to]] = [ids[to] as string, ids[from] as string];
 	const update = db.query("UPDATE sizes SET sort = $sort WHERE id = $id");
 	db.transaction(() => {

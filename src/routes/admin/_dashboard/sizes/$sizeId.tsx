@@ -5,7 +5,7 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/solid-router";
-import { createSignal, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createCropper } from "~/components/admin/image-cropper";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
@@ -19,11 +19,20 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
+import { useArrangementTypes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
 import { deleteSizeFn, getSizeAdmin, saveSizeFn } from "~/server/admin/sizes";
 
 export const Route = createFileRoute("/admin/_dashboard/sizes/$sizeId")({
+	// "+ Add corsage size" starts the new size with that type.
+	validateSearch: (search: Record<string, unknown>): { type?: string } => ({
+		type:
+			typeof search.type === "string" && search.type
+				? search.type.slice(0, 64)
+				: undefined,
+	}),
 	loader: async ({ params }) => {
 		if (params.sizeId === "new") return null;
 		const size = await getSizeAdmin({ data: params.sizeId });
@@ -44,12 +53,15 @@ function SizeEditor() {
 		name: loaded()?.name ?? "",
 		description: loaded()?.description ?? "",
 		image: loaded()?.image ?? "",
+		arrangement:
+			loaded()?.arrangement ?? Route.useSearch()().type ?? DEFAULT_ARRANGEMENT,
 		// Kept as typed; empty leaves the size out of the builder.
 		price: loaded()?.price === undefined ? "" : String(loaded()?.price),
 	});
 	const [saving, setSaving] = createSignal(false);
 	const [uploading, setUploading] = createSignal(false);
 	const usedIn = () => loaded()?.usedIn ?? 0;
+	const arrangementTypes = useArrangementTypes();
 
 	const cropper = createCropper();
 	const uploadPhoto = async (files: FileList | null) => {
@@ -89,6 +101,7 @@ function SizeEditor() {
 						name: draft.name,
 						description: draft.description,
 						image: draft.image,
+						arrangement: draft.arrangement,
 						price: draft.price.trim() === "" ? null : Number(draft.price),
 					},
 				},
@@ -171,6 +184,27 @@ function SizeEditor() {
 					</span>
 				</div>
 				<div class="grid content-start gap-4">
+					<Field
+						label="Type"
+						hint="Arrangements of this type can have this size. Changing it takes the size off arrangements of the old type."
+					>
+						<select
+							value={draft.arrangement}
+							onChange={(e) => setDraft("arrangement", e.currentTarget.value)}
+							class={adminInput}
+						>
+							<For each={arrangementTypes()}>
+								{(type) => (
+									<option
+										value={type.id}
+										selected={draft.arrangement === type.id}
+									>
+										{type.name}
+									</option>
+								)}
+							</For>
+						</select>
+					</Field>
 					<Field label="Name">
 						<input
 							value={draft.name}
@@ -223,7 +257,7 @@ function SizeEditor() {
 							title={`Delete ${draft.savedName}?`}
 							description={
 								usedIn() > 0
-									? `${usedIn()} signature ${usedIn() === 1 ? "bouquet has" : "bouquets have"} this size, so it can’t be deleted until they get another size.`
+									? `${usedIn()} ${usedIn() === 1 ? "arrangement has" : "arrangements have"} this size, so it can’t be deleted until they get another size.`
 									: "It’s removed from the size guide for good."
 							}
 							confirmLabel="Delete size"

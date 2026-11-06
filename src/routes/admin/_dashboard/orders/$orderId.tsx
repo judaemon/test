@@ -623,8 +623,9 @@ function OrderDetail() {
 						</Show>
 						<Show when={payment().method !== "card" && !cancelled()}>
 							<p class="mt-3 text-xs text-petal-900/60">
-								Check that the amount and reference number match your{" "}
-								{PAYMENT_METHOD_LABELS[payment().method]} history.
+								{payment().method === "cash"
+									? "Verify once 1st Class RICARDE (Foxtrot) has the cash in hand."
+									: `Check that the amount and reference number match your ${PAYMENT_METHOD_LABELS[payment().method]} history.`}
 							</p>
 							<div class="mt-3 flex gap-2">
 								<button

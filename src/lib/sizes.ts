@@ -1,4 +1,4 @@
-/** A bouquet size from Admin → Sizes, e.g. Petite. */
+/** A size from Admin → Sizes, e.g. Petite, for one arrangement type. */
 export interface BouquetSizeInfo {
 	id: string;
 	name: string;
@@ -6,6 +6,8 @@ export interface BouquetSizeInfo {
 	description: string;
 	/** Someone holding a bouquet this size, for the size guide; empty if none. */
 	image: string;
+	/** The arrangement type this size is for (Admin → Arrangement types). */
+	arrangement: string;
 	/** Added to a built bouquet this size; missing leaves it out of the builder. */
 	price?: number;
 }

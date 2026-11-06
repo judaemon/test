@@ -6,22 +6,20 @@
  *   bun run data:pull                download it from the live site and load it (needs PROD_URL
  *                                    and DATA_EXPORT_TOKEN in .env; see .env.example)
  *
- * Stop the dev server first. What's in `.data/` now is moved to
+ * Stop the dev server first (or use Admin → Staff → Import data while it runs). What's in `.data/` now is moved to
  * `.data-backups/<date-time>/`, never deleted, so you can put it back by hand.
  * Login sessions aren't in the export: sign in again with your own password.
  *
  * Never run this on the live server.
  */
-import { mkdir, rename, stat, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve, sep } from "node:path";
-import { unzipSync } from "fflate";
+import { mkdir, stat } from "node:fs/promises";
+import { join } from "node:path";
 
-import { EXPORT_LAYOUT, type ExportManifest } from "~/server/data-export";
-import { SCHEMA_VERSION } from "~/server/db";
-
-const DB_PATH = process.env.DATABASE_PATH ?? ".data/oraia.sqlite";
-const UPLOAD_ROOT = process.env.UPLOAD_DIR ?? ".data/uploads";
-const BACKUP_ROOT = ".data-backups";
+import {
+	DataImportError,
+	type ImportSummary,
+	loadDataExport,
+} from "~/server/data-import";
 const DOWNLOAD_DIR = ".data-imports";
 
 function fail(message: string): never {
@@ -62,55 +60,20 @@ async function importZip(zipPath: string) {
 	if (!(await exists(zipPath))) fail(`There's no file at ${zipPath}.`);
 
 	console.log(`Reading ${zipPath}…`);
-	const files = unzipSync(new Uint8Array(await Bun.file(zipPath).arrayBuffer()));
-	const database = files[EXPORT_LAYOUT.database];
-	const manifestBytes = files[EXPORT_LAYOUT.manifest];
-	if (!database || !manifestBytes)
-		fail("That zip isn't a shop data export (no database or manifest inside).");
-	const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as ExportManifest;
-	if (manifest.schemaVersion > SCHEMA_VERSION)
-		fail(
-			`The live database is newer than this code (schema ${manifest.schemaVersion}, code knows ${SCHEMA_VERSION}). Pull the latest code first.`,
-		);
-
-	// Keep what's here now, in case it's wanted back.
-	const backup = join(BACKUP_ROOT, stamp());
-	let backedUp = false;
-	const moves: [string, string][] = [
-		[DB_PATH, basename(DB_PATH)],
-		[`${DB_PATH}-wal`, `${basename(DB_PATH)}-wal`],
-		[`${DB_PATH}-shm`, `${basename(DB_PATH)}-shm`],
-		[UPLOAD_ROOT, "uploads"],
-	];
-	for (const [path, name] of moves) {
-		if (!(await exists(path))) continue;
-		await mkdir(backup, { recursive: true });
-		await rename(path, join(backup, name));
-		backedUp = true;
+	let summary: ImportSummary;
+	try {
+		summary = await loadDataExport(new Uint8Array(await Bun.file(zipPath).arrayBuffer()));
+	} catch (error) {
+		if (error instanceof DataImportError) fail(error.message);
+		throw error;
 	}
 
-	await mkdir(dirname(DB_PATH), { recursive: true });
-	await writeFile(DB_PATH, database);
-
-	const uploadRoot = resolve(UPLOAD_ROOT);
-	let uploads = 0;
-	for (const [name, bytes] of Object.entries(files)) {
-		if (!name.startsWith(EXPORT_LAYOUT.uploads) || name.endsWith("/")) continue;
-		const target = resolve(uploadRoot, name.slice(EXPORT_LAYOUT.uploads.length));
-		// Never write outside the uploads folder, whatever the zip says.
-		if (!target.startsWith(uploadRoot + sep)) continue;
-		await mkdir(dirname(target), { recursive: true });
-		await writeFile(target, bytes);
-		uploads++;
-	}
-	await mkdir(uploadRoot, { recursive: true });
-
-	const count = (table: string) => manifest.rows[table] ?? 0;
+	const count = (table: string) => summary.rows[table] ?? 0;
 	console.log(`
-✓ Loaded the live shop as of ${new Date(manifest.exportedAt).toLocaleString()}:
+✓ Loaded the live shop as of ${new Date(summary.exportedAt).toLocaleString()}:
     ${count("orders")} orders · ${count("signature_bouquets")} signature bouquets · ${count("bouquet_styles")} styles
-    ${count("flowers")} flowers · ${count("wrappers")} wrappers · ${count("user")} accounts · ${uploads} photos and files
-${backedUp ? `  Your previous local data is in ${backup}/.\n` : ""}
+    ${count("flowers")} flowers · ${count("wrappers")} wrappers · ${count("user")} accounts · ${summary.uploads} photos and files
+${summary.backup ? `  Your previous local data is in ${summary.backup}/.\n` : ""}
   Start the dev server and sign in to /admin with your live-site password.
   Careful: emails and payment proofs here are real customers' data.
 `);

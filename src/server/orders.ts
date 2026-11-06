@@ -15,6 +15,7 @@ import { ORDER_EDIT_LOCKED, orderEditState } from "~/lib/order-edit";
 import {
 	CARD_BRAND_LABELS,
 	type CardBrand,
+	isMethodAllowedFor,
 	isPaymentMethod,
 	isQrPayment,
 	normalizeReferenceNumber,
@@ -132,6 +133,11 @@ export const placeOrder = createServerFn({ method: "POST" })
 				: null;
 		if (!method) {
 			fieldErrors.paymentMethod = "Choose how you’d like to pay.";
+		} else if (!isMethodAllowedFor(method, data.details.className)) {
+			fieldErrors.paymentMethod =
+				"Cash is for cadets only. Choose another way to pay.";
+		} else if (method === "cash") {
+			// Paid in person; nothing else to check.
 		} else if (isQrPayment(method)) {
 			const referenceError = validateReferenceNumber(data.referenceNumber);
 			if (referenceError && !data.referenceLater)
@@ -184,7 +190,10 @@ export const placeOrder = createServerFn({ method: "POST" })
 
 		const id = crypto.randomUUID();
 		let payment: NewOrder["payment"];
-		if (isQrPayment(method) && data.referenceLater) {
+		if (method === "cash") {
+			// Staff verify the order once the cash is in hand.
+			payment = { method, status: "on_hold" };
+		} else if (isQrPayment(method) && data.referenceLater) {
 			payment = { method, status: "on_hold" };
 		} else if (isQrPayment(method)) {
 			// Staff match the reference number against the account's history.
@@ -372,6 +381,9 @@ export const updateMyOrder = createServerFn({ method: "POST" })
 			dedicationMessage: order.details.dedicationMessage,
 		};
 		const fieldErrors = validateCheckoutDetails(details);
+		if (!isMethodAllowedFor(order.payment.method, details.className))
+			fieldErrors.className =
+				"Cash payment is for cadets only. Keep your cadet class, or contact us to change how you pay.";
 		if (hasErrors(fieldErrors))
 			return {
 				ok: false,

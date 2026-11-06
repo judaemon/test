@@ -25,7 +25,13 @@ import {
 	COMPANIES,
 	isCadetClass,
 } from "~/lib/cadets";
-import { CHAT_MESSAGE_MAX, CHAT_PHOTOS_MAX } from "~/lib/chat-order";
+import {
+	CHAT_MESSAGE_MAX,
+	CHAT_PHOTOS_MAX,
+	CONTACT_PLATFORM_LABELS,
+	CONTACT_PLATFORMS,
+	type ContactPlatform,
+} from "~/lib/chat-order";
 import {
 	type CheckoutField,
 	DEDICATION_MESSAGE_MAX,
@@ -88,6 +94,9 @@ function NewChatOrder() {
 	);
 	const [method, setMethod] = createSignal<PaymentMethod>(
 		editing?.payment.method ?? "gcash",
+	);
+	const [platform, setPlatform] = createSignal<ContactPlatform | "">(
+		line?.contactPlatform ?? "",
 	);
 	// Photos already on the order (no file) and new ones (a file to upload).
 	const [photos, setPhotos] = createSignal<{ file?: File; url: string }[]>(
@@ -156,6 +165,7 @@ function NewChatOrder() {
 		body.set("total", total());
 		body.set("paid", paid());
 		body.set("method", method());
+		body.set("contactPlatform", platform());
 		body.set("wrapperId", wrapperId());
 		for (const [field, value] of Object.entries(customer))
 			body.set(field, value);
@@ -385,6 +395,27 @@ function NewChatOrder() {
 			</section>
 
 			<section class={cn(adminCard, "grid gap-5 p-5")}>
+				<Field label="Contacted via">
+					<select
+						value={platform()}
+						onChange={(e) =>
+							setPlatform(e.currentTarget.value as ContactPlatform)
+						}
+						required
+						class={adminInput}
+					>
+						<option value="" disabled selected={!platform()}>
+							Where did they message you?
+						</option>
+						<For each={CONTACT_PLATFORMS}>
+							{(value) => (
+								<option value={value} selected={platform() === value}>
+									{CONTACT_PLATFORM_LABELS[value]}
+								</option>
+							)}
+						</For>
+					</select>
+				</Field>
 				<Field
 					label="Chat message from the customer"
 					hint="Name, class, company, flowers, payment details: whatever they sent."

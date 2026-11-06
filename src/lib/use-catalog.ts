@@ -16,6 +16,14 @@ export function useSizes() {
 	return useLoaderData({ from: "__root__", select: (data) => data.sizes });
 }
 
+/** Kinds of floral arrangement, in the shop's tab order (from the root route). */
+export function useArrangementTypes() {
+	return useLoaderData({
+		from: "__root__",
+		select: (data) => data.arrangementTypes,
+	});
+}
+
 /** The bouquet builder's prices, colors and wrappers (from the root route). */
 export function useCustomSettings() {
 	return useLoaderData({ from: "__root__", select: (data) => data.custom });

@@ -1,12 +1,21 @@
-export const PAYMENT_METHODS = ["card", "gcash", "maya", "bank"] as const;
+import { CIVILIAN } from "~/lib/cadets";
+
+export const PAYMENT_METHODS = [
+	"card",
+	"gcash",
+	"maya",
+	"bank",
+	"cash",
+] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
-export type QrPaymentMethod = Exclude<PaymentMethod, "card">;
+export type QrPaymentMethod = Exclude<PaymentMethod, "card" | "cash">;
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 	card: "Card",
 	gcash: "GCash",
 	maya: "Maya",
 	bank: "Bank transfer",
+	cash: "Cash - 1st Class RICARDE Foxtrot",
 };
 
 export function isPaymentMethod(value: unknown): value is PaymentMethod {
@@ -19,8 +28,19 @@ export const ON_HOLD_NOTICE =
 
 /** QR methods are settled outside the site, so they need a reference number. */
 export function isQrPayment(method: PaymentMethod): method is QrPaymentMethod {
-	return method !== "card";
+	return method !== "card" && method !== "cash";
 }
+
+/**
+ * Cash is handed over in person to a cadet, so only cadets can choose it. The
+ * order waits on hold until staff mark the cash received.
+ */
+export function isMethodAllowedFor(method: PaymentMethod, className: string) {
+	return method !== "cash" || className !== CIVILIAN;
+}
+
+export const CASH_NOTICE =
+	"Hand your payment in cash to 1st Class RICARDE of Foxtrot. We’ll hold your order until the cash is received.";
 
 export function validateReferenceNumber(value: string): string | undefined {
 	const compact = normalizeReferenceNumber(value);

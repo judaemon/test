@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/solid-start";
 import {
 	CHAT_MESSAGE_MAX,
 	CHAT_PHOTOS_MAX,
+	CONTACT_PLATFORM_LABELS,
+	CONTACT_PLATFORMS,
+	type ContactPlatform,
 	isChatOrder,
 } from "~/lib/chat-order";
 import {
@@ -302,6 +305,11 @@ function parseChatOrderForm(input: unknown) {
 	const method = field("method");
 	if (!isPaymentMethod(method))
 		throw new InputError("Choose how the customer pays.");
+	if (
+		!(CONTACT_PLATFORMS as readonly string[]).includes(field("contactPlatform"))
+	)
+		throw new InputError("Choose where the customer contacted you.");
+	const contactPlatform = field("contactPlatform") as ContactPlatform;
 	const photos = input
 		.getAll("photos")
 		.filter((file): file is File => file instanceof File && file.size > 0);
@@ -324,6 +332,7 @@ function parseChatOrderForm(input: unknown) {
 		total: Math.round(total * 100) / 100,
 		paid: Math.round(paid * 100) / 100,
 		method: method as PaymentMethod,
+		contactPlatform,
 		photos,
 		keptPhotos,
 	};
@@ -378,7 +387,8 @@ function chatOrderLine(
 		productId: CUSTOM_PRODUCT_ID,
 		variantId: `chat-${orderId}`,
 		title: "Custom order",
-		colorName: "From chat",
+		colorName: `From ${CONTACT_PLATFORM_LABELS[data.contactPlatform]}`,
+		contactPlatform: data.contactPlatform,
 		sku: "Custom",
 		image: photoUrls[0] ?? CUSTOM_IMAGE,
 		...(wrapper

@@ -81,6 +81,7 @@ import {
 	type CardInput,
 	cardDigits,
 	detectCardBrand,
+	isMethodAllowedFor,
 	isQrPayment,
 	ON_HOLD_NOTICE,
 	PAYMENT_METHOD_LABELS,
@@ -329,11 +330,26 @@ function CheckoutForm(props: {
 		cvc: "",
 	});
 	const hasProblem = () => props.cart.lines.some((line) => line.problem);
-	/** Only QR payments can wait; the choice is ignored if they switch to card. */
+	/**
+	 * Cash always waits until it's handed over. QR payments can wait too; the
+	 * choice is ignored if they switch to card.
+	 */
 	const onHold = () => {
 		const method = paymentMethod();
+		if (method === "cash") return true;
 		return referenceLater() && !!method && isQrPayment(method);
 	};
+	/** Cash is for cadets only, so civilians don't see it. */
+	const paymentAccounts = () =>
+		props.paymentAccounts.filter((account) =>
+			isMethodAllowedFor(account.method, className()),
+		);
+	// Switching to Civilian drops a cash choice they can no longer make.
+	createEffect(() => {
+		const method = paymentMethod();
+		if (method && !isMethodAllowedFor(method, className()))
+			setPaymentMethod(null);
+	});
 	/** Best guess from the account name: first word, then the rest. */
 	const nameParts = () => {
 		const [first = "", ...rest] = (props.name ?? "").trim().split(/\s+/);
@@ -353,6 +369,7 @@ function CheckoutForm(props: {
 	const validatePayment = (form: FormData): FieldErrors => {
 		const method = paymentMethod();
 		if (!method) return { paymentMethod: "Choose how you’d like to pay." };
+		if (method === "cash") return {};
 		if (isQrPayment(method)) {
 			if (referenceLater()) return {};
 			const reference = form.get("referenceNumber");
@@ -606,7 +623,7 @@ function CheckoutForm(props: {
 
 				<Section id={PAYMENT_SECTION} title="Payment" step={3}>
 					<PaymentSection
-						accounts={props.paymentAccounts}
+						accounts={paymentAccounts()}
 						total={props.cart.total}
 						currency={props.cart.currency}
 						method={paymentMethod()}

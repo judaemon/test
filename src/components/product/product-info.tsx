@@ -1,7 +1,6 @@
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
 import { createEffect, createSignal, For, on, Show } from "solid-js";
-
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -15,6 +14,7 @@ import {
 import { Separator } from "~/components/ui/separator";
 import { showToast } from "~/components/ui/toast";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { findArrangementType, sizesForType } from "~/lib/arrangements";
 import {
 	addToCart,
 	cartStore,
@@ -31,7 +31,11 @@ import {
 	stockLabel,
 } from "~/lib/product";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
-import { useFlowerPhotos, useSizes } from "~/lib/use-catalog";
+import {
+	useArrangementTypes,
+	useFlowerPhotos,
+	useSizes,
+} from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
@@ -55,6 +59,9 @@ export function ProductInfo(props: ProductInfoProps) {
 	const price = () => getVariantPrice(props.product, props.variant);
 	const sizes = useSizes();
 	const size = () => findSize(sizes(), props.product.size);
+	const types = useArrangementTypes();
+	const arrangementType = () =>
+		findArrangementType(types(), props.product.arrangement);
 	const flowerPhoto = useFlowerPhotos();
 
 	const bagLines = useSelector(cartStore, (state) => state.lines);
@@ -242,6 +249,20 @@ export function ProductInfo(props: ProductInfoProps) {
 					</ul>
 				</Show>
 				<dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 border-t pt-3 text-sm">
+					<Show when={arrangementType()}>
+						{(type) => (
+							<>
+								<dt class="text-muted-foreground">Type</dt>
+								<dd>
+									<span class="font-medium">{type().name}</span>
+									<Show when={type().description}>
+										{" "}
+										· {type().description.toLowerCase()}
+									</Show>
+								</dd>
+							</>
+						)}
+					</Show>
 					<Show when={props.variant.wrapperColor}>
 						<dt class="text-muted-foreground">Wrapper</dt>
 						<dd>{props.variant.wrapperColor}</dd>
@@ -261,7 +282,12 @@ export function ProductInfo(props: ProductInfoProps) {
 			</section>
 
 			<Show when={size()}>
-				{(s) => <SizeGuide sizes={sizes()} current={s().id} />}
+				{(s) => (
+					<SizeGuide
+						sizes={sizesForType(sizes(), props.product.arrangement)}
+						current={s().id}
+					/>
+				)}
 			</Show>
 
 			<Show when={props.variant.inStock && !isMaxedOut()}>

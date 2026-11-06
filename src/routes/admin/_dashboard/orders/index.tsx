@@ -5,10 +5,17 @@ import {
 	useRouter,
 	useRouterState,
 } from "@tanstack/solid-router";
-import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
+import {
+	createEffect,
+	createSignal,
+	For,
+	on,
+	onCleanup,
+	onMount,
+	Show,
+} from "solid-js";
 import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
-import { ListPager } from "~/components/admin/list-pager";
 import {
 	adminButton,
 	adminCard,
@@ -36,13 +43,12 @@ import {
 	FACETS,
 	isFiltering,
 	type OrdersSearch,
-	PAGE_SIZES,
 	typeKeys,
 	typeParam,
 	validateOrdersSearch,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import type { PricedLine } from "~/lib/pricing";
+import { type PricedLine, tracksWrapper } from "~/lib/pricing";
 import { formatPrice, preorderNote } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
@@ -54,6 +60,7 @@ import {
 	reviewOrderPayment,
 	updateWrapperStatus,
 } from "~/server/admin/orders";
+import type { ArrangementSummary, OrderRow } from "~/server/order-rows";
 import {
 	BOARD_STAGES,
 	canStartMaking,
@@ -86,8 +93,12 @@ const WRAPPER_CLASS: Record<WrapperStatus, string> = {
 export const Route = createFileRoute("/admin/_dashboard/orders/")({
 	validateSearch: validateOrdersSearch,
 	loaderDeps: ({ search }) => search,
+	// The first rows only; the table loads the rest as it's scrolled.
 	loader: ({ deps, abortController }) =>
-		listAdminOrderRows({ signal: abortController.signal, data: deps }),
+		listAdminOrderRows({
+			signal: abortController.signal,
+			data: { ...deps, page: undefined },
+		}),
 	component: OrdersPage,
 });
 
@@ -99,18 +110,103 @@ function OrdersPage() {
 		select: (state) => state.status === "pending",
 	});
 	let scroller: HTMLDivElement | undefined;
+	let sentinel: HTMLDivElement | undefined;
 
-	/** Any change of filter starts again from the first page. */
-	const setSearch = (patch: Partial<OrdersSearch>) =>
-		navigate({
-			search: (prev) => ({ ...prev, page: undefined, ...patch }),
+	/** Any change of filter starts again from the top. */
+	const setSearch = (patch: Partial<OrdersSearch>) => {
+		scroller?.scrollTo({ top: 0 });
+		return navigate({
+			search: (prev) => ({
+				...prev,
+				page: undefined,
+				perPage: undefined,
+				...patch,
+			}),
 			replace: true,
 			resetScroll: false,
 		});
-	const goToPage = (page: number) => {
-		setSearch({ page: page > 1 ? page : undefined });
-		scroller?.scrollTo({ top: 0 });
 	};
+
+	// Infinite scroll: the loader brings the first rows, and each time the end
+	// of the table comes into view the next lot is added under them.
+	const [more, setMore] = createSignal<OrderRow[]>([]);
+	const [pagesLoaded, setPagesLoaded] = createSignal(1);
+	const [loadingMore, setLoadingMore] = createSignal(false);
+	const [moreFailed, setMoreFailed] = createSignal(false);
+	const rows = () => [...data().rows, ...more()];
+	const hasMore = () => rows().length < data().total;
+	const viewKey = () =>
+		JSON.stringify({ ...search(), page: undefined, perPage: undefined });
+	let shownKey = viewKey();
+	// Bumped whenever the view changes, so a late answer for the old one is dropped.
+	let generation = 0;
+	const fetchPage = (page: number) =>
+		listAdminOrderRows({ data: { ...search(), page } });
+	createEffect(
+		on(
+			data,
+			async () => {
+				const key = viewKey();
+				const keep = key === shownKey ? pagesLoaded() : 1;
+				shownKey = key;
+				const mine = ++generation;
+				setMoreFailed(false);
+				if (keep <= 1) {
+					setMore([]);
+					setPagesLoaded(1);
+					return;
+				}
+				// The same view refreshed, e.g. after a status change in a row: load
+				// as many rows as were on screen so nothing jumps.
+				try {
+					const pages = await Promise.all(
+						Array.from({ length: keep - 1 }, (_, i) => fetchPage(i + 2)),
+					);
+					if (mine === generation) setMore(pages.flatMap((page) => page.rows));
+				} catch {
+					if (mine === generation) setMoreFailed(true);
+				}
+			},
+			{ defer: true },
+		),
+	);
+	const loadMore = async () => {
+		if (loadingMore() || loading() || !hasMore()) return;
+		const mine = generation;
+		const next = pagesLoaded() + 1;
+		setLoadingMore(true);
+		setMoreFailed(false);
+		try {
+			const page = await fetchPage(next);
+			if (mine !== generation) return;
+			setMore((list) => [...list, ...page.rows]);
+			setPagesLoaded(next);
+		} catch {
+			if (mine === generation) setMoreFailed(true);
+		} finally {
+			setLoadingMore(false);
+		}
+	};
+	onMount(() => {
+		if (!sentinel) return;
+		// Starts loading a little before the end, so scrolling rarely waits.
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+			},
+			{ rootMargin: "600px 0px" },
+		);
+		observer.observe(sentinel);
+		onCleanup(() => observer.disconnect());
+	});
+	// A short first page can leave the end in view; keep filling until it isn't.
+	createEffect(
+		on([rows, loadingMore], () => {
+			if (loadingMore() || !hasMore() || !sentinel) return;
+			const box = sentinel.getBoundingClientRect();
+			if (box.top < window.innerHeight + 600) void loadMore();
+		}),
+	);
 
 	// The box shows each keystroke; the list and address follow a pause.
 	const [query, setQuery] = createSignal(search().q ?? "");
@@ -166,8 +262,6 @@ function OrdersPage() {
 				}))
 			: options;
 	};
-	const firstRow = () => (data().page - 1) * data().pageSize + 1;
-	const lastRow = () => Math.min(data().page * data().pageSize, data().total);
 
 	const router = useRouter();
 	const [marking, setMarking] = createSignal<string | null>(null);
@@ -200,6 +294,12 @@ function OrdersPage() {
 						+ Add custom order
 					</Link>
 				}
+			/>
+
+			<ArrangementCards
+				cards={data().summary}
+				selected={parseList(search().arrangement)}
+				onSelect={(key) => setSearch({ arrangement: key })}
 			/>
 
 			<nav
@@ -305,7 +405,7 @@ function OrdersPage() {
 					<Show when={data().total} fallback="No bouquets">
 						Showing{" "}
 						<span class="font-medium text-petal-900 tabular-nums">
-							{firstRow().toLocaleString()}–{lastRow().toLocaleString()}
+							{rows().length.toLocaleString()}
 						</span>{" "}
 						of{" "}
 						<span class="font-medium text-petal-900 tabular-nums">
@@ -366,7 +466,7 @@ function OrdersPage() {
 						</thead>
 						<tbody>
 							<For
-								each={data().rows}
+								each={rows()}
 								fallback={
 									<tr>
 										<td
@@ -721,17 +821,126 @@ function OrdersPage() {
 							</For>
 						</tbody>
 					</table>
+					{/* Coming into view loads the next rows. */}
+					<div ref={sentinel} aria-hidden="true" class="h-px" />
+					<Show when={data().total > 0}>
+						<div class="flex items-center justify-center gap-3 px-4 py-4 text-sm text-petal-900/55">
+							<Show
+								when={hasMore()}
+								fallback={
+									<span>
+										That’s all {data().total.toLocaleString()}{" "}
+										{data().total === 1 ? "bouquet" : "bouquets"}.
+									</span>
+								}
+							>
+								<Show
+									when={!moreFailed()}
+									fallback={
+										<>
+											<span>Couldn’t load more.</span>
+											<button
+												type="button"
+												onClick={() => void loadMore()}
+												class={adminButton.secondary}
+											>
+												Try again
+											</button>
+										</>
+									}
+								>
+									<span aria-live="polite">
+										{loadingMore() ? "Loading more…" : "Scroll for more"}
+									</span>
+								</Show>
+							</Show>
+						</div>
+					</Show>
 				</div>
-				<ListPager
-					page={data().page}
-					pageCount={data().pageCount}
-					pageSize={data().pageSize}
-					pageSizes={PAGE_SIZES}
-					onPage={goToPage}
-					onPageSize={(perPage) => setSearch({ perPage })}
-				/>
 			</div>
 		</div>
+	);
+}
+
+const SUMMARY_STAGES = [
+	{ key: "new", label: "New", class: "bg-petal-100 text-petal-700" },
+	{
+		key: "making",
+		label: "Being made",
+		class: "bg-warning text-warning-foreground",
+	},
+	{ key: "done", label: "Done", class: "bg-success text-success-foreground" },
+] as const;
+
+/**
+ * One card per arrangement type: how many were ordered and how far they are.
+ * Picking a card shows only that type; picking it again shows them all.
+ */
+function ArrangementCards(props: {
+	cards: ArrangementSummary[];
+	selected: string[];
+	onSelect: (key: string | undefined) => void;
+}) {
+	return (
+		<section
+			aria-label="Bouquets by arrangement type"
+			class="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4"
+		>
+			<For each={props.cards}>
+				{(card) => {
+					const active = () =>
+						props.selected.length === 1 && props.selected[0] === card.key;
+					const dimmed = () => props.selected.length > 0 && !active();
+					return (
+						<button
+							type="button"
+							aria-pressed={active()}
+							title={
+								active()
+									? "Show every type again"
+									: `Show only ${card.label.toLowerCase()}`
+							}
+							onClick={() => props.onSelect(active() ? undefined : card.key)}
+							class={cn(
+								"flex flex-col items-start gap-1 rounded-2xl border bg-white p-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+								active()
+									? "border-petal-700 shadow-[inset_0_0_0_1px] shadow-petal-700"
+									: "border-petal-100 hover:border-petal-300",
+								dimmed() && "opacity-60 hover:opacity-100",
+							)}
+						>
+							<span class="text-sm font-medium text-petal-900/70">
+								{card.label}
+							</span>
+							<span class="font-display text-3xl font-semibold tabular-nums">
+								{card.bouquets.toLocaleString()}
+							</span>
+							<span class="mt-1 flex flex-wrap gap-1.5">
+								<For each={SUMMARY_STAGES}>
+									{(stage) => (
+										<span
+											class={cn(
+												"rounded-full px-2 py-0.5 text-xs tabular-nums",
+												card.stages[stage.key]
+													? stage.class
+													: "bg-petal-50 text-petal-900/40",
+											)}
+										>
+											{stage.label} {card.stages[stage.key]}
+										</span>
+									)}
+								</For>
+								<Show when={card.stages.cancelled > 0}>
+									<span class="rounded-full bg-petal-50 px-2 py-0.5 text-xs tabular-nums text-petal-900/50">
+										Cancelled {card.stages.cancelled}
+									</span>
+								</Show>
+							</span>
+						</button>
+					);
+				}}
+			</For>
+		</section>
 	);
 }
 
@@ -855,7 +1064,7 @@ function WrapperStatusSelect(props: {
 }) {
 	const status = () => props.line.wrapperStatus ?? "todo";
 	return (
-		<Show when={props.line.wrapperColor} fallback="—">
+		<Show when={tracksWrapper(props.line)} fallback="—">
 			<Show
 				when={props.order.stage !== "cancelled"}
 				fallback={WRAPPER_STATUS_LABELS[status()]}

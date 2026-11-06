@@ -53,7 +53,9 @@ function AccountEditor(props: { account: PaymentAccount }) {
 	});
 	const [saving, setSaving] = createSignal(false);
 	const [uploading, setUploading] = createSignal(false);
-	const isCard = () => props.account.method === "card";
+	/** Card and cash have no account details or QR code, only a name. */
+	const isCard = () =>
+		props.account.method === "card" || props.account.method === "cash";
 
 	const save = async (event: SubmitEvent) => {
 		event.preventDefault();
@@ -132,10 +134,20 @@ function AccountEditor(props: { account: PaymentAccount }) {
 								class={adminInput}
 							/>
 						</Field>
-						<p class="self-end rounded-xl bg-warning px-3 py-2 text-xs text-warning-foreground">
-							Test mode: cards aren’t charged until a payment gateway (e.g.
-							PayMongo) is connected.
-						</p>
+						<Show
+							when={props.account.method === "card"}
+							fallback={
+								<p class="self-end rounded-xl bg-petal-50 px-3 py-2 text-xs text-petal-900/70">
+									Cadets only: civilians don’t see this option. Orders wait on
+									hold until you verify the cash was received.
+								</p>
+							}
+						>
+							<p class="self-end rounded-xl bg-warning px-3 py-2 text-xs text-warning-foreground">
+								Test mode: cards aren’t charged until a payment gateway (e.g.
+								PayMongo) is connected.
+							</p>
+						</Show>
 					</div>
 				}
 			>

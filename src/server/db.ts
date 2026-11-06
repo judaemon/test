@@ -551,6 +551,51 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		db.exec(BOUQUET_FLOWERS_SQL);
 		moveRecipesToBouquets(db);
 	},
+	// v39: cadets can pay cash to 1st Class RICARDE of Foxtrot. A new database
+	// gets it from the seed instead, which only runs on an empty table.
+	`
+	INSERT OR IGNORE INTO payment_accounts (method, enabled, label, sort, updated_at)
+	SELECT 'cash', 1, 'Cash - 1st Class RICARDE Foxtrot',
+		(SELECT COALESCE(MAX(sort), 0) + 1 FROM payment_accounts), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+	WHERE EXISTS (SELECT 1 FROM payment_accounts);
+	`,
+	// v40: signature bouquets become floral arrangements, each of a type staff
+	// manage in Admin → Arrangement types: bouquets, corsages and boutonnières
+	// to start. Each size belongs to a type. Corsage and Boutonnière were
+	// kept as sizes of bouquets until now: they become the sizes of their own
+	// types (keeping their pictures), and what used them takes that type.
+	`
+	CREATE TABLE arrangement_types (
+		-- Stored on arrangements; also the shop's ?type= value.
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+		-- For the shop's tabs, e.g. "Corsages".
+		plural_name TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		-- The shop's tabs, first one shown by default.
+		sort INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	INSERT INTO arrangement_types (id, name, plural_name, description, sort, created_at, updated_at) VALUES
+		('bouquet', 'Bouquet', 'Bouquets', 'Held in the hand, in a size from the size guide.', 0,
+		 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		('corsage', 'Corsage', 'Corsages', 'A wearable floral piece worn on the wrist.', 1,
+		 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		('boutonniere', 'Boutonnière', 'Boutonnières', 'A small lapel accent pinned to the jacket or shirt.', 2,
+		 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+	ALTER TABLE signature_bouquets ADD COLUMN arrangement TEXT
+		REFERENCES arrangement_types(id) ON DELETE RESTRICT;
+	ALTER TABLE sizes ADD COLUMN arrangement TEXT
+		REFERENCES arrangement_types(id) ON DELETE RESTRICT;
+	UPDATE sizes SET arrangement = CASE
+		WHEN id = 'corsage' OR name = 'Corsage' THEN 'corsage'
+		WHEN id = 'boutonniere' OR name IN ('Boutonnière', 'Boutonniere') THEN 'boutonniere'
+		ELSE 'bouquet' END;
+	UPDATE signature_bouquets SET arrangement = COALESCE(
+		(SELECT s.arrangement FROM sizes s WHERE s.id = signature_bouquets.size_id),
+		'bouquet');
+	`,
 ];
 
 declare global {
@@ -578,6 +623,30 @@ export function getDb(): Database {
 	seedStarterData(db);
 	globalThis.__oraiaDb = db;
 	return db;
+}
+
+/**
+ * Closes the database so its files can be replaced (Admin → Staff → Import
+ * data). The next `getDb()` opens whatever is at DATABASE_PATH by then.
+ */
+export function closeDb() {
+	globalThis.__oraiaDb?.close();
+	globalThis.__oraiaDb = undefined;
+	migrated = false;
+}
+
+/**
+ * The database for code that keeps hold of it, like better-auth: always the
+ * connection that's open now, even after an import replaced it.
+ */
+export function liveDb(): Database {
+	return new Proxy(getDb(), {
+		get(_target, prop) {
+			const db = getDb();
+			const value = Reflect.get(db, prop, db);
+			return typeof value === "function" ? value.bind(db) : value;
+		},
+	});
 }
 
 /** The schema version this code migrates databases up to. */
@@ -681,4 +750,11 @@ export function seedStarterData(db: Database) {
 			});
 		})();
 	}
+
+	// Starter bouquets and sizes, and catalogs restored from older snapshots,
+	// come without a type: they're bouquets.
+	db.exec(`
+		UPDATE sizes SET arrangement = 'bouquet' WHERE arrangement IS NULL;
+		UPDATE signature_bouquets SET arrangement = 'bouquet' WHERE arrangement IS NULL;
+	`);
 }

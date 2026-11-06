@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/solid-start";
 
+import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { requireStaff } from "../admin-auth";
+import { listArrangementTypes } from "../arrangement-types-repo";
 import {
 	deleteSize,
 	getSize,
@@ -50,6 +52,11 @@ export const saveSizeFn = createServerFn({ method: "POST" })
 					required: false,
 				}),
 				image: size.image ? imageUrl(size.image) : "",
+				arrangement: oneOf(
+					size.arrangement ?? DEFAULT_ARRANGEMENT,
+					listArrangementTypes().map((type) => type.id),
+					"Type",
+				),
 				// Empty leaves the size out of the bouquet builder.
 				price:
 					size.price === null || size.price === undefined

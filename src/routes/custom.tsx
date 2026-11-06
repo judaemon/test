@@ -44,7 +44,11 @@ import {
 } from "~/lib/product";
 import { pageHead } from "~/lib/site";
 import { builderSizes } from "~/lib/sizes";
-import { useCatalog, useCustomSettings } from "~/lib/use-catalog";
+import {
+	useArrangementTypes,
+	useCatalog,
+	useCustomSettings,
+} from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { uploadReferenceImage } from "~/server/custom";
 import type { RecipeItem } from "~/types/product";
@@ -957,10 +961,13 @@ const buttonBase =
  */
 function PausedBuilder() {
 	const catalog = useCatalog();
+	const types = useArrangementTypes();
 	// The shop's own order, one style each, only ones that can be ordered.
 	const suggestions = () =>
 		catalog()
 			.flatMap((product) => {
+				// Only the shop's first kind, e.g. bouquets, not corsages.
+				if (product.arrangement !== types()[0]?.id) return [];
 				const variant = product.variants.find((v) => v.inStock);
 				return variant ? [{ product, variant }] : [];
 			})

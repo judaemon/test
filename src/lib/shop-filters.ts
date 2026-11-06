@@ -4,6 +4,8 @@ import type { Product, ProductVariant } from "~/types/product";
 export interface ShopFilters {
 	/** Part of a bouquet's name. */
 	q?: string;
+	/** An arrangement type's id; the first tab when missing. */
+	type?: string;
 	/** Flowers' keys, comma-separated, e.g. "roses,white-lily". */
 	flower?: string;
 	/** Sizes' ids, comma-separated, e.g. "petite,classic". */
@@ -50,6 +52,7 @@ export function validateShopFilters(
 	const q = typeof search.q === "number" ? String(search.q) : search.q;
 	return {
 		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 120) : undefined,
+		type: value("type")?.slice(0, 64),
 		flower: value("flower"),
 		size: value("size"),
 		sort: isShopSort(search.sort) ? search.sort : undefined,

@@ -3,7 +3,7 @@ import { getMigrations } from "better-auth/db/migration";
 import { admin } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start/solid";
 
-import { getDb } from "./db";
+import { getDb, liveDb } from "./db";
 
 /**
  * One account system, three roles:
@@ -15,7 +15,8 @@ import { getDb } from "./db";
  * can't choose their role: the admin plugin marks `role` as input: false.
  */
 const options = {
-	database: getDb(),
+	// Follows the database across an import, without a restart.
+	database: liveDb(),
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: 10,

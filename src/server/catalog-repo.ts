@@ -1,3 +1,4 @@
+import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { sameRecipe } from "~/lib/flowers";
 import type { BouquetSize } from "~/lib/sizes";
@@ -18,6 +19,7 @@ interface BouquetRow {
 	name: string;
 	description: string;
 	size_id: string | null;
+	arrangement: string | null;
 	is_visible: number;
 	created_at: string;
 }
@@ -105,6 +107,7 @@ export function listAdminProducts({
 				? Math.min(...variants.map((v) => v.price ?? 0))
 				: 0,
 			currency: "PHP",
+			arrangement: row.arrangement ?? DEFAULT_ARRANGEMENT,
 			size,
 			isVisible: row.is_visible === 1,
 			createdAt: row.created_at,
@@ -186,6 +189,7 @@ export function toPublicProduct(product: AdminProduct): Product {
 		description: product.description,
 		basePrice: product.basePrice,
 		currency: product.currency,
+		arrangement: product.arrangement,
 		size: product.size,
 		variants: product.variants.map(
 			({
@@ -260,6 +264,9 @@ export interface ProductInput {
 	/** The bouquet's name, a girl's name. */
 	title: string;
 	description: string;
+	/** An id from Admin → Arrangement types; bouquet when left out. */
+	arrangement?: string;
+	/** One of its type's sizes; any other is dropped. */
 	size: BouquetSize | "";
 	isVisible: boolean;
 	/** The default flowers, for styles without their own. */
@@ -280,7 +287,18 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 		throw new InputError(
 			`${copy.colorName}’s own flowers are the same as the bouquet’s. Change at least one, or turn off “This style has its own flowers”.`,
 		);
+	const arrangement = input.arrangement ?? DEFAULT_ARRANGEMENT;
 	const db = getDb();
+	// Only a size for this type of arrangement (Admin → Sizes).
+	const size =
+		input.size &&
+		db
+			.query(
+				"SELECT 1 FROM sizes WHERE id = $id AND arrangement = $arrangement",
+			)
+			.get({ id: input.size, arrangement })
+			? input.size
+			: "";
 	return db.transaction(() => {
 		let id = productId;
 		if (id === null) {
@@ -293,28 +311,31 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 			);
 			id = uniqueSlug(slugify(input.title), taken);
 			db.query(
-				`INSERT INTO signature_bouquets (id, name, description, size_id, is_visible, sort, created_at, updated_at)
-				 VALUES ($id, $name, $description, $size, $visible,
+				`INSERT INTO signature_bouquets (id, name, description, arrangement, size_id, is_visible, sort, created_at, updated_at)
+				 VALUES ($id, $name, $description, $arrangement, $size, $visible,
 				   (SELECT COALESCE(MAX(sort), -1) + 1 FROM signature_bouquets), $now, $now)`,
 			).run({
 				id,
 				name: input.title,
 				description: input.description,
-				size: input.size || null,
+				arrangement,
+				size: size || null,
 				visible: input.isVisible ? 1 : 0,
 				now: nowIso(),
 			});
 		} else {
 			const result = db
 				.query(
-					`UPDATE signature_bouquets SET name = $name, description = $description, size_id = $size,
+					`UPDATE signature_bouquets SET name = $name, description = $description,
+					   arrangement = $arrangement, size_id = $size,
 					   is_visible = $visible, updated_at = $now WHERE id = $id`,
 				)
 				.run({
 					id,
 					name: input.title,
 					description: input.description,
-					size: input.size || null,
+					arrangement,
+					size: size || null,
 					visible: input.isVisible ? 1 : 0,
 					now: nowIso(),
 				});

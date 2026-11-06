@@ -16,7 +16,11 @@ import {
 	ORDER_EDIT_RULE,
 	orderEditState,
 } from "~/lib/order-edit";
-import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
+import {
+	CARD_BRAND_LABELS,
+	CASH_NOTICE,
+	PAYMENT_METHOD_LABELS,
+} from "~/lib/payment";
 import { formatPrice, styleLabel } from "~/lib/product";
 import { useSessionUser } from "~/lib/use-catalog";
 import { getOrder } from "~/server/orders";
@@ -136,7 +140,9 @@ function OrderConfirmation() {
 						</h2>
 						<p class="mt-1 text-sm">
 							{isOnHold()
-								? "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Check your order."
+								? order().payment.method === "cash"
+									? `${CASH_NOTICE} We’ll start on it once it’s received, or you can pay online instead.`
+									: "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Check your order."
 								: "Check your reference number and send it again."}
 						</p>
 						<Link
@@ -443,7 +449,9 @@ function PaymentSummary(props: { payment: OrderPayment }) {
 				</Show>
 				<Show when={props.payment.status === "on_hold"}>
 					<p class="mt-1 text-sm text-petal-900/60">
-						We’re waiting for your reference number.
+						{props.payment.method === "cash"
+							? "We’re waiting for your cash payment."
+							: "We’re waiting for your reference number."}
 					</p>
 				</Show>
 				<Show when={props.payment.status === "rejected"}>

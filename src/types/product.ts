@@ -71,7 +71,7 @@ export interface ProductVariant {
 	aiPhotos?: boolean;
 }
 
-/** A signature bouquet, e.g. Odette, with its styles. */
+/** A floral arrangement (bouquet, corsage or boutonnière), e.g. Odette, with its styles. */
 export interface Product {
 	/** Also its shop link: /products/<id>. */
 	id: string;
@@ -81,7 +81,9 @@ export interface Product {
 	/** The cheapest style. */
 	basePrice: number;
 	currency: string;
-	/** Petite, Classic, Impressive or Grand; empty if not set. */
+	/** Its type from Admin → Arrangement types, e.g. "corsage". */
+	arrangement: string;
+	/** One of its type's sizes, e.g. Petite; empty if not set. */
 	size: BouquetSize | "";
 	variants: ProductVariant[];
 }
