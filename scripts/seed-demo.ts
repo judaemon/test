@@ -17,6 +17,7 @@ import { CADET_CLASSES, CIVILIAN, COMPANIES } from "~/lib/cadets";
 import { priceCart } from "~/lib/pricing";
 import { addDays, shopNow } from "~/lib/time";
 import { getAuth } from "~/server/auth";
+import { moveRecipesToBouquets } from "~/server/bouquet-tables";
 import {
 	getAdminProduct,
 	listPublicProducts,
@@ -88,7 +89,10 @@ const gallery = (variantId: string) =>
 	);
 
 /** Demo bouquets; built when used, since naming wrappers may add them. */
-const demoBouquets = (): Array<{ id: string; input: ProductInput }> => [
+const demoBouquets = (): Array<{
+	id: string;
+	input: Omit<ProductInput, "recipe">;
+}> => [
 	{
 		id: "bella",
 		input: {
@@ -591,7 +595,9 @@ const STOCK_CASES: Array<{
 
 async function seedStockCases() {
 	for (const product of demoBouquets())
-		if (!getAdminProduct(product.id)) saveProduct(null, product.input);
+		if (!getAdminProduct(product.id))
+			saveProduct(null, { recipe: [], ...product.input });
+	moveRecipesToBouquets(getDb());
 	const update = getDb().query(
 		`UPDATE bouquet_styles SET is_available = 1, stock_quantity = $ready,
 		   takes_preorders = $takes, preorder_slots = $slots,
@@ -678,9 +684,12 @@ async function main() {
 			console.log(`  · product ${product.input.title} already exists`);
 			continue;
 		}
-		const id = saveProduct(null, product.input);
+		const id = saveProduct(null, { recipe: [], ...product.input });
 		console.log(`  + product ${product.input.title} (${id})`);
 	}
+
+	// Demo styles list their flowers; what they share becomes the bouquet's.
+	moveRecipesToBouquets(db);
 
 	// ── Sizes ─────────────────────────────────────────────────────────────
 	seedSizePrices();

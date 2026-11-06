@@ -79,34 +79,43 @@ function readFlowers(where = "", params: Record<string, string> = {}) {
 	});
 }
 
-/** How many signature bouquet styles use each flower in their recipe. */
+/** How many signature bouquets use each flower, by default or in a style. */
 function recipeUsage() {
 	const rows = getDb()
 		.query(
-			`SELECT f.name, COUNT(DISTINCT sf.style_id) AS n FROM style_flowers sf
-			 JOIN flower_colors c ON c.id = sf.flower_color_id
+			`SELECT f.name, COUNT(DISTINCT used.bouquet_id) AS n FROM (
+			   SELECT bouquet_id, flower_color_id FROM bouquet_flowers
+			   UNION ALL
+			   SELECT s.bouquet_id, sf.flower_color_id FROM style_flowers sf
+			   JOIN bouquet_styles s ON s.id = sf.style_id
+			 ) used
+			 JOIN flower_colors c ON c.id = used.flower_color_id
 			 JOIN flowers f ON f.id = c.flower_id GROUP BY f.id`,
 		)
 		.all() as { name: string; n: number }[];
 	return new Map(rows.map((row) => [row.name, row.n]));
 }
 
-/** Signature bouquet styles using a flower color in their recipe, by name. */
+/** Bouquets and styles using a flower color in their recipe, by name. */
 function stylesUsing(colorIds: string[]) {
 	if (colorIds.length === 0) return [];
 	return getDb()
 		.query(
-			`SELECT DISTINCT b.name || ' · ' || s.name AS style FROM style_flowers sf
+			`SELECT DISTINCT b.name AS style, b.sort AS a, -1 AS z FROM bouquet_flowers bf
+			 JOIN signature_bouquets b ON b.id = bf.bouquet_id
+			 WHERE bf.flower_color_id IN (SELECT value FROM json_each($ids))
+			 UNION
+			 SELECT DISTINCT b.name || ' · ' || s.name, b.sort, s.sort FROM style_flowers sf
 			 JOIN bouquet_styles s ON s.id = sf.style_id
 			 JOIN signature_bouquets b ON b.id = s.bouquet_id
 			 WHERE sf.flower_color_id IN (SELECT value FROM json_each($ids))
-			 ORDER BY b.sort, s.sort`,
+			 ORDER BY a, z`,
 		)
 		.all({ ids: JSON.stringify(colorIds) })
 		.map((row) => (row as { style: string }).style);
 }
 
-/** "Odette · Pink, Althea · White and 3 more" */
+/** "Odette, Althea · White and 3 more" */
 function listStyles(styles: string[]) {
 	const shown = styles.slice(0, 3).join(", ");
 	return styles.length > 3 ? `${shown} and ${styles.length - 3} more` : shown;

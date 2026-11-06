@@ -9,9 +9,11 @@ import {
 	type LegacyFlowerOption,
 } from "~/lib/custom-bouquet";
 import {
+	BOUQUET_FLOWERS_SQL,
 	BOUQUET_TABLES_SQL,
 	flowerColorIdFor,
 	moveProductsToBouquets,
+	moveRecipesToBouquets,
 	wrapperIdForName,
 } from "./bouquet-tables";
 import { seedBouquets, seedPaymentAccounts } from "./seed-data";
@@ -543,6 +545,12 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`
 	ALTER TABLE orders ADD COLUMN cancelled_bouquets TEXT NOT NULL DEFAULT '[]';
 	`,
+	// v38: the recipe belongs to the bouquet. A style only keeps flowers of its
+	// own when they differ from the bouquet's.
+	(db) => {
+		db.exec(BOUQUET_FLOWERS_SQL);
+		moveRecipesToBouquets(db);
+	},
 ];
 
 declare global {
@@ -647,6 +655,7 @@ export function seedStarterData(db: Database) {
 					});
 				});
 			});
+			moveRecipesToBouquets(db);
 		})();
 	}
 

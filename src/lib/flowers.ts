@@ -59,6 +59,23 @@ export function formatRecipeItem(item: RecipeItem) {
 	return `${item.count} × ${name}${item.filler ? " (filler)" : ""}`;
 }
 
+/** Same flowers, colors and counts, in any order. */
+export function sameRecipe(a: RecipeItem[], b: RecipeItem[]) {
+	const key = (recipe: RecipeItem[]) =>
+		recipe
+			.map((item) =>
+				[
+					item.flower,
+					item.color ?? "",
+					item.count ?? 1,
+					item.filler ? 1 : 0,
+				].join("|"),
+			)
+			.sort()
+			.join(";");
+	return key(a) === key(b);
+}
+
 /** The flower a bouquet is mostly made of: the one with the most stems. */
 export function mainFlower(recipe: RecipeItem[] = []) {
 	return [...recipe]

@@ -58,7 +58,10 @@ export interface ProductVariant {
 	imageTags?: PhotoTag[];
 	/** A line staff wrote about each image, by position; "" or missing for none. */
 	imageCaptions?: string[];
-	/** What goes into the bouquet; the stem count is the sum. */
+	/**
+	 * What goes into this style: its own flowers if it has them, otherwise the
+	 * bouquet's. The stem count is the sum.
+	 */
 	recipe: RecipeItem[];
 	/** The bouquet's size (see the size guide); empty if not set. */
 	size?: BouquetSize | "";
@@ -95,11 +98,15 @@ export interface AdminVariant extends ProductVariant {
 	preorderSlots?: number;
 	/** The wrapper from Admin → Wrappers; `wrapperColor` is its name. */
 	wrapperId?: string;
+	/** `recipe` is this style's own, rather than the bouquet's default. */
+	hasOwnRecipe: boolean;
 }
 
 export interface AdminProduct extends Omit<Product, "variants"> {
 	isVisible: boolean;
 	/** When the bouquet was added, ISO 8601; admin only. */
 	createdAt: string;
+	/** The default recipe, for styles without their own. */
+	recipe: RecipeItem[];
 	variants: AdminVariant[];
 }

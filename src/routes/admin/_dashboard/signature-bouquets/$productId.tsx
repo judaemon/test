@@ -26,6 +26,7 @@ import { WrapperSelect } from "~/components/admin/wrapper-select";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { findFlowerKind, flowerKinds } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
+import { formatRecipeItem, sameRecipe } from "~/lib/flowers";
 import {
 	flowerCodeKey,
 	formatReadyDate,
@@ -52,7 +53,12 @@ import {
 	saveProductFn,
 	uploadBouquetPhoto,
 } from "~/server/admin/catalog";
-import type { AdminProduct, PhotoTag, ProductVariant } from "~/types/product";
+import type {
+	AdminProduct,
+	PhotoTag,
+	ProductVariant,
+	RecipeItem,
+} from "~/types/product";
 
 interface EditorSearch {
 	/** Opens scrolled to this style, from a row on Signature bouquets. */
@@ -100,6 +106,9 @@ interface VariantDraft {
 	imageTags: PhotoTag[];
 	/** Kept in step with `images`; "" for none. */
 	imageCaptions: string[];
+	/** Off: the style uses the bouquet's flowers. */
+	ownRecipe: boolean;
+	/** Kept while the switch is off, so turning it back on loses nothing. */
 	recipe: RecipeDraft[];
 	/** A wrapper from Admin → Wrappers; empty for none. */
 	wrapperId: string;
@@ -154,6 +163,7 @@ interface ProductDraft {
 	description: string;
 	size: BouquetSize | "";
 	isVisible: boolean;
+	recipe: RecipeDraft[];
 	variants: VariantDraft[];
 }
 
@@ -176,10 +186,20 @@ const newVariant = (): VariantDraft => ({
 	images: [],
 	imageTags: [],
 	imageCaptions: [],
-	recipe: [newRecipeRow()],
+	ownRecipe: false,
+	recipe: [],
 	wrapperId: "",
 	aiPhotos: true,
 });
+
+const toRecipeDraft = (recipe: RecipeItem[]): RecipeDraft[] =>
+	recipe.map((item) => ({
+		key: crypto.randomUUID(),
+		flower: item.flower,
+		count: String(item.count ?? 1),
+		color: item.color ?? "",
+		filler: item.filler ?? false,
+	}));
 
 function toDraft(product: AdminProduct | null): ProductDraft {
 	if (!product) {
@@ -188,6 +208,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			description: "",
 			size: "",
 			isVisible: true,
+			recipe: [newRecipeRow()],
 			variants: [newVariant()],
 		};
 	}
@@ -196,6 +217,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 		description: product.description,
 		size: product.size,
 		isVisible: product.isVisible,
+		recipe: toRecipeDraft(product.recipe),
 		variants: product.variants.map((v) => ({
 			key: v.id,
 			id: v.id,
@@ -214,13 +236,8 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			images: [...v.images],
 			imageTags: v.images.map((_, i) => photoTag(v, i)),
 			imageCaptions: v.images.map((_, i) => v.imageCaptions?.[i] ?? ""),
-			recipe: v.recipe.map((item) => ({
-				key: crypto.randomUUID(),
-				flower: item.flower,
-				count: String(item.count ?? 1),
-				color: item.color ?? "",
-				filler: item.filler ?? false,
-			})),
+			ownRecipe: v.hasOwnRecipe,
+			recipe: v.hasOwnRecipe ? toRecipeDraft(v.recipe) : [],
 			wrapperId: v.wrapperId ?? "",
 			aiPhotos: v.aiPhotos ?? true,
 		})),
@@ -363,6 +380,57 @@ function ProductEditor() {
 			return sum + (color?.price ?? 0) * Math.max(0, Number(item.count) || 0);
 		}, 0);
 
+	/** The bouquet's flowers in a line, as shown on styles that use them. */
+	const bouquetRecipeText = () =>
+		draft.recipe
+			.filter((item) => item.flower)
+			.map((item) =>
+				formatRecipeItem({
+					flower: item.flower,
+					count: Number(item.count) || 1,
+					...(item.color ? { color: item.color } : {}),
+					...(item.filler ? { filler: true } : {}),
+				}),
+			)
+			.join(", ");
+
+	/** The first time it's turned on, a style starts from the bouquet's flowers. */
+	const setOwnRecipe = (index: number, ownRecipe: boolean) => {
+		const style = draft.variants[index];
+		if (!style) return;
+		updateVariant(index, { ownRecipe });
+		if (!ownRecipe || style.recipe.length > 0) return;
+		const start = draft.recipe.filter((item) => item.flower);
+		setDraft(
+			"variants",
+			index,
+			"recipe",
+			start.length
+				? start.map((item) => ({ ...item, key: crypto.randomUUID() }))
+				: [newRecipeRow()],
+		);
+	};
+
+	/** Blank rows are left out rather than rejected. */
+	const recipeToSave = (rows: RecipeDraft[]) =>
+		rows
+			.filter((item) => item.flower)
+			.map((item) => {
+				const kind = flowerKind(item.flower);
+				return {
+					flower: item.flower,
+					count: Number(item.count),
+					...(kind?.colors ? { color: item.color } : {}),
+					...(item.filler ? { filler: true } : {}),
+				};
+			});
+
+	/** A style switched to its own flowers that still match the bouquet's. */
+	const copiesBouquet = (v: VariantDraft) =>
+		v.ownRecipe &&
+		v.recipe.some((item) => item.flower) &&
+		sameRecipe(recipeToSave(v.recipe), recipeToSave(draft.recipe));
+
 	const cropper = createCropper();
 
 	const uploadImages = async (index: number, files: FileList | null) => {
@@ -444,8 +512,165 @@ function ProductEditor() {
 			}),
 		);
 
+	/** The rows of a recipe, the bouquet's or a style's own. */
+	const RecipeRows = (props: {
+		rows: RecipeDraft[];
+		onPatch: (row: number, patch: Partial<RecipeDraft>) => void;
+		onChange: (rows: RecipeDraft[]) => void;
+	}) => (
+		<>
+			<ul class="flex flex-col gap-2">
+				<Index each={props.rows}>
+					{(item, row) => (
+						<li class="flex flex-wrap items-center gap-2 border-b border-petal-50 pb-2 sm:flex-nowrap sm:border-0 sm:pb-0">
+							<Show
+								when={flowerPhoto(item().flower, item().color)}
+								fallback={
+									<span
+										title="No photo yet. Add one in Flowers."
+										class="size-10 shrink-0 rounded-lg border-2 border-dashed border-petal-200"
+									/>
+								}
+							>
+								{(src) => (
+									<ZoomableImage
+										src={src()}
+										alt={item().flower}
+										caption={item().flower}
+										hoverPreview
+										class="size-10 shrink-0 rounded-lg border border-black/10 object-cover"
+									/>
+								)}
+							</Show>
+							<FlowerSelect
+								label={`Kind of flower ${row + 1}`}
+								groups={flowerGroups()}
+								value={item().flower}
+								photo={listPhoto}
+								onChange={(flower) =>
+									props.onPatch(row, {
+										flower,
+										// Start with its first color; a single color isn't picked.
+										color: flowerKind(flower)?.colors
+											? (flowerColors(flower)[0]?.name ?? "")
+											: "",
+									})
+								}
+							/>
+							<Show when={flowerKind(item().flower)?.colors}>
+								<select
+									value={item().color}
+									onChange={(e) =>
+										props.onPatch(row, { color: e.currentTarget.value })
+									}
+									aria-label={`${item().flower} color`}
+									class={cn(adminInput, "min-w-0 flex-1 sm:w-36 sm:flex-none")}
+								>
+									<Show
+										when={
+											!flowerColors(item().flower).some(
+												(c) => c.name === item().color,
+											)
+										}
+									>
+										<option value={item().color} disabled>
+											{item().color || "Pick a color"}
+										</option>
+									</Show>
+									<For each={flowerColors(item().flower)}>
+										{(color) => (
+											<option
+												value={color.name}
+												selected={color.name === item().color}
+											>
+												{color.name}
+												{color.enabled ? "" : " (not in custom bouquets)"}
+											</option>
+										)}
+									</For>
+								</select>
+							</Show>
+							<Show
+								when={item().flower}
+								fallback={<span class="flex-1 sm:w-24 sm:flex-none" />}
+							>
+								<span aria-hidden="true" class="text-petal-900/50">
+									×
+								</span>
+								<input
+									type="number"
+									min="1"
+									max="500"
+									step="1"
+									inputMode="numeric"
+									value={item().count}
+									onInput={(e) =>
+										props.onPatch(row, { count: e.currentTarget.value })
+									}
+									aria-label={`How many ${item().flower}`}
+									class={cn(adminInput, "w-20 tabular-nums")}
+								/>
+								<label
+									title="Filler isn’t counted in the number of flowers"
+									class="flex shrink-0 cursor-pointer items-center gap-1.5 text-sm text-petal-900/70"
+								>
+									<input
+										type="checkbox"
+										checked={item().filler}
+										onChange={(e) =>
+											props.onPatch(row, { filler: e.currentTarget.checked })
+										}
+										class="size-4 accent-petal-700"
+									/>
+									Filler
+								</label>
+							</Show>
+							<button
+								type="button"
+								class={cn(adminButton.ghost, "text-error-foreground")}
+								onClick={() =>
+									props.onChange(props.rows.filter((_, i) => i !== row))
+								}
+								aria-label={`Remove flower ${row + 1}`}
+							>
+								✕
+							</button>
+						</li>
+					)}
+				</Index>
+			</ul>
+			<button
+				type="button"
+				class={cn(adminButton.ghost, "mt-1")}
+				onClick={() => props.onChange([...props.rows, newRecipeRow()])}
+			>
+				+ Add flower
+			</button>
+		</>
+	);
+
 	const save = async (event: SubmitEvent) => {
 		event.preventDefault();
+		const noFlowers = draft.variants.find(
+			(v) => v.ownRecipe && !v.recipe.some((item) => item.flower),
+		);
+		if (noFlowers) {
+			toastError(
+				new Error(
+					`${noFlowers.colorName.trim() || "A new style"} is set to have its own flowers, but none are picked. Add some, or turn that off.`,
+				),
+			);
+			return;
+		}
+		const copy = draft.variants.find(copiesBouquet);
+		if (copy) {
+			toastError(
+				new Error(
+					`${copy.colorName.trim() || "A new style"}’s own flowers are the same as the bouquet’s. Change at least one, or turn off “This style has its own flowers”.`,
+				),
+			);
+			return;
+		}
 		if (nameTaken()) {
 			toastError(
 				new Error(`There’s already a bouquet called “${draft.title.trim()}”.`),
@@ -462,6 +687,7 @@ function ProductEditor() {
 						description: draft.description,
 						size: draft.size,
 						isVisible: draft.isVisible,
+						recipe: recipeToSave(draft.recipe),
 						variants: draft.variants.map((v) => ({
 							id: v.id,
 							colorName: v.colorName,
@@ -478,18 +704,7 @@ function ProductEditor() {
 							images: v.images,
 							imageTags: v.imageTags,
 							imageCaptions: v.imageCaptions,
-							// Blank rows are left out rather than rejected.
-							recipe: v.recipe
-								.filter((item) => item.flower)
-								.map((item) => {
-									const kind = flowerKind(item.flower);
-									return {
-										flower: item.flower,
-										count: Number(item.count),
-										...(kind?.colors ? { color: item.color } : {}),
-										...(item.filler ? { filler: true } : {}),
-									};
-								}),
+							recipe: v.ownRecipe ? recipeToSave(v.recipe) : [],
 							wrapperId: v.wrapperId,
 							aiPhotos: v.aiPhotos,
 						})),
@@ -637,6 +852,26 @@ function ProductEditor() {
 						.
 					</p>
 				</fieldset>
+			</section>
+
+			<h2 class="text-lg font-semibold">Flowers</h2>
+			<p class="mb-3 text-sm text-petal-900/60">
+				What this bouquet is made of. Every style uses these unless you give it
+				its own flowers below.
+			</p>
+			<section class={cn(adminCard, "mb-6 p-5")} aria-label="Bouquet flowers">
+				<p class="mb-3 text-sm font-medium">
+					{recipeStems(draft.recipe)} flowers{" "}
+					<span class="font-normal text-petal-900/55">
+						— ₱{recipeCost(draft.recipe).toLocaleString("en-PH")} at Flowers
+						prices
+					</span>
+				</p>
+				<RecipeRows
+					rows={draft.recipe}
+					onPatch={(row, patch) => setDraft("recipe", row, patch)}
+					onChange={(rows) => setDraft("recipe", rows)}
+				/>
 			</section>
 
 			<h2 class="text-lg font-semibold">Styles</h2>
@@ -931,179 +1166,50 @@ function ProductEditor() {
 
 							<div class="mt-5 grid gap-4 sm:grid-cols-6">
 								<fieldset class="sm:col-span-4">
-									<legend class="mb-2 text-sm font-medium">
-										Recipe{" "}
-										<span class="font-normal text-petal-900/55">
-											— {recipeStems(variant().recipe)} flowers, ₱
-											{recipeCost(variant().recipe).toLocaleString("en-PH")} at
-											Flowers prices
-										</span>
-									</legend>
-									<ul class="flex flex-col gap-2">
-										<Index each={variant().recipe}>
-											{(item, row) => (
-												<li class="flex flex-wrap items-center gap-2 border-b border-petal-50 pb-2 sm:flex-nowrap sm:border-0 sm:pb-0">
-													<Show
-														when={flowerPhoto(item().flower, item().color)}
-														fallback={
-															<span
-																title="No photo yet. Add one in Flowers."
-																class="size-10 shrink-0 rounded-lg border-2 border-dashed border-petal-200"
-															/>
-														}
-													>
-														{(src) => (
-															<ZoomableImage
-																src={src()}
-																alt={item().flower}
-																caption={item().flower}
-																hoverPreview
-																class="size-10 shrink-0 rounded-lg border border-black/10 object-cover"
-															/>
-														)}
-													</Show>
-													<FlowerSelect
-														label={`Kind of flower ${row + 1}`}
-														groups={flowerGroups()}
-														value={item().flower}
-														photo={listPhoto}
-														onChange={(flower) =>
-															setDraft("variants", index, "recipe", row, {
-																flower,
-																// Start with its first color; a single color isn't picked.
-																color: flowerKind(flower)?.colors
-																	? (flowerColors(flower)[0]?.name ?? "")
-																	: "",
-															})
-														}
-													/>
-													<Show when={flowerKind(item().flower)?.colors}>
-														<select
-															value={item().color}
-															onChange={(e) =>
-																setDraft(
-																	"variants",
-																	index,
-																	"recipe",
-																	row,
-																	"color",
-																	e.currentTarget.value,
-																)
-															}
-															aria-label={`${item().flower} color`}
-															class={cn(
-																adminInput,
-																"min-w-0 flex-1 sm:w-36 sm:flex-none",
-															)}
-														>
-															<Show
-																when={
-																	!flowerColors(item().flower).some(
-																		(c) => c.name === item().color,
-																	)
-																}
-															>
-																<option value={item().color} disabled>
-																	{item().color || "Pick a color"}
-																</option>
-															</Show>
-															<For each={flowerColors(item().flower)}>
-																{(color) => (
-																	<option
-																		value={color.name}
-																		selected={color.name === item().color}
-																	>
-																		{color.name}
-																		{color.enabled
-																			? ""
-																			: " (not in custom bouquets)"}
-																	</option>
-																)}
-															</For>
-														</select>
-													</Show>
-													<Show
-														when={item().flower}
-														fallback={
-															<span class="flex-1 sm:w-24 sm:flex-none" />
-														}
-													>
-														<span aria-hidden="true" class="text-petal-900/50">
-															×
-														</span>
-														<input
-															type="number"
-															min="1"
-															max="500"
-															step="1"
-															inputMode="numeric"
-															value={item().count}
-															onInput={(e) =>
-																setDraft(
-																	"variants",
-																	index,
-																	"recipe",
-																	row,
-																	"count",
-																	e.currentTarget.value,
-																)
-															}
-															aria-label={`How many ${item().flower}`}
-															class={cn(adminInput, "w-20 tabular-nums")}
-														/>
-														<label
-															title="Filler isn’t counted in the number of flowers"
-															class="flex shrink-0 cursor-pointer items-center gap-1.5 text-sm text-petal-900/70"
-														>
-															<input
-																type="checkbox"
-																checked={item().filler}
-																onChange={(e) =>
-																	setDraft(
-																		"variants",
-																		index,
-																		"recipe",
-																		row,
-																		"filler",
-																		e.currentTarget.checked,
-																	)
-																}
-																class="size-4 accent-petal-700"
-															/>
-															Filler
-														</label>
-													</Show>
-													<button
-														type="button"
-														class={cn(
-															adminButton.ghost,
-															"text-error-foreground",
-														)}
-														onClick={() =>
-															setDraft("variants", index, "recipe", (list) =>
-																list.filter((_, i) => i !== row),
-															)
-														}
-														aria-label={`Remove flower ${row + 1}`}
-													>
-														✕
-													</button>
-												</li>
-											)}
-										</Index>
-									</ul>
-									<button
-										type="button"
-										class={cn(adminButton.ghost, "mt-1")}
-										onClick={() =>
-											setDraft("variants", index, "recipe", (list) => [
-												...list,
-												newRecipeRow(),
-											])
+									<legend class="mb-2 text-sm font-medium">Flowers</legend>
+									<Toggle
+										label="This style has its own flowers"
+										checked={variant().ownRecipe}
+										onChange={(checked) => setOwnRecipe(index, checked)}
+									/>
+									<Show
+										when={variant().ownRecipe}
+										fallback={
+											<p class="mt-2 rounded-xl bg-petal-50 px-3 py-2 text-sm text-petal-900/70">
+												<Show
+													when={bouquetRecipeText()}
+													fallback="The bouquet has no flowers yet. Add them under Flowers above."
+												>
+													Uses the bouquet’s flowers: {bouquetRecipeText()}
+												</Show>
+											</p>
 										}
 									>
-										+ Add flower
-									</button>
+										<p class="mb-2 mt-2 text-xs text-petal-900/55">
+											Only this style uses these:{" "}
+											{recipeStems(variant().recipe)} flowers, ₱
+											{recipeCost(variant().recipe).toLocaleString("en-PH")} at
+											Flowers prices.
+										</p>
+										<Show when={copiesBouquet(variant())}>
+											<p
+												role="alert"
+												class="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+											>
+												These are the same as the bouquet’s flowers. Change at
+												least one for this style, or turn this off.
+											</p>
+										</Show>
+										<RecipeRows
+											rows={variant().recipe}
+											onPatch={(row, patch) =>
+												setDraft("variants", index, "recipe", row, patch)
+											}
+											onChange={(rows) =>
+												setDraft("variants", index, "recipe", rows)
+											}
+										/>
+									</Show>
 								</fieldset>
 								<fieldset class="sm:col-span-2">
 									<legend class="mb-2 text-sm font-medium">Wrapper</legend>

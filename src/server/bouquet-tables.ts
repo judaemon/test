@@ -58,6 +58,23 @@ export const BOUQUET_TABLES_SQL = `
 	);
 `;
 
+/**
+ * A bouquet's default recipe. Each style uses it unless the style has rows of
+ * its own in `style_flowers`.
+ */
+export const BOUQUET_FLOWERS_SQL = `
+	CREATE TABLE bouquet_flowers (
+		bouquet_id TEXT NOT NULL REFERENCES signature_bouquets(id) ON DELETE CASCADE ON UPDATE CASCADE,
+		-- A flower color can't be deleted while a recipe uses it.
+		flower_color_id TEXT NOT NULL REFERENCES flower_colors(id) ON DELETE RESTRICT,
+		count INTEGER NOT NULL CHECK (count > 0),
+		is_filler INTEGER NOT NULL DEFAULT 0,
+		sort INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX bouquet_flowers_bouquet ON bouquet_flowers (bouquet_id);
+	CREATE INDEX bouquet_flowers_color ON bouquet_flowers (flower_color_id);
+`;
+
 /** The old tables, for loading a catalog snapshot taken before bouquets had their own. */
 export const LEGACY_CATALOG_SQL = `
 	CREATE TABLE products (
@@ -398,6 +415,68 @@ export function moveProductsToBouquets(db: Database) {
 
 	db.exec("DROP TABLE variants");
 	db.exec("DROP TABLE products");
+}
+
+/**
+ * Gives each bouquet with no default recipe one, from its styles: the recipe
+ * most of them share, or the first style's on a tie. Styles with that recipe
+ * then just use the default; the others keep theirs as their own, so what
+ * every style is made of doesn't change.
+ */
+export function moveRecipesToBouquets(db: Database) {
+	const styles = db
+		.query(
+			`SELECT s.id, s.bouquet_id FROM bouquet_styles s
+			 WHERE NOT EXISTS (SELECT 1 FROM bouquet_flowers bf WHERE bf.bouquet_id = s.bouquet_id)
+			 ORDER BY s.bouquet_id, s.sort`,
+		)
+		.all() as { id: string; bouquet_id: string }[];
+	const readRecipe = db.query(
+		`SELECT flower_color_id, count, is_filler FROM style_flowers
+		 WHERE style_id = $styleId ORDER BY sort`,
+	);
+	const addDefault = db.query(
+		`INSERT INTO bouquet_flowers (bouquet_id, flower_color_id, count, is_filler, sort)
+		 VALUES ($bouquetId, $colorId, $count, $filler, $sort)`,
+	);
+	const clearStyle = db.query(
+		"DELETE FROM style_flowers WHERE style_id = $styleId",
+	);
+
+	const recipes = new Map<
+		string,
+		{ styleId: string; key: string; rows: RecipeLine[] }[]
+	>();
+	for (const style of styles) {
+		const rows = readRecipe.all({ styleId: style.id }) as RecipeLine[];
+		if (rows.length === 0) continue;
+		const list = recipes.get(style.bouquet_id) ?? [];
+		list.push({ styleId: style.id, key: JSON.stringify(rows), rows });
+		recipes.set(style.bouquet_id, list);
+	}
+	for (const [bouquetId, list] of recipes) {
+		// Map keeps first-seen order and the sort is stable, so ties go to the first style.
+		const key = mostCommon(list.map((recipe) => recipe.key));
+		list
+			.find((recipe) => recipe.key === key)
+			?.rows.forEach((row, sort) => {
+				addDefault.run({
+					bouquetId,
+					colorId: row.flower_color_id,
+					count: row.count,
+					filler: row.is_filler,
+					sort,
+				});
+			});
+		for (const recipe of list)
+			if (recipe.key === key) clearStyle.run({ styleId: recipe.styleId });
+	}
+}
+
+interface RecipeLine {
+	flower_color_id: string;
+	count: number;
+	is_filler: number;
 }
 
 function mostCommon(values: string[]) {

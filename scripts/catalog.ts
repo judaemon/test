@@ -22,6 +22,7 @@ import { flowersFromSettings } from "~/lib/custom-bouquet";
 import {
 	LEGACY_CATALOG_SQL,
 	moveProductsToBouquets,
+	moveRecipesToBouquets,
 } from "~/server/bouquet-tables";
 import { getDb } from "~/server/db";
 import { replaceFlowers } from "~/server/flowers-repo";
@@ -45,6 +46,8 @@ interface Snapshot {
 	settings: Row[];
 	signature_bouquets?: Row[];
 	bouquet_styles?: Row[];
+	/** Missing from snapshots taken when each style held the whole recipe. */
+	bouquet_flowers?: Row[];
 	style_flowers?: Row[];
 	bouquet_redirects?: Row[];
 	/** Missing from snapshots taken before sizes had a table. */
@@ -69,6 +72,7 @@ const TABLES = [
 	"sizes",
 	"signature_bouquets",
 	"bouquet_styles",
+	"bouquet_flowers",
 	"style_flowers",
 	"bouquet_redirects",
 ] as const;
@@ -96,6 +100,15 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 	const flowerColors = byId(snapshot.flower_colors);
 	const flowers = byId(snapshot.flowers);
 	const wrappers = byId(snapshot.wrappers);
+	const readableRecipe = (rows: Row[]) =>
+		rows.map((item) => {
+			const color = flowerColors.get(item.flower_color_id);
+			return {
+				flower: flowers.get(color?.flower_id ?? null)?.name ?? null,
+				color: color?.name ?? null,
+				count: item.count,
+			};
+		});
 	const products = (snapshot.signature_bouquets ?? []).map((bouquet) => ({
 		bouquet: bouquet.name,
 		link: `/products/${bouquet.id}`,
@@ -104,6 +117,11 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 			(snapshot.sizes ?? []).find((size) => size.id === bouquet.size_id)?.name ??
 			null,
 		shownInShop: bouquet.is_visible === 1,
+		recipe: readableRecipe(
+			(snapshot.bouquet_flowers ?? []).filter(
+				(item) => item.bouquet_id === bouquet.id,
+			),
+		),
 		styles: (snapshot.bouquet_styles ?? [])
 			.filter((style) => style.bouquet_id === bouquet.id)
 			.map((style) => ({
@@ -111,16 +129,12 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 				swatches: [style.color_hex, style.color_hex2].filter(Boolean),
 				price: Number(style.price_cents) / 100,
 				available: style.is_available === 1,
-				recipe: (snapshot.style_flowers ?? [])
-					.filter((item) => item.style_id === style.id)
-					.map((item) => {
-						const color = flowerColors.get(item.flower_color_id);
-						return {
-							flower: flowers.get(color?.flower_id ?? null)?.name ?? null,
-							color: color?.name ?? null,
-							count: item.count,
-						};
-					}),
+				// Empty when the style uses the bouquet's recipe.
+				ownRecipe: readableRecipe(
+					(snapshot.style_flowers ?? []).filter(
+						(item) => item.style_id === style.id,
+					),
+				),
 				wrapper: wrappers.get(style.wrapper_id)?.name ?? null,
 				aiPhotoNote: style.ai_photos === 1,
 				photos: (JSON.parse(String(style.images)) as string[]).map(photoPath),
@@ -305,6 +319,7 @@ async function importCatalog() {
 			for (const row of snapshot.variants ?? []) insertRow("variants", row);
 			moveProductsToBouquets(db);
 		}
+		if (!snapshot.bouquet_flowers) moveRecipesToBouquets(db);
 	})();
 
 	const count = (table: string) =>

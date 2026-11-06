@@ -282,8 +282,9 @@ function FlowerEditor() {
 					</Field>
 					<Show when={renamed() && usedIn() > 0}>
 						<p class="-mt-2 text-xs text-petal-900/60">
-							{usedIn()} signature bouquet{" "}
-							{usedIn() === 1 ? "style uses" : "styles use"} “{draft.savedName}
+							{usedIn()} signature{" "}
+							{usedIn() === 1 ? "bouquet uses" : "bouquets use"} “
+							{draft.savedName}
 							”; their recipes show the new name when you save.
 						</p>
 					</Show>
@@ -442,7 +443,7 @@ function FlowerEditor() {
 							title={`Delete ${draft.savedName}?`}
 							description={
 								usedIn() > 0
-									? `It’s in ${usedIn()} signature bouquet ${usedIn() === 1 ? "style" : "styles"}, so it can’t be deleted until it’s taken out of those recipes. To hide it from the builder, stop using it in custom bouquets instead.`
+									? `It’s in ${usedIn()} signature bouquet${usedIn() === 1 ? "" : "s"}, so it can’t be deleted until it’s taken out of those recipes. To hide it from the builder, stop using it in custom bouquets instead.`
 									: "It and its colors are removed for good. Past orders keep their details."
 							}
 							confirmLabel="Delete flower"

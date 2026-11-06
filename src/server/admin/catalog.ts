@@ -292,6 +292,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
 					)
 				: "",
 			isVisible: bool(product, "isVisible"),
+			recipe: parseRecipe(product.recipe, "Bouquet"),
 			variants: rawVariants.map(parseVariant),
 		};
 		return {

@@ -1,4 +1,5 @@
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import { sameRecipe } from "~/lib/flowers";
 import type { BouquetSize } from "~/lib/sizes";
 import type {
 	AdminProduct,
@@ -46,7 +47,8 @@ interface StyleRow {
 }
 
 interface RecipeRow {
-	style_id: string;
+	/** The style or bouquet the line belongs to. */
+	owner_id: string;
 	flower: string;
 	color: string;
 	count: number;
@@ -75,21 +77,25 @@ export function listAdminProducts({
 			 LEFT JOIN wrappers w ON w.id = s.wrapper_id ORDER BY s.sort`,
 		)
 		.all() as StyleRow[];
-	const recipes = db
-		.query(
-			`SELECT sf.style_id, f.name AS flower, c.name AS color, sf.count, sf.is_filler,
-			   (SELECT COUNT(*) FROM flower_colors WHERE flower_id = f.id) AS colors
-			 FROM style_flowers sf
-			 JOIN flower_colors c ON c.id = sf.flower_color_id
-			 JOIN flowers f ON f.id = c.flower_id
-			 ORDER BY sf.sort`,
-		)
-		.all() as RecipeRow[];
+	const readRecipes = (table: string, owner: string) =>
+		db
+			.query(
+				`SELECT r.${owner} AS owner_id, f.name AS flower, c.name AS color, r.count, r.is_filler,
+				   (SELECT COUNT(*) FROM flower_colors WHERE flower_id = f.id) AS colors
+				 FROM ${table} r
+				 JOIN flower_colors c ON c.id = r.flower_color_id
+				 JOIN flowers f ON f.id = c.flower_id
+				 ORDER BY r.sort`,
+			)
+			.all() as RecipeRow[];
+	const styleRecipes = readRecipes("style_flowers", "style_id");
+	const bouquetRecipes = readRecipes("bouquet_flowers", "bouquet_id");
 	return bouquets.map((row) => {
 		const size = row.size_id ?? "";
+		const recipe = toRecipe(bouquetRecipes, row.id);
 		const variants = styles
 			.filter((style) => style.bouquet_id === row.id)
-			.map((style) => toVariant(style, row, size, recipes));
+			.map((style) => toVariant(style, row, size, recipe, styleRecipes));
 		return {
 			id: row.id,
 			title: row.name,
@@ -102,17 +108,31 @@ export function listAdminProducts({
 			size,
 			isVisible: row.is_visible === 1,
 			createdAt: row.created_at,
+			recipe,
 			variants,
 		};
 	});
+}
+
+function toRecipe(rows: RecipeRow[], ownerId: string): RecipeItem[] {
+	return rows
+		.filter((item) => item.owner_id === ownerId)
+		.map((item) => ({
+			flower: item.flower,
+			count: item.count,
+			...(item.colors > 1 ? { color: item.color } : {}),
+			...(item.is_filler ? { filler: true } : {}),
+		}));
 }
 
 function toVariant(
 	row: StyleRow,
 	bouquet: BouquetRow,
 	size: BouquetSize | "",
-	recipes: RecipeRow[],
+	bouquetRecipe: RecipeItem[],
+	styleRecipes: RecipeRow[],
 ): AdminVariant {
+	const ownRecipe = toRecipe(styleRecipes, row.id);
 	const isAvailable = row.is_available === 1;
 	const readyStock = row.stock_quantity ?? undefined;
 	const preorderSlots = row.preorder_slots ?? undefined;
@@ -145,14 +165,8 @@ function toVariant(
 		images: JSON.parse(row.images) as string[],
 		imageTags: JSON.parse(row.image_tags) as PhotoTag[],
 		imageCaptions: JSON.parse(row.image_captions) as string[],
-		recipe: recipes
-			.filter((item) => item.style_id === row.id)
-			.map((item) => ({
-				flower: item.flower,
-				count: item.count,
-				...(item.colors > 1 ? { color: item.color } : {}),
-				...(item.is_filler ? { filler: true } : {}),
-			})),
+		recipe: ownRecipe.length > 0 ? ownRecipe : bouquetRecipe,
+		hasOwnRecipe: ownRecipe.length > 0,
 		size,
 		wrapperColor: row.wrapper_name ?? "",
 		...(row.wrapper_id ? { wrapperId: row.wrapper_id } : {}),
@@ -180,6 +194,7 @@ export function toPublicProduct(product: AdminProduct): Product {
 				readyStock: _readyStock,
 				takesPreorders: _takesPreorders,
 				preorderSlots: _preorderSlots,
+				hasOwnRecipe: _hasOwnRecipe,
 				readyInDays,
 				readyOn,
 				...variant
@@ -230,7 +245,10 @@ export interface VariantInput {
 	imageTags?: PhotoTag[];
 	/** By position; missing means none. */
 	imageCaptions?: string[];
-	/** Flowers and colors by name, as in Admin → Flowers. */
+	/**
+	 * This style's own flowers, by name as in Admin → Flowers. Empty when it
+	 * uses the bouquet's.
+	 */
 	recipe: RecipeItem[];
 	/** A row of the wrappers table; empty for none. */
 	wrapperId: string;
@@ -244,6 +262,8 @@ export interface ProductInput {
 	description: string;
 	size: BouquetSize | "";
 	isVisible: boolean;
+	/** The default flowers, for styles without their own. */
+	recipe: RecipeItem[];
 	variants: VariantInput[];
 }
 
@@ -253,6 +273,13 @@ export interface ProductInput {
  * keep their own snapshot, so removing a style never rewrites history.
  */
 export function saveProduct(productId: string | null, input: ProductInput) {
+	const copy = input.variants.find(
+		(v) => v.recipe.length > 0 && sameRecipe(v.recipe, input.recipe),
+	);
+	if (copy)
+		throw new InputError(
+			`${copy.colorName}’s own flowers are the same as the bouquet’s. Change at least one, or turn off “This style has its own flowers”.`,
+		);
 	const db = getDb();
 	return db.transaction(() => {
 		let id = productId;
@@ -293,6 +320,21 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				});
 			if (result.changes === 0) throw new Error("Bouquet not found");
 		}
+
+		db.query("DELETE FROM bouquet_flowers WHERE bouquet_id = $id").run({ id });
+		const addDefaultFlower = db.query(
+			`INSERT INTO bouquet_flowers (bouquet_id, flower_color_id, count, is_filler, sort)
+			 VALUES ($id, $colorId, $count, $filler, $sort)`,
+		);
+		input.recipe.forEach((item, sort) => {
+			addDefaultFlower.run({
+				id,
+				colorId: flowerColorId(item),
+				count: item.count ?? 1,
+				filler: item.filler ? 1 : 0,
+				sort,
+			});
+		});
 
 		const existing = new Map(
 			(

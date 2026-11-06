@@ -195,8 +195,8 @@ function FlowersPage() {
 				</ul>
 				<Show when={props.flower.usedIn > 0}>
 					<p class="mt-1.5 text-xs text-petal-900/55">
-						In {props.flower.usedIn} signature bouquet{" "}
-						{props.flower.usedIn === 1 ? "style" : "styles"}
+						In {props.flower.usedIn} signature{" "}
+						{props.flower.usedIn === 1 ? "bouquet" : "bouquets"}
 					</p>
 				</Show>
 			</div>
