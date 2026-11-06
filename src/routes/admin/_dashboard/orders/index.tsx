@@ -936,6 +936,36 @@ function ArrangementCards(props: {
 									</span>
 								</Show>
 							</span>
+							<Show when={card.wrappers.needed > 0}>
+								<span class="mt-2 flex w-full flex-col gap-1">
+									<span class="flex items-baseline justify-between gap-2 text-xs text-petal-900/65">
+										<span>Wrappers made</span>
+										<span class="font-medium tabular-nums text-petal-900">
+											{card.wrappers.made} of {card.wrappers.needed}
+										</span>
+									</span>
+									<span
+										role="progressbar"
+										aria-label={`${card.label} wrappers made`}
+										aria-valuemin={0}
+										aria-valuemax={card.wrappers.needed}
+										aria-valuenow={card.wrappers.made}
+										class="h-1.5 w-full overflow-hidden rounded-full bg-petal-100"
+									>
+										<span
+											class={cn(
+												"block h-full rounded-full transition-[width]",
+												card.wrappers.made === card.wrappers.needed
+													? "bg-success-foreground"
+													: "bg-petal-500",
+											)}
+											style={{
+												width: `${(card.wrappers.made / card.wrappers.needed) * 100}%`,
+											}}
+										/>
+									</span>
+								</span>
+							</Show>
 						</button>
 					);
 				}}

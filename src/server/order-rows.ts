@@ -57,6 +57,8 @@ export interface ArrangementSummary {
 	/** Bouquets, counting each of several in one row. */
 	bouquets: number;
 	stages: Record<Order["stage"], number>;
+	/** Bouquets that need a wrapper (not cancelled), and how many are made. */
+	wrappers: { needed: number; made: number };
 }
 
 /** What a row can be filtered by, with the choices known up front in order. */
@@ -266,6 +268,7 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 			label: summaryLabel(key),
 			bouquets: 0,
 			stages: { new: 0, making: 0, done: 0, cancelled: 0 },
+			wrappers: { needed: 0, made: 0 },
 		});
 	rows.forEach((row, i) => {
 		if (!passes(i, "arrangement", "stage")) return;
@@ -275,10 +278,16 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 			label: summaryLabel(key),
 			bouquets: 0,
 			stages: { new: 0, making: 0, done: 0, cancelled: 0 },
+			wrappers: { needed: 0, made: 0 },
 		};
 		// A row can be several of the same bouquet.
 		entry.bouquets += row.line.quantity;
 		entry.stages[row.order.stage] += row.line.quantity;
+		if (row.order.stage !== "cancelled" && tracksWrapper(row.line)) {
+			entry.wrappers.needed += row.line.quantity;
+			if (row.line.wrapperStatus === "made")
+				entry.wrappers.made += row.line.quantity;
+		}
 		summaryCounts.set(key, entry);
 	});
 	const summary = [...summaryCounts.values()].filter(
