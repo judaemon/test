@@ -13,6 +13,7 @@ import { formatPrice } from "~/lib/product";
 import {
 	type ItemScope,
 	markupPrice,
+	methodsText,
 	type PublicSale,
 	saleEndsText,
 	saleLabel,
@@ -148,6 +149,13 @@ function SaleCard(props: { sale: PublicSale }) {
 							Sale prices show in the shop and come off at checkout, no code
 							needed.
 						</li>
+						<Show when={props.sale.paymentMethods.length}>
+							<li class="font-medium text-petal-900">
+								Only when you pay with {methodsText(props.sale.paymentMethods)}:
+								checkout takes it off once you choose{" "}
+								{methodsText(props.sale.paymentMethods)}.
+							</li>
+						</Show>
 						<li>{example()}</li>
 						<li>
 							Prices are rounded down to whole pesos. Sales don’t add up: you

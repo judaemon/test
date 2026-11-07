@@ -1,7 +1,12 @@
 import { Link } from "@tanstack/solid-router";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { orderPromoLabel } from "~/lib/order-promo";
-import { type PublicSale, saleEndsText, saleLabel } from "~/lib/sale";
+import {
+	methodsText,
+	type PublicSale,
+	saleEndsText,
+	saleLabel,
+} from "~/lib/sale";
 import { useOrderPromos, useSales } from "~/lib/use-catalog";
 
 /** When a sale's last Manila day is over. */
@@ -63,6 +68,9 @@ export function SaleBanner() {
 									{live().scope === "all"
 										? "everything"
 										: "selected arrangements"}
+									{live().paymentMethods.length
+										? ` with ${methodsText(live().paymentMethods)}`
+										: ""}
 								</span>
 								<span class="tabular-nums">
 									(

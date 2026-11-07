@@ -714,6 +714,12 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE order_promos ADD COLUMN products TEXT NOT NULL DEFAULT '[]';
 	ALTER TABLE order_promos ADD COLUMN include_custom INTEGER NOT NULL DEFAULT 0;
 	`,
+	// v49: a sale or order promo can be for chosen payment methods only, e.g.
+	// GCash. Empty means any method.
+	`
+	ALTER TABLE sales ADD COLUMN payment_methods TEXT NOT NULL DEFAULT '[]';
+	ALTER TABLE order_promos ADD COLUMN payment_methods TEXT NOT NULL DEFAULT '[]';
+	`,
 ];
 
 declare global {

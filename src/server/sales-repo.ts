@@ -1,3 +1,4 @@
+import type { PaymentMethod } from "~/lib/payment";
 import {
 	type PublicSale,
 	type Sale,
@@ -19,6 +20,7 @@ interface SaleRow {
 	ends_on: string;
 	enabled: number;
 	scope: SaleScope;
+	payment_methods: string;
 	arrangement_types: string;
 	products: string;
 	include_custom: number;
@@ -34,6 +36,7 @@ const toSale = (row: SaleRow): Sale => ({
 	endsOn: row.ends_on,
 	enabled: row.enabled === 1,
 	scope: row.scope,
+	paymentMethods: JSON.parse(row.payment_methods) as PaymentMethod[],
 	arrangementTypes: JSON.parse(row.arrangement_types) as string[],
 	products: JSON.parse(row.products) as string[],
 	includeCustom: row.include_custom === 1,
@@ -71,6 +74,7 @@ export function saveSale(input: SaleInput, id?: string): Sale {
 		endsOn: input.endsOn,
 		enabled: input.enabled ? 1 : 0,
 		scope: input.scope,
+		paymentMethods: JSON.stringify(input.paymentMethods),
 		arrangementTypes: JSON.stringify(input.arrangementTypes),
 		products: JSON.stringify(input.products),
 		includeCustom: input.includeCustom ? 1 : 0,
@@ -81,7 +85,7 @@ export function saveSale(input: SaleInput, id?: string): Sale {
 			.query(
 				`UPDATE sales SET name = $name, kind = $kind, value = $value, pricing = $pricing,
 				   starts_on = $startsOn,
-				   ends_on = $endsOn, enabled = $enabled, scope = $scope,
+				   ends_on = $endsOn, enabled = $enabled, scope = $scope, payment_methods = $paymentMethods,
 				   arrangement_types = $arrangementTypes, products = $products,
 				   include_custom = $includeCustom, updated_at = $now
 				 WHERE id = $id`,
@@ -91,9 +95,9 @@ export function saveSale(input: SaleInput, id?: string): Sale {
 	} else {
 		db.query(
 			`INSERT INTO sales (id, name, kind, value, pricing, starts_on, ends_on, enabled, scope,
-			   arrangement_types, products, include_custom, created_at, updated_at)
+			   arrangement_types, products, include_custom, payment_methods, created_at, updated_at)
 			 VALUES ($id, $name, $kind, $value, $pricing, $startsOn, $endsOn, $enabled, $scope,
-			   $arrangementTypes, $products, $includeCustom, $now, $now)`,
+			   $arrangementTypes, $products, $includeCustom, $paymentMethods, $now, $now)`,
 		).run(values);
 	}
 	return listSales().find((sale) => sale.id === saleId) as Sale;

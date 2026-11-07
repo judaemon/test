@@ -517,6 +517,7 @@ describe("orders placed during a sale", () => {
 		arrangementTypes: [],
 		products: [],
 		includeCustom: false,
+		paymentMethods: [],
 	};
 	test("keep the sale price, the old price and the sale on each bouquet", () => {
 		const cart = pricing.priceCart(
@@ -599,6 +600,7 @@ describe("the sales store", () => {
 			arrangementTypes: ["corsage"],
 			products: [],
 			includeCustom: false,
+			paymentMethods: [],
 		});
 		expect(
 			sales.listLiveSales("2026-12-03").some((s) => s.id === saved.id),
@@ -690,6 +692,7 @@ describe("orders placed during a before-price (markup) sale", () => {
 					arrangementTypes: [],
 					products: [],
 					includeCustom: false,
+					paymentMethods: [],
 				},
 			],
 		);
@@ -724,7 +727,7 @@ describe("the 10th order promo, by serial number", () => {
 		);
 		const cart = pricing.withPromo(
 			priced,
-			promos.promoForNextOrder(serialNumber, priced.lines, TODAY),
+			promos.promoForNextOrder(serialNumber, priced.lines, null, TODAY),
 		);
 		return repo.createOrder({
 			id: crypto.randomUUID(),
@@ -771,6 +774,7 @@ describe("the 10th order promo, by serial number", () => {
 			arrangementTypes: [],
 			products: [],
 			includeCustom: false,
+			paymentMethods: [],
 		});
 		const tenth = await orderFor(serial);
 		expect(tenth.promo).toEqual({
@@ -784,6 +788,7 @@ describe("the 10th order promo, by serial number", () => {
 			promos.promoForNextOrder(
 				"900002",
 				[{ productId: "x", lineTotal: 1300 }],
+				null,
 				TODAY,
 			),
 		).toBeUndefined();
@@ -839,6 +844,7 @@ describe("the 10th order promo's minimum order", () => {
 			promos.promoForNextOrder(
 				serial,
 				[{ productId: "x", lineTotal: 500 }],
+				null,
 				TODAY,
 			),
 		).toBeUndefined();
@@ -846,6 +852,7 @@ describe("the 10th order promo's minimum order", () => {
 			promos.promoForNextOrder(
 				serial,
 				[{ productId: "x", lineTotal: 499 }],
+				null,
 				TODAY,
 			),
 		).toBeUndefined();
@@ -853,6 +860,7 @@ describe("the 10th order promo's minimum order", () => {
 			promos.promoForNextOrder(
 				serial,
 				[{ productId: "x", lineTotal: 501 }],
+				null,
 				TODAY,
 			)?.amount,
 		).toBe(500);
@@ -860,6 +868,7 @@ describe("the 10th order promo's minimum order", () => {
 			promos.promoForNextOrder(
 				serial,
 				[{ productId: "x", lineTotal: 1300 }],
+				null,
 				TODAY,
 			)?.amount,
 		).toBe(500);
@@ -879,6 +888,7 @@ describe("an order promo on chosen items", () => {
 			arrangementTypes: ["corsage"],
 			products: [],
 			includeCustom: false,
+			paymentMethods: [],
 			repeat: true,
 			startsOn: "2026-11-01",
 			endsOn: "",
@@ -911,15 +921,91 @@ describe("an order promo on chosen items", () => {
 			lineTotal,
 		});
 		// The 2nd order, but no corsage in it: no reward.
-		expect(promos.promoForNextOrder(serial, [bouquet], TODAY)).toBeUndefined();
+		expect(
+			promos.promoForNextOrder(serial, [bouquet], null, TODAY),
+		).toBeUndefined();
 		// Corsages under the minimum: no reward.
 		expect(
-			promos.promoForNextOrder(serial, [bouquet, corsage(90)], TODAY),
+			promos.promoForNextOrder(serial, [bouquet, corsage(90)], null, TODAY),
 		).toBeUndefined();
 		// Corsages over it: the reward, never more than they cost.
 		expect(
-			promos.promoForNextOrder(serial, [bouquet, corsage(250)], TODAY),
+			promos.promoForNextOrder(serial, [bouquet, corsage(250)], null, TODAY),
 		).toEqual({ id: corsages.id, name: "Corsage reward", amount: 250 });
 		promos.deleteOrderPromo(corsages.id);
+	});
+});
+
+describe("discounts for some payment methods only", () => {
+	const gcashSale = {
+		id: "gcash-sale",
+		name: "GCash Week",
+		kind: "percent" as const,
+		value: 10,
+		pricing: "discount" as const,
+		startsOn: "2000-01-01",
+		endsOn: "2999-12-31",
+		scope: "all" as const,
+		arrangementTypes: [],
+		products: [],
+		includeCustom: false,
+		paymentMethods: ["gcash" as const],
+	};
+	const priced = (method: "gcash" | "bank" | null) =>
+		pricing.priceCart(
+			[{ ...second, quantity: 1 }],
+			catalog.listPublicProducts(),
+			undefined,
+			[gcashSale],
+			method,
+		);
+	test("a GCash sale applies only when paying with GCash, and says so", () => {
+		expect(priced(null).total).toBe(1300);
+		expect(priced("bank").total).toBe(1300);
+		expect(priced("gcash").total).toBe(1170);
+		expect(priced("gcash").lines[0]?.sale?.paymentMethods).toEqual(["gcash"]);
+	});
+	test("a promo for GCash only needs GCash", async () => {
+		const promos = await import("./order-promos-repo");
+		const TODAY = "2026-11-08";
+		const gcashPromo = promos.saveOrderPromo({
+			name: "GCash reward",
+			every: 2,
+			amount: 200,
+			minSpend: 0,
+			scope: "all",
+			arrangementTypes: [],
+			products: [],
+			includeCustom: false,
+			paymentMethods: ["gcash"],
+			repeat: true,
+			startsOn: "2026-11-01",
+			endsOn: "",
+			enabled: true,
+			terms: "",
+		});
+		const serial = "900030";
+		db.getDb()
+			.query(
+				"UPDATE bouquet_styles SET stock_quantity = 200 WHERE bouquet_id = $productId AND slug = $variantId",
+			)
+			.run(second);
+		repo.createOrder({
+			id: crypto.randomUUID(),
+			details: { ...DETAILS, className: "1CL", serialNumber: serial },
+			cart: priced(null),
+			payment: { method: "cash", status: "on_hold" },
+		});
+		const lines = [{ productId: "x", lineTotal: 1300 }];
+		expect(
+			promos.promoForNextOrder(serial, lines, "bank", TODAY),
+		).toBeUndefined();
+		expect(promos.promoForNextOrder(serial, lines, "gcash", TODAY)).toEqual({
+			id: gcashPromo.id,
+			name: "GCash reward",
+			amount: 200,
+			paymentMethods: ["gcash"],
+		});
+		promos.deleteOrderPromo(gcashPromo.id);
 	});
 });

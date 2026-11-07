@@ -16,7 +16,9 @@ import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import type { FieldErrors } from "~/lib/checkout";
 import type { CardInput, PaymentMethod } from "~/lib/payment";
+import { CASH_NOTICE } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
+import { methodsText } from "~/lib/sale";
 import {
 	getPayableOrder,
 	type PayableOrder,
@@ -216,6 +218,20 @@ function PayForm(props: { order: PayableOrder }) {
 						</div>
 					</Show>
 				</div>
+			</Show>
+			<Show when={props.order.discountMethods}>
+				{(methods) => (
+					<p class="mb-4 rounded-2xl bg-warning px-4 py-3 text-sm font-medium text-warning-foreground">
+						This order’s discount is for {methodsText(methods())} payments only,
+						so pay with {methodsText(methods())}.
+						<Show when={!props.order.paymentAccounts.length}>
+							{" "}
+							{methods().includes("cash")
+								? CASH_NOTICE
+								: "Message us on Facebook to pay."}
+						</Show>
+					</p>
+				)}
 			</Show>
 			<PaymentSection
 				accounts={props.order.paymentAccounts}

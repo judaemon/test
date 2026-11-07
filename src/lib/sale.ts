@@ -1,4 +1,5 @@
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import type { PaymentMethod } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 
 /** Shop days run on Manila time; a sale's dates are whole days there. */
@@ -26,6 +27,59 @@ export const SALE_NAME_MAX = 60;
  * What a sale or order promo is on: everything, or chosen arrangement types,
  * arrangements and custom bouquets.
  */
+/**
+ * The payment methods a sale or promo needs, e.g. GCash only; empty for any
+ * method. Checkout prices the bag for the method chosen.
+ */
+export interface MethodScope {
+	paymentMethods: PaymentMethod[];
+}
+
+/** Whether a sale or promo applies when paying by `method` (null: not chosen yet). */
+export function allowsMethod(
+	scope: MethodScope,
+	method: PaymentMethod | null | undefined,
+) {
+	return (
+		scope.paymentMethods.length === 0 ||
+		(!!method && scope.paymentMethods.includes(method))
+	);
+}
+
+/**
+ * The payment methods an order may be paid with, given the sales and promo it
+ * got for particular methods only; undefined when any method will do.
+ */
+export function orderPaymentMethods(order: {
+	lines: readonly { sale?: { paymentMethods?: PaymentMethod[] } }[];
+	promo?: { paymentMethods?: PaymentMethod[] };
+}): PaymentMethod[] | undefined {
+	const limits = [
+		...order.lines.map((line) => line.sale?.paymentMethods),
+		order.promo?.paymentMethods,
+	].filter((methods): methods is PaymentMethod[] => !!methods?.length);
+	if (!limits.length) return undefined;
+	return limits.reduce((allowed, methods) =>
+		allowed.filter((method) => methods.includes(method)),
+	);
+}
+
+/** Short names for "with GCash"; the cash account's label is long. */
+export const PAYMENT_METHOD_SHORT: Record<PaymentMethod, string> = {
+	card: "card",
+	gcash: "GCash",
+	maya: "Maya",
+	bank: "bank transfer",
+	cash: "cash",
+};
+
+/** "GCash", "GCash or Maya", "bank transfer, GCash or Maya". */
+export function methodsText(methods: readonly PaymentMethod[]) {
+	const names = methods.map((method) => PAYMENT_METHOD_SHORT[method]);
+	if (names.length <= 1) return names.join("");
+	return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+}
+
 export interface ItemScope {
 	scope: SaleScope;
 	/** With `selected`: every arrangement of these types… */
@@ -41,7 +95,7 @@ export interface ItemScope {
  * from one day to another (Manila time, both days included), on everything or
  * on chosen arrangement types, arrangements and custom bouquets.
  */
-export interface Sale {
+export interface Sale extends MethodScope {
 	id: string;
 	/** Shown to shoppers, e.g. "November Sale". */
 	name: string;
@@ -73,6 +127,8 @@ export interface LineSale {
 	name: string;
 	/** e.g. "5% off", "₱100 off". */
 	label: string;
+	/** The payment methods it was for, when it needed some. */
+	paymentMethods?: PaymentMethod[];
 }
 
 /** Today's date in Manila, `YYYY-MM-DD`. */
@@ -176,6 +232,9 @@ export const lineSale = (sale: PublicSale): LineSale => ({
 	id: sale.id,
 	name: sale.name,
 	label: saleLabel(sale),
+	...(sale.paymentMethods.length
+		? { paymentMethods: [...sale.paymentMethods] }
+		: {}),
 });
 
 /** How much the sale took off a bag's or order's bouquets. */

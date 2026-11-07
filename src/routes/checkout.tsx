@@ -98,14 +98,21 @@ import {
 	validateCard,
 	validateReferenceNumber,
 } from "~/lib/payment";
-import { type PricedCart, roundMoney } from "~/lib/pricing";
+import { priceCart, roundMoney } from "~/lib/pricing";
 import {
 	formatPrice,
 	formatReadyDate,
 	lineName,
 	styleLabel,
 } from "~/lib/product";
-import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
+import { allowsMethod, PAYMENT_METHOD_SHORT } from "~/lib/sale";
+import {
+	useCatalog,
+	useCustomSettings,
+	usePricedCart,
+	useSales,
+	useSessionUser,
+} from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import {
 	getCheckoutConfig,
@@ -195,7 +202,6 @@ function CheckoutPage() {
 					</Match>
 					<Match when={cart().lines.length > 0}>
 						<CheckoutForm
-							cart={cart()}
 							paymentAccounts={config().paymentAccounts}
 							name={user()?.isStaff ? undefined : user()?.name}
 							email={user()?.isStaff ? undefined : user()?.email}
@@ -210,7 +216,6 @@ function CheckoutPage() {
 }
 
 function CheckoutForm(props: {
-	cart: PricedCart;
 	paymentAccounts: PaymentAccount[];
 	/** Signed-in shopper's name, used to prefill the name field. */
 	name?: string;
@@ -218,6 +223,21 @@ function CheckoutForm(props: {
 	email?: string;
 	onPlaced: () => void;
 }) {
+	const [paymentMethod, setPaymentMethod] = createSignal<PaymentMethod | null>(
+		null,
+	);
+	const catalog = useCatalog();
+	const custom = useCustomSettings();
+	const sales = useSales();
+	const bagLines = useSelector(cartStore, (state) => state.lines);
+	/**
+	 * The bag priced for the payment method chosen: a sale for some methods
+	 * only (e.g. GCash) applies once that method is picked. The server prices
+	 * it the same way.
+	 */
+	const cart = createMemo(() =>
+		priceCart(bagLines(), catalog(), custom(), sales(), paymentMethod()),
+	);
 	const navigate = useNavigate();
 	const [errors, setErrors] = createSignal<FieldErrors>({});
 	const [formError, setFormError] = createSignal<string | null>(null);
@@ -251,21 +271,57 @@ function CheckoutForm(props: {
 	/** What the bag's bouquets on the promo (all, or its chosen ones) come to. */
 	const onPromo = () => {
 		const reward = promoProgress()?.reward;
-		return reward ? promoSubtotal(reward, props.cart.lines) : 0;
+		return reward ? promoSubtotal(reward, cart().lines) : 0;
 	};
 	const promoDiscount = () => {
 		const reward = promoProgress()?.reward;
-		return reward && onPromo() > 0 && onPromo() > reward.minSpend
+		return reward &&
+			allowsMethod(reward, paymentMethod()) &&
+			onPromo() > 0 &&
+			onPromo() > reward.minSpend
 			? Math.min(reward.amount, onPromo())
 			: 0;
 	};
 	/** Pesos more of the promo's bouquets this order needs for its reward, if short. */
 	const promoShortBy = () => {
 		const reward = promoProgress()?.reward;
-		if (!reward || promoDiscount() > 0) return 0;
+		if (
+			!reward ||
+			promoDiscount() > 0 ||
+			!allowsMethod(reward, paymentMethod())
+		)
+			return 0;
 		return Math.floor(reward.minSpend - onPromo()) + 1;
 	};
-	const orderTotal = () => roundMoney(props.cart.total - promoDiscount());
+	const orderTotal = () => roundMoney(cart().total - promoDiscount());
+	/**
+	 * A cheaper way to pay, when a sale or this order's promo is for payment
+	 * methods the shopper hasn't picked: "Pay with GCash and save ₱150".
+	 */
+	const methodTip = () => {
+		const current = orderTotal();
+		const reward = promoProgress()?.reward;
+		let best: { method: PaymentMethod; saves: number } | undefined;
+		for (const account of paymentAccounts()) {
+			const method = account.method;
+			if (method === paymentMethod()) continue;
+			const priced = priceCart(
+				bagLines(),
+				catalog(),
+				custom(),
+				sales(),
+				method,
+			);
+			const onPromoThere = reward ? promoSubtotal(reward, priced.lines) : 0;
+			const promoThere =
+				reward && allowsMethod(reward, method) && onPromoThere > reward.minSpend
+					? Math.min(reward.amount, onPromoThere)
+					: 0;
+			const saves = roundMoney(current - (priced.total - promoThere));
+			if (saves > 0 && (!best || saves > best.saves)) best = { method, saves };
+		}
+		return best;
+	};
 	/** Each bouquet's card and note, by `unitKey`. */
 	const [messages, setMessages] = createStore<Record<string, BouquetMessage>>(
 		draft?.messages ?? {},
@@ -298,7 +354,7 @@ function CheckoutForm(props: {
 	const [bouquetErrors, setBouquetErrors] = createSignal<
 		Record<string, BouquetMessageErrors>
 	>({});
-	const bouquets = createMemo(() => bagBouquets(props.cart.lines));
+	const bouquets = createMemo(() => bagBouquets(cart().lines));
 	const messageFor = (key: string) =>
 		parseBouquetMessage(messages[key] ?? EMPTY_MESSAGE);
 	/** A card is printed only when there's a message for it. */
@@ -329,7 +385,7 @@ function CheckoutForm(props: {
 	/** What's sent with the order: each line's units, for lines with any. */
 	const messagesPayload = () => {
 		const byLine: Record<string, BouquetMessage[]> = {};
-		for (const line of props.cart.lines) {
+		for (const line of cart().lines) {
 			const units = bouquets()
 				.filter((bouquet) => bouquet.line === line)
 				.map((bouquet) => messageFor(bouquet.key));
@@ -370,16 +426,13 @@ function CheckoutForm(props: {
 	/** "To follow": order now, send the reference number later. */
 	const [referenceLater, setReferenceLater] = createSignal(false);
 	let formRef!: HTMLFormElement;
-	const [paymentMethod, setPaymentMethod] = createSignal<PaymentMethod | null>(
-		null,
-	);
 	const [card, setCard] = createSignal<CardInput>({
 		number: "",
 		name: "",
 		expiry: "",
 		cvc: "",
 	});
-	const hasProblem = () => props.cart.lines.some((line) => line.problem);
+	const hasProblem = () => cart().lines.some((line) => line.problem);
 	/**
 	 * Cash always waits until it's handed over. QR payments can wait too; the
 	 * choice is ignored if they switch to card.
@@ -714,10 +767,19 @@ function CheckoutForm(props: {
 				</Section>
 
 				<Section id={PAYMENT_SECTION} title="Payment" step={3}>
+					<Show when={methodTip()}>
+						{(tip) => (
+							<p class="mb-4 rounded-2xl bg-success px-4 py-3 text-sm font-medium text-success-foreground">
+								Pay with {PAYMENT_METHOD_SHORT[tip().method]} and save{" "}
+								{formatPrice(tip().saves, cart().currency)}: a sale or promo is
+								for {PAYMENT_METHOD_SHORT[tip().method]} payments.
+							</p>
+						)}
+					</Show>
 					<PaymentSection
 						accounts={paymentAccounts()}
 						total={orderTotal()}
-						currency={props.cart.currency}
+						currency={cart().currency}
 						method={paymentMethod()}
 						onMethodChange={setPaymentMethod}
 						card={card()}
@@ -753,7 +815,7 @@ function CheckoutForm(props: {
 				</div>
 
 				<ul class="flex flex-col gap-4">
-					<For each={props.cart.lines}>
+					<For each={cart().lines}>
 						{(line) => (
 							<li class="flex items-center gap-3">
 								<span class="relative shrink-0">
@@ -790,19 +852,19 @@ function CheckoutForm(props: {
 									</Show>
 								</span>
 								<span class="text-sm font-medium tabular-nums">
-									<LinePrice line={line} currency={props.cart.currency} />
+									<LinePrice line={line} currency={cart().currency} />
 								</span>
 							</li>
 						)}
 					</For>
 				</ul>
 
-				<Show when={props.cart.lines.filter((line) => line.preorder)}>
+				<Show when={cart().lines.filter((line) => line.preorder)}>
 					{(preorders) => (
 						<Show when={preorders().length > 0}>
 							<div class="rounded-2xl border border-warning-foreground/25 bg-warning px-4 py-3 text-sm text-warning-foreground">
 								<p class="font-semibold">
-									{preorders().length === props.cart.lines.length
+									{preorders().length === cart().lines.length
 										? "This is a pre-order"
 										: "Your order includes a pre-order"}
 								</p>
@@ -834,13 +896,13 @@ function CheckoutForm(props: {
 				<dl class="grid grid-cols-[1fr_auto] gap-y-1.5 border-t border-petal-100 pt-4 text-sm">
 					<dt class="text-petal-900/70">Subtotal</dt>
 					<dd class="text-right tabular-nums">
-						{formatPrice(subtotalBeforeSale(props.cart), props.cart.currency)}
+						{formatPrice(subtotalBeforeSale(cart()), cart().currency)}
 					</dd>
-					<SaleRows lines={props.cart.lines} currency={props.cart.currency} />
+					<SaleRows lines={cart().lines} currency={cart().currency} />
 					<Show when={promoDiscount() > 0}>
 						<dt class="text-sale">{promoProgress()?.reward?.name}</dt>
 						<dd class="text-right font-medium tabular-nums text-sale">
-							−{formatPrice(promoDiscount(), props.cart.currency)}
+							−{formatPrice(promoDiscount(), cart().currency)}
 						</dd>
 					</Show>
 					<Show when={cardCount() > 0}>
@@ -853,7 +915,7 @@ function CheckoutForm(props: {
 					</Show>
 					<dt class="pt-2 text-base font-semibold">Total</dt>
 					<dd class="pt-2 text-right text-base font-semibold tabular-nums">
-						{formatPrice(orderTotal(), props.cart.currency)}
+						{formatPrice(orderTotal(), cart().currency)}
 					</dd>
 				</dl>
 
@@ -880,7 +942,7 @@ function CheckoutForm(props: {
 				>
 					{submitting()
 						? "Placing your order…"
-						: `Place order · ${formatPrice(orderTotal(), props.cart.currency)}`}
+						: `Place order · ${formatPrice(orderTotal(), cart().currency)}`}
 				</button>
 			</aside>
 
@@ -914,7 +976,7 @@ function CheckoutForm(props: {
 								<ReviewBouquets
 									bouquets={bouquets()}
 									messageFor={messageFor}
-									currency={props.cart.currency}
+									currency={cart().currency}
 									total={orderTotal()}
 									onEdit={editBouquet}
 								/>
@@ -1023,7 +1085,7 @@ function CheckoutForm(props: {
 									>
 										{submitting()
 											? "Placing your order…"
-											: `Place order · ${formatPrice(orderTotal(), props.cart.currency)}`}
+											: `Place order · ${formatPrice(orderTotal(), cart().currency)}`}
 									</button>
 								</div>
 							</footer>

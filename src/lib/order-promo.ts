@@ -1,5 +1,12 @@
+import type { PaymentMethod } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
-import { type ItemScope, saleCovers, shopToday } from "~/lib/sale";
+import {
+	type ItemScope,
+	type MethodScope,
+	methodsText,
+	saleCovers,
+	shopToday,
+} from "~/lib/sale";
 
 export const ORDER_PROMO_NAME_MAX = 60;
 export const ORDER_PROMO_TERMS_MAX = 600;
@@ -9,7 +16,7 @@ export const ORDER_PROMO_TERMS_MAX = 600;
  * civilians have none), e.g. ₱500 off every 10th order. Set up in Admin →
  * Sales. Cancelled and test orders don't count.
  */
-export interface OrderPromo extends ItemScope {
+export interface OrderPromo extends ItemScope, MethodScope {
 	id: string;
 	/** Shown to shoppers, e.g. "10th Flower Promo". */
 	name: string;
@@ -41,6 +48,8 @@ export interface AppliedPromo {
 	name: string;
 	/** Pesos off, never more than the bouquets cost. */
 	amount: number;
+	/** The payment methods it was for, when it needed some. */
+	paymentMethods?: PaymentMethod[];
 }
 
 export type OrderPromoStatus = "off" | "scheduled" | "live" | "ended";
@@ -124,6 +133,9 @@ export function orderPromoMechanics(promo: PublicOrderPromo) {
 		promo.repeat
 			? `Every ${ordinal(promo.every)} order (${ordinal(promo.every)}, ${ordinal(promo.every * 2)}, ${ordinal(promo.every * 3)}…) gets ${peso} off its total.`
 			: `Your ${ordinal(promo.every)} order gets ${peso} off its total.`,
+		...(promo.paymentMethods.length
+			? [`Only when you pay with ${methodsText(promo.paymentMethods)}.`]
+			: []),
 		...(promo.scope === "selected"
 			? [
 					"Only on the items listed here: that order must include at least one, and the discount can’t be more than they cost.",

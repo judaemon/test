@@ -2,9 +2,12 @@ import { describe, expect, test } from "bun:test";
 
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import {
+	allowsMethod,
 	applySale,
 	bestSale,
 	markupPrice,
+	methodsText,
+	orderPaymentMethods,
 	type PublicSale,
 	type Sale,
 	saleEndsText,
@@ -27,6 +30,7 @@ const sale = (overrides: Partial<Sale> = {}): Sale => ({
 	arrangementTypes: [],
 	products: [],
 	includeCustom: false,
+	paymentMethods: [],
 	...overrides,
 });
 
@@ -132,5 +136,31 @@ describe("showing a higher before-price (markup)", () => {
 			expect.objectContaining({ price: 1000, original: 1112 }),
 		);
 		expect(best?.sale.id).toBe("big");
+	});
+});
+
+describe("sales for some payment methods only", () => {
+	test("apply only when one of them is chosen", () => {
+		const gcash = sale({ paymentMethods: ["gcash"] });
+		expect(allowsMethod(gcash, null)).toBe(false);
+		expect(allowsMethod(gcash, "bank")).toBe(false);
+		expect(allowsMethod(gcash, "gcash")).toBe(true);
+		expect(allowsMethod(sale(), null)).toBe(true);
+	});
+	test("read naturally", () => {
+		expect(methodsText(["gcash"])).toBe("GCash");
+		expect(methodsText(["gcash", "maya"])).toBe("GCash or Maya");
+		expect(methodsText(["bank", "gcash", "cash"])).toBe(
+			"bank transfer, GCash or cash",
+		);
+	});
+	test("an order with such discounts must be paid one of their ways", () => {
+		expect(orderPaymentMethods({ lines: [{}, { sale: {} }] })).toBeUndefined();
+		expect(
+			orderPaymentMethods({
+				lines: [{ sale: { paymentMethods: ["gcash", "maya"] } }],
+				promo: { paymentMethods: ["gcash", "bank"] },
+			}),
+		).toEqual(["gcash"]);
 	});
 });

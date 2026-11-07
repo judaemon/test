@@ -8,7 +8,8 @@ import {
 	type PublicOrderPromo,
 	promoSubtotal,
 } from "~/lib/order-promo";
-import { type SaleScope, shopToday } from "~/lib/sale";
+import type { PaymentMethod } from "~/lib/payment";
+import { allowsMethod, type SaleScope, shopToday } from "~/lib/sale";
 import { getDb, nowIso } from "./db";
 
 interface PromoRow {
@@ -18,6 +19,7 @@ interface PromoRow {
 	amount: number;
 	min_spend: number;
 	scope: SaleScope;
+	payment_methods: string;
 	arrangement_types: string;
 	products: string;
 	include_custom: number;
@@ -35,6 +37,7 @@ const toPromo = (row: PromoRow): OrderPromo => ({
 	amount: row.amount,
 	minSpend: row.min_spend,
 	scope: row.scope,
+	paymentMethods: JSON.parse(row.payment_methods) as PaymentMethod[],
 	arrangementTypes: JSON.parse(row.arrangement_types) as string[],
 	products: JSON.parse(row.products) as string[],
 	includeCustom: row.include_custom === 1,
@@ -72,6 +75,7 @@ export function saveOrderPromo(input: OrderPromoInput, id?: string) {
 		amount: input.amount,
 		minSpend: input.minSpend,
 		scope: input.scope,
+		paymentMethods: JSON.stringify(input.paymentMethods),
 		arrangementTypes: JSON.stringify(input.arrangementTypes),
 		products: JSON.stringify(input.products),
 		includeCustom: input.includeCustom ? 1 : 0,
@@ -86,7 +90,7 @@ export function saveOrderPromo(input: OrderPromoInput, id?: string) {
 		const result = db
 			.query(
 				`UPDATE order_promos SET name = $name, every = $every, amount = $amount,
-				   min_spend = $minSpend, scope = $scope, arrangement_types = $arrangementTypes,
+				   min_spend = $minSpend, scope = $scope, payment_methods = $paymentMethods, arrangement_types = $arrangementTypes,
 				   products = $products, include_custom = $includeCustom,
 				   repeat = $repeat, starts_on = $startsOn, ends_on = $endsOn,
 				   enabled = $enabled, terms = $terms, updated_at = $now
@@ -97,9 +101,10 @@ export function saveOrderPromo(input: OrderPromoInput, id?: string) {
 	} else {
 		db.query(
 			`INSERT INTO order_promos (id, name, every, amount, min_spend, scope, arrangement_types,
-			   products, include_custom, repeat, starts_on, ends_on, enabled, terms, created_at, updated_at)
+			   products, include_custom, payment_methods, repeat, starts_on, ends_on, enabled, terms,
+			   created_at, updated_at)
 			 VALUES ($id, $name, $every, $amount, $minSpend, $scope, $arrangementTypes,
-			   $products, $includeCustom, $repeat, $startsOn, $endsOn,
+			   $products, $includeCustom, $paymentMethods, $repeat, $startsOn, $endsOn,
 			   $enabled, $terms, $now, $now)`,
 		).run(values);
 	}
@@ -134,12 +139,16 @@ export function promoForNextOrder(
 		arrangement?: string;
 		lineTotal: number;
 	}[],
+	/** How the order is paid; promos for other methods don't apply. */
+	method: PaymentMethod | null,
 	today = shopToday(),
 ): AppliedPromo | undefined {
 	if (!serialNumber) return undefined;
 	const placed = countSerialOrders(serialNumber);
 	const best = listLiveOrderPromos(today)
-		.filter((promo) => isRewardOrder(promo, placed))
+		.filter(
+			(promo) => isRewardOrder(promo, placed) && allowsMethod(promo, method),
+		)
 		.map((promo) => ({ promo, onPromo: promoSubtotal(promo, lines) }))
 		.filter(
 			({ promo, onPromo }) => onPromo > 0 && meetsMinSpend(promo, onPromo),
@@ -150,7 +159,14 @@ export function promoForNextOrder(
 		}))
 		.sort((a, b) => b.amount - a.amount)[0];
 	if (!best) return undefined;
-	return { id: best.promo.id, name: best.promo.name, amount: best.amount };
+	return {
+		id: best.promo.id,
+		name: best.promo.name,
+		amount: best.amount,
+		...(best.promo.paymentMethods.length
+			? { paymentMethods: [...best.promo.paymentMethods] }
+			: {}),
+	};
 }
 
 /**
@@ -181,6 +197,7 @@ export function promoProgress(serialNumber: string, today = shopToday()) {
 			arrangementTypes: reward.arrangementTypes,
 			products: reward.products,
 			includeCustom: reward.includeCustom,
+			paymentMethods: reward.paymentMethods,
 		},
 		next: next && {
 			name: next.promo.name,

@@ -10,13 +10,20 @@ import {
 	priceDesign,
 } from "~/lib/custom-bouquet";
 import type { AppliedPromo } from "~/lib/order-promo";
+import type { PaymentMethod } from "~/lib/payment";
 import {
 	getMaxQuantity,
 	getVariantPrice,
 	MAX_PER_ORDER,
 	preorderReadyDate,
 } from "~/lib/product";
-import { bestSale, type LineSale, lineSale, type PublicSale } from "~/lib/sale";
+import {
+	allowsMethod,
+	bestSale,
+	type LineSale,
+	lineSale,
+	type PublicSale,
+} from "~/lib/sale";
 import type { WrapperStatus } from "~/types/order";
 import type { Product, ProductVariant, RecipeItem } from "~/types/product";
 
@@ -115,8 +122,14 @@ export function priceCart(
 	catalog: Product[],
 	custom?: CustomBouquetSettings,
 	/** The sales live now; the best one for each bouquet lowers its price. */
-	sales: readonly PublicSale[] = [],
+	allSales: readonly PublicSale[] = [],
+	/**
+	 * How the order is paid, if chosen: sales for other payment methods don't
+	 * apply, and none for a particular method do until it's chosen.
+	 */
+	method: PaymentMethod | null = null,
 ): PricedCart {
+	const sales = allSales.filter((sale) => allowsMethod(sale, method));
 	const priced: PricedLine[] = [];
 	let currency = DEFAULT_CURRENCY;
 

@@ -21,6 +21,7 @@ import {
 	isPaymentMethod,
 	isQrPayment,
 	normalizeReferenceNumber,
+	type PaymentMethod,
 	validateReferenceNumber,
 } from "~/lib/payment";
 import {
@@ -32,6 +33,7 @@ import {
 	withPromo,
 } from "~/lib/pricing";
 import { lineName, MAX_PER_ORDER } from "~/lib/product";
+import { orderPaymentMethods } from "~/lib/sale";
 import {
 	type ActiveOrder,
 	type CustomerOrder,
@@ -186,10 +188,11 @@ export const placeOrder = createServerFn({ method: "POST" })
 			listPublicProducts(),
 			getCustomSettings(),
 			listLiveSales(),
+			method,
 		);
 		const cart = withPromo(
 			priced,
-			promoForNextOrder(data.details.serialNumber, priced.lines),
+			promoForNextOrder(data.details.serialNumber, priced.lines, method),
 		);
 		if (cart.lines.length === 0) {
 			return { ok: false, message: "Your bag is empty." };
@@ -460,6 +463,7 @@ export const updateMyOrder = createServerFn({ method: "POST" })
 				listPublicProducts(),
 				undefined,
 				listLiveSales(),
+				order.payment.method,
 			).lines;
 			if (!priced)
 				return { ok: false, message: "That bouquet isn’t available anymore." };
@@ -563,6 +567,8 @@ export interface PayableOrder {
 	method: PaymentAccount["method"];
 	/** Filled in only while a payment is due. */
 	paymentAccounts: PaymentAccount[];
+	/** Its discounts were for these payment methods only, if any. */
+	discountMethods?: PaymentMethod[];
 	/** The shopper can still edit it, instead of paying right now. */
 	canEdit: boolean;
 }
@@ -572,6 +578,14 @@ const qrAccounts = () =>
 	listPaymentAccounts().filter(
 		(account) => account.enabled && isQrPayment(account.method),
 	);
+
+/** The QR accounts an order can be paid with, given its discounts' methods. */
+const qrAccountsFor = (order: Parameters<typeof orderPaymentMethods>[0]) => {
+	const allowed = orderPaymentMethods(order);
+	return qrAccounts().filter(
+		(account) => !allowed || allowed.includes(account.method),
+	);
+};
 
 const isOrderNumber = (value: unknown): value is string =>
 	typeof value === "string" && /^\d{1,9}$/.test(value);
@@ -597,7 +611,9 @@ export const getPayableOrder = createServerFn({ method: "GET" })
 			status: orderStatus(order.stage, order.payment.status),
 			due,
 			method: order.payment.method,
-			paymentAccounts: due ? qrAccounts() : [],
+			// A discount for some payment methods only keeps the order to them.
+			paymentAccounts: due ? qrAccountsFor(order) : [],
+			discountMethods: orderPaymentMethods(order),
 			canEdit: orderEditState(order).editable,
 		};
 	});
@@ -627,7 +643,7 @@ export const submitOrderPayment = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<SubmitPaymentResult> => {
 		const order = getOrderByNumber(data.number);
 		if (!order) return { ok: false, message: "Order not found." };
-		const account = qrAccounts().find((a) => a.method === data.method);
+		const account = qrAccountsFor(order).find((a) => a.method === data.method);
 		if (!account)
 			return {
 				ok: false,

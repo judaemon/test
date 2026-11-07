@@ -4,6 +4,7 @@ import {
 	ORDER_PROMO_TERMS_MAX,
 	type OrderPromo,
 } from "~/lib/order-promo";
+import { PAYMENT_METHODS, type PaymentMethod } from "~/lib/payment";
 import {
 	type ItemScope,
 	SALE_KINDS,
@@ -73,7 +74,14 @@ export function parseSaleInput(input: unknown): SaleInput {
 		endsOn,
 		enabled: source.enabled !== false,
 		...parseScope(source, "sale"),
+		paymentMethods: parseMethods(source.paymentMethods),
 	};
+}
+
+/** The payment methods it needs; none means any. */
+function parseMethods(value: unknown): PaymentMethod[] {
+	if (!Array.isArray(value)) return [];
+	return PAYMENT_METHODS.filter((method) => value.includes(method));
 }
 
 /** Everything, or the chosen types, arrangements and custom bouquets. */
@@ -189,6 +197,7 @@ export function parseOrderPromoInput(input: unknown): OrderPromoInput {
 		amount,
 		minSpend,
 		...parseScope(source, "promo"),
+		paymentMethods: parseMethods(source.paymentMethods),
 		repeat: source.repeat !== false,
 		startsOn,
 		endsOn,

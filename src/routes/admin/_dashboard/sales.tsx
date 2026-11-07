@@ -25,10 +25,16 @@ import {
 	ordinal,
 	type PublicOrderPromo,
 } from "~/lib/order-promo";
+import {
+	PAYMENT_METHOD_LABELS,
+	PAYMENT_METHODS,
+	type PaymentMethod,
+} from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import {
 	type ItemScope,
 	markupPrice,
+	methodsText,
 	SALE_NAME_MAX,
 	SALE_PERCENT_MAX,
 	SALE_STATUS_LABELS,
@@ -226,6 +232,11 @@ function SaleSummary(props: {
 					<p class="mt-1 text-sm text-petal-900/70 wrap-anywhere">
 						On: {scopeText(props.sale, props.options)}
 					</p>
+					<Show when={props.sale.paymentMethods.length}>
+						<p class="mt-1 text-sm font-medium text-petal-900/80">
+							Only when paying with {methodsText(props.sale.paymentMethods)}
+						</p>
+					</Show>
 				</div>
 				<Toggle
 					label={props.sale.enabled ? "On" : "Off"}
@@ -283,6 +294,7 @@ function SaleEditor(props: {
 		arrangementTypes: [...(props.sale?.arrangementTypes ?? [])],
 		products: [...(props.sale?.products ?? [])],
 		includeCustom: props.sale?.includeCustom ?? false,
+		paymentMethods: [...(props.sale?.paymentMethods ?? [])],
 	});
 	const [error, setError] = createSignal<string>();
 	const [saving, setSaving] = createSignal(false);
@@ -460,6 +472,10 @@ function SaleEditor(props: {
 				options={props.options}
 				onChange={(patch) => setForm(patch)}
 			/>
+			<MethodPicker
+				value={form.paymentMethods}
+				onChange={(methods) => setForm("paymentMethods", methods)}
+			/>
 
 			<Toggle
 				label="On: shoppers get it on its days"
@@ -624,6 +640,11 @@ function OrderPromoSummary(props: {
 					<p class="text-sm text-petal-900/70 wrap-anywhere">
 						On: {scopeText(props.promo, props.options)}
 					</p>
+					<Show when={props.promo.paymentMethods.length}>
+						<p class="mt-1 text-sm font-medium text-petal-900/80">
+							Only when paying with {methodsText(props.promo.paymentMethods)}
+						</p>
+					</Show>
 					<Show when={props.promo.minSpend > 0}>
 						<p class="text-sm text-petal-900/70">
 							Only when{" "}
@@ -694,6 +715,7 @@ function OrderPromoEditor(props: {
 		arrangementTypes: [...(props.promo?.arrangementTypes ?? [])],
 		products: [...(props.promo?.products ?? [])],
 		includeCustom: props.promo?.includeCustom ?? false,
+		paymentMethods: [...(props.promo?.paymentMethods ?? [])],
 		repeat: props.promo?.repeat ?? true,
 		startsOn: props.promo?.startsOn ?? shopToday(),
 		endsOn: props.promo?.endsOn ?? "",
@@ -712,6 +734,7 @@ function OrderPromoEditor(props: {
 		arrangementTypes: form.arrangementTypes,
 		products: form.products,
 		includeCustom: form.includeCustom,
+		paymentMethods: form.paymentMethods,
 		repeat: form.repeat,
 		startsOn: form.startsOn,
 		endsOn: form.endsOn,
@@ -829,6 +852,10 @@ function OrderPromoEditor(props: {
 				value={form}
 				options={props.options}
 				onChange={(patch) => setForm(patch)}
+			/>
+			<MethodPicker
+				value={form.paymentMethods}
+				onChange={(methods) => setForm("paymentMethods", methods)}
 			/>
 			<Toggle
 				label={`Repeat: every ${ordinal(preview().every)} order (${ordinal(preview().every)}, ${ordinal(preview().every * 2)}…), not just the first`}
@@ -999,6 +1026,52 @@ function ScopePicker(props: {
 					</div>
 				</div>
 			</Show>
+		</fieldset>
+	);
+}
+
+/** Card isn't taken yet, so it's left out. */
+const PICKABLE_METHODS = PAYMENT_METHODS.filter((method) => method !== "card");
+
+/** The payment methods a sale or promo needs; none ticked means any. */
+function MethodPicker(props: {
+	value: PaymentMethod[];
+	onChange: (methods: PaymentMethod[]) => void;
+}) {
+	const toggle = (method: PaymentMethod) =>
+		props.onChange(
+			props.value.includes(method)
+				? props.value.filter((m) => m !== method)
+				: PICKABLE_METHODS.filter(
+						(m) => m === method || props.value.includes(m),
+					),
+		);
+	return (
+		<fieldset class="flex flex-col gap-2">
+			<legend class="mb-1.5 text-sm font-medium">
+				Only when paying with{" "}
+				<span class="font-normal text-petal-900/50">(optional)</span>
+			</legend>
+			<div class="flex flex-wrap gap-2">
+				<For each={PICKABLE_METHODS}>
+					{(method) => (
+						<label class={scopeOption}>
+							<input
+								type="checkbox"
+								checked={props.value.includes(method)}
+								onChange={() => toggle(method)}
+								class="accent-petal-700"
+							/>
+							{PAYMENT_METHOD_LABELS[method]}
+						</label>
+					)}
+				</For>
+			</div>
+			<span class="text-xs text-petal-900/55">
+				{props.value.length
+					? `Checkout gives it only when the customer pays with ${methodsText(props.value)}, and the order must then be paid that way.`
+					: "None ticked: any payment method gets it."}
+			</span>
 		</fieldset>
 	);
 }
