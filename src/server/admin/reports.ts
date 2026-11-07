@@ -7,8 +7,10 @@ import {
 	COMPANIES,
 } from "~/lib/cadets";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
+import { savings } from "~/lib/sale";
 import {
 	isPaymentSettled,
+	ORDER_STATUS_LABELS,
 	type Order,
 	type OrderStatus,
 	orderStatus,
@@ -73,7 +75,39 @@ export interface ReportOrder {
 	cancelReason?: string;
 }
 
+/** The money side of all orders, each figure with the orders behind it. */
+export interface MoneySummary {
+	/** What active orders come to. */
+	ordered: PaymentCell;
+	/** Money in hand: paid orders, plus down payments. */
+	received: PaymentCell;
+	/** Still owed on active orders, whatever stage the payment is at. */
+	toCollect: PaymentCell;
+	/** Sent, waiting for staff to check the reference number. */
+	verifying: PaymentCell;
+	/** Ordered, payment not sent yet (cash included). */
+	onHold: PaymentCell;
+	/** The payment didn't match. */
+	rejected: PaymentCell;
+	/** Taken off by sales, as customers saw it. */
+	saleDiscounts: PaymentCell;
+	/** Taken off by order promos, e.g. the 10th order's ₱500. */
+	promoDiscounts: PaymentCell;
+	/** What cancelled orders came to. */
+	cancelled: PaymentCell;
+	averageOrder: number;
+}
+
+export interface StatusRow extends OrderGroup {
+	status: OrderStatus;
+	label: string;
+	amount: number;
+}
+
 export interface Report {
+	money: MoneySummary;
+	/** Active orders by where they're at: on hold, verifying, being made… */
+	byStatus: StatusRow[];
 	active: OrderGroup;
 	cancelled: OrderGroup;
 	bouquets: number;
@@ -169,6 +203,48 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			};
 		});
 
+		const sum = (list: Order[], amountOf: (o: Order) => number) => ({
+			...group(list.filter((o) => amountOf(o) > 0)),
+			amount:
+				Math.round(list.reduce((total, o) => total + amountOf(o), 0) * 100) /
+				100,
+		});
+		const unpaidWith = (status: PaymentStatus) => (o: Order) =>
+			o.payment.status === status ? owing(o) : 0;
+		const ordered = sum(active, (o) => o.total);
+		const money: MoneySummary = {
+			ordered,
+			received: sum(active, received),
+			toCollect: sum(active, owing),
+			verifying: sum(active, unpaidWith("pending")),
+			onHold: sum(active, unpaidWith("on_hold")),
+			rejected: sum(active, unpaidWith("rejected")),
+			saleDiscounts: sum(active, (o) => savings(o.lines)),
+			promoDiscounts: sum(active, (o) => o.promo?.amount ?? 0),
+			cancelled: sum(cancelled, (o) => o.total),
+			averageOrder: active.length
+				? Math.round((ordered.amount / active.length) * 100) / 100
+				: 0,
+		};
+		const STATUS_ORDER: OrderStatus[] = [
+			"on_hold",
+			"verifying",
+			"payment_check",
+			"being_made",
+			"done",
+		];
+		const byStatus: StatusRow[] = STATUS_ORDER.map((status) => {
+			const list = active.filter(
+				(o) => orderStatus(o.stage, o.payment.status) === status,
+			);
+			return {
+				status,
+				label: ORDER_STATUS_LABELS[status],
+				...group(list),
+				amount: list.reduce((total, o) => total + o.total, 0),
+			};
+		});
+
 		const bouquets = new Map<string, BouquetRow>();
 		for (const order of active) {
 			for (const line of order.lines) {
@@ -217,6 +293,8 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 		}));
 
 		return {
+			money,
+			byStatus,
 			active: group(active),
 			cancelled: group(cancelled),
 			bouquets: active.reduce((sum, o) => sum + o.itemCount, 0),

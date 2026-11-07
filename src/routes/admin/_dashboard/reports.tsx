@@ -171,6 +171,16 @@ function ReportsPage() {
 				})),
 			),
 		});
+	/** "1 order", "3 orders". */
+	const count = (n: number, noun: string) =>
+		`${n} ${noun}${n === 1 ? "" : "s"}`;
+	/** How much of what was ordered is in hand, 0–100. */
+	const collectedPercent = () => {
+		const { ordered, received } = report().money;
+		return ordered.amount > 0
+			? Math.min(100, Math.round((received.amount / ordered.amount) * 100))
+			: 0;
+	};
 	const showBouquets = () =>
 		setSelected({
 			title: "Orders by bouquet",
@@ -197,6 +207,117 @@ function ReportsPage() {
 					</button>
 				}
 			/>
+
+			<section class="mb-6" aria-labelledby="money-heading">
+				<h2 id="money-heading" class="mb-1 font-semibold">
+					Money
+				</h2>
+				<p class="mb-3 text-sm text-petal-900/60">
+					Every order except cancelled ones; Cancelled shows those. Received
+					counts verified and card payments, and down payments on orders that
+					still owe the rest.
+				</p>
+				<div class={cn(adminCard, "mb-3 p-4")}>
+					<div class="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+						<span class="font-medium">
+							Collected {money(report().money.received.amount)} of{" "}
+							{money(report().money.ordered.amount)}
+						</span>
+						<span class="tabular-nums text-petal-900/65">
+							{collectedPercent()}%
+						</span>
+					</div>
+					<div
+						class="mt-2 h-3 overflow-hidden rounded-full bg-petal-100"
+						role="progressbar"
+						aria-label="Money collected"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow={collectedPercent()}
+					>
+						<div
+							class="h-full rounded-full bg-sage-600"
+							style={{ width: `${collectedPercent()}%` }}
+						/>
+					</div>
+				</div>
+				<dl class="grid grid-cols-2 gap-3 lg:grid-cols-3">
+					<Stat
+						label="Ordered"
+						value={money(report().money.ordered.amount)}
+						hint={`${count(report().money.ordered.orders, "order")} · ${money(report().money.averageOrder)} on average`}
+						onOpen={() => show("Ordered", report().money.ordered)}
+					/>
+					<Stat
+						label="Received"
+						value={money(report().money.received.amount)}
+						hint={`From ${count(report().money.received.orders, "order")}`}
+						onOpen={() => show("Received", report().money.received)}
+					/>
+					<Stat
+						label="Still to collect"
+						value={money(report().money.toCollect.amount)}
+						hint={`${count(report().money.toCollect.orders, "order")} still owing`}
+						onOpen={() => show("Still to collect", report().money.toCollect)}
+					/>
+					<Stat
+						label="Verifying"
+						value={money(report().money.verifying.amount)}
+						hint={`${count(report().money.verifying.orders, "reference number")} to check`}
+						onOpen={() => show("Verifying payment", report().money.verifying)}
+					/>
+					<Stat
+						label="On hold"
+						value={money(report().money.onHold.amount)}
+						hint={`${count(report().money.onHold.orders, "order")} not paid yet`}
+						onOpen={() => show("On hold", report().money.onHold)}
+					/>
+					<Stat
+						label="Payment problems"
+						value={money(report().money.rejected.amount)}
+						hint={`${count(report().money.rejected.orders, "payment")} didn’t match`}
+						onOpen={() => show("Needs payment check", report().money.rejected)}
+					/>
+					<Stat
+						label="Sale discounts"
+						value={money(report().money.saleDiscounts.amount)}
+						hint={`On ${count(report().money.saleDiscounts.orders, "order")}`}
+						onOpen={() => show("Sale discounts", report().money.saleDiscounts)}
+					/>
+					<Stat
+						label="Promo discounts"
+						value={money(report().money.promoDiscounts.amount)}
+						hint={`On ${count(report().money.promoDiscounts.orders, "order")}`}
+						onOpen={() =>
+							show("Promo discounts", report().money.promoDiscounts)
+						}
+					/>
+					<Stat
+						label="Cancelled"
+						value={money(report().money.cancelled.amount)}
+						hint={`${count(report().money.cancelled.orders, "cancelled order")}`}
+						onOpen={() => show("Cancelled orders", report().money.cancelled)}
+					/>
+				</dl>
+			</section>
+
+			<section class="mb-6" aria-labelledby="status-heading">
+				<h2 id="status-heading" class="mb-3 font-semibold">
+					Orders by status
+				</h2>
+				<dl class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+					<For each={report().byStatus}>
+						{(row) => (
+							<Stat
+								label={row.label}
+								value={String(row.orders)}
+								hint={money(row.amount)}
+								onOpen={() => show(row.label, row)}
+							/>
+						)}
+					</For>
+				</dl>
+			</section>
 
 			<dl class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
 				<Stat
