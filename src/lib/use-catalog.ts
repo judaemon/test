@@ -34,6 +34,14 @@ export function useSales() {
 	return useLoaderData({ from: "__root__", select: (data) => data.sales });
 }
 
+/** Order promos live today, e.g. ₱500 off every 10th order (from the root route). */
+export function useOrderPromos() {
+	return useLoaderData({
+		from: "__root__",
+		select: (data) => data.orderPromos,
+	});
+}
+
 /** The bag priced against the live catalog and sales (unknown items are dropped). */
 export function usePricedCart() {
 	const catalog = useCatalog();

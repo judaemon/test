@@ -9,6 +9,8 @@ import {
 	type FieldErrors,
 	hasErrors,
 	parseCheckoutDetails,
+	SERIAL_NUMBER_MAX,
+	serialDigits,
 	validateCheckoutDetails,
 } from "~/lib/checkout";
 import { ORDER_EDIT_LOCKED, orderEditState } from "~/lib/order-edit";
@@ -27,6 +29,7 @@ import {
 	priceCart,
 	roundMoney,
 	sanitizeCartLines,
+	withPromo,
 } from "~/lib/pricing";
 import { lineName, MAX_PER_ORDER } from "~/lib/product";
 import {
@@ -42,6 +45,7 @@ import { listPublicProducts } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
 import { getSessionUser } from "./customer-auth";
 import { shopActor } from "./order-actor";
+import { promoForNextOrder, promoProgress } from "./order-promos-repo";
 import {
 	createOrder,
 	findOrders,
@@ -87,6 +91,23 @@ export const getCheckoutConfig = createServerFn({ method: "GET" }).handler(
 		paymentAccounts: listPaymentAccounts().filter((account) => account.enabled),
 	}),
 );
+
+/**
+ * What checkout tells a cadet as they type their serial number: whether this
+ * order gets an order promo, or how many orders to go.
+ */
+export const getPromoProgress = createServerFn({ method: "GET" })
+	.validator((input: unknown) => {
+		const raw =
+			typeof input === "object" && input !== null
+				? (input as Record<string, unknown>).serialNumber
+				: "";
+		return serialDigits(typeof raw === "string" ? raw : "").slice(
+			0,
+			SERIAL_NUMBER_MAX,
+		);
+	})
+	.handler(async ({ data }) => promoProgress(data));
 
 export const placeOrder = createServerFn({ method: "POST" })
 	.validator((input: unknown): PlaceOrderInput => {
@@ -159,11 +180,16 @@ export const placeOrder = createServerFn({ method: "POST" })
 		}
 
 		// Prices and availability always come from the database, never the client.
-		const cart = priceCart(
+		// Cadets' order promos (e.g. ₱500 off every 10th order) by serial number.
+		const priced = priceCart(
 			data.lines,
 			listPublicProducts(),
 			getCustomSettings(),
 			listLiveSales(),
+		);
+		const cart = withPromo(
+			priced,
+			promoForNextOrder(data.details.serialNumber, priced.subtotal),
 		);
 		if (cart.lines.length === 0) {
 			return { ok: false, message: "Your bag is empty." };

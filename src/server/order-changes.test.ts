@@ -700,3 +700,105 @@ describe("orders placed during a before-price (markup) sale", () => {
 		expect(cart.total).toBe(1300);
 	});
 });
+
+describe("the 10th order promo, by serial number", () => {
+	const TODAY = "2026-11-08";
+	// Twenty-odd orders: give the bouquet enough stock for them.
+	beforeAll(() => {
+		db.getDb()
+			.query(
+				"UPDATE bouquet_styles SET stock_quantity = 200 WHERE bouquet_id = $productId AND slug = $variantId",
+			)
+			.run(second);
+	});
+	const cadet = (serialNumber: string) => ({
+		...DETAILS,
+		className: "1CL",
+		serialNumber,
+	});
+	const orderFor = async (serialNumber: string) => {
+		const promos = await import("./order-promos-repo");
+		const priced = pricing.priceCart(
+			[{ ...second, quantity: 1 }],
+			catalog.listPublicProducts(),
+		);
+		const cart = pricing.withPromo(
+			priced,
+			promos.promoForNextOrder(serialNumber, priced.subtotal, TODAY),
+		);
+		return repo.createOrder({
+			id: crypto.randomUUID(),
+			details: cadet(serialNumber),
+			cart,
+			payment: { method: "cash", status: "on_hold" },
+		});
+	};
+
+	test("starts with the owner's ₱500 off every 10th order", async () => {
+		const promos = await import("./order-promos-repo");
+		expect(promos.listLiveOrderPromos(TODAY)).toEqual([
+			expect.objectContaining({
+				id: "tenth-flower-promo",
+				name: "10th Flower Promo",
+				every: 10,
+				amount: 500,
+				repeat: true,
+			}),
+		]);
+	});
+
+	test("the 10th order gets ₱500 off; cancelled and test orders don't count", async () => {
+		const promos = await import("./order-promos-repo");
+		const serial = "900001";
+		const placed = [];
+		for (let i = 0; i < 9; i++) placed.push(await orderFor(serial));
+		expect(placed.every((order) => !order.promo)).toBe(true);
+		// One cancelled and one test order: back to 7 that count.
+		repo.cancelOrder(placed[0]?.id as string, {
+			reason: "x",
+			cancelledBy: "Staff",
+		});
+		repo.setOrderTest(placed[1]?.id as string, true);
+		expect(promos.promoProgress(serial, TODAY).next?.remaining).toBe(2);
+		await orderFor(serial);
+		await orderFor(serial);
+		expect(promos.promoProgress(serial, TODAY).reward).toEqual({
+			name: "10th Flower Promo",
+			amount: 500,
+		});
+		const tenth = await orderFor(serial);
+		expect(tenth.promo).toEqual({
+			id: "tenth-flower-promo",
+			name: "10th Flower Promo",
+			amount: 500,
+		});
+		expect(tenth.total).toBe(tenth.subtotal - 500);
+		// Another serial number starts from zero.
+		expect(promos.promoForNextOrder("900002", 1300, TODAY)).toBeUndefined();
+	});
+
+	test("an edit keeps the discount, never below ₱0 for the bouquets", async () => {
+		const promos = await import("./order-promos-repo");
+		const serial = "900003";
+		for (let i = 0; i < 9; i++) await orderFor(serial);
+		const tenth = await orderFor(serial);
+		expect(tenth.promo?.amount).toBe(500);
+		const [line] = tenth.lines;
+		const after = repo.updateCustomerOrder(tenth.id, {
+			details: cadet(serial),
+			lines: [{ ...(line as PricedLine), quantity: 1 }],
+		});
+		expect(after.promo?.amount).toBe(500);
+		expect(after.total).toBe(after.subtotal - 500);
+		expect(
+			pricing.withPromo(
+				pricing.priceCart(
+					[{ ...second, quantity: 1 }],
+					catalog.listPublicProducts(),
+				),
+				{ id: "big", name: "Big", amount: 99_999 },
+			).total,
+		).toBe(0);
+		expect(promos.countSerialOrders(serial)).toBe(10);
+	});
+});

@@ -14,6 +14,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as ActiveOrdersRouteImport } from './routes/active-orders'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CustomRouteImport } from './routes/custom'
+import { Route as PromosRouteImport } from './routes/promos'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SignInRouteImport } from './routes/sign-in'
@@ -87,6 +88,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
 const CustomRoute = CustomRouteImport.update({
   id: '/custom',
   path: '/custom',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromosRoute = PromosRouteImport.update({
+  id: '/promos',
+  path: '/promos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -359,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
   '/custom': typeof CustomRoute
+  '/promos': typeof PromosRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
@@ -414,6 +421,7 @@ export interface FileRoutesByTo {
   '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
   '/custom': typeof CustomRoute
+  '/promos': typeof PromosRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
@@ -470,6 +478,7 @@ export interface FileRoutesById {
   '/active-orders': typeof ActiveOrdersRoute
   '/checkout': typeof CheckoutRoute
   '/custom': typeof CustomRoute
+  '/promos': typeof PromosRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/shop': typeof ShopRoute
   '/sign-in': typeof SignInRoute
@@ -528,6 +537,7 @@ export interface FileRouteTypes {
     | '/active-orders'
     | '/checkout'
     | '/custom'
+    | '/promos'
     | '/robots.txt'
     | '/shop'
     | '/sign-in'
@@ -583,6 +593,7 @@ export interface FileRouteTypes {
     | '/active-orders'
     | '/checkout'
     | '/custom'
+    | '/promos'
     | '/robots.txt'
     | '/shop'
     | '/sign-in'
@@ -638,6 +649,7 @@ export interface FileRouteTypes {
     | '/active-orders'
     | '/checkout'
     | '/custom'
+    | '/promos'
     | '/robots.txt'
     | '/shop'
     | '/sign-in'
@@ -695,6 +707,7 @@ export interface RootRouteChildren {
   ActiveOrdersRoute: typeof ActiveOrdersRoute
   CheckoutRoute: typeof CheckoutRoute
   CustomRoute: typeof CustomRoute
+  PromosRoute: typeof PromosRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShopRoute: typeof ShopRoute
   SignInRoute: typeof SignInRoute
@@ -753,6 +766,13 @@ declare module '@tanstack/solid-router' {
       path: '/custom'
       fullPath: '/custom'
       preLoaderRoute: typeof CustomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/promos': {
+      id: '/promos'
+      path: '/promos'
+      fullPath: '/promos'
+      preLoaderRoute: typeof PromosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -1187,6 +1207,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActiveOrdersRoute: ActiveOrdersRoute,
   CheckoutRoute: CheckoutRoute,
   CustomRoute: CustomRoute,
+  PromosRoute: PromosRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShopRoute: ShopRoute,
   SignInRoute: SignInRoute,

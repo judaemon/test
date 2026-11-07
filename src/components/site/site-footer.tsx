@@ -33,6 +33,12 @@ export function SiteFooter() {
 							<span lang="el">ωραία</span> (oh-REH-ah) · Greek for “beautiful”
 						</p>
 						<Link
+							to="/promos"
+							class="py-2 text-sm font-medium text-petal-700 underline underline-offset-2"
+						>
+							Promos
+						</Link>
+						<Link
 							to="/active-orders"
 							class="py-2 text-sm font-medium text-petal-700 underline underline-offset-2"
 						>

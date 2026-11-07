@@ -669,6 +669,34 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE sales ADD COLUMN pricing TEXT NOT NULL DEFAULT 'discount'
 		CHECK (pricing IN ('discount', 'markup'));
 	`,
+	// v46: order promos, counted by serial number: e.g. ₱500 off every 10th
+	// order. Set up in Admin → Sales; each order keeps the promo it got.
+	// Starts with the owner's 10th Flower Promo.
+	`
+	CREATE TABLE order_promos (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		-- The reward order: every Nth (repeat) or just the Nth.
+		every INTEGER NOT NULL CHECK (every >= 2),
+		-- Whole pesos off that order.
+		amount INTEGER NOT NULL CHECK (amount > 0),
+		repeat INTEGER NOT NULL DEFAULT 1,
+		-- Manila days, YYYY-MM-DD; an empty end means it doesn't end.
+		starts_on TEXT NOT NULL,
+		ends_on TEXT NOT NULL DEFAULT '',
+		enabled INTEGER NOT NULL DEFAULT 1,
+		terms TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	INSERT INTO order_promos (id, name, every, amount, repeat, starts_on, ends_on, enabled, terms, created_at, updated_at)
+	VALUES ('tenth-flower-promo', '10th Flower Promo', 10, 500, 1, '2026-11-07', '', 1, '',
+		strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+	ALTER TABLE orders ADD COLUMN promo TEXT;
+	ALTER TABLE orders ADD COLUMN promo_discount_cents INTEGER NOT NULL DEFAULT 0
+		CHECK (promo_discount_cents >= 0);
+	CREATE INDEX orders_by_serial ON orders (serial_number);
+	`,
 ];
 
 declare global {

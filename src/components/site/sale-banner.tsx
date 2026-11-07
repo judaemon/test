@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/solid-router";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
-
+import { orderPromoLabel } from "~/lib/order-promo";
 import { type PublicSale, saleEndsText, saleLabel } from "~/lib/sale";
-import { useSales } from "~/lib/use-catalog";
+import { useOrderPromos, useSales } from "~/lib/use-catalog";
 
 /** When a sale's last Manila day is over. */
 function saleEndsAt(endsOn: string) {
@@ -31,10 +31,15 @@ function headlineSale(sales: readonly PublicSale[]) {
 	)[0];
 }
 
-/** A strip above the header while a sale is live, counting down to its end. */
+/**
+ * A strip above the header while a sale or order promo is live: the sale with
+ * its countdown, and the order promo. It opens the Promos page.
+ */
 export function SaleBanner() {
 	const sales = useSales();
+	const orderPromos = useOrderPromos();
 	const sale = () => headlineSale(sales());
+	const promo = () => orderPromos()[0];
 	// The countdown runs in the browser only; the page first shows the end date.
 	const [now, setNow] = createSignal<number>();
 	onMount(() => {
@@ -43,27 +48,50 @@ export function SaleBanner() {
 		onCleanup(() => clearInterval(timer));
 	});
 	return (
-		<Show when={sale()}>
-			{(live) => (
-				<div class="bg-sale px-4 py-2 text-center text-sm text-white">
-					<Link
-						to="/shop"
-						class="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white"
-					>
-						<strong class="font-semibold">{live().name}</strong>
-						<span>
-							{saleLabel(live())}{" "}
-							{live().scope === "all" ? "everything" : "selected arrangements"}
-						</span>
+		<Show when={sale() || promo()}>
+			<div class="bg-sale px-4 py-2 text-center text-sm text-white">
+				<Link
+					to="/promos"
+					class="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white"
+				>
+					<Show when={sale()}>
+						{(live) => (
+							<>
+								<strong class="font-semibold">{live().name}</strong>
+								<span>
+									{saleLabel(live())}{" "}
+									{live().scope === "all"
+										? "everything"
+										: "selected arrangements"}
+								</span>
+								<span class="tabular-nums">
+									(
+									{now() === undefined
+										? saleEndsText(live().endsOn)
+										: timeLeft(
+												saleEndsAt(live().endsOn).getTime() - (now() ?? 0),
+											)}
+									)
+								</span>
+							</>
+						)}
+					</Show>
+					<Show when={sale() && promo()}>
 						<span aria-hidden="true">·</span>
-						<span class="tabular-nums">
-							{now() === undefined
-								? saleEndsText(live().endsOn)
-								: timeLeft(saleEndsAt(live().endsOn).getTime() - (now() ?? 0))}
-						</span>
-					</Link>
-				</div>
-			)}
+					</Show>
+					<Show when={promo()}>
+						{(live) => (
+							<span>
+								<strong class="font-semibold">{live().name}</strong>:{" "}
+								{orderPromoLabel(live())}
+							</span>
+						)}
+					</Show>
+					<span class="font-semibold underline underline-offset-2">
+						See promos
+					</span>
+				</Link>
+			</div>
 		</Show>
 	);
 }

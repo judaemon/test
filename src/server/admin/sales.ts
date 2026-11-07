@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/solid-start";
-
+import {
+	ORDER_PROMO_NAME_MAX,
+	ORDER_PROMO_TERMS_MAX,
+	type OrderPromo,
+} from "~/lib/order-promo";
 import {
 	SALE_KINDS,
 	SALE_NAME_MAX,
@@ -11,6 +15,12 @@ import {
 import { requireOwner } from "../admin-auth";
 import { listArrangementTypes } from "../arrangement-types-repo";
 import { listAdminProducts } from "../catalog-repo";
+import {
+	deleteOrderPromo,
+	listOrderPromos,
+	type OrderPromoInput,
+	saveOrderPromo,
+} from "../order-promos-repo";
 import { deleteSale, listSales, type SaleInput, saveSale } from "../sales-repo";
 import { asRecord, InputError, oneOf, text } from "../validate";
 
@@ -83,6 +93,7 @@ export const getSalesAdmin = createServerFn({ method: "GET" }).handler(
 		await requireOwner();
 		return {
 			sales: listSales(),
+			orderPromos: listOrderPromos(),
 			arrangementTypes: listArrangementTypes().map(({ id, pluralName }) => ({
 				id,
 				name: pluralName,
@@ -125,5 +136,78 @@ export const deleteSaleFn = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		await requireOwner();
 		deleteSale(data);
+		return { ok: true as const };
+	});
+
+/** Checks an order promo from the form; throws InputError with what to fix. */
+export function parseOrderPromoInput(input: unknown): OrderPromoInput {
+	const source = asRecord(input);
+	const every = Number(source.every);
+	if (!Number.isInteger(every) || every < 2 || every > 100)
+		throw new InputError(
+			"Choose which order gets it: from the 2nd to the 100th.",
+		);
+	const amount = Number(source.amount);
+	if (!Number.isInteger(amount) || amount < 1)
+		throw new InputError("Enter a whole peso amount, like 500.");
+	if (amount > 100_000) throw new InputError("That amount is too large.");
+	const startsOn = text(source, "startsOn", { label: "Start date", max: 10 });
+	const endsOn = text(source, "endsOn", {
+		label: "End date",
+		max: 10,
+		required: false,
+	});
+	if (!isDay(startsOn)) throw new InputError("Choose the start date.");
+	if (endsOn && !isDay(endsOn)) throw new InputError("Check the end date.");
+	if (endsOn && endsOn < startsOn)
+		throw new InputError("The end date can’t be before the start date.");
+	const terms = typeof source.terms === "string" ? source.terms : "";
+	return {
+		name: text(source, "name", { label: "Name", max: ORDER_PROMO_NAME_MAX }),
+		every,
+		amount,
+		repeat: source.repeat !== false,
+		startsOn,
+		endsOn,
+		enabled: source.enabled !== false,
+		terms: text({ terms: terms.replace(/\r\n?/g, "\n") }, "terms", {
+			label: "Terms",
+			max: ORDER_PROMO_TERMS_MAX,
+			required: false,
+		}),
+	};
+}
+
+export type OrderPromoResult =
+	| { ok: true; promo: OrderPromo }
+	| { ok: false; message: string };
+
+export const saveOrderPromoFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		const id =
+			typeof source.id === "string" && source.id ? source.id.slice(0, 64) : "";
+		try {
+			return { id, promo: parseOrderPromoInput(source.promo), error: "" };
+		} catch (error) {
+			if (error instanceof InputError)
+				return { id, promo: null, error: error.message };
+			throw error;
+		}
+	})
+	.handler(async ({ data }): Promise<OrderPromoResult> => {
+		await requireOwner();
+		if (!data.promo) return { ok: false, message: data.error };
+		return {
+			ok: true,
+			promo: saveOrderPromo(data.promo, data.id || undefined),
+		};
+	});
+
+export const deleteOrderPromoFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => text(asRecord(input), "id", { max: 64 }))
+	.handler(async ({ data }) => {
+		await requireOwner();
+		deleteOrderPromo(data);
 		return { ok: true as const };
 	});

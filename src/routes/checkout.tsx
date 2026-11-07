@@ -5,10 +5,12 @@ import type { JSX } from "solid-js";
 import {
 	createEffect,
 	createMemo,
+	createResource,
 	createSignal,
 	For,
 	Match,
 	on,
+	onCleanup,
 	Show,
 	Switch,
 } from "solid-js";
@@ -95,7 +97,7 @@ import {
 	validateCard,
 	validateReferenceNumber,
 } from "~/lib/payment";
-import type { PricedCart } from "~/lib/pricing";
+import { type PricedCart, roundMoney } from "~/lib/pricing";
 import {
 	formatPrice,
 	formatReadyDate,
@@ -104,7 +106,11 @@ import {
 } from "~/lib/product";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
-import { getCheckoutConfig, placeOrder } from "~/server/orders";
+import {
+	getCheckoutConfig,
+	getPromoProgress,
+	placeOrder,
+} from "~/server/orders";
 import type { PaymentAccount } from "~/types/payment";
 
 export const Route = createFileRoute("/checkout")({
@@ -222,6 +228,30 @@ function CheckoutForm(props: {
 	const [serialNumber, setSerialNumber] = createSignal(
 		draft?.serialNumber ?? "",
 	);
+	/** The serial number once they stop typing, so each key isn't looked up. */
+	const [settledSerial, setSettledSerial] = createSignal("");
+	createEffect(() => {
+		const serial = className() === CIVILIAN ? "" : serialNumber();
+		const timer = setTimeout(() => setSettledSerial(serial), 350);
+		onCleanup(() => clearTimeout(timer));
+	});
+	// Cadets' order promos (e.g. ₱500 off every 10th order), by serial number.
+	const [promoLookup] = createResource(settledSerial, (serial) =>
+		getPromoProgress({ data: { serialNumber: serial } }),
+	);
+	/** What the promos say for the serial number typed now, once looked up. */
+	const promoProgress = () =>
+		(promoLookup.state === "ready" || promoLookup.state === "refreshing") &&
+		settledSerial() === serialNumber() &&
+		className() !== CIVILIAN
+			? promoLookup.latest
+			: undefined;
+	/** Pesos off this order; checkout works it out again on the server. */
+	const promoDiscount = () => {
+		const reward = promoProgress()?.reward;
+		return reward ? Math.min(reward.amount, props.cart.subtotal) : 0;
+	};
+	const orderTotal = () => roundMoney(props.cart.total - promoDiscount());
 	/** Each bouquet's card and note, by `unitKey`. */
 	const [messages, setMessages] = createStore<Record<string, BouquetMessage>>(
 		draft?.messages ?? {},
@@ -578,6 +608,31 @@ function CheckoutForm(props: {
 							<TextFieldErrorMessage>
 								{errors().serialNumber}
 							</TextFieldErrorMessage>
+							<Show when={promoProgress()?.reward}>
+								{(reward) => (
+									<p class="rounded-lg bg-success px-2.5 py-1.5 text-xs font-semibold text-success-foreground">
+										🎉 {reward().name}: this order gets{" "}
+										{formatPrice(reward().amount, "PHP")} off!
+									</p>
+								)}
+							</Show>
+							<Show when={!promoProgress()?.reward && promoProgress()?.next}>
+								{(next) => (
+									<p class="text-xs text-petal-900/65">
+										{next().remaining === 1
+											? "1 more order"
+											: `${next().remaining} more orders`}{" "}
+										and your next one gets {formatPrice(next().amount, "PHP")}{" "}
+										off ({next().name}).{" "}
+										<Link
+											to="/promos"
+											class="font-medium text-petal-700 underline underline-offset-2"
+										>
+											How it works
+										</Link>
+									</p>
+								)}
+							</Show>
 						</TextField>
 						<Field
 							name="lastName"
@@ -630,7 +685,7 @@ function CheckoutForm(props: {
 				<Section id={PAYMENT_SECTION} title="Payment" step={3}>
 					<PaymentSection
 						accounts={paymentAccounts()}
-						total={props.cart.total}
+						total={orderTotal()}
 						currency={props.cart.currency}
 						method={paymentMethod()}
 						onMethodChange={setPaymentMethod}
@@ -751,6 +806,12 @@ function CheckoutForm(props: {
 						{formatPrice(subtotalBeforeSale(props.cart), props.cart.currency)}
 					</dd>
 					<SaleRows lines={props.cart.lines} currency={props.cart.currency} />
+					<Show when={promoDiscount() > 0}>
+						<dt class="text-sale">{promoProgress()?.reward?.name}</dt>
+						<dd class="text-right font-medium tabular-nums text-sale">
+							−{formatPrice(promoDiscount(), props.cart.currency)}
+						</dd>
+					</Show>
 					<Show when={cardCount() > 0}>
 						<dt class="text-petal-900/70">
 							{cardCount() === 1
@@ -761,7 +822,7 @@ function CheckoutForm(props: {
 					</Show>
 					<dt class="pt-2 text-base font-semibold">Total</dt>
 					<dd class="pt-2 text-right text-base font-semibold tabular-nums">
-						{formatPrice(props.cart.total, props.cart.currency)}
+						{formatPrice(orderTotal(), props.cart.currency)}
 					</dd>
 				</dl>
 
@@ -788,7 +849,7 @@ function CheckoutForm(props: {
 				>
 					{submitting()
 						? "Placing your order…"
-						: `Place order · ${formatPrice(props.cart.total, props.cart.currency)}`}
+						: `Place order · ${formatPrice(orderTotal(), props.cart.currency)}`}
 				</button>
 			</aside>
 
@@ -823,7 +884,7 @@ function CheckoutForm(props: {
 									bouquets={bouquets()}
 									messageFor={messageFor}
 									currency={props.cart.currency}
-									total={props.cart.total}
+									total={orderTotal()}
 									onEdit={editBouquet}
 								/>
 								<ReviewDetails
@@ -931,7 +992,7 @@ function CheckoutForm(props: {
 									>
 										{submitting()
 											? "Placing your order…"
-											: `Place order · ${formatPrice(props.cart.total, props.cart.currency)}`}
+											: `Place order · ${formatPrice(orderTotal(), props.cart.currency)}`}
 									</button>
 								</div>
 							</footer>

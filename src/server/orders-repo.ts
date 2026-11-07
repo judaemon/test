@@ -12,6 +12,7 @@ import {
 	type OrderLogAction,
 	SYSTEM_ACTOR,
 } from "~/lib/order-log";
+import type { AppliedPromo } from "~/lib/order-promo";
 import {
 	type CardBrand,
 	normalizeReferenceNumber,
@@ -85,6 +86,8 @@ interface OrderRow {
 	is_test: number;
 	amount_paid_cents: number | null;
 	payment_notice: string | null;
+	promo: string | null;
+	promo_discount_cents: number;
 }
 
 function loadEvents(ids: string[]): Map<string, OrderEvent[]> {
@@ -133,6 +136,14 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 		subtotal: fromCents(row.subtotal_cents),
 		deliveryFee: fromCents(row.delivery_fee_cents),
 		total: fromCents(row.total_cents),
+		...(row.promo
+			? {
+					promo: {
+						...(JSON.parse(row.promo) as Omit<AppliedPromo, "amount">),
+						amount: fromCents(row.promo_discount_cents),
+					},
+				}
+			: {}),
 		currency: row.currency,
 		itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
 		payment: {
@@ -268,11 +279,11 @@ export function createOrder(
 			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, serial_number, class_name, notes,
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
 			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id,
-			   amount_paid_cents, payment_notice)
+			   amount_paid_cents, payment_notice, promo, promo_discount_cents)
 			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
 			   $company, $serialNumber, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
-			   $customerId, $amountPaid, $paymentNotice)`,
+			   $customerId, $amountPaid, $paymentNotice, $promo, $promoDiscount)`,
 		).run({
 			id: order.id,
 			number: String(nextNumber),
@@ -304,6 +315,13 @@ export function createOrder(
 					? null
 					: toCents(order.payment.amountPaid),
 			paymentNotice: order.payment.notice ?? null,
+			promo: order.cart.promo
+				? JSON.stringify({
+						id: order.cart.promo.id,
+						name: order.cart.promo.name,
+					})
+				: null,
+			promoDiscount: order.cart.promo ? toCents(order.cart.promo.amount) : 0,
 		});
 		addEvent(order.id, "new", now);
 		writeOrderLog(order.id, actor, "placed", [
@@ -608,7 +626,9 @@ export function updateCustomerOrder(
 			`UPDATE orders SET email = $email, recipient_name = $fullName, first_name = $firstName,
 			   last_name = $lastName, full_name = $fullName, company = $company,
 			   serial_number = $serialNumber, class_name = $className, lines = $lines,
-			   subtotal_cents = $subtotal, total_cents = $subtotal + delivery_fee_cents,
+			   subtotal_cents = $subtotal,
+			   promo_discount_cents = MIN(promo_discount_cents, $subtotal),
+			   total_cents = $subtotal - MIN(promo_discount_cents, $subtotal) + delivery_fee_cents,
 			   customer_edited_at = $now
 			 WHERE id = $id`,
 		).run({
@@ -710,7 +730,8 @@ export function cancelBouquet(
 			};
 			db.query(
 				`UPDATE orders SET lines = $lines, subtotal_cents = $subtotal,
-			   total_cents = $subtotal + delivery_fee_cents,
+			   promo_discount_cents = MIN(promo_discount_cents, $subtotal),
+			   total_cents = $subtotal - MIN(promo_discount_cents, $subtotal) + delivery_fee_cents,
 			   cancelled_bouquets = $cancelled
 			 WHERE id = $id`,
 			).run({

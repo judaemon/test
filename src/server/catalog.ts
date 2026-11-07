@@ -7,6 +7,7 @@ import {
 	toPublicProduct,
 } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
+import { listLiveOrderPromos } from "./order-promos-repo";
 import { listLiveSales } from "./sales-repo";
 import { listSizes } from "./sizes-repo";
 
@@ -32,6 +33,9 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 			),
 			// Sales live today; checkout prices the bag with them again on the server.
 			sales: listLiveSales(),
+			// Order promos live today (e.g. ₱500 off every 10th order), for the
+			// Promos page and banner; checkout applies them on the server.
+			orderPromos: listLiveOrderPromos(),
 		};
 	},
 );

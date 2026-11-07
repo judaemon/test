@@ -387,6 +387,16 @@ function OrderConfirmation() {
 							{formatPrice(subtotalBeforeSale(order()), order().currency)}
 						</dd>
 						<SaleRows lines={order().lines} currency={order().currency} />
+						<Show when={order().promo}>
+							{(promo) => (
+								<>
+									<dt class="text-sale">{promo().name}</dt>
+									<dd class="text-right font-medium tabular-nums text-sale">
+										−{formatPrice(promo().amount, order().currency)}
+									</dd>
+								</>
+							)}
+						</Show>
 						<dt class="pt-2 text-base font-semibold">Total</dt>
 						<dd class="pt-2 text-right text-base font-semibold tabular-nums">
 							{formatPrice(order().total, order().currency)}

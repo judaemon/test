@@ -9,6 +9,7 @@ import {
 	normalizeDesign,
 	priceDesign,
 } from "~/lib/custom-bouquet";
+import type { AppliedPromo } from "~/lib/order-promo";
 import {
 	getMaxQuantity,
 	getVariantPrice,
@@ -82,6 +83,8 @@ export interface PricedCart {
 	lines: PricedLine[];
 	subtotal: number;
 	deliveryFee: number;
+	/** An order promo, e.g. ₱500 off a cadet's 10th order; already off `total`. */
+	promo?: AppliedPromo;
 	total: number;
 	currency: string;
 	itemCount: number;
@@ -259,6 +262,20 @@ export function sanitizeCartLines(raw: unknown): CartLine[] {
 		});
 	}
 	return [...merged.values()];
+}
+
+/** The cart with an order promo taken off its total (never below delivery). */
+export function withPromo(
+	cart: PricedCart,
+	promo: AppliedPromo | undefined,
+): PricedCart {
+	if (!promo) return cart;
+	const amount = Math.min(promo.amount, cart.subtotal);
+	return {
+		...cart,
+		promo: { ...promo, amount },
+		total: roundMoney(cart.subtotal - amount + cart.deliveryFee),
+	};
 }
 
 export function roundMoney(amount: number) {

@@ -405,6 +405,16 @@ function OrderDetail() {
 								</dd>
 								<SaleRows lines={order().lines} currency={order().currency} />
 							</Show>
+							<Show when={order().promo}>
+								{(promo) => (
+									<>
+										<dt class="text-sale">{promo().name}</dt>
+										<dd class="text-right font-medium tabular-nums text-sale">
+											−{formatPrice(promo().amount, order().currency)}
+										</dd>
+									</>
+								)}
+							</Show>
 							<Show when={SHOW_DELIVERY}>
 								<dt class="text-petal-900/65">Delivery</dt>
 								<dd class="text-right">Free</dd>
