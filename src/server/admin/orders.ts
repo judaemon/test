@@ -23,14 +23,18 @@ import {
 	CANCEL_REASON_MAX,
 	canStartMaking,
 	type Order,
+	PAYMENT_CHANGE_REASON_MAX,
 	PAYMENT_STATUSES,
 	WRAPPER_STATUSES,
 } from "~/types/order";
 import { requireStaff } from "../admin-auth";
+import { staffActor } from "../order-actor";
+import { listOrderLog } from "../order-log-repo";
 import { queryOrderRows } from "../order-rows";
 import {
 	cancelBouquet,
 	cancelOrder,
+	changePaymentMethod,
 	createOrder,
 	getOrderById,
 	OrderRuleError,
@@ -93,12 +97,14 @@ export const moveOrder = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		return runAction(() => setOrderStage(data.id, data.stage));
+		const user = await requireStaff();
+		return runAction(() =>
+			setOrderStage(data.id, data.stage, staffActor(user)),
+		);
 	});
 
-/** The reason and optional photo that every cancellation carries. */
-function parseCancellation(input: unknown) {
+/** The order, reason and optional photo that a cancellation or payment change carries. */
+function parseReasonForm(input: unknown, maxReason: number) {
 	if (!(input instanceof FormData)) throw new Error("Expected form data");
 	const proof = input.get("proof");
 	const reason = input.get("reason");
@@ -112,29 +118,33 @@ function parseCancellation(input: unknown) {
 					typeof reason === "string" ? reason.replace(/\r\n?/g, "\n") : "",
 			},
 			"reason",
-			{ label: "A reason", max: CANCEL_REASON_MAX },
+			{ label: "A reason", max: maxReason },
 		),
 		proof: proof instanceof File && proof.size > 0 ? proof : undefined,
 	};
 }
 
-/** Saves the photo, runs the cancellation, and removes the photo if it's refused. */
-async function withCancelProof(
+const parseCancellation = (input: unknown) =>
+	parseReasonForm(input, CANCEL_REASON_MAX);
+
+/** Saves the photo, runs the change, and removes the photo if it's refused. */
+async function withProof(
+	kind: "cancellations" | "proofs",
 	proof: File | undefined,
-	cancel: (proofFile: string | undefined) => Order,
+	change: (proofFile: string | undefined) => Order,
 ): Promise<OrderActionResult> {
 	let proofFile: string | undefined;
 	try {
-		if (proof) proofFile = await saveImage("cancellations", proof);
+		if (proof) proofFile = await saveImage(kind, proof);
 	} catch (error) {
 		if (error instanceof UploadError)
 			return { ok: false, message: error.message };
 		throw error;
 	}
 	try {
-		return { ok: true, order: cancel(proofFile) };
+		return { ok: true, order: change(proofFile) };
 	} catch (error) {
-		if (proofFile) await deleteUpload("cancellations", proofFile);
+		if (proofFile) await deleteUpload(kind, proofFile);
 		if (error instanceof OrderRuleError)
 			return { ok: false, message: error.message };
 		throw error;
@@ -146,12 +156,12 @@ export const cancelOrderFn = createServerFn({ method: "POST" })
 	.validator(parseCancellation)
 	.handler(async ({ data }): Promise<OrderActionResult> => {
 		const user = await requireStaff();
-		return withCancelProof(data.proof, (proofFile) =>
-			cancelOrder(data.id, {
-				reason: data.reason,
-				cancelledBy: user.name,
-				proofFile,
-			}),
+		return withProof("cancellations", data.proof, (proofFile) =>
+			cancelOrder(
+				data.id,
+				{ reason: data.reason, cancelledBy: user.name, proofFile },
+				staffActor(user),
+			),
 		);
 	});
 
@@ -169,14 +179,47 @@ export const cancelBouquetFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }): Promise<OrderActionResult> => {
 		const user = await requireStaff();
-		return withCancelProof(data.proof, (proofFile) =>
-			cancelBouquet(data.id, {
-				lineKey: data.lineKey,
-				unit: data.unit,
-				reason: data.reason,
-				cancelledBy: user.name,
-				proofFile,
-			}),
+		return withProof("cancellations", data.proof, (proofFile) =>
+			cancelBouquet(
+				data.id,
+				{
+					lineKey: data.lineKey,
+					unit: data.unit,
+					reason: data.reason,
+					cancelledBy: user.name,
+					proofFile,
+				},
+				staffActor(user),
+			),
+		);
+	});
+
+/**
+ * Switches how the order is paid. A reason is required and a photo is
+ * optional; both are staff-only, and the photo is kept with the payment
+ * screenshots.
+ */
+export const changePaymentMethodFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const parsed = parseReasonForm(input, PAYMENT_CHANGE_REASON_MAX);
+		const method = parsed.form.get("method");
+		if (!isPaymentMethod(method))
+			throw new InputError("Choose how the order is paid.");
+		return { ...parsed, method };
+	})
+	.handler(async ({ data }): Promise<OrderActionResult> => {
+		const user = await requireStaff();
+		return withProof("proofs", data.proof, (proofFile) =>
+			changePaymentMethod(
+				data.id,
+				{
+					method: data.method,
+					reason: data.reason,
+					changedBy: user.name,
+					proofFile,
+				},
+				staffActor(user),
+			),
 		);
 	});
 
@@ -189,8 +232,10 @@ export const markOrderTest = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		return runAction(() => setOrderTest(data.id, data.isTest));
+		const user = await requireStaff();
+		return runAction(() =>
+			setOrderTest(data.id, data.isTest, staffActor(user)),
+		);
 	});
 
 export const reviewOrderPayment = createServerFn({ method: "POST" })
@@ -203,7 +248,9 @@ export const reviewOrderPayment = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		const user = await requireStaff();
-		return runAction(() => reviewPayment(data.id, data.status, user.name));
+		return runAction(() =>
+			reviewPayment(data.id, data.status, user.name, staffActor(user)),
+		);
 	});
 
 export const updateWrapperStatus = createServerFn({ method: "POST" })
@@ -216,8 +263,10 @@ export const updateWrapperStatus = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		return runAction(() => setWrapperStatus(data.id, data.line, data.status));
+		const user = await requireStaff();
+		return runAction(() =>
+			setWrapperStatus(data.id, data.line, data.status, staffActor(user)),
+		);
 	});
 
 export const assignRider = createServerFn({ method: "POST" })
@@ -241,8 +290,8 @@ export const assignRider = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		return runAction(() => setRider(data.id, data));
+		const user = await requireStaff();
+		return runAction(() => setRider(data.id, data, staffActor(user)));
 	});
 
 export const uploadDeliveryPhoto = createServerFn({ method: "POST" })
@@ -255,7 +304,7 @@ export const uploadDeliveryPhoto = createServerFn({ method: "POST" })
 		return { id, file };
 	})
 	.handler(async ({ data }): Promise<OrderActionResult> => {
-		await requireStaff();
+		const user = await requireStaff();
 		let fileName: string;
 		try {
 			fileName = await saveImage("delivery", data.file);
@@ -265,7 +314,11 @@ export const uploadDeliveryPhoto = createServerFn({ method: "POST" })
 			throw error;
 		}
 		try {
-			const { order, replaced } = setDeliveryPhoto(data.id, fileName);
+			const { order, replaced } = setDeliveryPhoto(
+				data.id,
+				fileName,
+				staffActor(user),
+			);
 			if (replaced) await deleteUpload("delivery", replaced);
 			return { ok: true, order };
 		} catch (error) {
@@ -420,7 +473,7 @@ function chatOrderLine(
 export const createChatOrderFn = createServerFn({ method: "POST" })
 	.validator(parseChatOrderForm)
 	.handler(async ({ data }): Promise<ChatOrderResult> => {
-		await requireStaff();
+		const user = await requireStaff();
 		const checked = checkChatOrder(data);
 		if (checked.problem) return checked.problem;
 		const saved: string[] = [];
@@ -435,24 +488,27 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 				checked.wrapper,
 				saved.map((file) => publicUploadUrl("references", file)),
 			);
-			const order = createOrder({
-				id,
-				details: data.details,
-				cart: {
-					lines: [line],
-					subtotal: data.total,
-					deliveryFee: 0,
-					total: data.total,
-					currency: "PHP",
-					itemCount: 1,
+			const order = createOrder(
+				{
+					id,
+					details: data.details,
+					cart: {
+						lines: [line],
+						subtotal: data.total,
+						deliveryFee: 0,
+						total: data.total,
+						currency: "PHP",
+						itemCount: 1,
+					},
+					payment: {
+						method: data.method,
+						// Paid in full is settled; anything owing waits like any unpaid order.
+						status: data.paid >= data.total ? "verified" : "on_hold",
+						amountPaid: data.paid,
+					},
 				},
-				payment: {
-					method: data.method,
-					// Paid in full is settled; anything owing waits like any unpaid order.
-					status: data.paid >= data.total ? "verified" : "on_hold",
-					amountPaid: data.paid,
-				},
-			});
+				staffActor(user),
+			);
 			return { ok: true, id: order.id, number: order.number };
 		} catch (error) {
 			for (const file of saved) await deleteUpload("references", file);
@@ -479,7 +535,7 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 		return { id, form: parseChatOrderForm(input) };
 	})
 	.handler(async ({ data }): Promise<ChatOrderResult> => {
-		await requireStaff();
+		const user = await requireStaff();
 		const order = getOrderById(data.id);
 		const previous = order?.lines[0];
 		if (!order || !previous || !isChatOrder(order))
@@ -502,20 +558,24 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 		try {
 			for (const photo of data.form.photos)
 				saved.push(await saveImage("references", photo));
-			const updated = updateChatOrder(order.id, {
-				details: data.form.details,
-				line: chatOrderLine(
-					order.id,
-					data.form,
-					checked.wrapper,
-					[
-						...kept,
-						...saved.map((file) => publicUploadUrl("references", file)),
-					],
-					previous,
-				),
-				payment: { method: data.form.method, status, amountPaid: paid },
-			});
+			const updated = updateChatOrder(
+				order.id,
+				{
+					details: data.form.details,
+					line: chatOrderLine(
+						order.id,
+						data.form,
+						checked.wrapper,
+						[
+							...kept,
+							...saved.map((file) => publicUploadUrl("references", file)),
+						],
+						previous,
+					),
+					payment: { method: data.form.method, status, amountPaid: paid },
+				},
+				staffActor(user),
+			);
 			// Photos staff removed are gone from the order; delete their files.
 			for (const url of existing.filter((u) => !kept.includes(u))) {
 				const name = url.split("/").pop();
@@ -528,4 +588,27 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 				return { ok: false, message: error.message };
 			throw error;
 		}
+	});
+
+/** The order log, newest first: one order's, or every order's. */
+export const listOrderLogFn = createServerFn({ method: "GET" })
+	.validator((input: unknown) => {
+		const source = asRecord(input ?? {});
+		const page = Number(source.page ?? 1);
+		const pageSize = Number(source.pageSize ?? 50);
+		return {
+			orderId: text(source, "orderId", { max: 64, required: false }),
+			actor: text(source, "actor", { max: 120, required: false }),
+			page: Number.isInteger(page) && page > 0 ? page : 1,
+			pageSize: Number.isInteger(pageSize) ? pageSize : 50,
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		return listOrderLog({
+			orderId: data.orderId || undefined,
+			actor: data.actor || undefined,
+			page: data.page,
+			pageSize: data.pageSize,
+		});
 	});

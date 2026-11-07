@@ -335,7 +335,18 @@ function backdate(id: string, hoursAgo: number) {
 			at: at(i),
 		});
 	});
-	const last = at(Math.max(events.length - 1, 0));
+	// The order log follows the same timeline, oldest change first.
+	const logged = db
+		.query("SELECT id FROM order_log WHERE order_id = $id ORDER BY id")
+		.all({ id }) as { id: number }[];
+	const logStep = (Date.now() - start) / Math.max(logged.length, 1);
+	logged.forEach((row, i) => {
+		db.query("UPDATE order_log SET at = $at WHERE id = $logId").run({
+			logId: row.id,
+			at: new Date(start + i * logStep).toISOString(),
+		});
+	});
+		const last = at(Math.max(events.length - 1, 0));
 	db.query(
 		`UPDATE orders SET created_at = $placed, stage_updated_at = $last,
 		   delivered_at = CASE WHEN delivered_at IS NULL THEN NULL ELSE $last END
@@ -634,6 +645,7 @@ async function main() {
 		console.log("Resetting demo data…");
 		db.transaction(() => {
 			for (const table of [
+				"order_log",
 				"order_events",
 				"orders",
 				"customer_addresses",

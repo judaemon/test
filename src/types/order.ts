@@ -10,6 +10,9 @@ export type OrderStage = BoardStage | "cancelled";
 /** Longest reason staff can give for cancelling an order. */
 export const CANCEL_REASON_MAX = 500;
 
+/** Longest reason staff can give for changing an order's payment method. */
+export const PAYMENT_CHANGE_REASON_MAX = 500;
+
 export const STAGE_LABELS: Record<OrderStage, string> = {
 	new: "New orders",
 	making: "Being made",
@@ -132,6 +135,17 @@ export interface CancelledBouquet {
 	proofFile?: string;
 }
 
+/** Staff switched how an order is paid, and why. Staff only. */
+export interface PaymentMethodChange {
+	from: PaymentMethod;
+	to: PaymentMethod;
+	reason: string;
+	changedBy: string;
+	at: string;
+	/** Stored photo staff attached, kept with the payment screenshots. */
+	proofFile?: string;
+}
+
 export interface Order extends PricedCart {
 	id: string;
 	number: string;
@@ -158,6 +172,8 @@ export interface Order extends PricedCart {
 	customerEditedAt?: string;
 	/** Single bouquets staff cancelled; the rest of the order carries on. */
 	cancelledBouquets: CancelledBouquet[];
+	/** Each time staff changed the payment method, oldest first. */
+	paymentMethodChanges: PaymentMethodChange[];
 	/** Marked by staff: left out of reports, and holds no stock. */
 	isTest: boolean;
 }
@@ -173,6 +189,7 @@ export interface CustomerOrder
 		| "cancelledBy"
 		| "cancelProof"
 		| "cancelledBouquets"
+		| "paymentMethodChanges"
 	> {
 	cancelledBouquets: Omit<CancelledBouquet, "cancelledBy" | "proofFile">[];
 	payment: Omit<OrderPayment, "proofFile" | "reviewedBy">;

@@ -7,12 +7,18 @@ import {
 	orderEditState,
 } from "~/lib/order-edit";
 import {
+	diffOrders,
+	type OrderActor,
+	type OrderLogAction,
+	SYSTEM_ACTOR,
+} from "~/lib/order-log";
+import {
 	type CardBrand,
 	normalizeReferenceNumber,
 	type PaymentMethod,
 } from "~/lib/payment";
 import type { PricedCart, PricedLine } from "~/lib/pricing";
-import { lineName } from "~/lib/product";
+import { formatPrice, lineName } from "~/lib/product";
 import {
 	type BoardStage,
 	type CancelledBouquet,
@@ -24,12 +30,14 @@ import {
 	type OrderEvent,
 	type OrderPayment,
 	type OrderStage,
+	type PaymentMethodChange,
 	type PaymentStatus,
 	type WrapperStatus,
 } from "~/types/order";
 import { adjustStyleStock } from "./catalog-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { adjustFlowerStock } from "./flowers-repo";
+import { writeOrderLog } from "./order-log-repo";
 import { adjustWrapperStock } from "./wrappers-repo";
 
 interface OrderRow {
@@ -72,6 +80,7 @@ interface OrderRow {
 	cancel_proof: string | null;
 	customer_edited_at: string | null;
 	cancelled_bouquets: string;
+	payment_method_changes: string;
 	is_test: number;
 	amount_paid_cents: number | null;
 }
@@ -150,6 +159,9 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 		cancelProof: row.cancel_proof ?? undefined,
 		customerEditedAt: row.customer_edited_at ?? undefined,
 		cancelledBouquets: JSON.parse(row.cancelled_bouquets) as CancelledBouquet[],
+		paymentMethodChanges: JSON.parse(
+			row.payment_method_changes,
+		) as PaymentMethodChange[],
 		isTest: row.is_test === 1,
 	};
 }
@@ -164,6 +176,7 @@ export function toCustomerOrder(order: Order): CustomerOrder {
 		cancelledBy: _cancelledBy,
 		cancelProof: _cancelProof,
 		cancelledBouquets,
+		paymentMethodChanges: _paymentMethodChanges,
 		...rest
 	} = order;
 	return {
@@ -200,7 +213,10 @@ export interface NewOrder {
  * Inserts the order, checking each bouquet style is still available and
  * taking custom bouquets' flowers and wrappers out of stock, atomically.
  */
-export function createOrder(order: NewOrder): Order {
+export function createOrder(
+	order: NewOrder,
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
 	const db = getDb();
 	const isAvailable = db.query(
 		`SELECT 1 FROM bouquet_styles
@@ -286,8 +302,41 @@ export function createOrder(order: NewOrder): Order {
 					: toCents(order.payment.amountPaid),
 		});
 		addEvent(order.id, "new", now);
+		writeOrderLog(order.id, actor, "placed", [
+			{ field: "stage", to: "new" },
+			{ field: "payment_method", to: order.payment.method },
+			{ field: "payment_status", to: order.payment.status },
+			{
+				field: "total",
+				to: formatPrice(order.cart.total, order.cart.currency),
+			},
+		]);
 	})();
 	return getOrderById(order.id) as Order;
+}
+
+/**
+ * Runs a change to an order in one transaction and logs, field by field,
+ * what it changed and who changed it. A change that changed nothing isn't
+ * logged.
+ */
+function tracked(
+	id: string,
+	actor: OrderActor,
+	action: OrderLogAction,
+	change: () => void,
+	reason?: string,
+): Order {
+	const db = getDb();
+	db.transaction(() => {
+		const before = getOrderById(id);
+		change();
+		const after = getOrderById(id);
+		if (!after) return;
+		const changes = diffOrders(before, after);
+		if (changes.length) writeOrderLog(id, actor, action, changes, reason);
+	})();
+	return getOrderById(id) as Order;
 }
 
 export function getOrderById(id: string): Order | undefined {
@@ -309,9 +358,13 @@ export function getOrderByNumber(number: string): Order | undefined {
  * wrappers, so its stock goes back, and is taken again if it's unmarked.
  * Cancelled orders have already given theirs back.
  */
-export function setOrderTest(id: string, isTest: boolean): Order {
+export function setOrderTest(
+	id: string,
+	isTest: boolean,
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
 	const db = getDb();
-	db.transaction(() => {
+	return tracked(id, actor, "test", () => {
 		const order = getOrderById(id);
 		if (!order) throw new OrderRuleError("Order not found.");
 		if (order.isTest === isTest) return;
@@ -331,8 +384,7 @@ export function setOrderTest(id: string, isTest: boolean): Order {
 			id,
 			isTest: isTest ? 1 : 0,
 		});
-	})();
-	return getOrderById(id) as Order;
+	});
 }
 
 /** Shortest thing the public order search will look up. */
@@ -456,9 +508,13 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
  * Moves an order through the workflow. Unpaid QR orders stay in "New" until
  * their payment is verified. Cancelling has its own step: `cancelOrder`.
  */
-export function setOrderStage(id: string, stage: BoardStage): Order {
+export function setOrderStage(
+	id: string,
+	stage: BoardStage,
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
 	const db = getDb();
-	db.transaction(() => {
+	return tracked(id, actor, "stage", () => {
 		const order = getOrderById(id);
 		if (!order) throw new OrderRuleError("Order not found.");
 		if (order.stage === stage) return;
@@ -480,8 +536,7 @@ export function setOrderStage(id: string, stage: BoardStage): Order {
 			 WHERE id = $id`,
 		).run({ id, stage, now });
 		addEvent(id, stage, now);
-	})();
-	return getOrderById(id) as Order;
+	});
 }
 
 /**
@@ -492,9 +547,10 @@ export function setOrderStage(id: string, stage: BoardStage): Order {
 export function updateCustomerOrder(
 	id: string,
 	update: { details: CheckoutDetails; lines: PricedLine[] },
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
 	const db = getDb();
-	db.transaction(() => {
+	return tracked(id, actor, "customer_edit", () => {
 		const order = getOrderById(id);
 		if (!order) throw new OrderRuleError("Order not found.");
 		const state = orderEditState(order);
@@ -564,8 +620,7 @@ export function updateCustomerOrder(
 			subtotal,
 			now: nowIso(),
 		});
-	})();
-	return getOrderById(id) as Order;
+	});
 }
 
 /**
@@ -582,79 +637,87 @@ export function cancelBouquet(
 		cancelledBy: string;
 		proofFile?: string;
 	},
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
 	const db = getDb();
-	db.transaction(() => {
-		const order = getOrderById(id);
-		if (!order) throw new OrderRuleError("Order not found.");
-		const state = orderEditState(order);
-		if (!state.editable)
-			throw new OrderRuleError(
-				`A single bouquet can only be cancelled within ${ORDER_EDIT_HOURS} hours and before payment is sent. You can still cancel the whole order.`,
+	return tracked(
+		id,
+		actor,
+		"bouquet_cancelled",
+		() => {
+			const order = getOrderById(id);
+			if (!order) throw new OrderRuleError("Order not found.");
+			const state = orderEditState(order);
+			if (!state.editable)
+				throw new OrderRuleError(
+					`A single bouquet can only be cancelled within ${ORDER_EDIT_HOURS} hours and before payment is sent. You can still cancel the whole order.`,
+				);
+			const line = order.lines.find(
+				(candidate) => lineKey(candidate) === cancellation.lineKey,
 			);
-		const line = order.lines.find(
-			(candidate) => lineKey(candidate) === cancellation.lineKey,
-		);
-		if (
-			!line ||
-			!Number.isInteger(cancellation.unit) ||
-			cancellation.unit < 0 ||
-			cancellation.unit >= line.quantity
-		)
-			throw new OrderRuleError("That bouquet isn’t on this order anymore.");
-		if (order.itemCount <= 1)
-			throw new OrderRuleError(
-				"This is the order’s only bouquet. Cancel the whole order instead.",
+			if (
+				!line ||
+				!Number.isInteger(cancellation.unit) ||
+				cancellation.unit < 0 ||
+				cancellation.unit >= line.quantity
+			)
+				throw new OrderRuleError("That bouquet isn’t on this order anymore.");
+			if (order.itemCount <= 1)
+				throw new OrderRuleError(
+					"This is the order’s only bouquet. Cancel the whole order instead.",
+				);
+			// A test order holds no stock.
+			if (!order.isTest) {
+				const one = [{ ...line, quantity: 1 }];
+				adjustStyleStock(one, 1);
+				adjustWrapperStock(one, 1);
+				adjustFlowerStock(one, 1);
+			}
+			const lines = order.lines.flatMap((candidate) => {
+				if (candidate !== line) return [candidate];
+				if (candidate.quantity === 1) return [];
+				const { messages, ...rest } = candidate;
+				const kept = messages?.filter((_, unit) => unit !== cancellation.unit);
+				return [
+					{
+						...rest,
+						quantity: candidate.quantity - 1,
+						lineTotal: fromCents(
+							toCents(candidate.unitPrice) * (candidate.quantity - 1),
+						),
+						...(kept?.some(hasContent) ? { messages: kept } : {}),
+					},
+				];
+			});
+			const subtotal = lines.reduce(
+				(sum, candidate) => sum + toCents(candidate.lineTotal),
+				0,
 			);
-		// A test order holds no stock.
-		if (!order.isTest) {
-			const one = [{ ...line, quantity: 1 }];
-			adjustStyleStock(one, 1);
-			adjustWrapperStock(one, 1);
-			adjustFlowerStock(one, 1);
-		}
-		const lines = order.lines.flatMap((candidate) => {
-			if (candidate !== line) return [candidate];
-			if (candidate.quantity === 1) return [];
-			const { messages, ...rest } = candidate;
-			const kept = messages?.filter((_, unit) => unit !== cancellation.unit);
-			return [
-				{
-					...rest,
-					quantity: candidate.quantity - 1,
-					lineTotal: fromCents(
-						toCents(candidate.unitPrice) * (candidate.quantity - 1),
-					),
-					...(kept?.some(hasContent) ? { messages: kept } : {}),
-				},
-			];
-		});
-		const subtotal = lines.reduce(
-			(sum, candidate) => sum + toCents(candidate.lineTotal),
-			0,
-		);
-		const cancelled: CancelledBouquet = {
-			name: lineName(line),
-			...(line.image ? { image: line.image } : {}),
-			price: line.unitPrice,
-			reason: cancellation.reason,
-			at: nowIso(),
-			cancelledBy: cancellation.cancelledBy,
-			...(cancellation.proofFile ? { proofFile: cancellation.proofFile } : {}),
-		};
-		db.query(
-			`UPDATE orders SET lines = $lines, subtotal_cents = $subtotal,
+			const cancelled: CancelledBouquet = {
+				name: lineName(line),
+				...(line.image ? { image: line.image } : {}),
+				price: line.unitPrice,
+				reason: cancellation.reason,
+				at: nowIso(),
+				cancelledBy: cancellation.cancelledBy,
+				...(cancellation.proofFile
+					? { proofFile: cancellation.proofFile }
+					: {}),
+			};
+			db.query(
+				`UPDATE orders SET lines = $lines, subtotal_cents = $subtotal,
 			   total_cents = $subtotal + delivery_fee_cents,
 			   cancelled_bouquets = $cancelled
 			 WHERE id = $id`,
-		).run({
-			id,
-			lines: JSON.stringify(lines),
-			subtotal,
-			cancelled: JSON.stringify([...order.cancelledBouquets, cancelled]),
-		});
-	})();
-	return getOrderById(id) as Order;
+			).run({
+				id,
+				lines: JSON.stringify(lines),
+				subtotal,
+				cancelled: JSON.stringify([...order.cancelledBouquets, cancelled]),
+			});
+		},
+		cancellation.reason,
+	);
 }
 
 /**
@@ -664,37 +727,43 @@ export function cancelBouquet(
 export function cancelOrder(
 	id: string,
 	cancellation: { reason: string; cancelledBy: string; proofFile?: string },
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
 	const db = getDb();
-	db.transaction(() => {
-		const order = getOrderById(id);
-		if (!order) throw new OrderRuleError("Order not found.");
-		if (order.stage === "cancelled")
-			throw new OrderRuleError("This order was already cancelled.");
-		if (order.stage === "done")
-			throw new OrderRuleError("Done orders can’t be cancelled.");
-		// A test order already gave its stock back when it was marked.
-		if (!order.isTest) {
-			adjustStyleStock(order.lines, 1);
-			adjustWrapperStock(order.lines, 1);
-			adjustFlowerStock(order.lines, 1);
-		}
-		const now = nowIso();
-		db.query(
-			`UPDATE orders SET stage = 'cancelled', stage_updated_at = $now,
+	return tracked(
+		id,
+		actor,
+		"cancelled",
+		() => {
+			const order = getOrderById(id);
+			if (!order) throw new OrderRuleError("Order not found.");
+			if (order.stage === "cancelled")
+				throw new OrderRuleError("This order was already cancelled.");
+			if (order.stage === "done")
+				throw new OrderRuleError("Done orders can’t be cancelled.");
+			// A test order already gave its stock back when it was marked.
+			if (!order.isTest) {
+				adjustStyleStock(order.lines, 1);
+				adjustWrapperStock(order.lines, 1);
+				adjustFlowerStock(order.lines, 1);
+			}
+			const now = nowIso();
+			db.query(
+				`UPDATE orders SET stage = 'cancelled', stage_updated_at = $now,
 			   delivered_at = NULL, cancel_reason = $reason,
 			   cancelled_by = $cancelledBy, cancel_proof = $proofFile
 			 WHERE id = $id`,
-		).run({
-			id,
-			now,
-			reason: cancellation.reason,
-			cancelledBy: cancellation.cancelledBy,
-			proofFile: cancellation.proofFile ?? null,
-		});
-		addEvent(id, "cancelled", now);
-	})();
-	return getOrderById(id) as Order;
+			).run({
+				id,
+				now,
+				reason: cancellation.reason,
+				cancelledBy: cancellation.cancelledBy,
+				proofFile: cancellation.proofFile ?? null,
+			});
+			addEvent(id, "cancelled", now);
+		},
+		cancellation.reason,
+	);
 }
 
 /**
@@ -709,27 +778,84 @@ export function submitPayment(
 		proofFile?: string;
 		customerId?: string;
 	},
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
-	const order = getOrderById(id);
-	if (!order) throw new OrderRuleError("Order not found.");
-	if (order.stage !== "new" || !isPaymentDue(order.payment.status))
-		throw new OrderRuleError("This order doesn’t need a payment right now.");
-	getDb()
-		.query(
-			`UPDATE orders SET payment_method = $method, payment_status = 'pending',
-			   reference_number = $reference, proof_file = $proof,
-			   payment_reviewed_by = NULL, payment_reviewed_at = NULL,
-			   customer_id = COALESCE(customer_id, $customerId)
+	return tracked(id, actor, "payment_sent", () => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage !== "new" || !isPaymentDue(order.payment.status))
+			throw new OrderRuleError("This order doesn’t need a payment right now.");
+		getDb()
+			.query(
+				`UPDATE orders SET payment_method = $method, payment_status = 'pending',
+				   reference_number = $reference, proof_file = $proof,
+				   payment_reviewed_by = NULL, payment_reviewed_at = NULL,
+				   customer_id = COALESCE(customer_id, $customerId)
+				 WHERE id = $id`,
+			)
+			.run({
+				id,
+				method: payment.method,
+				reference: payment.referenceNumber,
+				proof: payment.proofFile ?? null,
+				customerId: payment.customerId ?? null,
+			});
+	});
+}
+
+/**
+ * Staff switch how an order is paid, saying why (and optionally attaching a
+ * photo). The payment's status and anything the shopper sent stay as they
+ * were, so staff still verify it as usual. Card payments are only taken at
+ * checkout, so card is neither switched from nor to.
+ */
+export function changePaymentMethod(
+	id: string,
+	change: {
+		method: PaymentMethod;
+		reason: string;
+		changedBy: string;
+		proofFile?: string;
+	},
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
+	const db = getDb();
+	return tracked(
+		id,
+		actor,
+		"payment_method",
+		() => {
+			const order = getOrderById(id);
+			if (!order) throw new OrderRuleError("Order not found.");
+			if (order.stage === "cancelled")
+				throw new OrderRuleError("This order was cancelled.");
+			if (order.payment.method === "card")
+				throw new OrderRuleError(
+					"Card payments were taken at checkout and can’t be switched.",
+				);
+			if (change.method === "card")
+				throw new OrderRuleError("Card payments can only be made at checkout.");
+			if (change.method === order.payment.method)
+				throw new OrderRuleError("The order is already paid this way.");
+			const entry: PaymentMethodChange = {
+				from: order.payment.method,
+				to: change.method,
+				reason: change.reason,
+				changedBy: change.changedBy,
+				at: nowIso(),
+				...(change.proofFile ? { proofFile: change.proofFile } : {}),
+			};
+			db.query(
+				`UPDATE orders SET payment_method = $method, payment_method_changes = $changes
 			 WHERE id = $id`,
-		)
-		.run({
-			id,
-			method: payment.method,
-			reference: payment.referenceNumber,
-			proof: payment.proofFile ?? null,
-			customerId: payment.customerId ?? null,
-		});
-	return getOrderById(id) as Order;
+			).run({
+				id,
+				method: change.method,
+				changes: JSON.stringify([...order.paymentMethodChanges, entry]),
+			});
+		},
+		change.reason,
+	);
 }
 
 /** Staff set a payment's status; going back to unreviewed clears the reviewer. */
@@ -737,30 +863,32 @@ export function reviewPayment(
 	id: string,
 	status: PaymentStatus,
 	reviewer: string,
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
-	const order = getOrderById(id);
-	if (!order) throw new OrderRuleError("Order not found.");
-	if (order.payment.method === "card")
-		throw new OrderRuleError("Card payments don’t need review.");
-	if (order.stage === "cancelled")
-		throw new OrderRuleError("This order was cancelled.");
-	if (!isPaymentSettled(status) && order.stage !== "new")
-		throw new OrderRuleError(
-			"This order is already being made. Move it back to New first.",
-		);
-	const reviewed = status !== "pending" && status !== "on_hold";
-	getDb()
-		.query(
-			`UPDATE orders SET payment_status = $status, payment_reviewed_by = $reviewer,
-			 payment_reviewed_at = $now WHERE id = $id`,
-		)
-		.run({
-			id,
-			status,
-			reviewer: reviewed ? reviewer : null,
-			now: reviewed ? nowIso() : null,
-		});
-	return getOrderById(id) as Order;
+	return tracked(id, actor, "payment_review", () => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.payment.method === "card")
+			throw new OrderRuleError("Card payments don’t need review.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("This order was cancelled.");
+		if (!isPaymentSettled(status) && order.stage !== "new")
+			throw new OrderRuleError(
+				"This order is already being made. Move it back to New first.",
+			);
+		const reviewed = status !== "pending" && status !== "on_hold";
+		getDb()
+			.query(
+				`UPDATE orders SET payment_status = $status, payment_reviewed_by = $reviewer,
+				 payment_reviewed_at = $now WHERE id = $id`,
+			)
+			.run({
+				id,
+				status,
+				reviewer: reviewed ? reviewer : null,
+				now: reviewed ? nowIso() : null,
+			});
+	});
 }
 
 /** Records how far the wrapper of one of the order's bouquets has got. */
@@ -776,9 +904,10 @@ export function updateChatOrder(
 		line: PricedLine;
 		payment: Pick<OrderPayment, "method" | "status" | "amountPaid">;
 	},
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
 	const db = getDb();
-	db.transaction(() => {
+	return tracked(id, actor, "staff_edit", () => {
 		const order = getOrderById(id);
 		if (!order) throw new OrderRuleError("Order not found.");
 		if (order.stage === "cancelled")
@@ -822,17 +951,17 @@ export function updateChatOrder(
 					? null
 					: toCents(update.payment.amountPaid),
 		});
-	})();
-	return getOrderById(id) as Order;
+	});
 }
 
 export function setWrapperStatus(
 	id: string,
 	lineIndex: number,
 	status: WrapperStatus,
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
 	const db = getDb();
-	db.transaction(() => {
+	return tracked(id, actor, "wrapper", () => {
 		const order = getOrderById(id);
 		if (!order) throw new OrderRuleError("Order not found.");
 		if (order.stage === "cancelled")
@@ -846,34 +975,38 @@ export function setWrapperStatus(
 			id,
 			lines: JSON.stringify(lines),
 		});
-	})();
-	return getOrderById(id) as Order;
+	});
 }
 
 export function setRider(
 	id: string,
 	rider: { name: string; phone: string },
+	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
-	const result = getDb()
-		.query(
-			"UPDATE orders SET rider_name = $name, rider_phone = $phone WHERE id = $id",
-		)
-		.run({ id, name: rider.name || null, phone: rider.phone || null });
-	if (result.changes === 0) throw new OrderRuleError("Order not found.");
-	return getOrderById(id) as Order;
+	return tracked(id, actor, "rider", () => {
+		const result = getDb()
+			.query(
+				"UPDATE orders SET rider_name = $name, rider_phone = $phone WHERE id = $id",
+			)
+			.run({ id, name: rider.name || null, phone: rider.phone || null });
+		if (result.changes === 0) throw new OrderRuleError("Order not found.");
+	});
 }
 
 /** Records the proof-of-delivery photo; returns the file it replaced, if any. */
-export function setDeliveryPhoto(id: string, fileName: string) {
+export function setDeliveryPhoto(
+	id: string,
+	fileName: string,
+	actor: OrderActor = SYSTEM_ACTOR,
+) {
 	const order = getOrderById(id);
 	if (!order) throw new OrderRuleError("Order not found.");
 	if (order.stage !== "done")
 		throw new OrderRuleError("Add the delivery photo once the order is done.");
-	getDb()
-		.query("UPDATE orders SET delivery_photo = $file WHERE id = $id")
-		.run({ id, file: fileName });
-	return {
-		order: getOrderById(id) as Order,
-		replaced: order.delivery.photoFile,
-	};
+	const updated = tracked(id, actor, "delivery_photo", () => {
+		getDb()
+			.query("UPDATE orders SET delivery_photo = $file WHERE id = $id")
+			.run({ id, file: fileName });
+	});
+	return { order: updated, replaced: order.delivery.photoFile };
 }

@@ -596,6 +596,35 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		(SELECT s.arrangement FROM sizes s WHERE s.id = signature_bouquets.size_id),
 		'bouquet');
 	`,
+	// v41: staff can change how an order is paid, giving a reason and
+	// optionally a photo. Each change is kept, oldest first.
+	`
+	ALTER TABLE orders ADD COLUMN payment_method_changes TEXT NOT NULL DEFAULT '[]';
+	`,
+	// v42: every change to an order, field by field: who made it, when, and
+	// from which page. Staff read it on the order and in Admin → Order log.
+	`
+	CREATE TABLE order_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		order_id TEXT NOT NULL,
+		at TEXT NOT NULL,
+		-- staff, customer or system
+		actor_type TEXT NOT NULL,
+		actor_name TEXT NOT NULL,
+		actor_id TEXT,
+		-- The page's path the change was made from.
+		source TEXT,
+		action TEXT NOT NULL,
+		field TEXT,
+		from_value TEXT,
+		to_value TEXT,
+		-- Which bouquet, for a wrapper.
+		about TEXT,
+		reason TEXT
+	);
+	CREATE INDEX order_log_by_order ON order_log (order_id, id);
+	CREATE INDEX order_log_by_at ON order_log (at);
+	`,
 ];
 
 declare global {

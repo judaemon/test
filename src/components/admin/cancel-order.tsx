@@ -1,6 +1,7 @@
 import type { JSX } from "solid-js";
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 
+import { ProofPicker } from "~/components/admin/proof-picker";
 import { adminButton, adminInput, toastSuccess } from "~/components/admin/ui";
 import {
 	AlertDialog,
@@ -14,9 +15,6 @@ import { formatPrice, lineName } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { cancelBouquetFn, cancelOrderFn } from "~/server/admin/orders";
 import { CANCEL_REASON_MAX, type Order } from "~/types/order";
-
-const PROOF_MAX_BYTES = 20 * 1024 * 1024;
-const PROOF_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 /**
  * Staff cancel an order here: a reason is required and a photo is optional.
@@ -36,32 +34,11 @@ export function CancelOrderButton(props: {
 	const [reason, setReason] = createSignal("");
 	const [reasonError, setReasonError] = createSignal<string>();
 	const [proof, setProof] = createSignal<File>();
-	const [proofUrl, setProofUrl] = createSignal<string>();
 	const [formError, setFormError] = createSignal<string>();
 	const [busy, setBusy] = createSignal(false);
 	/** Which bouquet of the line, when it has several. */
 	const [unit, setUnit] = createSignal(0);
 	let reasonInput: HTMLTextAreaElement | undefined;
-
-	const clearProof = () => {
-		const url = proofUrl();
-		if (url) URL.revokeObjectURL(url);
-		setProofUrl(undefined);
-		setProof(undefined);
-	};
-	onCleanup(clearProof);
-
-	const choose = (file: File | undefined) => {
-		if (!file) return;
-		setFormError(undefined);
-		if (!PROOF_TYPES.includes(file.type))
-			return setFormError("Use a PNG, JPG or WEBP image.");
-		if (file.size > PROOF_MAX_BYTES)
-			return setFormError("Keep images under 20 MB.");
-		clearProof();
-		setProof(file);
-		setProofUrl(URL.createObjectURL(file));
-	};
 
 	const changeOpen = (next: boolean) => {
 		// Not while the order is being cancelled: the result would be missed.
@@ -71,7 +48,7 @@ export function CancelOrderButton(props: {
 			setReason("");
 			setReasonError(undefined);
 			setFormError(undefined);
-			clearProof();
+			setProof(undefined);
 		}
 	};
 
@@ -241,52 +218,12 @@ export function CancelOrderButton(props: {
 							</span>
 						</label>
 
-						<div class="flex flex-col gap-1.5">
-							<span class="text-sm font-medium">
-								Proof{" "}
-								<span class="font-normal text-petal-900/50">(optional)</span>
-							</span>
-							<Show when={proofUrl()}>
-								{(url) => (
-									<img
-										src={url()}
-										alt="Chosen proof"
-										class="max-h-48 w-full rounded-xl border border-petal-100 bg-petal-50 object-contain"
-									/>
-								)}
-							</Show>
-							<div class="flex flex-wrap items-center gap-2">
-								<label
-									class={cn(
-										adminButton.secondary,
-										"cursor-pointer focus-within:ring-2 focus-within:ring-petal-500",
-										busy() && "pointer-events-none opacity-60",
-									)}
-								>
-									{proof() ? "Choose another" : "Add a photo"}
-									<input
-										type="file"
-										accept={PROOF_TYPES.join(",")}
-										class="sr-only"
-										disabled={busy()}
-										onChange={(e) => {
-											choose(e.currentTarget.files?.[0]);
-											e.currentTarget.value = "";
-										}}
-									/>
-								</label>
-								<Show when={proof()}>
-									<button
-										type="button"
-										class={adminButton.ghost}
-										disabled={busy()}
-										onClick={clearProof}
-									>
-										Remove
-									</button>
-								</Show>
-							</div>
-						</div>
+						<ProofPicker
+							file={proof()}
+							onChange={setProof}
+							onError={setFormError}
+							disabled={busy()}
+						/>
 
 						<Show when={formError()}>
 							<p role="alert" class="text-sm text-destructive">

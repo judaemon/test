@@ -356,3 +356,150 @@ describe("the shopper editing", () => {
 			).toThrow();
 	});
 });
+
+describe("staff changing the payment method", () => {
+	const change = (id: string, method: "gcash" | "maya" | "cash" | "card") =>
+		repo.changePaymentMethod(id, {
+			method,
+			reason: "Paid in cash instead",
+			changedBy: "Secret Staff",
+			proofFile: "change-proof.jpg",
+		});
+
+	test("switches the method, keeps the status, and records why", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		const changed = change(order.id, "cash");
+		expect(changed.payment.method).toBe("cash");
+		expect(changed.payment.status).toBe("on_hold");
+		expect(changed.paymentMethodChanges).toHaveLength(1);
+		expect(changed.paymentMethodChanges[0]).toMatchObject({
+			from: "gcash",
+			to: "cash",
+			reason: "Paid in cash instead",
+			changedBy: "Secret Staff",
+			proofFile: "change-proof.jpg",
+		});
+		expect(change(order.id, "maya").paymentMethodChanges).toHaveLength(2);
+	});
+
+	test("refused for the same method, card, or a cancelled order", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		expect(() => change(order.id, "gcash")).toThrow();
+		expect(() => change(order.id, "card")).toThrow();
+		setRow(order.id, "payment_method = 'card'", {});
+		expect(() => change(order.id, "cash")).toThrow();
+		const other = place([{ ...first, quantity: 1 }]);
+		repo.cancelOrder(other.id, { reason: "x", cancelledBy: "Staff" });
+		expect(() => change(other.id, "cash")).toThrow();
+	});
+
+	test("customers see the new method, never the reason, who or the photo", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		const seen = repo.toCustomerOrder(change(order.id, "cash"));
+		expect(seen.payment.method).toBe("cash");
+		const text = JSON.stringify(seen);
+		expect(text).not.toContain("Paid in cash instead");
+		expect(text).not.toContain("Secret Staff");
+		expect(text).not.toContain("change-proof.jpg");
+	});
+});
+
+describe("the order log", () => {
+	let logRepo: typeof import("./order-log-repo");
+	const staff = {
+		type: "staff" as const,
+		name: "Person 1",
+		userId: "u1",
+		source: "/admin/orders/x",
+	};
+	beforeAll(async () => {
+		logRepo = await import("./order-log-repo");
+	});
+	const logOf = (id: string) =>
+		logRepo.listOrderLog({ orderId: id }).entries.reverse();
+
+	test("logs placing, then each field a change touched, with who and where", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		expect(logOf(order.id).map((e) => e.action)).toContain("placed");
+		repo.reviewPayment(order.id, "verified", "Person 1", staff);
+		repo.setOrderStage(order.id, "making", staff);
+		const entries = logOf(order.id).filter((e) => e.action !== "placed");
+		expect(entries).toEqual([
+			expect.objectContaining({
+				action: "payment_review",
+				field: "payment_status",
+				from: "on_hold",
+				to: "verified",
+				actor: staff,
+			}),
+			expect.objectContaining({
+				action: "stage",
+				field: "stage",
+				from: "new",
+				to: "making",
+			}),
+		]);
+	});
+
+	test("a refused change, or one that changes nothing, isn't logged", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		const before = logOf(order.id).length;
+		expect(() => repo.setOrderStage(order.id, "making", staff)).toThrow();
+		repo.setOrderStage(order.id, "new", staff);
+		expect(logOf(order.id).length).toBe(before);
+	});
+
+	test("a customer's edit logs the new total, bouquets and details", () => {
+		const order = place([{ ...first, quantity: 2 }]);
+		const line = pricing.priceCart(
+			[{ ...first, quantity: 1 }],
+			catalog.listPublicProducts(),
+		).lines[0] as PricedLine;
+		const customer = {
+			type: "customer" as const,
+			name: "Test Shopper",
+			source: `/order/${order.id}/edit`,
+		};
+		repo.updateCustomerOrder(
+			order.id,
+			{ details: { ...DETAILS, email: "new@example.com" }, lines: [line] },
+			customer,
+		);
+		const edits = logOf(order.id).filter((e) => e.action === "customer_edit");
+		expect(edits.map((e) => e.field).sort()).toEqual([
+			"email",
+			"items",
+			"total",
+		]);
+		expect(edits.every((e) => e.actor.type === "customer")).toBe(true);
+		expect(edits.find((e) => e.field === "items")).toMatchObject({
+			from: "2",
+			to: "1",
+		});
+	});
+
+	test("keeps the reason given for changing the payment method", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		repo.changePaymentMethod(
+			order.id,
+			{ method: "cash", reason: "Handed cash", changedBy: "Person 1" },
+			staff,
+		);
+		expect(logOf(order.id).at(-1)).toMatchObject({
+			action: "payment_method",
+			field: "payment_method",
+			from: "gcash",
+			to: "cash",
+			reason: "Handed cash",
+		});
+	});
+
+	test("filters by person across orders, newest first", () => {
+		const { entries, people } = logRepo.listOrderLog({ actor: "Person 1" });
+		expect(people).toContain("Person 1");
+		expect(entries.every((e) => e.actor.name === "Person 1")).toBe(true);
+		expect(entries[0]?.orderNumber).toBeTruthy();
+		const ids = entries.map((e) => e.id);
+		expect(ids).toEqual([...ids].sort((a, b) => b - a));
+	});
+});

@@ -4,8 +4,17 @@ import {
 	notFound,
 	useRouter,
 } from "@tanstack/solid-router";
-import { createEffect, createSignal, For, on, Show } from "solid-js";
+import {
+	createEffect,
+	createResource,
+	createSignal,
+	For,
+	on,
+	Show,
+} from "solid-js";
 import { CancelOrderButton } from "~/components/admin/cancel-order";
+import { ChangePaymentMethodButton } from "~/components/admin/change-payment-method";
+import { OrderLogTable } from "~/components/admin/order-log-table";
 import {
 	adminButton,
 	adminCard,
@@ -33,6 +42,7 @@ import { cn } from "~/lib/utils";
 import {
 	assignRider,
 	getAdminOrder,
+	listOrderLogFn,
 	markOrderTest,
 	moveOrder,
 	type OrderActionResult,
@@ -512,6 +522,7 @@ function OrderDetail() {
 							</ul>
 						</Show>
 					</section>
+					<OrderActivity order={order()} />
 				</div>
 
 				<aside class="flex flex-col gap-5 lg:sticky lg:top-6">
@@ -621,7 +632,59 @@ function OrderDetail() {
 								</a>
 							)}
 						</Show>
+						<Show when={order().paymentMethodChanges.length > 0}>
+							<div class="mt-4 border-t border-petal-100 pt-3">
+								<h3 class="mb-2 text-sm font-semibold">Method changes</h3>
+								<ul class="flex flex-col gap-3 text-sm">
+									<For each={order().paymentMethodChanges}>
+										{(change) => (
+											<li class="wrap-anywhere">
+												<p class="font-medium">
+													{PAYMENT_METHOD_LABELS[change.from]} →{" "}
+													{PAYMENT_METHOD_LABELS[change.to]}
+												</p>
+												<p class="whitespace-pre-line">
+													Reason: {change.reason}
+												</p>
+												<p class="text-xs text-petal-900/55">
+													By {change.changedBy} ·{" "}
+													{new Date(change.at).toLocaleString("en-PH", {
+														timeZone: "Asia/Manila",
+														dateStyle: "medium",
+														timeStyle: "short",
+													})}
+												</p>
+												<Show when={change.proofFile}>
+													{(file) => (
+														<a
+															href={`/api/admin/proofs/${proofId(file())}`}
+															target="_blank"
+															rel="noreferrer"
+															class="mt-2 block overflow-hidden rounded-xl border border-petal-100 bg-petal-50"
+														>
+															<PrivateImage
+																url={`/api/admin/proofs/${proofId(file())}`}
+																alt={`Proof for changing the payment method of order ${order().number}`}
+																class="max-h-60 w-full object-contain"
+															/>
+														</a>
+													)}
+												</Show>
+											</li>
+										)}
+									</For>
+								</ul>
+							</div>
+						</Show>
 						<Show when={payment().method !== "card" && !cancelled()}>
+							<ChangePaymentMethodButton
+								order={order()}
+								class={cn(adminButton.secondary, "mt-4 w-full")}
+								disabled={busy()}
+								onChanged={setOrder}
+							>
+								Change payment method
+							</ChangePaymentMethodButton>
 							<p class="mt-3 text-xs text-petal-900/60">
 								{payment().method === "cash"
 									? "Verify once 1st Class RICARDE (Foxtrot) has the cash in hand."
@@ -694,6 +757,54 @@ function OrderDetail() {
 				</aside>
 			</div>
 		</div>
+	);
+}
+
+const ACTIVITY_SHOWN = 20;
+
+/** Who changed what on this order, and when; reloads as the order changes. */
+function OrderActivity(props: { order: Order }) {
+	const [log] = createResource(
+		// Each change made here replaces the order; reload the log then.
+		() => props.order,
+		(order) =>
+			listOrderLogFn({
+				data: { orderId: order.id, pageSize: ACTIVITY_SHOWN },
+			}),
+	);
+	return (
+		<section class={adminCard} aria-labelledby="activity-heading">
+			<div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-5 pb-3">
+				<h2 id="activity-heading" class="font-semibold">
+					Activity
+				</h2>
+				<Show when={(log.latest?.total ?? 0) > ACTIVITY_SHOWN}>
+					<Link
+						to="/admin/order-log"
+						search={{ order: props.order.id }}
+						class="text-sm font-medium text-petal-700 underline-offset-2 hover:underline"
+					>
+						See all {log.latest?.total} changes
+					</Link>
+				</Show>
+			</div>
+			<Show
+				when={log.latest}
+				fallback={
+					<p class="px-5 pb-5 text-sm text-petal-900/55">
+						{log.error ? "Couldn’t load the activity." : "Loading…"}
+					</p>
+				}
+			>
+				{(page) => (
+					<OrderLogTable
+						entries={page().entries}
+						compact
+						empty="No changes logged yet. Changes from now on show here."
+					/>
+				)}
+			</Show>
+		</section>
 	);
 }
 

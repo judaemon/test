@@ -41,6 +41,7 @@ import type { PaymentAccount } from "~/types/payment";
 import { listPublicProducts } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
 import { getSessionUser } from "./customer-auth";
+import { shopActor } from "./order-actor";
 import {
 	createOrder,
 	findOrders,
@@ -216,14 +217,17 @@ export const placeOrder = createServerFn({ method: "POST" })
 		try {
 			// Signed-in shoppers can track the order from their account.
 			const customer = await getSessionUser();
-			const order = createOrder({
-				id,
-				details: data.details,
-				cart,
-				payment,
-				// Staff often order for someone else, so it isn't theirs to track.
-				customerId: customer && !customer.isStaff ? customer.id : undefined,
-			});
+			const order = createOrder(
+				{
+					id,
+					details: data.details,
+					cart,
+					payment,
+					// Staff often order for someone else, so it isn't theirs to track.
+					customerId: customer && !customer.isStaff ? customer.id : undefined,
+				},
+				shopActor(customer, data.details.fullName),
+			);
 			return { ok: true, orderId: id, number: order.number };
 		} catch (error) {
 			if (error instanceof OrderRuleError) {
@@ -446,7 +450,11 @@ export const updateMyOrder = createServerFn({ method: "POST" })
 				bouquetErrors: withMessages.errors,
 			};
 		try {
-			updateCustomerOrder(order.id, { details, lines: withMessages.lines });
+			updateCustomerOrder(
+				order.id,
+				{ details, lines: withMessages.lines },
+				shopActor(viewer, order.details.fullName),
+			);
 			return { ok: true };
 		} catch (error) {
 			if (error instanceof OrderRuleError)
@@ -613,12 +621,16 @@ export const submitOrderPayment = createServerFn({ method: "POST" })
 				claimsOrder(order, viewer.name)
 					? viewer.id
 					: undefined;
-			submitPayment(order.id, {
-				method: account.method,
-				referenceNumber: normalizeReferenceNumber(data.referenceNumber),
-				proofFile,
-				customerId,
-			});
+			submitPayment(
+				order.id,
+				{
+					method: account.method,
+					referenceNumber: normalizeReferenceNumber(data.referenceNumber),
+					proofFile,
+					customerId,
+				},
+				shopActor(viewer, order.details.fullName),
+			);
 			// A new payment replaces one that didn't match.
 			if (order.payment.proofFile)
 				await deleteUpload("proofs", order.payment.proofFile);
