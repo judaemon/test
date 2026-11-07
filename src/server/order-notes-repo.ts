@@ -39,7 +39,7 @@ export function listOrderNotes(orderId: string): OrderNote[] {
 	return (
 		getDb()
 			.query(
-				"SELECT * FROM order_notes WHERE order_id = $orderId ORDER BY created_at, id",
+				"SELECT * FROM order_notes WHERE order_id = $orderId ORDER BY created_at, rowid",
 			)
 			.all({ orderId }) as NoteRow[]
 	).map(toNote);
