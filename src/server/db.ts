@@ -720,6 +720,21 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE sales ADD COLUMN payment_methods TEXT NOT NULL DEFAULT '[]';
 	ALTER TABLE order_promos ADD COLUMN payment_methods TEXT NOT NULL DEFAULT '[]';
 	`,
+	// v50: staff notes on an order, never shown to the customer: who wrote
+	// each one, and when.
+	`
+	CREATE TABLE order_notes (
+		id TEXT PRIMARY KEY,
+		order_id TEXT NOT NULL,
+		body TEXT NOT NULL,
+		author_id TEXT NOT NULL,
+		author_name TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		-- Set when the author changed it.
+		edited_at TEXT
+	);
+	CREATE INDEX order_notes_by_order ON order_notes (order_id, created_at);
+	`,
 ];
 
 declare global {

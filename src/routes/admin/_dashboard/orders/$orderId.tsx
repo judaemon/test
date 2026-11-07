@@ -15,6 +15,7 @@ import {
 import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { ChangePaymentMethodButton } from "~/components/admin/change-payment-method";
 import { OrderLogTable } from "~/components/admin/order-log-table";
+import { OrderNotes } from "~/components/admin/order-notes";
 import {
 	adminButton,
 	adminCard,
@@ -89,6 +90,8 @@ export const Route = createFileRoute("/admin/_dashboard/orders/$orderId")({
 
 function OrderDetail() {
 	const loaded = Route.useLoaderData();
+	const context = Route.useRouteContext();
+	const staff = () => context().user;
 	const router = useRouter();
 	const [order, setOrder] = createSignal<Order>(loaded());
 	createEffect(on(loaded, (fresh) => setOrder(fresh), { defer: true }));
@@ -219,6 +222,7 @@ function OrderDetail() {
 
 			<div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
 				<div class="flex flex-col gap-5">
+					<OrderNotes orderId={order().id} user={staff()} />
 					<Show when={order().cancelledBouquets.length > 0}>
 						<section class={cn(adminCard, "p-5")}>
 							<h2 class="mb-3 font-semibold">Cancelled bouquets</h2>

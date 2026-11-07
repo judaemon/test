@@ -134,6 +134,10 @@ function OrdersPage() {
 	const [loadingMore, setLoadingMore] = createSignal(false);
 	const [moreFailed, setMoreFailed] = createSignal(false);
 	const rows = () => [...data().rows, ...more()];
+	/** Staff notes per order, from every page loaded so far. */
+	const [moreNotes, setMoreNotes] = createSignal<Record<string, number>>({});
+	const noteCount = (orderId: string) =>
+		data().noteCounts[orderId] ?? moreNotes()[orderId] ?? 0;
 	const hasMore = () => rows().length < data().total;
 	const viewKey = () =>
 		JSON.stringify({ ...search(), page: undefined, perPage: undefined });
@@ -162,7 +166,12 @@ function OrdersPage() {
 					const pages = await Promise.all(
 						Array.from({ length: keep - 1 }, (_, i) => fetchPage(i + 2)),
 					);
-					if (mine === generation) setMore(pages.flatMap((page) => page.rows));
+					if (mine === generation) {
+						setMore(pages.flatMap((page) => page.rows));
+						setMoreNotes(
+							Object.assign({}, ...pages.map((page) => page.noteCounts)),
+						);
+					}
 				} catch {
 					if (mine === generation) setMoreFailed(true);
 				}
@@ -554,6 +563,17 @@ function OrdersPage() {
 														minute: "2-digit",
 													})}
 												</p>
+												<Show when={noteCount(order.id)}>
+													{(count) => (
+														<p
+															class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground"
+															title="Staff notes on this order"
+														>
+															<span aria-hidden="true">📝</span>
+															{count()} {count() === 1 ? "note" : "notes"}
+														</p>
+													)}
+												</Show>
 												<Show when={order.cancelledBouquets.length > 0}>
 													<p class="max-w-40 text-xs text-error-foreground">
 														{order.cancelledBouquets.length} bouquet

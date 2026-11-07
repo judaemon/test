@@ -22,6 +22,7 @@ import {
 } from "~/types/order";
 import { listArrangementTypes } from "./arrangement-types-repo";
 import { listAdminProducts } from "./catalog-repo";
+import { countOrderNotes } from "./order-notes-repo";
 import { listOrders } from "./orders-repo";
 
 /** One bouquet of an order: the table shows a row per bouquet. */
@@ -47,6 +48,8 @@ export interface OrderRowsPage {
 	pageCount: number;
 	options: Record<FacetId, FilterOption[]>;
 	summary: ArrangementSummary[];
+	/** Staff notes per order on this page; orders without any are left out. */
+	noteCounts: Record<string, number>;
 }
 
 /** One card above the orders table: an arrangement type and its bouquets. */
@@ -300,8 +303,12 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 	const pageSize = search.perPage ?? DEFAULT_PAGE_SIZE;
 	const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
 	const page = Math.min(search.page ?? 1, pageCount);
+	const pageRows = matching.slice((page - 1) * pageSize, page * pageSize);
 	return {
-		rows: matching.slice((page - 1) * pageSize, page * pageSize),
+		rows: pageRows,
+		noteCounts: countOrderNotes([
+			...new Set(pageRows.map((row) => row.order.id)),
+		]),
 		total: matching.length,
 		page,
 		pageSize,

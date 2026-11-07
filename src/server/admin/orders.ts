@@ -30,6 +30,15 @@ import {
 import { requireStaff } from "../admin-auth";
 import { staffActor } from "../order-actor";
 import { listOrderLog } from "../order-log-repo";
+import {
+	addOrderNote,
+	deleteOrderNote,
+	editOrderNote,
+	getOrderNote,
+	listOrderNotes,
+	ORDER_NOTE_MAX,
+	type OrderNote,
+} from "../order-notes-repo";
 import { queryOrderRows } from "../order-rows";
 import {
 	cancelBouquet,
@@ -611,4 +620,73 @@ export const listOrderLogFn = createServerFn({ method: "GET" })
 			page: data.page,
 			pageSize: data.pageSize,
 		});
+	});
+
+export type OrderNotesResult =
+	| { ok: true; notes: OrderNote[] }
+	| { ok: false; message: string };
+
+/** Staff's notes on an order: never shown to the customer. */
+export const listOrderNotesFn = createServerFn({ method: "GET" })
+	.validator((input: unknown) => text(asRecord(input), "orderId", { max: 64 }))
+	.handler(async ({ data }) => {
+		await requireStaff();
+		return listOrderNotes(data);
+	});
+
+const noteBody = (source: Record<string, unknown>) => {
+	const raw = typeof source.body === "string" ? source.body : "";
+	// Forms send line breaks as \r\n; the box counted them as one character.
+	return text({ body: raw.replace(/\r\n?/g, "\n") }, "body", {
+		label: "The note",
+		max: ORDER_NOTE_MAX,
+	});
+};
+
+export const addOrderNoteFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			orderId: text(source, "orderId", { max: 64 }),
+			body: noteBody(source),
+		};
+	})
+	.handler(async ({ data }): Promise<OrderNotesResult> => {
+		const user = await requireStaff();
+		if (!getOrderById(data.orderId))
+			return { ok: false, message: "Order not found." };
+		addOrderNote(data.orderId, data.body, { id: user.id, name: user.name });
+		return { ok: true, notes: listOrderNotes(data.orderId) };
+	});
+
+/** Staff change their own notes only. */
+export const editOrderNoteFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return { id: text(source, "id", { max: 64 }), body: noteBody(source) };
+	})
+	.handler(async ({ data }): Promise<OrderNotesResult> => {
+		const user = await requireStaff();
+		const note = getOrderNote(data.id);
+		if (!note) return { ok: false, message: "That note was deleted." };
+		if (note.authorId !== user.id)
+			return { ok: false, message: "You can only edit your own notes." };
+		editOrderNote(data.id, data.body);
+		return { ok: true, notes: listOrderNotes(note.orderId) };
+	});
+
+/** Staff delete their own notes; the owner can delete any. */
+export const deleteOrderNoteFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => text(asRecord(input), "id", { max: 64 }))
+	.handler(async ({ data }): Promise<OrderNotesResult> => {
+		const user = await requireStaff();
+		const note = getOrderNote(data);
+		if (!note) return { ok: false, message: "That note was already deleted." };
+		if (note.authorId !== user.id && user.role !== "owner")
+			return {
+				ok: false,
+				message: "Only the shop owner can delete someone else’s note.",
+			};
+		deleteOrderNote(data);
+		return { ok: true, notes: listOrderNotes(note.orderId) };
 	});

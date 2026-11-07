@@ -1036,3 +1036,35 @@ describe("the delivery date", () => {
 		expect(place([{ ...second, quantity: 1 }]).details.deliveryDate).toBe("");
 	});
 });
+
+describe("staff notes", () => {
+	test("add, read in order, count, edit and delete", async () => {
+		const notes = await import("./order-notes-repo");
+		const order = place([{ ...second, quantity: 1 }]);
+		const other = place([{ ...second, quantity: 1 }]);
+		const ana = { id: "u-ana", name: "Ana" };
+		const first = notes.addOrderNote(order.id, "Pink ribbon, please.", ana);
+		notes.addOrderNote(order.id, "Called the customer.", {
+			id: "u-ben",
+			name: "Ben",
+		});
+		expect(notes.listOrderNotes(order.id).map((n) => n.body)).toEqual([
+			"Pink ribbon, please.",
+			"Called the customer.",
+		]);
+		expect(notes.countOrderNotes([order.id, other.id])).toEqual({
+			[order.id]: 2,
+		});
+		const edited = notes.editOrderNote(first.id, "Pink ribbon and a bow.");
+		expect(edited?.body).toBe("Pink ribbon and a bow.");
+		expect(edited?.editedAt).toBeTruthy();
+		notes.deleteOrderNote(first.id);
+		expect(notes.listOrderNotes(order.id)).toHaveLength(1);
+		// Customers never get them: they aren't part of the order.
+		expect(
+			JSON.stringify(
+				repo.toCustomerOrder(repo.getOrderById(order.id) as Order),
+			),
+		).not.toContain("Called the customer");
+	});
+});
