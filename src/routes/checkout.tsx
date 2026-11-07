@@ -1071,13 +1071,32 @@ function ReviewDetails(props: {
 						<Show when={props.paymentMethod}>
 							{(method) => PAYMENT_METHOD_LABELS[method()]}
 						</Show>
-						<Show when={!props.referenceLater} fallback=" · Paying later">
-							<Show when={typeof reference === "string" && reference}>
-								{" "}
-								· Ref {String(reference)}
-							</Show>
-						</Show>
 					</dd>
+					<Show
+						when={!props.referenceLater}
+						fallback={
+							<Show when={props.paymentMethod !== "cash"}>
+								<dd class="mt-1.5 rounded-lg bg-warning px-2.5 py-1.5 text-xs font-medium text-warning-foreground">
+									Paying later: no reference number yet. Don’t forget to send it
+									after you pay, or your order stays on hold.
+								</dd>
+							</Show>
+						}
+					>
+						<Show when={typeof reference === "string" && reference}>
+							<dd class="mt-1.5 rounded-lg bg-petal-50 px-2.5 py-1.5">
+								<span class="block text-xs text-petal-900/60">
+									Reference number
+								</span>
+								<span class="block font-mono text-base font-semibold tracking-wide">
+									{String(reference)}
+								</span>
+								<span class="block text-xs text-petal-900/60">
+									Make sure it matches your receipt.
+								</span>
+							</dd>
+						</Show>
+					</Show>
 				</div>
 				<ReviewEdit
 					label="your payment"

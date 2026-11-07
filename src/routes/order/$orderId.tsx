@@ -147,7 +147,7 @@ function OrderConfirmation() {
 							{isOnHold()
 								? order().payment.method === "cash"
 									? `${CASH_NOTICE} We’ll start on it once it’s received, or you can pay online instead.`
-									: "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Check your order."
+									: "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Check your order, and don’t forget your reference number: it’s how we verify your payment."
 								: "Check your reference number and send it again."}
 						</p>
 						<Link

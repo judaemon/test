@@ -42,9 +42,17 @@ export function isMethodAllowedFor(method: PaymentMethod, className: string) {
 export const CASH_NOTICE =
 	"Hand your payment in cash to 1st Class RICARDE of Foxtrot. We’ll hold your order until the cash is received.";
 
+/**
+ * Shown wherever a shopper sends a QR payment. Some forgot their reference
+ * number, and staff can't match a payment without it.
+ */
+export const REFERENCE_REMINDER =
+	"Please do not forget to add your reference number so we can verify your payment immediately.";
+
 export function validateReferenceNumber(value: string): string | undefined {
 	const compact = normalizeReferenceNumber(value);
-	if (!compact) return "Enter the reference number from your receipt.";
+	if (!compact)
+		return "Add your reference number so we can verify your payment. It’s the “Ref No.” on your receipt.";
 	if (!/^[A-Za-z0-9]{6,30}$/.test(compact))
 		return "Use the 6–30 letters or digits shown on your receipt.";
 	return undefined;

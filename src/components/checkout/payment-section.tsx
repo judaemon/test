@@ -1,5 +1,13 @@
 import type { JSX } from "solid-js";
-import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
+import {
+	createSignal,
+	For,
+	Match,
+	onCleanup,
+	onMount,
+	Show,
+	Switch,
+} from "solid-js";
 
 import {
 	TextField,
@@ -21,6 +29,8 @@ import {
 	ON_HOLD_NOTICE,
 	type PaymentMethod,
 	type QrPaymentMethod,
+	REFERENCE_REMINDER,
+	validateReferenceNumber,
 } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { cn } from "~/lib/utils";
@@ -277,9 +287,38 @@ function QrPayment(props: {
 	onReferenceLaterChange?: (later: boolean) => void;
 }) {
 	const account = () => props.account;
+	const [reference, setReference] = createSignal("");
+	const looksRight = () =>
+		!!reference().trim() && !validateReferenceNumber(reference());
+	const error = () => props.errors.referenceNumber;
+	let referenceInput: HTMLInputElement | undefined;
+	const setLater = (later: boolean) => {
+		props.onReferenceLaterChange?.(later);
+		props.clearError("referenceNumber");
+		// Back to paying now: straight to the box they need to fill.
+		if (!later) requestAnimationFrame(() => referenceInput?.focus());
+	};
+	// Phones copy the number from the receipt; one tap puts it in. Checked once
+	// the page is running in the browser, so the server's page matches.
+	const [canPaste, setCanPaste] = createSignal(false);
+	onMount(() => setCanPaste(!!navigator.clipboard?.readText));
+	const paste = async () => {
+		try {
+			const text = (await navigator.clipboard.readText()).trim().slice(0, 40);
+			if (!text) return;
+			setReference(text);
+			props.clearError("referenceNumber");
+			referenceInput?.focus();
+		} catch {
+			// Blocked or empty clipboard: they can still type it.
+		}
+	};
 
 	return (
-		<div class="flex flex-col gap-5">
+		<div class="flex flex-col gap-4">
+			<StepHeading number={1}>
+				Send {formatPrice(props.total, props.currency)} by {account().label}
+			</StepHeading>
 			<div
 				class={cn(
 					"grid gap-5 rounded-2xl bg-petal-50 p-5",
@@ -342,65 +381,159 @@ function QrPayment(props: {
 				</div>
 			</div>
 
-			<Show when={props.onReferenceLaterChange}>
-				<label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-petal-200 px-4 py-3 text-sm has-[:checked]:border-petal-700 has-[:checked]:bg-petal-50">
-					<input
-						type="checkbox"
-						checked={props.referenceLater ?? false}
-						onChange={(e) => {
-							props.onReferenceLaterChange?.(e.currentTarget.checked);
-							props.clearError("referenceNumber");
-						}}
-						class="mt-0.5 size-5 shrink-0 accent-petal-700"
-					/>
-					<span>
-						<span class="block font-medium">Pay later</span>
-						<span class="text-petal-900/65">
-							Place your order now, then send your payment and reference number
-							from your order page or Check your order.
-						</span>
-					</span>
-				</label>
-			</Show>
-
 			<Show
 				when={!props.referenceLater}
 				fallback={
-					<p class="rounded-2xl bg-warning px-4 py-3 text-sm text-warning-foreground">
-						{ON_HOLD_NOTICE}
-						<span class="mt-1 block">
+					<div class="flex flex-col gap-2 rounded-2xl border-2 border-warning-foreground/40 bg-warning px-4 py-4 text-sm text-warning-foreground">
+						<p class="flex items-center gap-2 font-semibold">
+							<AlertIcon class="size-5 shrink-0" />
+							You’re paying later
+						</p>
+						<p>
+							{ON_HOLD_NOTICE} Don’t forget to send your{" "}
+							<strong class="font-semibold">reference number</strong> from your
+							order page or Check your order. We can’t start on your bouquets
+							without it.
+						</p>
+						<p class="text-warning-foreground/85">
 							{ORDER_EDIT_RULE} {ORDER_EDIT_HOW}
-						</span>
-					</p>
+						</p>
+						<button
+							type="button"
+							onClick={() => setLater(false)}
+							class="mt-1 self-start rounded-full border border-warning-foreground/40 bg-white px-4 py-2 font-medium text-petal-900 transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							I’ve paid: enter my reference number
+						</button>
+					</div>
 				}
 			>
-				<TextField
-					name="referenceNumber"
-					validationState={props.errors.referenceNumber ? "invalid" : "valid"}
-					class="gap-2"
+				<StepHeading number={2}>Enter your reference number</StepHeading>
+				<div
+					class={cn(
+						"flex flex-col gap-3 rounded-2xl border-2 bg-white p-4 sm:p-5",
+						error()
+							? "border-destructive"
+							: looksRight()
+								? "border-success-foreground/50"
+								: "border-petal-700/60",
+					)}
 				>
-					<TextFieldLabel class="text-petal-900">
-						Reference number
-					</TextFieldLabel>
-					<TextFieldInput
-						autocomplete="off"
-						autocapitalize="characters"
-						spellcheck={false}
-						placeholder="e.g. 1234 567 891011"
-						onInput={() => props.clearError("referenceNumber")}
-						class={cn(inputClass, "tabular-nums")}
-					/>
-					<Show when={!props.errors.referenceNumber}>
-						<TextFieldDescription class="text-xs text-petal-900/55">
-							Shown on your {account().label} receipt as “Ref No.”
-						</TextFieldDescription>
-					</Show>
-					<TextFieldErrorMessage>
-						{props.errors.referenceNumber}
-					</TextFieldErrorMessage>
-				</TextField>
+					<p class="flex items-start gap-2 rounded-xl bg-warning px-3 py-2.5 text-sm font-semibold text-warning-foreground">
+						<AlertIcon class="mt-px size-5 shrink-0" />
+						{REFERENCE_REMINDER}
+					</p>
+					<TextField
+						name="referenceNumber"
+						value={reference()}
+						onChange={(value) => {
+							setReference(value);
+							props.clearError("referenceNumber");
+						}}
+						validationState={error() ? "invalid" : "valid"}
+						class="gap-2"
+					>
+						<TextFieldLabel class="text-petal-900">
+							{account().label} reference number
+						</TextFieldLabel>
+						<div class="flex gap-2">
+							<TextFieldInput
+								ref={referenceInput}
+								autocomplete="off"
+								autocapitalize="characters"
+								spellcheck={false}
+								inputMode="text"
+								placeholder="e.g. 1234 567 890"
+								class={cn(
+									inputClass,
+									"h-12 flex-1 text-lg tracking-wide tabular-nums sm:text-base",
+								)}
+							/>
+							<Show when={canPaste()}>
+								<button
+									type="button"
+									onClick={paste}
+									class="h-12 shrink-0 rounded-xl border border-petal-200 bg-white px-4 text-sm font-medium text-petal-700 transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									Paste
+								</button>
+							</Show>
+						</div>
+						<Show
+							when={!error()}
+							fallback={
+								<TextFieldErrorMessage>{error()}</TextFieldErrorMessage>
+							}
+						>
+							<Show
+								when={looksRight()}
+								fallback={
+									<TextFieldDescription class="text-xs text-petal-900/60">
+										After you send the payment, it’s the{" "}
+										<strong class="font-semibold">“Ref No.”</strong> on your{" "}
+										{account().label} receipt.
+									</TextFieldDescription>
+								}
+							>
+								<TextFieldDescription class="flex items-center gap-1.5 text-xs font-medium text-success-foreground">
+									<CheckIcon class="size-4" />
+									Looks right. Check it matches your receipt.
+								</TextFieldDescription>
+							</Show>
+						</Show>
+					</TextField>
+				</div>
+
+				<Show when={props.onReferenceLaterChange}>
+					<p class="text-sm text-petal-900/65">
+						Haven’t paid yet?{" "}
+						<button
+							type="button"
+							onClick={() => setLater(true)}
+							class="rounded font-medium text-petal-700 underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						>
+							Pay later
+						</button>{" "}
+						and send your reference number from your order page.
+					</p>
+				</Show>
 			</Show>
 		</div>
+	);
+}
+
+/** A numbered step inside the payment section. */
+function StepHeading(props: { number: number; children: JSX.Element }) {
+	return (
+		<p class="flex items-center gap-2.5 font-medium">
+			<span
+				aria-hidden="true"
+				class="flex size-6 shrink-0 items-center justify-center rounded-full bg-petal-700 text-xs font-semibold text-white"
+			>
+				{props.number}
+			</span>
+			<span>
+				<span class="sr-only">Step {props.number}: </span>
+				{props.children}
+			</span>
+		</p>
+	);
+}
+
+function AlertIcon(props: { class?: string }) {
+	return (
+		<svg aria-hidden="true" {...iconBase} class={props.class}>
+			<circle cx="12" cy="12" r="9" />
+			<path d="M12 7.5v5M12 16.5h.01" />
+		</svg>
+	);
+}
+
+function CheckIcon(props: { class?: string }) {
+	return (
+		<svg aria-hidden="true" {...iconBase} class={props.class}>
+			<path d="m5 12.5 4.5 4.5L19 7.5" />
+		</svg>
 	);
 }
 
