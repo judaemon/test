@@ -15,6 +15,7 @@ import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { hasCard, hasContent, orderCards } from "~/lib/bouquet-messages";
+import { formatDeliveryDate } from "~/lib/checkout";
 import { CONTACT } from "~/lib/contact";
 import {
 	formatEditDeadline,
@@ -261,6 +262,14 @@ function OrderConfirmation() {
 								className={details().className}
 							/>
 						</p>
+						<Show when={details().deliveryDate}>
+							{(date) => (
+								<p class="mt-3 text-sm text-petal-900/75">
+									<span class="font-medium text-petal-900">Delivery date:</span>{" "}
+									{formatDeliveryDate(date())}
+								</p>
+							)}
+						</Show>
 						<Show when={details().notes}>
 							<p class="mt-3 whitespace-pre-line text-sm text-petal-900/75">
 								<span class="font-medium text-petal-900">Notes:</span>{" "}

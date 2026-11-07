@@ -1009,3 +1009,30 @@ describe("discounts for some payment methods only", () => {
 		promos.deleteOrderPromo(gcashPromo.id);
 	});
 });
+
+describe("the delivery date", () => {
+	test("is kept on the order, and through the customer's edits", () => {
+		db.getDb()
+			.query(
+				"UPDATE bouquet_styles SET stock_quantity = 200 WHERE bouquet_id = $productId AND slug = $variantId",
+			)
+			.run(second);
+		const order = repo.createOrder({
+			id: crypto.randomUUID(),
+			details: { ...DETAILS, deliveryDate: "2026-12-24" },
+			cart: pricing.priceCart(
+				[{ ...second, quantity: 2 }],
+				catalog.listPublicProducts(),
+			),
+			payment: { method: "gcash", status: "on_hold" },
+		});
+		expect(order.details.deliveryDate).toBe("2026-12-24");
+		const [line] = order.lines;
+		const after = repo.updateCustomerOrder(order.id, {
+			details: { ...DETAILS, deliveryDate: "2026-12-24" },
+			lines: [{ ...(line as PricedLine), quantity: 1 }],
+		});
+		expect(after.details.deliveryDate).toBe("2026-12-24");
+		expect(place([{ ...second, quantity: 1 }]).details.deliveryDate).toBe("");
+	});
+});

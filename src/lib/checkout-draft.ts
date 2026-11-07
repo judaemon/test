@@ -11,6 +11,7 @@ export interface CheckoutDraft {
 	lastName: string;
 	firstName: string;
 	email: string;
+	deliveryDate?: string;
 	messages: Record<string, BouquetMessage>;
 }
 

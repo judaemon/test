@@ -414,6 +414,7 @@ export const updateMyOrder = createServerFn({ method: "POST" })
 		const details: CheckoutDetails = {
 			...parsed,
 			notes: order.details.notes,
+			deliveryDate: order.details.deliveryDate,
 			addDedication: order.details.addDedication,
 			dedicationFor: order.details.dedicationFor,
 			dedicationMessage: order.details.dedicationMessage,

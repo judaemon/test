@@ -37,7 +37,7 @@ import {
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
 import { isChatOrder } from "~/lib/chat-order";
-import { formatSerialNumber } from "~/lib/checkout";
+import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet, ORDER_EDIT_HOURS } from "~/lib/order-edit";
@@ -439,6 +439,14 @@ function OrderDetail() {
 							</dd>
 							<dt class="text-petal-900/60">Class</dt>
 							<dd>{details().className || "—"}</dd>
+							<Show when={details().deliveryDate}>
+								{(date) => (
+									<>
+										<dt class="text-petal-900/60">Delivery date</dt>
+										<dd class="font-medium">{formatDeliveryDate(date())}</dd>
+									</>
+								)}
+							</Show>
 							<Show when={details().serialNumber}>
 								<dt class="text-petal-900/60">Serial number</dt>
 								<dd class="tabular-nums">

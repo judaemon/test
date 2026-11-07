@@ -1,5 +1,5 @@
 import { companyColor, isCadetClass, isClassOption } from "~/lib/cadets";
-import { shopNow } from "~/lib/time";
+import { addDays, shopNow } from "~/lib/time";
 
 export interface CheckoutDetails {
 	/** The buyer's name, both parts required. */
@@ -25,6 +25,31 @@ export interface CheckoutDetails {
 	/** The receiver named on the card ("To: …"); optional. */
 	dedicationFor: string;
 	dedicationMessage: string;
+	/**
+	 * When the shopper would like it delivered, `YYYY-MM-DD` (Manila); optional,
+	 * empty when not chosen.
+	 */
+	deliveryDate?: string;
+}
+
+/** How far ahead a delivery date can be chosen. */
+export const DELIVERY_DATE_MAX_DAYS = 365;
+
+/** The days a delivery date can be: from today to a year ahead, Manila time. */
+export function deliveryDateRange(now = new Date()) {
+	const today = shopNow(now).date;
+	return { min: today, max: addDays(today, DELIVERY_DATE_MAX_DAYS) };
+}
+
+/** "Monday, November 9, 2026". */
+export function formatDeliveryDate(date: string) {
+	return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-PH", {
+		timeZone: "UTC",
+		weekday: "long",
+		month: "long",
+		day: "numeric",
+		year: "numeric",
+	});
 }
 
 export type CheckoutField = keyof CheckoutDetails;
@@ -101,6 +126,11 @@ export function parseCheckoutDetails(raw: unknown): CheckoutDetails {
 		addDedication: dedicationMessage !== "",
 		dedicationFor: text("dedicationFor"),
 		dedicationMessage,
+		deliveryDate:
+			typeof source.deliveryDate === "string" &&
+			/^\d{4}-\d{2}-\d{2}$/.test(source.deliveryDate.trim())
+				? source.deliveryDate.trim()
+				: "",
 	};
 }
 
@@ -137,6 +167,19 @@ export function validateCheckoutDetails(details: CheckoutDetails): FieldErrors {
 
 	if (details.notes.length > NOTES_MAX)
 		errors.notes = `Keep notes under ${NOTES_MAX} characters.`;
+
+	if (details.deliveryDate) {
+		const { min, max } = deliveryDateRange();
+		const time = Date.parse(`${details.deliveryDate}T00:00:00Z`);
+		const real =
+			!Number.isNaN(time) &&
+			new Date(time).toISOString().slice(0, 10) === details.deliveryDate;
+		if (!real) errors.deliveryDate = "Choose a date from the calendar.";
+		else if (details.deliveryDate < min)
+			errors.deliveryDate = "Choose today or a later day.";
+		else if (details.deliveryDate > max)
+			errors.deliveryDate = "Choose a day within the next year.";
+	}
 
 	// The card is optional; "To" on its own would print an empty card.
 	if (details.dedicationFor.length > NAME_MAX)

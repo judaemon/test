@@ -54,6 +54,7 @@ interface OrderRow {
 	full_name: string;
 	company: string;
 	serial_number: string;
+	delivery_date: string;
 	class_name: string;
 	notes: string;
 	dedication_for: string;
@@ -131,6 +132,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 			addDedication: !!(row.dedication_for || row.gift_message),
 			dedicationFor: row.dedication_for,
 			dedicationMessage: row.gift_message,
+			deliveryDate: row.delivery_date,
 		},
 		lines,
 		subtotal: fromCents(row.subtotal_cents),
@@ -280,7 +282,7 @@ export function createOrder(
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
 			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id,
 			   amount_paid_cents, payment_notice, promo, promo_discount_cents)
-			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
+			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', $deliveryDate, '', $firstName, $lastName, $fullName,
 			   $company, $serialNumber, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
 			   $customerId, $amountPaid, $paymentNotice, $promo, $promoDiscount)`,
@@ -298,6 +300,7 @@ export function createOrder(
 			notes: order.details.notes,
 			dedicationFor: order.details.dedicationFor,
 			dedicationMessage: order.details.dedicationMessage,
+			deliveryDate: order.details.deliveryDate ?? "",
 			lines: JSON.stringify(order.cart.lines),
 			subtotal: toCents(order.cart.subtotal),
 			deliveryFee: toCents(order.cart.deliveryFee),

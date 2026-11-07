@@ -68,8 +68,10 @@ import {
 import { cartStore, clearCart, setCartOpen } from "~/lib/cart-store";
 import {
 	type CheckoutField,
+	deliveryDateRange,
 	EMAIL_MAX,
 	type FieldErrors,
+	formatDeliveryDate,
 	formatSerialNumber,
 	hasErrors,
 	NAME_MAX,
@@ -339,6 +341,7 @@ function CheckoutForm(props: {
 			lastName: field("lastName"),
 			firstName: field("firstName"),
 			email: field("email"),
+			deliveryDate: field("deliveryDate"),
 			messages: JSON.parse(JSON.stringify(messages)),
 		});
 	};
@@ -748,6 +751,17 @@ function CheckoutForm(props: {
 							defaultValue={draft?.email ?? props.email}
 							error={errors().email}
 							onInput={() => clearError("email")}
+						/>
+						<Field
+							name="deliveryDate"
+							label="Delivery date (optional)"
+							type="date"
+							min={deliveryDateRange().min}
+							max={deliveryDateRange().max}
+							description="When you’d like it delivered. Leave it empty if any day is fine."
+							defaultValue={draft?.deliveryDate ?? ""}
+							error={errors().deliveryDate}
+							onInput={() => clearError("deliveryDate")}
 						/>
 					</div>
 				</Section>
@@ -1220,6 +1234,13 @@ function ReviewDetails(props: {
 							</span>
 						</Show>
 					</dd>
+					<Show when={details.deliveryDate}>
+						{(date) => (
+							<dd class="mt-0.5 font-medium">
+								Delivery: {formatDeliveryDate(date())}
+							</dd>
+						)}
+					</Show>
 				</div>
 				<ReviewEdit
 					label="your details"
@@ -1324,7 +1345,10 @@ function Section(props: {
 function Field(props: {
 	name: CheckoutField;
 	label: string;
-	type?: "text" | "email";
+	type?: "text" | "email" | "date";
+	/** For dates: the first and last day that can be picked. */
+	min?: string;
+	max?: string;
 	autocomplete?: string;
 	placeholder?: string;
 	description?: string;
@@ -1349,6 +1373,8 @@ function Field(props: {
 			<TextFieldLabel class="text-petal-900">{props.label}</TextFieldLabel>
 			<TextFieldInput
 				type={props.type ?? "text"}
+				min={props.min}
+				max={props.max}
 				autocomplete={props.autocomplete}
 				placeholder={props.placeholder}
 				maxLength={props.maxLength}
