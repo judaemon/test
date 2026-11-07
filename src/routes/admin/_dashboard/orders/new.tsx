@@ -12,6 +12,7 @@ import {
 	type RecipeDraft,
 	RecipeRows,
 	toRecipeDraft,
+	useRecipeCost,
 } from "~/components/admin/recipe-rows";
 import {
 	adminButton,
@@ -141,6 +142,7 @@ function NewChatOrder() {
 	const [recipe, setRecipe] = createStore<{ rows: RecipeDraft[] }>({
 		rows: toRecipeDraft(line?.recipe ?? []),
 	});
+	const recipeCost = useRecipeCost();
 
 	const addPhotos = (files: Iterable<File>) => {
 		const room = CHAT_PHOTOS_MAX - photos().length;
@@ -525,25 +527,28 @@ function NewChatOrder() {
 				</div>
 
 				<div class="grid gap-1.5">
-					<div class="flex flex-wrap items-baseline justify-between gap-2">
-						<p class="text-sm font-medium">
-							Flowers{" "}
+					<p class="text-sm font-medium">
+						Flowers{" "}
+						<span class="font-normal text-petal-900/55">
+							(what it’s made of, for Reports → Flowers to buy)
+						</span>
+					</p>
+					<div class="rounded-2xl border border-petal-100 bg-petal-50/40 p-4">
+						<p class="mb-3 text-sm font-medium">
+							{draftStems(recipe.rows)} flowers{" "}
 							<span class="font-normal text-petal-900/55">
-								(what it’s made of, for Reports → Flowers to buy)
+								— ₱{recipeCost(recipe.rows).toLocaleString("en-PH")} at Flowers
+								prices
 							</span>
 						</p>
-						<Show when={draftStems(recipe.rows)}>
-							<span class="text-sm tabular-nums text-petal-900/70">
-								{draftStems(recipe.rows)} flowers
-							</span>
-						</Show>
+						<div>
+							<RecipeRows
+								rows={recipe.rows}
+								onPatch={(row, patch) => setRecipe("rows", row, patch)}
+								onChange={(rows) => setRecipe("rows", rows)}
+							/>
+						</div>
 					</div>
-					<RecipeRows
-						rows={recipe.rows}
-						onPatch={(row, patch) => setRecipe("rows", row, patch)}
-						onChange={(rows) => setRecipe("rows", rows)}
-						addLabel={recipe.rows.length ? "+ Add flower" : "+ Add the flowers"}
-					/>
 				</div>
 
 				<div class="grid gap-4 sm:grid-cols-3">

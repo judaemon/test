@@ -43,6 +43,21 @@ export const draftStems = (recipe: RecipeDraft[]) =>
 		0,
 	);
 
+/** What a recipe costs at the prices in Admin → Flowers. */
+export function useRecipeCost() {
+	const custom = useCustomSettings();
+	return (rows: RecipeDraft[]) =>
+		rows.reduce((sum, item) => {
+			const colors =
+				custom().flowers.find((f) => f.name === item.flower)?.colors ?? [];
+			const color =
+				colors.length === 1
+					? colors[0]
+					: colors.find((c) => c.name === item.color);
+			return sum + (color?.price ?? 0) * Math.max(0, Number(item.count) || 0);
+		}, 0);
+}
+
 /**
  * A recipe's rows: each a flower from Admin → Flowers, its color, how many,
  * and whether it's filler. Used for signature bouquets and custom orders.
