@@ -7,9 +7,14 @@ import {
 } from "@tanstack/solid-router";
 import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { FlowerSelect } from "~/components/admin/flower-select";
 import { createCropper } from "~/components/admin/image-cropper";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
+import {
+	newRecipeRow,
+	type RecipeDraft,
+	RecipeRows,
+	toRecipeDraft,
+} from "~/components/admin/recipe-rows";
 import {
 	adminButton,
 	adminCard,
@@ -25,7 +30,7 @@ import {
 import { WrapperSelect } from "~/components/admin/wrapper-select";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { DEFAULT_ARRANGEMENT, sizesForType } from "~/lib/arrangements";
-import { findFlowerKind, flowerKinds } from "~/lib/custom-bouquet";
+import { findFlowerKind } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
 import { formatRecipeItem, sameRecipe } from "~/lib/flowers";
 import {
@@ -43,7 +48,6 @@ import { shopNow } from "~/lib/time";
 import {
 	useArrangementTypes,
 	useCustomSettings,
-	useFlowerPhotos,
 	useSizes,
 } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
@@ -55,12 +59,7 @@ import {
 	saveProductFn,
 	uploadBouquetPhoto,
 } from "~/server/admin/catalog";
-import type {
-	AdminProduct,
-	PhotoTag,
-	ProductVariant,
-	RecipeItem,
-} from "~/types/product";
+import type { AdminProduct, PhotoTag, ProductVariant } from "~/types/product";
 
 interface EditorSearch {
 	/** Opens scrolled to this style, from a row on Signature bouquets. */
@@ -118,14 +117,6 @@ interface VariantDraft {
 	aiPhotos: boolean;
 }
 
-interface RecipeDraft {
-	key: string;
-	flower: string;
-	count: string;
-	color: string;
-	filler: boolean;
-}
-
 /** A typed stock count; blank is no limit. */
 const stockInput = (value: string) =>
 	value.trim() === "" ? null : Number(value);
@@ -151,14 +142,6 @@ function shopperSees(v: VariantDraft) {
 	});
 	return readyBy ? `${label} · ready ${formatReadyDate(readyBy)}` : label;
 }
-
-const newRecipeRow = (): RecipeDraft => ({
-	key: crypto.randomUUID(),
-	flower: "",
-	count: "1",
-	color: "",
-	filler: false,
-});
 
 interface ProductDraft {
 	title: string;
@@ -195,15 +178,6 @@ const newVariant = (): VariantDraft => ({
 	wrapperId: "",
 	aiPhotos: true,
 });
-
-const toRecipeDraft = (recipe: RecipeItem[]): RecipeDraft[] =>
-	recipe.map((item) => ({
-		key: crypto.randomUUID(),
-		flower: item.flower,
-		count: String(item.count ?? 1),
-		color: item.color ?? "",
-		filler: item.filler ?? false,
-	}));
 
 function toDraft(product: AdminProduct | null): ProductDraft {
 	if (!product) {
@@ -258,17 +232,6 @@ function ProductEditor() {
 	/** The sizes this arrangement's type comes in. */
 	const typeSizes = () => sizesForType(sizes(), draft.arrangement);
 	const flowerKind = (name: string) => findFlowerKind(name, custom());
-	const flowerPhoto = useFlowerPhotos();
-	/** For the picker, where no color is chosen yet: any photo of the flower. */
-	const listPhoto = (name: string) =>
-		flowerPhoto(name) ??
-		custom()
-			.flowers.find((f) => f.name === name)
-			?.colors.find((c) => c.image)?.image;
-	/** The flower picker's list, as one group. */
-	const flowerGroups = () => [
-		{ label: "Flowers", kinds: flowerKinds(custom()) },
-	];
 	/** Live total while editing; filler isn't counted. */
 	const recipeStems = (recipe: RecipeDraft[]) =>
 		recipe.reduce(
@@ -520,143 +483,6 @@ function ProductEditor() {
 				variant.imageCaptions.splice(at, 1);
 			}),
 		);
-
-	/** The rows of a recipe, the bouquet's or a style's own. */
-	const RecipeRows = (props: {
-		rows: RecipeDraft[];
-		onPatch: (row: number, patch: Partial<RecipeDraft>) => void;
-		onChange: (rows: RecipeDraft[]) => void;
-	}) => (
-		<>
-			<ul class="flex flex-col gap-2">
-				<Index each={props.rows}>
-					{(item, row) => (
-						<li class="flex flex-wrap items-center gap-2 border-b border-petal-50 pb-2 sm:flex-nowrap sm:border-0 sm:pb-0">
-							<Show
-								when={flowerPhoto(item().flower, item().color)}
-								fallback={
-									<span
-										title="No photo yet. Add one in Flowers."
-										class="size-10 shrink-0 rounded-lg border-2 border-dashed border-petal-200"
-									/>
-								}
-							>
-								{(src) => (
-									<ZoomableImage
-										src={src()}
-										alt={item().flower}
-										caption={item().flower}
-										hoverPreview
-										class="size-10 shrink-0 rounded-lg border border-black/10 object-cover"
-									/>
-								)}
-							</Show>
-							<FlowerSelect
-								label={`Kind of flower ${row + 1}`}
-								groups={flowerGroups()}
-								value={item().flower}
-								photo={listPhoto}
-								onChange={(flower) =>
-									props.onPatch(row, {
-										flower,
-										// Start with its first color; a single color isn't picked.
-										color: flowerKind(flower)?.colors
-											? (flowerColors(flower)[0]?.name ?? "")
-											: "",
-									})
-								}
-							/>
-							<Show when={flowerKind(item().flower)?.colors}>
-								<select
-									value={item().color}
-									onChange={(e) =>
-										props.onPatch(row, { color: e.currentTarget.value })
-									}
-									aria-label={`${item().flower} color`}
-									class={cn(adminInput, "min-w-0 flex-1 sm:w-36 sm:flex-none")}
-								>
-									<Show
-										when={
-											!flowerColors(item().flower).some(
-												(c) => c.name === item().color,
-											)
-										}
-									>
-										<option value={item().color} disabled>
-											{item().color || "Pick a color"}
-										</option>
-									</Show>
-									<For each={flowerColors(item().flower)}>
-										{(color) => (
-											<option
-												value={color.name}
-												selected={color.name === item().color}
-											>
-												{color.name}
-												{color.enabled ? "" : " (not in custom bouquets)"}
-											</option>
-										)}
-									</For>
-								</select>
-							</Show>
-							<Show
-								when={item().flower}
-								fallback={<span class="flex-1 sm:w-24 sm:flex-none" />}
-							>
-								<span aria-hidden="true" class="text-petal-900/50">
-									×
-								</span>
-								<input
-									type="number"
-									min="1"
-									max="500"
-									step="1"
-									inputMode="numeric"
-									value={item().count}
-									onInput={(e) =>
-										props.onPatch(row, { count: e.currentTarget.value })
-									}
-									aria-label={`How many ${item().flower}`}
-									class={cn(adminInput, "w-20 tabular-nums")}
-								/>
-								<label
-									title="Filler isn’t counted in the number of flowers"
-									class="flex shrink-0 cursor-pointer items-center gap-1.5 text-sm text-petal-900/70"
-								>
-									<input
-										type="checkbox"
-										checked={item().filler}
-										onChange={(e) =>
-											props.onPatch(row, { filler: e.currentTarget.checked })
-										}
-										class="size-4 accent-petal-700"
-									/>
-									Filler
-								</label>
-							</Show>
-							<button
-								type="button"
-								class={cn(adminButton.ghost, "text-error-foreground")}
-								onClick={() =>
-									props.onChange(props.rows.filter((_, i) => i !== row))
-								}
-								aria-label={`Remove flower ${row + 1}`}
-							>
-								✕
-							</button>
-						</li>
-					)}
-				</Index>
-			</ul>
-			<button
-				type="button"
-				class={cn(adminButton.ghost, "mt-1")}
-				onClick={() => props.onChange([...props.rows, newRecipeRow()])}
-			>
-				+ Add flower
-			</button>
-		</>
-	);
 
 	const save = async (event: SubmitEvent) => {
 		event.preventDefault();

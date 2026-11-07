@@ -7,7 +7,12 @@ import {
 } from "@tanstack/solid-router";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
-
+import {
+	draftStems,
+	type RecipeDraft,
+	RecipeRows,
+	toRecipeDraft,
+} from "~/components/admin/recipe-rows";
 import {
 	adminButton,
 	adminCard,
@@ -132,6 +137,10 @@ function NewChatOrder() {
 	const [wrapperId, setWrapperId] = createSignal(line?.custom?.wrapperId ?? "");
 	const custom = useCustomSettings();
 	const wrappers = () => custom().wrappers;
+	// The flowers it's made of, like a signature bouquet's recipe.
+	const [recipe, setRecipe] = createStore<{ rows: RecipeDraft[] }>({
+		rows: toRecipeDraft(line?.recipe ?? []),
+	});
 
 	const addPhotos = (files: Iterable<File>) => {
 		const room = CHAT_PHOTOS_MAX - photos().length;
@@ -167,6 +176,19 @@ function NewChatOrder() {
 		body.set("method", method());
 		body.set("contactPlatform", platform());
 		body.set("wrapperId", wrapperId());
+		body.set(
+			"recipe",
+			JSON.stringify(
+				recipe.rows
+					.filter((row) => row.flower)
+					.map((row) => ({
+						flower: row.flower,
+						color: row.color,
+						count: Number(row.count),
+						filler: row.filler,
+					})),
+			),
+		);
 		for (const [field, value] of Object.entries(customer))
 			body.set(field, value);
 		for (const photo of photos())
@@ -499,6 +521,28 @@ function NewChatOrder() {
 						wrappers={wrappers()}
 						value={wrapperId()}
 						onChange={setWrapperId}
+					/>
+				</div>
+
+				<div class="grid gap-1.5">
+					<div class="flex flex-wrap items-baseline justify-between gap-2">
+						<p class="text-sm font-medium">
+							Flowers{" "}
+							<span class="font-normal text-petal-900/55">
+								(what it’s made of, for Reports → Flowers to buy)
+							</span>
+						</p>
+						<Show when={draftStems(recipe.rows)}>
+							<span class="text-sm tabular-nums text-petal-900/70">
+								{draftStems(recipe.rows)} flowers
+							</span>
+						</Show>
+					</div>
+					<RecipeRows
+						rows={recipe.rows}
+						onPatch={(row, patch) => setRecipe("rows", row, patch)}
+						onChange={(rows) => setRecipe("rows", rows)}
+						addLabel={recipe.rows.length ? "+ Add flower" : "+ Add the flowers"}
 					/>
 				</div>
 

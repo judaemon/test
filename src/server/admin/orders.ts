@@ -27,6 +27,7 @@ import {
 	PAYMENT_STATUSES,
 	WRAPPER_STATUSES,
 } from "~/types/order";
+import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
 import { staffActor } from "../order-actor";
 import { listOrderLog } from "../order-log-repo";
@@ -55,6 +56,7 @@ import {
 	setWrapperStatus,
 	updateChatOrder,
 } from "../orders-repo";
+import { parseRecipe } from "../recipe-input";
 import {
 	deleteUpload,
 	deleteUploadById,
@@ -388,8 +390,17 @@ function parseChatOrderForm(input: unknown) {
 		),
 		notes: message,
 	});
+	let recipeRows: unknown = [];
+	try {
+		recipeRows = JSON.parse(field("recipe") || "[]");
+	} catch {
+		throw new InputError("Check the flowers.");
+	}
 	return {
 		details,
+		// What it's made of, for Reports → Flowers to buy; optional. Checked
+		// against Admin → Flowers on the server, in checkChatOrder.
+		recipeRows,
 		wrapperId: field("wrapperId").slice(0, 64),
 		total: Math.round(total * 100) / 100,
 		paid: Math.round(paid * 100) / 100,
@@ -434,7 +445,15 @@ function checkChatOrder(data: ChatOrderForm, keepWrapperId?: string) {
 				message: `${wrapper.name} wrappers are out of stock. Pick another, or add stock in Wrappers.`,
 			},
 		};
-	return { wrapper };
+	let recipe: RecipeItem[];
+	try {
+		recipe = parseRecipe(data.recipeRows, "Flowers");
+	} catch (error) {
+		if (error instanceof InputError)
+			return { problem: { ok: false as const, message: error.message } };
+		throw error;
+	}
+	return { wrapper, recipe };
 }
 
 /** The order's one bouquet line: the flowers are described in the message. */
@@ -442,6 +461,7 @@ function chatOrderLine(
 	orderId: string,
 	data: ChatOrderForm,
 	wrapper: ReturnType<typeof getWrapper>,
+	recipe: RecipeItem[],
 	photoUrls: string[],
 	previous?: PricedLine,
 ): PricedLine {
@@ -467,6 +487,7 @@ function chatOrderLine(
 			wrapperId: wrapper?.id ?? "",
 			...(photoUrls.length ? { referenceImages: photoUrls } : {}),
 		},
+		...(recipe.length ? { recipe } : {}),
 		quantity: 1,
 		unitPrice: data.total,
 		lineTotal: data.total,
@@ -495,6 +516,7 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 				id,
 				data,
 				checked.wrapper,
+				checked.recipe,
 				saved.map((file) => publicUploadUrl("references", file)),
 			);
 			const order = createOrder(
@@ -575,6 +597,7 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 						order.id,
 						data.form,
 						checked.wrapper,
+						checked.recipe,
 						[
 							...kept,
 							...saved.map((file) => publicUploadUrl("references", file)),
