@@ -1,49 +1,20 @@
 import { For, Show } from "solid-js";
 
 import { formatPrice } from "~/lib/product";
-import {
-	allowsMethod,
-	bestSale,
-	type LineSale,
-	methodsText,
-	type PublicSale,
-	savings,
-} from "~/lib/sale";
+import { bestSale, type LineSale, type PublicSale, savings } from "~/lib/sale";
 import { useSales } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 
 type SaleItem = { productId: string; arrangement?: string };
 
 /**
- * The best live sale for an item at a price, for any payment method: the shop
- * shows it as the price. Sales for some methods only aren't counted here.
+ * The best live sale for an item at a price, shown as its price in the shop,
+ * including sales for some payment methods only: checkout takes those off once
+ * the shopper picks one of those methods.
  */
 export function useItemSale(item: () => SaleItem, price: () => number) {
 	const sales = useSales();
-	return () =>
-		bestSale(
-			price(),
-			item(),
-			sales().filter((sale) => allowsMethod(sale, null)),
-		);
-}
-
-/**
- * A better price for paying a particular way, if a sale for some payment
- * methods only beats the price shown: e.g. ₱3,149 with GCash.
- */
-export function useMethodDeal(item: () => SaleItem, price: () => number) {
-	const sales = useSales();
-	const open = useItemSale(item, price);
-	return () => {
-		const best = bestSale(
-			price(),
-			item(),
-			sales().filter((sale) => sale.paymentMethods.length > 0),
-		);
-		const shown = open()?.price ?? price();
-		return best && best.price < shown ? best : undefined;
-	};
+	return () => bestSale(price(), item(), sales());
 }
 
 /** "−5%" or "−₱100": how a sale's tag reads. */
@@ -71,53 +42,34 @@ export function SalePrice(props: {
 		() => props.item,
 		() => props.price,
 	);
-	const deal = useMethodDeal(
-		() => props.item,
-		() => props.price,
-	);
 	return (
-		<>
-			<Show
-				when={best()}
-				fallback={
-					<span class={props.class}>
-						{formatPrice(props.price, props.currency)}
+		<Show
+			when={best()}
+			fallback={
+				<span class={props.class}>
+					{formatPrice(props.price, props.currency)}
+				</span>
+			}
+		>
+			{(sale) => (
+				<span class="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+					<span class={cn(props.class, "text-sale")}>
+						<span class="sr-only">Sale price </span>
+						{formatPrice(sale().price, props.currency)}
 					</span>
-				}
-			>
-				{(sale) => (
-					<span class="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-						<span class={cn(props.class, "text-sale")}>
-							<span class="sr-only">Sale price </span>
-							{formatPrice(sale().price, props.currency)}
-						</span>
-						<s
-							class={cn(
-								"font-normal text-petal-900/45",
-								props.compact ? "text-[0.8em]" : "text-[0.55em]",
-							)}
-						>
-							<span class="sr-only">was </span>
-							{formatPrice(sale().original, props.currency)}
-						</s>
-						<SaleTag sale={sale().sale} compact={props.compact} />
-					</span>
-				)}
-			</Show>
-			<Show when={deal()}>
-				{(better) => (
-					<span
+					<s
 						class={cn(
-							"block font-medium text-sale",
-							props.compact ? "text-[0.8em]" : "text-sm",
+							"font-normal text-petal-900/45",
+							props.compact ? "text-[0.8em]" : "text-[0.55em]",
 						)}
 					>
-						{formatPrice(better().price, props.currency)} with{" "}
-						{methodsText(better().sale.paymentMethods)}
-					</span>
-				)}
-			</Show>
-		</>
+						<span class="sr-only">was </span>
+						{formatPrice(sale().original, props.currency)}
+					</s>
+					<SaleTag sale={sale().sale} compact={props.compact} />
+				</span>
+			)}
+		</Show>
 	);
 }
 

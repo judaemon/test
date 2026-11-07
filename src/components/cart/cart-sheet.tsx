@@ -30,7 +30,8 @@ import {
 	styleLabel,
 	swatchBackground,
 } from "~/lib/product";
-import { usePricedCart } from "~/lib/use-catalog";
+import { methodsText } from "~/lib/sale";
+import { useBagMethodDeal, usePricedCart } from "~/lib/use-catalog";
 import { QuantityStepper } from "./quantity-stepper";
 
 export const pillPrimary =
@@ -38,6 +39,7 @@ export const pillPrimary =
 
 export function CartSheet() {
 	const cart = usePricedCart();
+	const methodDeal = useBagMethodDeal();
 	const hasProblem = () => cart().lines.some((line) => line.problem);
 	const close = () => setCartOpen(false);
 	let titleRef: HTMLHeadingElement | undefined;
@@ -98,6 +100,14 @@ export function CartSheet() {
 								{formatPrice(cart().total, cart().currency)}
 							</dd>
 						</dl>
+						<Show when={methodDeal()}>
+							{(deal) => (
+								<p class="mt-3 rounded-xl bg-sale/10 px-3 py-2 text-sm font-medium text-sale">
+									Pay with {methodsText(deal().methods)} at checkout and save{" "}
+									{formatPrice(deal().saves, cart().currency)}.
+								</p>
+							)}
+						</Show>
 						<Show when={hasProblem()}>
 							<p
 								role="alert"

@@ -31,7 +31,7 @@ import {
 	preorderReadyDate,
 	stockLabel,
 } from "~/lib/product";
-import { saleEndsText } from "~/lib/sale";
+import { methodsText, saleEndsText } from "~/lib/sale";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
 import {
 	useArrangementTypes,
@@ -186,6 +186,12 @@ export function ProductInfo(props: ProductInfoProps) {
 							)}{" "}
 							· {saleEndsText(best().sale.endsOn)}
 						</span>
+						<Show when={best().sale.paymentMethods.length}>
+							<span class="w-full text-petal-900/60">
+								When you pay with {methodsText(best().sale.paymentMethods)}.
+								Checkout takes it off once you choose.
+							</span>
+						</Show>
 					</p>
 				)}
 			</Show>
