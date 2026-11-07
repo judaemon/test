@@ -25,6 +25,11 @@ import { ChoiceSelect } from "~/components/checkout/choice-select";
 import { PaymentSection } from "~/components/checkout/payment-section";
 import { ColorSwatch } from "~/components/order/company-label";
 import { PreorderTag } from "~/components/product/preorder-tag";
+import {
+	LinePrice,
+	SaleRows,
+	subtotalBeforeSale,
+} from "~/components/shop/sale-price";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
@@ -698,7 +703,7 @@ function CheckoutForm(props: {
 									</Show>
 								</span>
 								<span class="text-sm font-medium tabular-nums">
-									{formatPrice(line.lineTotal, props.cart.currency)}
+									<LinePrice line={line} currency={props.cart.currency} />
 								</span>
 							</li>
 						)}
@@ -742,8 +747,9 @@ function CheckoutForm(props: {
 				<dl class="grid grid-cols-[1fr_auto] gap-y-1.5 border-t border-petal-100 pt-4 text-sm">
 					<dt class="text-petal-900/70">Subtotal</dt>
 					<dd class="text-right tabular-nums">
-						{formatPrice(props.cart.subtotal, props.cart.currency)}
+						{formatPrice(subtotalBeforeSale(props.cart), props.cart.currency)}
 					</dd>
+					<SaleRows lines={props.cart.lines} currency={props.cart.currency} />
 					<Show when={cardCount() > 0}>
 						<dt class="text-petal-900/70">
 							{cardCount() === 1

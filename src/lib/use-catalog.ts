@@ -29,12 +29,18 @@ export function useCustomSettings() {
 	return useLoaderData({ from: "__root__", select: (data) => data.custom });
 }
 
-/** The bag priced against the live catalog (unknown items are dropped). */
+/** The sales live today (from the root route). */
+export function useSales() {
+	return useLoaderData({ from: "__root__", select: (data) => data.sales });
+}
+
+/** The bag priced against the live catalog and sales (unknown items are dropped). */
 export function usePricedCart() {
 	const catalog = useCatalog();
 	const custom = useCustomSettings();
+	const sales = useSales();
 	const lines = useSelector(cartStore, (state) => state.lines);
-	return createMemo(() => priceCart(lines(), catalog(), custom()));
+	return createMemo(() => priceCart(lines(), catalog(), custom(), sales()));
 }
 
 /** The signed-in shopper, or null for guests (from the root route). */

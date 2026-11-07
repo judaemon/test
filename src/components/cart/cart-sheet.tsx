@@ -2,6 +2,11 @@ import { Link } from "@tanstack/solid-router";
 import { Index, Show } from "solid-js";
 
 import { PreorderTag } from "~/components/product/preorder-tag";
+import {
+	LinePrice,
+	SaleRows,
+	subtotalBeforeSale,
+} from "~/components/shop/sale-price";
 import { FlowerMark } from "~/components/site/brand";
 import {
 	Sheet,
@@ -83,8 +88,9 @@ export function CartSheet() {
 						<dl class="grid grid-cols-[1fr_auto] gap-y-1.5 text-sm">
 							<dt class="text-petal-900/70">Subtotal</dt>
 							<dd class="text-right tabular-nums">
-								{formatPrice(cart().subtotal, cart().currency)}
+								{formatPrice(subtotalBeforeSale(cart()), cart().currency)}
 							</dd>
+							<SaleRows lines={cart().lines} currency={cart().currency} />
 							<dt class="text-petal-900/70">Delivery</dt>
 							<dd class="text-right font-medium text-sage-600">Free</dd>
 							<dt class="pt-2 text-base font-semibold">Total</dt>
@@ -173,7 +179,7 @@ function BagLine(props: {
 				<div class="flex items-start justify-between gap-3">
 					<p class="font-medium leading-snug">{line().title}</p>
 					<p class="text-sm font-semibold tabular-nums">
-						{formatPrice(line().lineTotal, props.currency)}
+						<LinePrice line={line()} currency={props.currency} />
 					</p>
 				</div>
 				<p class="mt-1 flex items-center gap-1.5 text-sm text-petal-900/65">

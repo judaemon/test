@@ -625,6 +625,34 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	CREATE INDEX order_log_by_order ON order_log (order_id, id);
 	CREATE INDEX order_log_by_at ON order_log (at);
 	`,
+	// v43: sales staff run from Admin → Sales: a percent or an amount off each
+	// item, between two Manila days, on everything or on chosen arrangement
+	// types, arrangements and custom bouquets. Starts with the owner's 5% off
+	// everything until November 9, 2026.
+	`
+	CREATE TABLE sales (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		-- percent or amount
+		kind TEXT NOT NULL CHECK (kind IN ('percent', 'amount')),
+		-- Percent off (1-90), or whole pesos off each item.
+		value INTEGER NOT NULL CHECK (value > 0),
+		-- Manila days, YYYY-MM-DD, both included.
+		starts_on TEXT NOT NULL,
+		ends_on TEXT NOT NULL,
+		enabled INTEGER NOT NULL DEFAULT 1,
+		-- all or selected
+		scope TEXT NOT NULL CHECK (scope IN ('all', 'selected')),
+		arrangement_types TEXT NOT NULL DEFAULT '[]',
+		products TEXT NOT NULL DEFAULT '[]',
+		include_custom INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	INSERT INTO sales (id, name, kind, value, starts_on, ends_on, enabled, scope, created_at, updated_at)
+	VALUES ('november-sale-2026', 'November Sale', 'percent', 5, '2026-11-07', '2026-11-09', 1, 'all',
+		strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+	`,
 ];
 
 declare global {

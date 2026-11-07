@@ -54,6 +54,7 @@ import {
 	updateCustomerOrder,
 } from "./orders-repo";
 import { getPaymentAccount, listPaymentAccounts } from "./payments-repo";
+import { listLiveSales } from "./sales-repo";
 import { deleteUpload, saveImage, UploadError } from "./uploads";
 
 export type PlaceOrderResult =
@@ -162,6 +163,7 @@ export const placeOrder = createServerFn({ method: "POST" })
 			data.lines,
 			listPublicProducts(),
 			getCustomSettings(),
+			listLiveSales(),
 		);
 		if (cart.lines.length === 0) {
 			return { ok: false, message: "Your bag is empty." };
@@ -427,6 +429,8 @@ export const updateMyOrder = createServerFn({ method: "POST" })
 			const [priced] = priceCart(
 				[{ productId, variantId, quantity: count }],
 				listPublicProducts(),
+				undefined,
+				listLiveSales(),
 			).lines;
 			if (!priced)
 				return { ok: false, message: "That bouquet isn’t available anymore." };

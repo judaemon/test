@@ -1,6 +1,7 @@
 import { useSelector } from "@tanstack/solid-store";
 import type { JSX } from "solid-js";
 import { createEffect, createSignal, For, on, Show } from "solid-js";
+import { SalePrice, useItemSale } from "~/components/shop/sale-price";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -30,6 +31,7 @@ import {
 	preorderReadyDate,
 	stockLabel,
 } from "~/lib/product";
+import { saleEndsText } from "~/lib/sale";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
 import {
 	useArrangementTypes,
@@ -57,6 +59,11 @@ export function ProductInfo(props: ProductInfoProps) {
 	const [isAdding, setIsAdding] = createSignal(false);
 
 	const price = () => getVariantPrice(props.product, props.variant);
+	const saleItem = () => ({
+		productId: props.product.id,
+		arrangement: props.product.arrangement,
+	});
+	const sale = useItemSale(saleItem, price);
 	const sizes = useSizes();
 	const size = () => findSize(sizes(), props.product.size);
 	const types = useArrangementTypes();
@@ -143,7 +150,11 @@ export function ProductInfo(props: ProductInfoProps) {
 			>
 				<p class="text-3xl font-bold tabular-nums">
 					<span class="sr-only">Price: </span>
-					{formatPrice(price(), props.product.currency)}
+					<SalePrice
+						price={price()}
+						currency={props.product.currency}
+						item={saleItem()}
+					/>
 				</p>
 				<Show
 					when={props.variant.inStock}
@@ -162,6 +173,19 @@ export function ProductInfo(props: ProductInfoProps) {
 					</Badge>
 				</Show>
 			</div>
+
+			<Show when={sale()}>
+				{(best) => (
+					<p class="-mt-3 flex flex-wrap items-center gap-x-2 text-sm">
+						<span class="font-semibold text-sale">{best().sale.name}</span>
+						<span class="text-petal-900/60">
+							You save{" "}
+							{formatPrice(price() - best().price, props.product.currency)} ·{" "}
+							{saleEndsText(best().sale.endsOn)}
+						</span>
+					</p>
+				)}
+			</Show>
 
 			<Show when={props.variant.preorder && props.variant.inStock}>
 				<p class="-mt-2 rounded-lg bg-warning/60 px-3 py-2 text-sm text-warning-foreground">

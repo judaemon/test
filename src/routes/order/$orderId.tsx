@@ -5,6 +5,11 @@ import { pillPrimary } from "~/components/cart/cart-sheet";
 import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { PreorderTag } from "~/components/product/preorder-tag";
+import {
+	LinePrice,
+	SaleRows,
+	subtotalBeforeSale,
+} from "~/components/shop/sale-price";
 import { FlowerMark, Petal, Sparkle } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
@@ -322,7 +327,7 @@ function OrderConfirmation() {
 										</Show>
 									</span>
 									<span class="text-sm font-medium tabular-nums">
-										{formatPrice(line.lineTotal, order().currency)}
+										<LinePrice line={line} currency={order().currency} />
 									</span>
 									<Show when={line.messages?.some(hasContent)}>
 										<div class="flex w-full flex-col gap-2 wrap-anywhere sm:pl-20">
@@ -373,8 +378,9 @@ function OrderConfirmation() {
 					<dl class="mt-5 grid grid-cols-[1fr_auto] gap-y-1.5 border-t border-petal-100 pt-4 text-sm">
 						<dt class="text-petal-900/70">Subtotal</dt>
 						<dd class="text-right tabular-nums">
-							{formatPrice(order().subtotal, order().currency)}
+							{formatPrice(subtotalBeforeSale(order()), order().currency)}
 						</dd>
+						<SaleRows lines={order().lines} currency={order().currency} />
 						<dt class="pt-2 text-base font-semibold">Total</dt>
 						<dd class="pt-2 text-right text-base font-semibold tabular-nums">
 							{formatPrice(order().total, order().currency)}

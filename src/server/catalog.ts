@@ -7,6 +7,7 @@ import {
 	toPublicProduct,
 } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
+import { listLiveSales } from "./sales-repo";
 import { listSizes } from "./sizes-repo";
 
 /** Everything the shop shows; loaded once per navigation by the root route. */
@@ -29,6 +30,8 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 			arrangementTypes: listArrangementTypes().map(
 				({ usedIn: _usedIn, sizeCount: _sizeCount, ...type }) => type,
 			),
+			// Sales live today; checkout prices the bag with them again on the server.
+			sales: listLiveSales(),
 		};
 	},
 );

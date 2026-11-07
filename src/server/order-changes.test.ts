@@ -503,3 +503,109 @@ describe("the order log", () => {
 		expect(ids).toEqual([...ids].sort((a, b) => b - a));
 	});
 });
+
+describe("orders placed during a sale", () => {
+	const fivePercent = {
+		id: "test-sale",
+		name: "Test Sale",
+		kind: "percent" as const,
+		value: 5,
+		startsOn: "2000-01-01",
+		endsOn: "2999-12-31",
+		scope: "all" as const,
+		arrangementTypes: [],
+		products: [],
+		includeCustom: false,
+	};
+	test("keep the sale price, the old price and the sale on each bouquet", () => {
+		const cart = pricing.priceCart(
+			[{ ...first, quantity: 2 }],
+			catalog.listPublicProducts(),
+			undefined,
+			[fivePercent],
+		);
+		const order = repo.createOrder({
+			id: crypto.randomUUID(),
+			details: DETAILS,
+			cart,
+			payment: { method: "gcash", status: "on_hold" },
+		});
+		const [line] = order.lines;
+		expect(line?.originalUnitPrice).toBe(800);
+		expect(line?.unitPrice).toBe(760);
+		expect(line?.sale).toEqual({
+			id: "test-sale",
+			name: "Test Sale",
+			label: "5% off",
+		});
+		expect(order.total).toBe(1520);
+	});
+	test("an edit after the sale keeps the price the bouquet was ordered at", () => {
+		const cart = pricing.priceCart(
+			[{ ...second, quantity: 2 }],
+			catalog.listPublicProducts(),
+			undefined,
+			[fivePercent],
+		);
+		const order = repo.createOrder({
+			id: crypto.randomUUID(),
+			details: DETAILS,
+			cart,
+			payment: { method: "gcash", status: "on_hold" },
+		});
+		const kept = order.lines[0] as PricedLine;
+		const after = repo.updateCustomerOrder(order.id, {
+			details: DETAILS,
+			lines: [{ ...kept, quantity: 1, lineTotal: kept.unitPrice }],
+		});
+		// 1,300 less 5%, rounded down.
+		expect(after.total).toBe(1235);
+	});
+});
+
+describe("the sales store", () => {
+	test("starts with the owner's 5% off everything, Nov 7–9, 2026", async () => {
+		const sales = await import("./sales-repo");
+		const november = sales
+			.listSales()
+			.find((sale) => sale.id === "november-sale-2026");
+		expect(november).toMatchObject({
+			kind: "percent",
+			value: 5,
+			startsOn: "2026-11-07",
+			endsOn: "2026-11-09",
+			scope: "all",
+			enabled: true,
+		});
+		expect(sales.listLiveSales("2026-11-09").map((s) => s.id)).toContain(
+			"november-sale-2026",
+		);
+		expect(sales.listLiveSales("2026-11-10").map((s) => s.id)).not.toContain(
+			"november-sale-2026",
+		);
+	});
+	test("saves, switches off and deletes a sale", async () => {
+		const sales = await import("./sales-repo");
+		const saved = sales.saveSale({
+			name: "Corsage week",
+			kind: "amount",
+			value: 100,
+			startsOn: "2026-12-01",
+			endsOn: "2026-12-07",
+			enabled: true,
+			scope: "selected",
+			arrangementTypes: ["corsage"],
+			products: [],
+			includeCustom: false,
+		});
+		expect(
+			sales.listLiveSales("2026-12-03").some((s) => s.id === saved.id),
+		).toBe(true);
+		sales.saveSale({ ...saved, enabled: false }, saved.id);
+		expect(
+			sales.listLiveSales("2026-12-03").some((s) => s.id === saved.id),
+		).toBe(false);
+		sales.deleteSale(saved.id);
+		expect(sales.listSales().some((s) => s.id === saved.id)).toBe(false);
+	});
+});

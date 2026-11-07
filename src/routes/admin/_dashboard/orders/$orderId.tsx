@@ -28,6 +28,11 @@ import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
 import { PrivateImage } from "~/components/order/private-image";
+import {
+	LinePrice,
+	SaleRows,
+	subtotalBeforeSale,
+} from "~/components/shop/sale-price";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
 import { isChatOrder } from "~/lib/chat-order";
@@ -385,13 +390,20 @@ function OrderDetail() {
 											</Show>
 										</span>
 										<span class="text-sm tabular-nums">
-											{formatPrice(line.lineTotal, order().currency)}
+											<LinePrice line={line} currency={order().currency} />
 										</span>
 									</li>
 								)}
 							</For>
 						</ul>
 						<dl class="mt-4 grid grid-cols-[1fr_auto] gap-y-1 border-t border-petal-100 pt-3 text-sm">
+							<Show when={order().lines.some((line) => line.sale)}>
+								<dt class="text-petal-900/65">Before sale</dt>
+								<dd class="text-right tabular-nums">
+									{formatPrice(subtotalBeforeSale(order()), order().currency)}
+								</dd>
+								<SaleRows lines={order().lines} currency={order().currency} />
+							</Show>
 							<Show when={SHOW_DELIVERY}>
 								<dt class="text-petal-900/65">Delivery</dt>
 								<dd class="text-right">Free</dd>

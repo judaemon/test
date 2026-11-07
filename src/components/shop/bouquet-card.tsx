@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/solid-router";
 import { Show } from "solid-js";
+import { SalePrice } from "~/components/shop/sale-price";
 import { photoSrc } from "~/lib/photos";
-import { formatPrice, startingPrice, stockLabel } from "~/lib/product";
+import { startingPrice, stockLabel } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
@@ -74,9 +75,16 @@ export function BouquetCard(props: {
 					<Show when={price().varies}>
 						<span class="text-[0.85em] text-petal-900/50">From </span>
 					</Show>
-					<span class={cn("font-medium", !soldOut() && "text-petal-900")}>
-						{formatPrice(price().amount, props.product.currency)}
-					</span>
+					<SalePrice
+						price={price().amount}
+						currency={props.product.currency}
+						item={{
+							productId: props.product.id,
+							arrangement: props.product.arrangement,
+						}}
+						class={cn("font-medium", !soldOut() && "text-petal-900")}
+						compact
+					/>
 				</p>
 			</div>
 		</Link>

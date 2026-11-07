@@ -6,6 +6,7 @@ import { createStore, produce, reconcile } from "solid-js/store";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import { BouquetCard } from "~/components/shop/bouquet-card";
+import { SalePrice } from "~/components/shop/sale-price";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
@@ -885,7 +886,11 @@ function BuilderPage() {
 								</dd>
 								<dt class="pt-2 text-base font-semibold">Total</dt>
 								<dd class="pt-2 text-right text-base font-semibold tabular-nums">
-									{formatPrice(total(), CURRENCY)}
+									<SalePrice
+										price={total()}
+										currency={CURRENCY}
+										item={{ productId: CUSTOM_PRODUCT_ID }}
+									/>
 								</dd>
 							</dl>
 							<Show
@@ -931,7 +936,12 @@ function BuilderPage() {
 							<p class="shrink-0">
 								<span class="block text-xs text-petal-900/60">Total</span>
 								<span class="text-lg font-semibold tabular-nums">
-									{formatPrice(total(), CURRENCY)}
+									<SalePrice
+										price={total()}
+										currency={CURRENCY}
+										item={{ productId: CUSTOM_PRODUCT_ID }}
+										compact
+									/>
 								</span>
 							</p>
 							<button

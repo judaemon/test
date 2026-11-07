@@ -19,6 +19,7 @@ import { ChoiceSelect } from "~/components/checkout/choice-select";
 import { ColorSwatch } from "~/components/order/company-label";
 import { OrderEmailCheck } from "~/components/order/order-email-check";
 import { PreorderTag } from "~/components/product/preorder-tag";
+import { LinePrice } from "~/components/shop/sale-price";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { showToast } from "~/components/ui/toast";
@@ -56,6 +57,7 @@ import {
 } from "~/lib/order-edit";
 import { type PricedLine, priceCart } from "~/lib/pricing";
 import { formatPrice, lineName, MAX_PER_ORDER } from "~/lib/product";
+import { useSales } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { getCatalog } from "~/server/catalog";
 import { confirmOrderEmail, getOrder, updateMyOrder } from "~/server/orders";
@@ -222,6 +224,7 @@ function EditForm(props: {
 	const original = (key: string) =>
 		props.order.lines.find((line) => lineKey(line) === key);
 
+	const sales = useSales();
 	/** What can be swapped to: orderable styles not already on another row. */
 	const options = createMemo(() => {
 		const taken = new Set(items.map((item) => lineKey(item.line)));
@@ -233,6 +236,8 @@ function EditForm(props: {
 				const [line] = priceCart(
 					[{ productId: product.id, variantId: variant.id, quantity: 1 }],
 					props.products,
+					undefined,
+					sales(),
 				).lines;
 				if (!line) return [];
 				return lineName(line).toLowerCase().includes(words) ? [line] : [];
@@ -554,7 +559,10 @@ function EditForm(props: {
 													</Show>
 												</span>
 												<span class="text-sm font-medium tabular-nums">
-													{formatPrice(line.unitPrice, props.order.currency)}
+													<LinePrice
+														line={line}
+														currency={props.order.currency}
+													/>
 												</span>
 											</button>
 										</li>

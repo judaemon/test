@@ -49,6 +49,12 @@ const NAV = [
 	{ to: "/admin/reports", label: "Reports", icon: AdminIcons.reports },
 	{ to: "/admin/order-log", label: "Order log", icon: AdminIcons.log },
 	{
+		to: "/admin/sales",
+		label: "Sales",
+		icon: AdminIcons.sale,
+		owner: true,
+	},
+	{
 		to: "/admin/payments",
 		label: "Payments",
 		icon: AdminIcons.payments,

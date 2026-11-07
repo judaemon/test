@@ -58,6 +58,8 @@ code {
   --warning-foreground: oklch(0.554 0.135 66.442);
   --error: oklch(0.971 0.013 17.38);
   --error-foreground: oklch(0.505 0.213 27.518);
+  /* Sale prices and tags: a warm red that reads as a deal. */
+  --sale: oklch(0.56 0.2 25);
 }
 
 .dark {
@@ -99,6 +101,7 @@ code {
   --warning-foreground: oklch(0.905 0.182 98.111);
   --error: oklch(0.258 0.092 26.042);
   --error-foreground: oklch(0.808 0.114 19.571);
+  --sale: oklch(0.7 0.17 25);
 }
 
 @theme inline {
@@ -144,6 +147,7 @@ code {
   --color-warning-foreground: var(--warning-foreground);
   --color-error: var(--error);
   --color-error-foreground: var(--error-foreground);
+  --color-sale: var(--sale);
 }
 
 /* ORAIA brand palette */

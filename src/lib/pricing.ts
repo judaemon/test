@@ -15,6 +15,7 @@ import {
 	MAX_PER_ORDER,
 	preorderReadyDate,
 } from "~/lib/product";
+import { bestSale, type LineSale, lineSale, type PublicSale } from "~/lib/sale";
 import type { WrapperStatus } from "~/types/order";
 import type { Product, ProductVariant, RecipeItem } from "~/types/product";
 
@@ -58,7 +59,12 @@ export interface PricedLine {
 	 */
 	messages?: BouquetMessage[];
 	quantity: number;
+	/** What one costs, after any sale. */
 	unitPrice: number;
+	/** What one cost before the sale, when a sale lowered it. */
+	originalUnitPrice?: number;
+	/** The sale that lowered it, kept with the order. */
+	sale?: LineSale;
 	lineTotal: number;
 	maxQuantity: number;
 	/**
@@ -105,6 +111,8 @@ export function priceCart(
 	lines: CartLine[],
 	catalog: Product[],
 	custom?: CustomBouquetSettings,
+	/** The sales live now; the best one for each bouquet lowers its price. */
+	sales: readonly PublicSale[] = [],
 ): PricedCart {
 	const priced: PricedLine[] = [];
 	let currency = DEFAULT_CURRENCY;
@@ -112,7 +120,7 @@ export function priceCart(
 	for (const line of lines) {
 		if (line.productId === CUSTOM_PRODUCT_ID) {
 			if (!line.custom || !custom) continue;
-			priced.push(priceCustomLine(line, line.custom, custom));
+			priced.push(withSale(priceCustomLine(line, line.custom, custom), sales));
 			continue;
 		}
 		const match = findVariant(catalog, line.productId, line.variantId);
@@ -121,7 +129,7 @@ export function priceCart(
 		currency = product.currency;
 		const unitPrice = getVariantPrice(product, variant);
 		const maxQuantity = getMaxQuantity(variant);
-		priced.push({
+		const item: PricedLine = {
 			productId: product.id,
 			variantId: variant.id,
 			title: product.title,
@@ -147,7 +155,8 @@ export function priceCart(
 					: line.quantity > maxQuantity
 						? "over-stock"
 						: undefined,
-		});
+		};
+		priced.push(withSale(item, sales));
 	}
 
 	const subtotal = roundMoney(priced.reduce((sum, l) => sum + l.lineTotal, 0));
@@ -159,6 +168,19 @@ export function priceCart(
 		total: roundMoney(subtotal + deliveryFee),
 		currency,
 		itemCount: priced.reduce((sum, l) => sum + l.quantity, 0),
+	};
+}
+
+/** Lowers a line's price by the best live sale that covers it, if any. */
+function withSale(line: PricedLine, sales: readonly PublicSale[]): PricedLine {
+	const best = bestSale(line.unitPrice, line, sales);
+	if (!best) return line;
+	return {
+		...line,
+		originalUnitPrice: line.unitPrice,
+		unitPrice: best.price,
+		sale: lineSale(best.sale),
+		lineTotal: roundMoney(best.price * line.quantity),
 	};
 }
 

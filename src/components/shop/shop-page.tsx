@@ -10,14 +10,15 @@ import {
 } from "solid-js";
 import { BouquetCard } from "~/components/shop/bouquet-card";
 import { HowToOrder } from "~/components/shop/how-to-order";
+import { SalePrice } from "~/components/shop/sale-price";
 import { FlowerMark, Petal, Sparkle, Wordmark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
 import { FacetFilter } from "~/components/ui/facet-filter";
 import { sizesForType } from "~/lib/arrangements";
 import { CONTACT, TAGLINE } from "~/lib/contact";
-import { CUSTOM_BANNER_IMAGE } from "~/lib/custom-bouquet";
-import { startingPrice as bouquetPrice, formatPrice } from "~/lib/product";
+import { CUSTOM_BANNER_IMAGE, CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import { startingPrice as bouquetPrice } from "~/lib/product";
 import {
 	bouquetFlowers,
 	filterKey,
@@ -317,9 +318,13 @@ export function ShopPage() {
 												{(price) => (
 													<p class="text-sm text-petal-900/65">
 														From{" "}
-														<span class="font-semibold text-petal-900">
-															{formatPrice(price(), "PHP")}
-														</span>
+														<SalePrice
+															price={price()}
+															currency="PHP"
+															item={{ productId: CUSTOM_PRODUCT_ID }}
+															class="font-semibold text-petal-900"
+															compact
+														/>
 													</p>
 												)}
 											</Show>

@@ -1,12 +1,8 @@
 import { Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
+import { SalePrice } from "~/components/shop/sale-price";
 import { photoSrc } from "~/lib/photos";
-import {
-	formatPrice,
-	getVariantPrice,
-	stockLabel,
-	swatchBackground,
-} from "~/lib/product";
+import { getVariantPrice, stockLabel, swatchBackground } from "~/lib/product";
 import type { Product } from "~/types/product";
 
 const MAX_DOTS = 5;
@@ -74,7 +70,15 @@ export function ProductCard(props: { product: Product }) {
 				</div>
 				<p class="whitespace-nowrap text-sm font-medium text-petal-700">
 					{priceVaries() ? "From " : ""}
-					{formatPrice(lowest(), props.product.currency)}
+					<SalePrice
+						price={lowest()}
+						currency={props.product.currency}
+						item={{
+							productId: props.product.id,
+							arrangement: props.product.arrangement,
+						}}
+						compact
+					/>
 				</p>
 			</div>
 		</Link>
