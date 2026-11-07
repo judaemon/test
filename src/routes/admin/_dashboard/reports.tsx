@@ -23,6 +23,7 @@ import {
 } from "~/components/order/payment-status";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { CADET_CLASSES, CIVILIAN, COMPANIES, orderColor } from "~/lib/cadets";
+import { formatSerialNumber } from "~/lib/checkout";
 import { formatPrice } from "~/lib/product";
 import type { OrderBlock } from "~/lib/report-export";
 import { cn } from "~/lib/utils";
@@ -436,6 +437,8 @@ function ReportsPage() {
 					</tfoot>
 				</table>
 			</section>
+
+			<CashPayments orders={report().orders} money={money} />
 
 			<section
 				class={cn(adminCard, "overflow-x-auto p-5 print:overflow-visible")}
@@ -1046,5 +1049,175 @@ function OrderTable(props: {
 				</For>
 			</tbody>
 		</table>
+	);
+}
+
+type CashFilter = "all" | "unpaid" | "paid";
+
+/**
+ * Everyone paying in cash to 1st Class RICARDE, and whether staff have marked
+ * their order paid: a checklist for collecting. Cancelled orders are left out.
+ */
+function CashPayments(props: {
+	orders: ReportOrder[];
+	money: (amount: number) => string;
+}) {
+	const [filter, setFilter] = createSignal<CashFilter>("all");
+	/** Staff marked it paid: the whole amount is in. */
+	const isPaid = (order: ReportOrder) => order.received >= order.total;
+	const cash = createMemo(() =>
+		props.orders
+			.filter(
+				(order) =>
+					order.paymentMethod === "cash" && order.status !== "cancelled",
+			)
+			.sort(
+				(a, b) =>
+					Number(isPaid(a)) - Number(isPaid(b)) || a.name.localeCompare(b.name),
+			),
+	);
+	const unpaid = () => cash().filter((order) => !isPaid(order));
+	const paid = () => cash().filter(isPaid);
+	const shown = () =>
+		filter() === "paid" ? paid() : filter() === "unpaid" ? unpaid() : cash();
+	const collected = () =>
+		cash().reduce((sum, order) => sum + order.received, 0);
+	const owed = () =>
+		cash().reduce((sum, order) => sum + (order.total - order.received), 0);
+	const tabs: { key: CashFilter; label: string; count: () => number }[] = [
+		{ key: "all", label: "All", count: () => cash().length },
+		{ key: "unpaid", label: "Not paid", count: () => unpaid().length },
+		{ key: "paid", label: "Paid", count: () => paid().length },
+	];
+	return (
+		<section
+			class={cn(adminCard, "mb-6 p-5 print:break-before-page")}
+			aria-labelledby="cash-payments"
+		>
+			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+				<h2 id="cash-payments" class="font-semibold">
+					Cash payments · 1st Class RICARDE (Foxtrot)
+				</h2>
+				<p class="text-sm tabular-nums text-petal-900/70">
+					Collected{" "}
+					<strong class="font-semibold">{props.money(collected())}</strong>
+					{" · "}Still to collect{" "}
+					<strong class="font-semibold text-error-foreground">
+						{props.money(owed())}
+					</strong>
+				</p>
+			</div>
+			<p class="mb-4 text-sm text-petal-900/60">
+				Everyone who chose cash, not counting cancelled orders. Paid means staff
+				verified the cash on the order’s page.
+			</p>
+			<div
+				role="tablist"
+				aria-label="Show"
+				class="mb-4 flex flex-wrap gap-2 print:hidden"
+			>
+				<For each={tabs}>
+					{(tab) => (
+						<button
+							type="button"
+							role="tab"
+							aria-selected={filter() === tab.key}
+							onClick={() => setFilter(tab.key)}
+							class={cn(
+								"rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+								filter() === tab.key
+									? "border-petal-700 bg-petal-700 font-medium text-white"
+									: "border-petal-200 bg-white hover:bg-petal-50",
+							)}
+						>
+							{tab.label}{" "}
+							<span class="tabular-nums opacity-80">({tab.count()})</span>
+						</button>
+					)}
+				</For>
+			</div>
+			<Show
+				when={shown().length}
+				fallback={
+					<p class="text-sm text-petal-900/60">
+						{cash().length ? "No orders here." : "No one has chosen cash yet."}
+					</p>
+				}
+			>
+				<div class="overflow-x-auto print:overflow-visible">
+					<table class="w-full min-w-[720px] text-left text-sm print:min-w-0">
+						<thead class="text-xs uppercase tracking-wide text-petal-900/55">
+							<tr>
+								<th class="pb-2 pr-4 font-medium">Customer</th>
+								<th class="pb-2 pr-4 font-medium">Class · Company</th>
+								<th class="pb-2 pr-4 font-medium">Serial no.</th>
+								<th class="pb-2 pr-4 font-medium">Order</th>
+								<th class="pb-2 pr-4 text-right font-medium">Amount</th>
+								<th class="pb-2 font-medium">Paid?</th>
+							</tr>
+						</thead>
+						<tbody>
+							<For each={shown()}>
+								{(order) => (
+									<tr class="border-t border-petal-100">
+										<td class="py-2.5 pr-4 font-medium">{order.name}</td>
+										<td class="py-2.5 pr-4">
+											<CompanyLabel
+												company={order.company}
+												className={order.className}
+											/>
+										</td>
+										<td class="py-2.5 pr-4 tabular-nums">
+											{order.serialNumber
+												? formatSerialNumber(order.serialNumber)
+												: "—"}
+										</td>
+										<td class="py-2.5 pr-4">
+											<Link
+												to="/admin/orders/$orderId"
+												params={{ orderId: order.id }}
+												class="font-medium underline-offset-2 hover:underline"
+											>
+												#{order.number}
+											</Link>
+											<span class="ml-1.5 text-xs text-petal-900/55">
+												{new Date(order.createdAt).toLocaleDateString("en-PH", {
+													timeZone: "Asia/Manila",
+													month: "short",
+													day: "numeric",
+												})}
+											</span>
+										</td>
+										<td class="py-2.5 pr-4 text-right tabular-nums">
+											{props.money(order.total)}
+										</td>
+										<td class="py-2.5">
+											<Show
+												when={isPaid(order)}
+												fallback={
+													<span class="inline-flex items-center gap-1 rounded-full bg-error px-2.5 py-0.5 text-xs font-semibold text-error-foreground">
+														<span aria-hidden="true">✗</span> Not paid
+														<Show when={order.received > 0}>
+															<span class="font-normal">
+																{" "}
+																({props.money(order.received)} in)
+															</span>
+														</Show>
+													</span>
+												}
+											>
+												<span class="inline-flex items-center gap-1 rounded-full bg-success px-2.5 py-0.5 text-xs font-semibold text-success-foreground">
+													<span aria-hidden="true">✓</span> Paid
+												</span>
+											</Show>
+										</td>
+									</tr>
+								)}
+							</For>
+						</tbody>
+					</table>
+				</div>
+			</Show>
+		</section>
 	);
 }

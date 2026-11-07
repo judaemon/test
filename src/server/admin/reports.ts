@@ -66,7 +66,12 @@ export interface ReportOrder {
 	className: string;
 	status: OrderStatus;
 	paymentStatus: PaymentStatus;
+	paymentMethod: PaymentMethod;
 	paymentLabel: string;
+	/** A cadet's serial number, digits only. */
+	serialNumber: string;
+	/** Money in hand for it: the total once paid, or a down payment. */
+	received: number;
 	/** What the shopper typed when they paid. */
 	referenceNumber?: string;
 	total: number;
@@ -280,7 +285,10 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			className: order.details.className,
 			status: orderStatus(order.stage, order.payment.status),
 			paymentStatus: order.payment.status,
+			paymentMethod: order.payment.method,
 			paymentLabel: methodLabel(order.payment.method),
+			serialNumber: order.details.serialNumber,
+			received: received(order),
 			referenceNumber: order.payment.referenceNumber,
 			total: order.total,
 			createdAt: order.createdAt,
