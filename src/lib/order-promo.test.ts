@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
+import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import {
 	isRewardOrder,
+	meetsMinSpend,
 	orderPromoLabel,
 	orderPromoStatus,
 	ordersUntilReward,
 	ordinal,
+	promoSubtotal,
 } from "~/lib/order-promo";
 
 const every10 = { every: 10, repeat: true };
@@ -47,5 +50,38 @@ describe("order promos", () => {
 		expect(orderPromoStatus({ ...promo, enabled: false }, "2026-11-08")).toBe(
 			"off",
 		);
+	});
+});
+
+describe("minimum order", () => {
+	test("more than the minimum, not equal to it", () => {
+		expect(meetsMinSpend({ minSpend: 500 }, 500)).toBe(false);
+		expect(meetsMinSpend({ minSpend: 500 }, 500.5)).toBe(true);
+		expect(meetsMinSpend({ minSpend: 0 }, 1)).toBe(true);
+	});
+});
+
+describe("what an order promo is on", () => {
+	const lines = [
+		{ productId: "lily", arrangement: "corsage", lineTotal: 400 },
+		{ productId: "rosie", arrangement: "bouquet", lineTotal: 2999 },
+		{ productId: CUSTOM_PRODUCT_ID, lineTotal: 1500 },
+	];
+	const scope = {
+		scope: "selected" as const,
+		arrangementTypes: [],
+		products: [],
+		includeCustom: false,
+	};
+	test("everything counts the whole order", () => {
+		expect(promoSubtotal({ ...scope, scope: "all" }, lines)).toBe(4899);
+	});
+	test("chosen items count only them", () => {
+		expect(
+			promoSubtotal({ ...scope, arrangementTypes: ["corsage"] }, lines),
+		).toBe(400);
+		expect(promoSubtotal({ ...scope, products: ["rosie"] }, lines)).toBe(2999);
+		expect(promoSubtotal({ ...scope, includeCustom: true }, lines)).toBe(1500);
+		expect(promoSubtotal({ ...scope, products: ["odette"] }, lines)).toBe(0);
 	});
 });

@@ -11,6 +11,7 @@ import {
 } from "~/lib/order-promo";
 import { formatPrice } from "~/lib/product";
 import {
+	type ItemScope,
 	markupPrice,
 	type PublicSale,
 	saleEndsText,
@@ -83,15 +84,16 @@ function PromosPage() {
 	);
 }
 
-function SaleCard(props: { sale: PublicSale }) {
+/** What a sale or promo is on: everything, or its chosen items, by name. */
+function useScopeItems(scope: () => ItemScope) {
 	const types = useArrangementTypes();
 	const products = useCatalog();
-	/** "everything", or the chosen types, arrangements and custom bouquets. */
-	const on = () => {
-		if (props.sale.scope === "all")
+	return () => {
+		const chosen = scope();
+		if (chosen.scope === "all")
 			return ["Everything in the shop, custom bouquets included"];
 		return [
-			...props.sale.arrangementTypes.map(
+			...chosen.arrangementTypes.map(
 				(id) =>
 					`All ${
 						types()
@@ -99,13 +101,17 @@ function SaleCard(props: { sale: PublicSale }) {
 							?.pluralName.toLowerCase() ?? id
 					}`,
 			),
-			...props.sale.products.flatMap((id) => {
+			...chosen.products.flatMap((id) => {
 				const product = products().find((p) => p.id === id);
 				return product ? [product.title] : [];
 			}),
-			...(props.sale.includeCustom ? ["Custom bouquets you build"] : []),
+			...(chosen.includeCustom ? ["Custom bouquets you build"] : []),
 		];
 	};
+}
+
+function SaleCard(props: { sale: PublicSale }) {
+	const on = useScopeItems(() => props.sale);
 	const example = () =>
 		props.sale.pricing === "markup"
 			? `For example, a ${formatPrice(1000, "PHP")} bouquet shows as ${formatPrice(markupPrice(1000, props.sale), "PHP")}, ${saleLabel(props.sale)}: you pay ${formatPrice(1000, "PHP")}.`
@@ -156,6 +162,7 @@ function SaleCard(props: { sale: PublicSale }) {
 }
 
 function OrderPromoCard(props: { promo: PublicOrderPromo }) {
+	const on = useScopeItems(() => props.promo);
 	return (
 		<article class="overflow-hidden rounded-3xl border border-petal-100 bg-white">
 			<div class="flex flex-wrap items-center justify-between gap-3 bg-petal-700 px-6 py-4 text-white">
@@ -168,6 +175,12 @@ function OrderPromoCard(props: { promo: PublicOrderPromo }) {
 			</div>
 			<div class="flex flex-col gap-4 p-6">
 				<p class="text-xl font-semibold">{orderPromoLabel(props.promo)}</p>
+				<div>
+					<h3 class="text-sm font-semibold">On</h3>
+					<ul class="mt-1 list-disc pl-5 text-sm text-petal-900/75">
+						<For each={on()}>{(item) => <li>{item}</li>}</For>
+					</ul>
+				</div>
 				<div>
 					<h3 class="text-sm font-semibold">How it works</h3>
 					<ul class="mt-1 list-disc pl-5 text-sm text-petal-900/75">

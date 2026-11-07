@@ -1,12 +1,14 @@
 import {
 	type AppliedPromo,
 	isRewardOrder,
+	meetsMinSpend,
 	type OrderPromo,
 	orderPromoStatus,
 	ordersUntilReward,
 	type PublicOrderPromo,
+	promoSubtotal,
 } from "~/lib/order-promo";
-import { shopToday } from "~/lib/sale";
+import { type SaleScope, shopToday } from "~/lib/sale";
 import { getDb, nowIso } from "./db";
 
 interface PromoRow {
@@ -14,6 +16,11 @@ interface PromoRow {
 	name: string;
 	every: number;
 	amount: number;
+	min_spend: number;
+	scope: SaleScope;
+	arrangement_types: string;
+	products: string;
+	include_custom: number;
 	repeat: number;
 	starts_on: string;
 	ends_on: string;
@@ -26,6 +33,11 @@ const toPromo = (row: PromoRow): OrderPromo => ({
 	name: row.name,
 	every: row.every,
 	amount: row.amount,
+	minSpend: row.min_spend,
+	scope: row.scope,
+	arrangementTypes: JSON.parse(row.arrangement_types) as string[],
+	products: JSON.parse(row.products) as string[],
+	includeCustom: row.include_custom === 1,
 	repeat: row.repeat === 1,
 	startsOn: row.starts_on,
 	endsOn: row.ends_on,
@@ -58,6 +70,11 @@ export function saveOrderPromo(input: OrderPromoInput, id?: string) {
 		name: input.name,
 		every: input.every,
 		amount: input.amount,
+		minSpend: input.minSpend,
+		scope: input.scope,
+		arrangementTypes: JSON.stringify(input.arrangementTypes),
+		products: JSON.stringify(input.products),
+		includeCustom: input.includeCustom ? 1 : 0,
 		repeat: input.repeat ? 1 : 0,
 		startsOn: input.startsOn,
 		endsOn: input.endsOn,
@@ -69,6 +86,8 @@ export function saveOrderPromo(input: OrderPromoInput, id?: string) {
 		const result = db
 			.query(
 				`UPDATE order_promos SET name = $name, every = $every, amount = $amount,
+				   min_spend = $minSpend, scope = $scope, arrangement_types = $arrangementTypes,
+				   products = $products, include_custom = $includeCustom,
 				   repeat = $repeat, starts_on = $startsOn, ends_on = $endsOn,
 				   enabled = $enabled, terms = $terms, updated_at = $now
 				 WHERE id = $id`,
@@ -77,9 +96,10 @@ export function saveOrderPromo(input: OrderPromoInput, id?: string) {
 		if (result.changes === 0) throw new Error("That promo was deleted.");
 	} else {
 		db.query(
-			`INSERT INTO order_promos (id, name, every, amount, repeat, starts_on, ends_on,
-			   enabled, terms, created_at, updated_at)
-			 VALUES ($id, $name, $every, $amount, $repeat, $startsOn, $endsOn,
+			`INSERT INTO order_promos (id, name, every, amount, min_spend, scope, arrangement_types,
+			   products, include_custom, repeat, starts_on, ends_on, enabled, terms, created_at, updated_at)
+			 VALUES ($id, $name, $every, $amount, $minSpend, $scope, $arrangementTypes,
+			   $products, $includeCustom, $repeat, $startsOn, $endsOn,
 			   $enabled, $terms, $now, $now)`,
 		).run(values);
 	}
@@ -104,25 +124,33 @@ export function countSerialOrders(serialNumber: string) {
 
 /**
  * The promo the next order under this serial number gets, if any: the biggest
- * of the live promos it's a reward order for, capped at what the bouquets
- * cost.
+ * of the live promos it's a reward order for whose items (everything, or its
+ * chosen ones) come to more than its minimum, capped at what they cost.
  */
 export function promoForNextOrder(
 	serialNumber: string,
-	subtotal: number,
+	lines: readonly {
+		productId: string;
+		arrangement?: string;
+		lineTotal: number;
+	}[],
 	today = shopToday(),
 ): AppliedPromo | undefined {
-	if (!serialNumber || subtotal <= 0) return undefined;
+	if (!serialNumber) return undefined;
 	const placed = countSerialOrders(serialNumber);
 	const best = listLiveOrderPromos(today)
 		.filter((promo) => isRewardOrder(promo, placed))
+		.map((promo) => ({ promo, onPromo: promoSubtotal(promo, lines) }))
+		.filter(
+			({ promo, onPromo }) => onPromo > 0 && meetsMinSpend(promo, onPromo),
+		)
+		.map(({ promo, onPromo }) => ({
+			promo,
+			amount: Math.min(promo.amount, onPromo),
+		}))
 		.sort((a, b) => b.amount - a.amount)[0];
 	if (!best) return undefined;
-	return {
-		id: best.id,
-		name: best.name,
-		amount: Math.min(best.amount, subtotal),
-	};
+	return { id: best.promo.id, name: best.promo.name, amount: best.amount };
 }
 
 /**
@@ -144,7 +172,16 @@ export function promoProgress(serialNumber: string, today = shopToday()) {
 		)
 		.sort((a, b) => a.remaining - b.remaining)[0];
 	return {
-		reward: reward && { name: reward.name, amount: reward.amount },
+		// The minimum order is checked against the bag at checkout.
+		reward: reward && {
+			name: reward.name,
+			amount: reward.amount,
+			minSpend: reward.minSpend,
+			scope: reward.scope,
+			arrangementTypes: reward.arrangementTypes,
+			products: reward.products,
+			includeCustom: reward.includeCustom,
+		},
 		next: next && {
 			name: next.promo.name,
 			amount: next.promo.amount,

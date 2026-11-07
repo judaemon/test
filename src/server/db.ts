@@ -697,6 +697,23 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		CHECK (promo_discount_cents >= 0);
 	CREATE INDEX orders_by_serial ON orders (serial_number);
 	`,
+	// v47: an order promo can need a minimum order: the reward order's
+	// bouquets, after sale prices, must come to more than it. The 10th Flower
+	// Promo needs more than ₱500.
+	`
+	ALTER TABLE order_promos ADD COLUMN min_spend INTEGER NOT NULL DEFAULT 0
+		CHECK (min_spend >= 0);
+	UPDATE order_promos SET min_spend = 500 WHERE id = 'tenth-flower-promo';
+	`,
+	// v48: like a sale, an order promo can be on everything or on chosen
+	// arrangement types, arrangements and custom bouquets.
+	`
+	ALTER TABLE order_promos ADD COLUMN scope TEXT NOT NULL DEFAULT 'all'
+		CHECK (scope IN ('all', 'selected'));
+	ALTER TABLE order_promos ADD COLUMN arrangement_types TEXT NOT NULL DEFAULT '[]';
+	ALTER TABLE order_promos ADD COLUMN products TEXT NOT NULL DEFAULT '[]';
+	ALTER TABLE order_promos ADD COLUMN include_custom INTEGER NOT NULL DEFAULT 0;
+	`,
 ];
 
 declare global {

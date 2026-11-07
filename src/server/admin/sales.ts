@@ -5,6 +5,7 @@ import {
 	type OrderPromo,
 } from "~/lib/order-promo";
 import {
+	type ItemScope,
 	SALE_KINDS,
 	SALE_NAME_MAX,
 	SALE_PERCENT_MAX,
@@ -63,8 +64,7 @@ export function parseSaleInput(input: unknown): SaleInput {
 		throw new InputError("Choose the start and end dates.");
 	if (endsOn < startsOn)
 		throw new InputError("The end date can’t be before the start date.");
-	const scope = oneOf(source.scope, SALE_SCOPES, "Applies to");
-	const sale: SaleInput = {
+	return {
 		name: text(source, "name", { label: "Name", max: SALE_NAME_MAX }),
 		kind,
 		value,
@@ -72,6 +72,17 @@ export function parseSaleInput(input: unknown): SaleInput {
 		startsOn,
 		endsOn,
 		enabled: source.enabled !== false,
+		...parseScope(source, "sale"),
+	};
+}
+
+/** Everything, or the chosen types, arrangements and custom bouquets. */
+function parseScope(
+	source: Record<string, unknown>,
+	what: "sale" | "promo",
+): ItemScope {
+	const scope = oneOf(source.scope ?? "all", SALE_SCOPES, "Applies to");
+	const chosen: ItemScope = {
 		scope,
 		arrangementTypes: scope === "selected" ? ids(source.arrangementTypes) : [],
 		products: scope === "selected" ? ids(source.products) : [],
@@ -79,12 +90,12 @@ export function parseSaleInput(input: unknown): SaleInput {
 	};
 	if (
 		scope === "selected" &&
-		!sale.arrangementTypes.length &&
-		!sale.products.length &&
-		!sale.includeCustom
+		!chosen.arrangementTypes.length &&
+		!chosen.products.length &&
+		!chosen.includeCustom
 	)
-		throw new InputError("Choose what the sale is on.");
-	return sale;
+		throw new InputError(`Choose what the ${what} is on.`);
+	return chosen;
 }
 
 /** The sales, and what a sale can be put on. */
@@ -151,6 +162,16 @@ export function parseOrderPromoInput(input: unknown): OrderPromoInput {
 	if (!Number.isInteger(amount) || amount < 1)
 		throw new InputError("Enter a whole peso amount, like 500.");
 	if (amount > 100_000) throw new InputError("That amount is too large.");
+	const minSpend =
+		source.minSpend === "" || source.minSpend === undefined
+			? 0
+			: Number(source.minSpend);
+	if (!Number.isInteger(minSpend) || minSpend < 0)
+		throw new InputError(
+			"Enter the minimum order in whole pesos, or 0 for none.",
+		);
+	if (minSpend > 1_000_000)
+		throw new InputError("That minimum order is too large.");
 	const startsOn = text(source, "startsOn", { label: "Start date", max: 10 });
 	const endsOn = text(source, "endsOn", {
 		label: "End date",
@@ -166,6 +187,8 @@ export function parseOrderPromoInput(input: unknown): OrderPromoInput {
 		name: text(source, "name", { label: "Name", max: ORDER_PROMO_NAME_MAX }),
 		every,
 		amount,
+		minSpend,
+		...parseScope(source, "promo"),
 		repeat: source.repeat !== false,
 		startsOn,
 		endsOn,

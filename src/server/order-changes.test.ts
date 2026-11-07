@@ -724,7 +724,7 @@ describe("the 10th order promo, by serial number", () => {
 		);
 		const cart = pricing.withPromo(
 			priced,
-			promos.promoForNextOrder(serialNumber, priced.subtotal, TODAY),
+			promos.promoForNextOrder(serialNumber, priced.lines, TODAY),
 		);
 		return repo.createOrder({
 			id: crypto.randomUUID(),
@@ -734,7 +734,7 @@ describe("the 10th order promo, by serial number", () => {
 		});
 	};
 
-	test("starts with the owner's ₱500 off every 10th order", async () => {
+	test("starts with the owner's ₱500 off every 10th order over ₱500", async () => {
 		const promos = await import("./order-promos-repo");
 		expect(promos.listLiveOrderPromos(TODAY)).toEqual([
 			expect.objectContaining({
@@ -742,6 +742,7 @@ describe("the 10th order promo, by serial number", () => {
 				name: "10th Flower Promo",
 				every: 10,
 				amount: 500,
+				minSpend: 500,
 				repeat: true,
 			}),
 		]);
@@ -765,6 +766,11 @@ describe("the 10th order promo, by serial number", () => {
 		expect(promos.promoProgress(serial, TODAY).reward).toEqual({
 			name: "10th Flower Promo",
 			amount: 500,
+			minSpend: 500,
+			scope: "all",
+			arrangementTypes: [],
+			products: [],
+			includeCustom: false,
 		});
 		const tenth = await orderFor(serial);
 		expect(tenth.promo).toEqual({
@@ -774,7 +780,13 @@ describe("the 10th order promo, by serial number", () => {
 		});
 		expect(tenth.total).toBe(tenth.subtotal - 500);
 		// Another serial number starts from zero.
-		expect(promos.promoForNextOrder("900002", 1300, TODAY)).toBeUndefined();
+		expect(
+			promos.promoForNextOrder(
+				"900002",
+				[{ productId: "x", lineTotal: 1300 }],
+				TODAY,
+			),
+		).toBeUndefined();
 	});
 
 	test("an edit keeps the discount, never below ₱0 for the bouquets", async () => {
@@ -800,5 +812,114 @@ describe("the 10th order promo, by serial number", () => {
 			).total,
 		).toBe(0);
 		expect(promos.countSerialOrders(serial)).toBe(10);
+	});
+});
+
+describe("the 10th order promo's minimum order", () => {
+	test("only orders over ₱500 (after sale prices) get it", async () => {
+		const promos = await import("./order-promos-repo");
+		const TODAY = "2026-11-08";
+		const serial = "900010";
+		db.getDb()
+			.query(
+				"UPDATE bouquet_styles SET stock_quantity = 200 WHERE bouquet_id = $productId AND slug = $variantId",
+			)
+			.run(second);
+		for (let i = 0; i < 9; i++)
+			repo.createOrder({
+				id: crypto.randomUUID(),
+				details: { ...DETAILS, className: "1CL", serialNumber: serial },
+				cart: pricing.priceCart(
+					[{ ...second, quantity: 1 }],
+					catalog.listPublicProducts(),
+				),
+				payment: { method: "cash", status: "on_hold" },
+			});
+		expect(
+			promos.promoForNextOrder(
+				serial,
+				[{ productId: "x", lineTotal: 500 }],
+				TODAY,
+			),
+		).toBeUndefined();
+		expect(
+			promos.promoForNextOrder(
+				serial,
+				[{ productId: "x", lineTotal: 499 }],
+				TODAY,
+			),
+		).toBeUndefined();
+		expect(
+			promos.promoForNextOrder(
+				serial,
+				[{ productId: "x", lineTotal: 501 }],
+				TODAY,
+			)?.amount,
+		).toBe(500);
+		expect(
+			promos.promoForNextOrder(
+				serial,
+				[{ productId: "x", lineTotal: 1300 }],
+				TODAY,
+			)?.amount,
+		).toBe(500);
+	});
+});
+
+describe("an order promo on chosen items", () => {
+	test("needs those items, counts only them, and is capped at their cost", async () => {
+		const promos = await import("./order-promos-repo");
+		const TODAY = "2026-11-08";
+		const corsages = promos.saveOrderPromo({
+			name: "Corsage reward",
+			every: 2,
+			amount: 300,
+			minSpend: 100,
+			scope: "selected",
+			arrangementTypes: ["corsage"],
+			products: [],
+			includeCustom: false,
+			repeat: true,
+			startsOn: "2026-11-01",
+			endsOn: "",
+			enabled: true,
+			terms: "",
+		});
+		const serial = "900020";
+		db.getDb()
+			.query(
+				"UPDATE bouquet_styles SET stock_quantity = 200 WHERE bouquet_id = $productId AND slug = $variantId",
+			)
+			.run(second);
+		repo.createOrder({
+			id: crypto.randomUUID(),
+			details: { ...DETAILS, className: "1CL", serialNumber: serial },
+			cart: pricing.priceCart(
+				[{ ...second, quantity: 1 }],
+				catalog.listPublicProducts(),
+			),
+			payment: { method: "cash", status: "on_hold" },
+		});
+		const bouquet = {
+			productId: "rosie",
+			arrangement: "bouquet",
+			lineTotal: 2999,
+		};
+		const corsage = (lineTotal: number) => ({
+			productId: "lily",
+			arrangement: "corsage",
+			lineTotal,
+		});
+		// The 2nd order, but no corsage in it: no reward.
+		expect(promos.promoForNextOrder(serial, [bouquet], TODAY)).toBeUndefined();
+		// Corsages under the minimum: no reward.
+		expect(
+			promos.promoForNextOrder(serial, [bouquet, corsage(90)], TODAY),
+		).toBeUndefined();
+		// Corsages over it: the reward, never more than they cost.
+		expect(
+			promos.promoForNextOrder(serial, [bouquet, corsage(250)], TODAY),
+		).toEqual({ id: corsages.id, name: "Corsage reward", amount: 250 });
+		promos.deleteOrderPromo(corsages.id);
 	});
 });

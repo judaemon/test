@@ -23,6 +23,20 @@ export const SALE_PERCENT_MAX = 90;
 export const SALE_NAME_MAX = 60;
 
 /**
+ * What a sale or order promo is on: everything, or chosen arrangement types,
+ * arrangements and custom bouquets.
+ */
+export interface ItemScope {
+	scope: SaleScope;
+	/** With `selected`: every arrangement of these types… */
+	arrangementTypes: string[];
+	/** …these arrangements (by id)… */
+	products: string[];
+	/** …and bouquets built in the builder. */
+	includeCustom: boolean;
+}
+
+/**
  * A sale staff set up in Admin → Sales: a percent or an amount off each item,
  * from one day to another (Manila time, both days included), on everything or
  * on chosen arrangement types, arrangements and custom bouquets.
@@ -93,7 +107,7 @@ export function saleLabel(sale: Pick<Sale, "kind" | "value">) {
 
 /** Whether a sale covers an item: an arrangement, or a custom bouquet. */
 export function saleCovers(
-	sale: PublicSale,
+	sale: ItemScope,
 	item: { productId: string; arrangement?: string },
 ) {
 	if (sale.scope === "all") return true;

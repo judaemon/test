@@ -189,7 +189,7 @@ export const placeOrder = createServerFn({ method: "POST" })
 		);
 		const cart = withPromo(
 			priced,
-			promoForNextOrder(data.details.serialNumber, priced.subtotal),
+			promoForNextOrder(data.details.serialNumber, priced.lines),
 		);
 		if (cart.lines.length === 0) {
 			return { ok: false, message: "Your bag is empty." };

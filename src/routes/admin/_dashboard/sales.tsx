@@ -27,11 +27,13 @@ import {
 } from "~/lib/order-promo";
 import { formatPrice } from "~/lib/product";
 import {
+	type ItemScope,
 	markupPrice,
 	SALE_NAME_MAX,
 	SALE_PERCENT_MAX,
 	SALE_STATUS_LABELS,
 	type Sale,
+	type SaleScope,
 	type SaleStatus,
 	saleLabel,
 	salePrice,
@@ -146,13 +148,13 @@ function SalesPage() {
 				</For>
 			</div>
 
-			<OrderPromosSection promos={data().orderPromos} />
+			<OrderPromosSection promos={data().orderPromos} options={data()} />
 		</div>
 	);
 }
 
 /** "Everything", or what was chosen: "Corsages, Odette and custom bouquets". */
-function scopeText(sale: Sale, options: Options) {
+function scopeText(sale: ItemScope, options: Options) {
 	if (sale.scope === "all") return "Everything, custom bouquets included";
 	const names = [
 		...sale.arrangementTypes.map(
@@ -298,11 +300,6 @@ function SaleEditor(props: {
 			markup: `${peso(1000)} shows as ${peso(markupPrice(1000, sale))} → ${peso(1000)}.`,
 		};
 	};
-
-	const toggle = (key: "arrangementTypes" | "products", id: string) =>
-		setForm(key, (ids) =>
-			ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
-		);
 
 	const submit = async (event: SubmitEvent) => {
 		event.preventDefault();
@@ -457,85 +454,12 @@ function SaleEditor(props: {
 				</Field>
 			</div>
 
-			<fieldset class="flex flex-col gap-2">
-				<legend class="mb-1.5 text-sm font-medium">On</legend>
-				<div class="flex flex-wrap gap-2">
-					<label class={option}>
-						<input
-							type="radio"
-							name="sale-scope"
-							checked={form.scope === "all"}
-							onChange={() => setForm("scope", "all")}
-							class="accent-petal-700"
-						/>
-						Everything in the shop
-					</label>
-					<label class={option}>
-						<input
-							type="radio"
-							name="sale-scope"
-							checked={form.scope === "selected"}
-							onChange={() => setForm("scope", "selected")}
-							class="accent-petal-700"
-						/>
-						Chosen items
-					</label>
-				</div>
-				<Show when={form.scope === "selected"}>
-					<div class="mt-2 flex flex-col gap-4 rounded-xl bg-petal-50/60 p-4">
-						<div>
-							<p class="mb-2 text-sm font-medium">Whole types</p>
-							<div class="flex flex-wrap gap-2">
-								<For each={props.options.arrangementTypes}>
-									{(type) => (
-										<label class={option}>
-											<input
-												type="checkbox"
-												checked={form.arrangementTypes.includes(type.id)}
-												onChange={() => toggle("arrangementTypes", type.id)}
-												class="accent-petal-700"
-											/>
-											All {type.name.toLowerCase()}
-										</label>
-									)}
-								</For>
-								<label class={option}>
-									<input
-										type="checkbox"
-										checked={form.includeCustom}
-										onChange={(e) =>
-											setForm("includeCustom", e.currentTarget.checked)
-										}
-										class="accent-petal-700"
-									/>
-									Custom bouquets
-								</label>
-							</div>
-						</div>
-						<div>
-							<p class="mb-2 text-sm font-medium">Single arrangements</p>
-							<div class="flex max-h-64 flex-wrap gap-2 overflow-y-auto">
-								<For each={props.options.products}>
-									{(product) => (
-										<label class={option}>
-											<input
-												type="checkbox"
-												checked={form.products.includes(product.id)}
-												onChange={() => toggle("products", product.id)}
-												class="accent-petal-700"
-											/>
-											{product.name}
-											<Show when={product.hidden}>
-												<span class="text-xs text-petal-900/50">(hidden)</span>
-											</Show>
-										</label>
-									)}
-								</For>
-							</div>
-						</div>
-					</div>
-				</Show>
-			</fieldset>
+			<ScopePicker
+				name="sale-scope"
+				value={form}
+				options={props.options}
+				onChange={(patch) => setForm(patch)}
+			/>
 
 			<Toggle
 				label="On: shoppers get it on its days"
@@ -573,7 +497,7 @@ const PROMO_STATUS_LABELS: Record<OrderPromoStatus, string> = {
 };
 
 /** Rewards for ordering again, counted by serial number: e.g. ₱500 off every 10th order. */
-function OrderPromosSection(props: { promos: OrderPromo[] }) {
+function OrderPromosSection(props: { promos: OrderPromo[]; options: Options }) {
 	const router = useRouter();
 	const [editing, setEditing] = createSignal<string>();
 	const refresh = async () => {
@@ -609,6 +533,7 @@ function OrderPromosSection(props: { promos: OrderPromo[] }) {
 			<div class="flex flex-col gap-4">
 				<Show when={editing() === "new"}>
 					<OrderPromoEditor
+						options={props.options}
 						onDone={refresh}
 						onCancel={() => setEditing(undefined)}
 					/>
@@ -634,6 +559,7 @@ function OrderPromosSection(props: { promos: OrderPromo[] }) {
 							fallback={
 								<OrderPromoSummary
 									promo={promo}
+									options={props.options}
 									onEdit={() => setEditing(promo.id)}
 									onChanged={refresh}
 								/>
@@ -641,6 +567,7 @@ function OrderPromosSection(props: { promos: OrderPromo[] }) {
 						>
 							<OrderPromoEditor
 								promo={promo}
+								options={props.options}
 								onDone={refresh}
 								onCancel={() => setEditing(undefined)}
 							/>
@@ -654,6 +581,7 @@ function OrderPromosSection(props: { promos: OrderPromo[] }) {
 
 function OrderPromoSummary(props: {
 	promo: OrderPromo;
+	options: Options;
 	onEdit: () => void;
 	onChanged: () => Promise<void>;
 }) {
@@ -693,6 +621,19 @@ function OrderPromoSummary(props: {
 					<p class="mt-1 text-2xl font-semibold text-sale">
 						{orderPromoLabel(props.promo)}
 					</p>
+					<p class="text-sm text-petal-900/70 wrap-anywhere">
+						On: {scopeText(props.promo, props.options)}
+					</p>
+					<Show when={props.promo.minSpend > 0}>
+						<p class="text-sm text-petal-900/70">
+							Only when{" "}
+							{props.promo.scope === "selected"
+								? "its items in an order"
+								: "an order’s bouquets"}{" "}
+							come to more than {formatPrice(props.promo.minSpend, "PHP")},
+							after sale prices
+						</p>
+					</Show>
 					<p class="mt-1 text-sm text-petal-900/70">
 						From {day(props.promo.startsOn)}
 						{props.promo.endsOn
@@ -740,6 +681,7 @@ function OrderPromoSummary(props: {
 
 function OrderPromoEditor(props: {
 	promo?: OrderPromo;
+	options: Options;
 	onDone: () => Promise<void>;
 	onCancel: () => void;
 }) {
@@ -747,6 +689,11 @@ function OrderPromoEditor(props: {
 		name: props.promo?.name ?? "",
 		every: String(props.promo?.every ?? 10),
 		amount: String(props.promo?.amount ?? ""),
+		minSpend: String(props.promo?.minSpend ?? 0),
+		scope: props.promo?.scope ?? ("all" as SaleScope),
+		arrangementTypes: [...(props.promo?.arrangementTypes ?? [])],
+		products: [...(props.promo?.products ?? [])],
+		includeCustom: props.promo?.includeCustom ?? false,
 		repeat: props.promo?.repeat ?? true,
 		startsOn: props.promo?.startsOn ?? shopToday(),
 		endsOn: props.promo?.endsOn ?? "",
@@ -760,6 +707,11 @@ function OrderPromoEditor(props: {
 		name: form.name || "This promo",
 		every: Math.max(2, Number(form.every) || 10),
 		amount: Math.max(1, Number(form.amount) || 500),
+		minSpend: Math.max(0, Number(form.minSpend) || 0),
+		scope: form.scope,
+		arrangementTypes: form.arrangementTypes,
+		products: form.products,
+		includeCustom: form.includeCustom,
 		repeat: form.repeat,
 		startsOn: form.startsOn,
 		endsOn: form.endsOn,
@@ -778,6 +730,7 @@ function OrderPromoEditor(props: {
 						...form,
 						every: Number(form.every),
 						amount: Number(form.amount),
+						minSpend: Number(form.minSpend || 0),
 					},
 				},
 			});
@@ -851,7 +804,32 @@ function OrderPromoEditor(props: {
 						/>
 					</div>
 				</Field>
+				<Field
+					label="Minimum order"
+					hint="The reward order’s bouquets, after sale prices, must come to more than this. 0 for no minimum."
+					class="sm:col-span-2"
+				>
+					<div class="flex items-center gap-2">
+						<span class="text-sm">More than ₱</span>
+						<input
+							type="number"
+							inputMode="numeric"
+							min="0"
+							step="1"
+							value={form.minSpend}
+							onInput={(e) => setForm("minSpend", e.currentTarget.value)}
+							placeholder="0"
+							class={cn(adminInput, "w-32")}
+						/>
+					</div>
+				</Field>
 			</div>
+			<ScopePicker
+				name="promo-scope"
+				value={form}
+				options={props.options}
+				onChange={(patch) => setForm(patch)}
+			/>
 			<Toggle
 				label={`Repeat: every ${ordinal(preview().every)} order (${ordinal(preview().every)}, ${ordinal(preview().every * 2)}…), not just the first`}
 				checked={form.repeat}
@@ -921,5 +899,106 @@ function OrderPromoEditor(props: {
 				</button>
 			</div>
 		</form>
+	);
+}
+
+const scopeOption =
+	"flex cursor-pointer items-center gap-2 rounded-xl border border-petal-200 px-3 py-2 text-sm has-[:checked]:border-petal-700 has-[:checked]:bg-petal-50";
+
+/** What a sale or order promo is on: everything, or chosen types and arrangements. */
+function ScopePicker(props: {
+	/** The radio group's name, unique on the page. */
+	name: string;
+	value: ItemScope;
+	options: Pick<Options, "arrangementTypes" | "products">;
+	onChange: (patch: Partial<ItemScope>) => void;
+}) {
+	const option = scopeOption;
+	const toggle = (key: "arrangementTypes" | "products", id: string) => {
+		const ids = props.value[key];
+		props.onChange({
+			[key]: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+		});
+	};
+	return (
+		<fieldset class="flex flex-col gap-2">
+			<legend class="mb-1.5 text-sm font-medium">On</legend>
+			<div class="flex flex-wrap gap-2">
+				<label class={option}>
+					<input
+						type="radio"
+						name={props.name}
+						checked={props.value.scope === "all"}
+						onChange={() => props.onChange({ scope: "all" })}
+						class="accent-petal-700"
+					/>
+					Everything in the shop
+				</label>
+				<label class={option}>
+					<input
+						type="radio"
+						name={props.name}
+						checked={props.value.scope === "selected"}
+						onChange={() => props.onChange({ scope: "selected" })}
+						class="accent-petal-700"
+					/>
+					Chosen items
+				</label>
+			</div>
+			<Show when={props.value.scope === "selected"}>
+				<div class="mt-2 flex flex-col gap-4 rounded-xl bg-petal-50/60 p-4">
+					<div>
+						<p class="mb-2 text-sm font-medium">Whole types</p>
+						<div class="flex flex-wrap gap-2">
+							<For each={props.options.arrangementTypes}>
+								{(type) => (
+									<label class={option}>
+										<input
+											type="checkbox"
+											checked={props.value.arrangementTypes.includes(type.id)}
+											onChange={() => toggle("arrangementTypes", type.id)}
+											class="accent-petal-700"
+										/>
+										All {type.name.toLowerCase()}
+									</label>
+								)}
+							</For>
+							<label class={option}>
+								<input
+									type="checkbox"
+									checked={props.value.includeCustom}
+									onChange={(e) =>
+										props.onChange({ includeCustom: e.currentTarget.checked })
+									}
+									class="accent-petal-700"
+								/>
+								Custom bouquets
+							</label>
+						</div>
+					</div>
+					<div>
+						<p class="mb-2 text-sm font-medium">Single arrangements</p>
+						<div class="flex max-h-64 flex-wrap gap-2 overflow-y-auto">
+							<For each={props.options.products}>
+								{(product) => (
+									<label class={option}>
+										<input
+											type="checkbox"
+											checked={props.value.products.includes(product.id)}
+											onChange={() => toggle("products", product.id)}
+											class="accent-petal-700"
+										/>
+										{product.name}
+										<Show when={product.hidden}>
+											<span class="text-xs text-petal-900/50">(hidden)</span>
+										</Show>
+									</label>
+								)}
+							</For>
+						</div>
+					</div>
+				</div>
+			</Show>
+		</fieldset>
 	);
 }

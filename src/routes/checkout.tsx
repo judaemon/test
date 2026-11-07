@@ -85,6 +85,7 @@ import {
 	writeCheckoutDraft,
 } from "~/lib/checkout-draft";
 import { ORDER_EDIT_HOURS } from "~/lib/order-edit";
+import { promoSubtotal } from "~/lib/order-promo";
 import {
 	type CardInput,
 	cardDigits,
@@ -247,9 +248,22 @@ function CheckoutForm(props: {
 			? promoLookup.latest
 			: undefined;
 	/** Pesos off this order; checkout works it out again on the server. */
+	/** What the bag's bouquets on the promo (all, or its chosen ones) come to. */
+	const onPromo = () => {
+		const reward = promoProgress()?.reward;
+		return reward ? promoSubtotal(reward, props.cart.lines) : 0;
+	};
 	const promoDiscount = () => {
 		const reward = promoProgress()?.reward;
-		return reward ? Math.min(reward.amount, props.cart.subtotal) : 0;
+		return reward && onPromo() > 0 && onPromo() > reward.minSpend
+			? Math.min(reward.amount, onPromo())
+			: 0;
+	};
+	/** Pesos more of the promo's bouquets this order needs for its reward, if short. */
+	const promoShortBy = () => {
+		const reward = promoProgress()?.reward;
+		if (!reward || promoDiscount() > 0) return 0;
+		return Math.floor(reward.minSpend - onPromo()) + 1;
 	};
 	const orderTotal = () => roundMoney(props.cart.total - promoDiscount());
 	/** Each bouquet's card and note, by `unitKey`. */
@@ -608,7 +622,24 @@ function CheckoutForm(props: {
 							<TextFieldErrorMessage>
 								{errors().serialNumber}
 							</TextFieldErrorMessage>
-							<Show when={promoProgress()?.reward}>
+							<Show when={promoShortBy() > 0 && promoProgress()?.reward}>
+								{(reward) => (
+									<p class="rounded-lg bg-warning px-2.5 py-1.5 text-xs font-semibold text-warning-foreground">
+										{reward().name}: this order can get{" "}
+										{formatPrice(reward().amount, "PHP")} off if{" "}
+										{reward().scope === "selected"
+											? "the promo’s items in it"
+											: "your bouquets"}{" "}
+										come to more than {formatPrice(reward().minSpend, "PHP")}.
+										Add {formatPrice(promoShortBy(), "PHP")} more
+										{reward().scope === "selected" ? " of them" : ""} to get it.{" "}
+										<Link to="/promos" class="underline underline-offset-2">
+											See the promo
+										</Link>
+									</p>
+								)}
+							</Show>
+							<Show when={promoDiscount() > 0 && promoProgress()?.reward}>
 								{(reward) => (
 									<p class="rounded-lg bg-success px-2.5 py-1.5 text-xs font-semibold text-success-foreground">
 										🎉 {reward().name}: this order gets{" "}
