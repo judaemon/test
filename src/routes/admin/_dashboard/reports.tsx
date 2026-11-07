@@ -9,6 +9,7 @@ import {
 	on,
 	Show,
 } from "solid-js";
+import { Portal } from "solid-js/web";
 
 import {
 	adminButton,
@@ -24,7 +25,7 @@ import {
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { CADET_CLASSES, CIVILIAN, COMPANIES, orderColor } from "~/lib/cadets";
 import { formatSerialNumber } from "~/lib/checkout";
-import { tallyFlowers } from "~/lib/flower-tally";
+import { type FlowerTally, tallyFlowers } from "~/lib/flower-tally";
 import { formatPrice } from "~/lib/product";
 import type { OrderBlock } from "~/lib/report-export";
 import { cn } from "~/lib/utils";
@@ -1294,23 +1295,63 @@ function FlowersToBuy(props: {
 		</button>
 	);
 
+	const [printing, setPrinting] = createSignal(false);
+	/** Prints the supplier's checklist alone, then puts the page back. */
+	const printForSupplier = () => {
+		setPrinting(true);
+		const done = () => setPrinting(false);
+		window.addEventListener("afterprint", done, { once: true });
+		requestAnimationFrame(() => {
+			window.print();
+			setTimeout(done, 1000);
+		});
+	};
+	const tabLabel = () => {
+		const tab = tabs.find((t) => t.key === filter());
+		return tab ? `${tab.label} (${tab.count()})` : "";
+	};
+
 	return (
 		<section
 			class={cn(adminCard, "mb-6 p-5 print:break-before-page")}
 			aria-labelledby="flowers-to-buy"
 		>
-			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+			<div class="mb-1 flex flex-wrap items-center justify-between gap-2">
 				<h2 id="flowers-to-buy" class="font-semibold">
 					Flowers to buy
 				</h2>
-				<p class="text-sm tabular-nums text-petal-900/70">
-					<strong class="font-semibold">{stems(false)}</strong> flowers
-					<Show when={stems(true)}>
-						{" · "}
-						<strong class="font-semibold">{stems(true)}</strong> filler
-					</Show>
-				</p>
+				<div class="flex flex-wrap items-center gap-3">
+					<p class="text-sm tabular-nums text-petal-900/70">
+						<strong class="font-semibold">{stems(false)}</strong> flowers
+						<Show when={stems(true)}>
+							{" · "}
+							<strong class="font-semibold">{stems(true)}</strong> filler
+						</Show>
+					</p>
+					<button
+						type="button"
+						onClick={printForSupplier}
+						disabled={!tally().length}
+						class={cn(adminButton.primary, "print:hidden")}
+					>
+						Print checklist for supplier
+					</button>
+				</div>
 			</div>
+			<Show when={printing()}>
+				<Portal>
+					<SupplierChecklist
+						tally={tally()}
+						counting={tabLabel()}
+						flowers={stems(false)}
+						filler={stems(true)}
+						missing={withoutRecipe().reduce(
+							(sum, order) => sum + order.bouquetsWithoutRecipe,
+							0,
+						)}
+					/>
+				</Portal>
+			</Show>
 			<p class="mb-4 text-sm text-petal-900/60">
 				Every flower in the orders: each bouquet’s recipe times how many were
 				ordered, added up by flower and color. Cancelled orders aren’t counted.
@@ -1444,5 +1485,126 @@ function FlowersToBuy(props: {
 				</div>
 			</Show>
 		</section>
+	);
+}
+
+/**
+ * The flower order on paper, for the supplier: each flower and color with how
+ * many stems, a box to tick and room to write what came. No customer details.
+ */
+function SupplierChecklist(props: {
+	tally: FlowerTally[];
+	/** Which orders it's for, e.g. "Paid (12)". */
+	counting: string;
+	flowers: number;
+	filler: number;
+	/** Bouquets with no recipe, so not counted. */
+	missing: number;
+}) {
+	const today = new Date().toLocaleDateString("en-PH", {
+		timeZone: "Asia/Manila",
+		dateStyle: "long",
+	});
+	const quantity = (row: { stems: number; clusters: number }) =>
+		[
+			row.stems ? `${row.stems} stems` : "",
+			row.clusters
+				? `${row.clusters} cluster${row.clusters === 1 ? "" : "s"}`
+				: "",
+		]
+			.filter(Boolean)
+			.join(" + ");
+	const rows = () =>
+		props.tally.flatMap((flower) =>
+			flower.colors.map((row) => ({ ...row, filler: flower.filler })),
+		);
+	const cell = "border border-black/40 px-2 py-2.5 align-middle";
+	return (
+		<div data-print-sheet class="hidden bg-white text-black print:block">
+			<div class="mb-4 flex items-end justify-between gap-4 border-b-2 border-black pb-3">
+				<div>
+					<p class="text-xs uppercase tracking-widest">ORAIA · oraiashop.com</p>
+					<h1 class="text-2xl font-bold">Flower order checklist</h1>
+				</div>
+				<div class="text-right text-sm">
+					<p>
+						Date: <strong>{today}</strong>
+					</p>
+					<p>For orders: {props.counting}</p>
+				</div>
+			</div>
+			<table class="w-full border-collapse text-left text-sm">
+				<thead>
+					<tr class="bg-black/5">
+						<th class={cn(cell, "w-10 text-center")}>✓</th>
+						<th class={cell}>Flower</th>
+						<th class={cell}>Color</th>
+						<th class={cn(cell, "text-right")}>Quantity</th>
+						<th class={cn(cell, "w-28")}>Received</th>
+						<th class={cn(cell, "w-48")}>Notes</th>
+					</tr>
+				</thead>
+				<tbody>
+					<For each={rows()}>
+						{(row) => (
+							<tr class="break-inside-avoid">
+								<td class={cn(cell, "text-center")}>
+									<span class="inline-block size-4 border-2 border-black" />
+								</td>
+								<td class={cn(cell, "font-semibold")}>
+									{row.flower}
+									<Show when={row.filler}>
+										<span class="font-normal"> (filler)</span>
+									</Show>
+								</td>
+								<td class={cell}>{row.color || "—"}</td>
+								<td
+									class={cn(
+										cell,
+										"text-right text-base font-bold tabular-nums",
+									)}
+								>
+									{quantity(row)}
+								</td>
+								<td class={cell} />
+								<td class={cell} />
+							</tr>
+						)}
+					</For>
+				</tbody>
+				<tfoot>
+					<tr class="font-bold">
+						<td class={cell} colSpan={3}>
+							Total
+						</td>
+						<td class={cn(cell, "text-right tabular-nums")}>
+							{props.flowers} stems
+							<Show when={props.filler}>
+								<span class="block text-xs font-normal">
+									+ {props.filler} filler
+								</span>
+							</Show>
+						</td>
+						<td class={cell} />
+						<td class={cell} />
+					</tr>
+				</tfoot>
+			</table>
+			<Show when={props.missing}>
+				<p class="mt-3 text-xs">
+					Not included: {props.missing} bouquet(s) with no recipe on record.
+				</p>
+			</Show>
+			<div class="mt-12 grid grid-cols-3 gap-8 text-sm break-inside-avoid">
+				<For each={["Ordered by", "Supplier", "Received by"]}>
+					{(label) => (
+						<div>
+							<div class="h-10 border-b border-black" />
+							<p class="mt-1">{label} · signature & date</p>
+						</div>
+					)}
+				</For>
+			</div>
+		</div>
 	);
 }
