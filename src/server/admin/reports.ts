@@ -6,6 +6,7 @@ import {
 	CIVILIAN_COLOR,
 	COMPANIES,
 } from "~/lib/cadets";
+import { type OrderFlower, orderFlowers } from "~/lib/flower-tally";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
 import { savings } from "~/lib/sale";
 import {
@@ -77,6 +78,10 @@ export interface ReportOrder {
 	total: number;
 	createdAt: string;
 	bouquets: { code: string; title: string; quantity: number }[];
+	/** The flowers its bouquets need, from the recipes they were ordered with. */
+	flowers: OrderFlower[];
+	/** Its bouquets with no recipe on record, so not in `flowers`. */
+	bouquetsWithoutRecipe: number;
 	cancelReason?: string;
 }
 
@@ -275,30 +280,35 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			}
 		}
 
-		const orders: ReportOrder[] = all.map((order) => ({
-			id: order.id,
-			number: order.number,
-			name: order.details.lastName
-				? `${order.details.lastName}, ${order.details.firstName}`
-				: order.details.fullName,
-			company: order.details.company,
-			className: order.details.className,
-			status: orderStatus(order.stage, order.payment.status),
-			paymentStatus: order.payment.status,
-			paymentMethod: order.payment.method,
-			paymentLabel: methodLabel(order.payment.method),
-			serialNumber: order.details.serialNumber,
-			received: received(order),
-			referenceNumber: order.payment.referenceNumber,
-			total: order.total,
-			createdAt: order.createdAt,
-			bouquets: order.lines.map((line) => ({
-				code: line.sku,
-				title: line.title,
-				quantity: line.quantity,
-			})),
-			cancelReason: order.cancelReason,
-		}));
+		const orders: ReportOrder[] = all.map((order) => {
+			const needs = orderFlowers(order.lines);
+			return {
+				id: order.id,
+				number: order.number,
+				name: order.details.lastName
+					? `${order.details.lastName}, ${order.details.firstName}`
+					: order.details.fullName,
+				company: order.details.company,
+				className: order.details.className,
+				status: orderStatus(order.stage, order.payment.status),
+				paymentStatus: order.payment.status,
+				paymentMethod: order.payment.method,
+				paymentLabel: methodLabel(order.payment.method),
+				serialNumber: order.details.serialNumber,
+				received: received(order),
+				referenceNumber: order.payment.referenceNumber,
+				total: order.total,
+				createdAt: order.createdAt,
+				bouquets: order.lines.map((line) => ({
+					code: line.sku,
+					title: line.title,
+					quantity: line.quantity,
+				})),
+				flowers: needs.flowers,
+				bouquetsWithoutRecipe: needs.missing,
+				cancelReason: order.cancelReason,
+			};
+		});
 
 		return {
 			money,

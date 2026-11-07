@@ -24,6 +24,7 @@ import {
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { CADET_CLASSES, CIVILIAN, COMPANIES, orderColor } from "~/lib/cadets";
 import { formatSerialNumber } from "~/lib/checkout";
+import { tallyFlowers } from "~/lib/flower-tally";
 import { formatPrice } from "~/lib/product";
 import type { OrderBlock } from "~/lib/report-export";
 import { cn } from "~/lib/utils";
@@ -439,6 +440,8 @@ function ReportsPage() {
 			</section>
 
 			<CashPayments orders={report().orders} money={money} />
+
+			<FlowersToBuy orders={report().orders} onOpen={show} />
 
 			<section
 				class={cn(adminCard, "overflow-x-auto p-5 print:overflow-visible")}
@@ -1215,6 +1218,228 @@ function CashPayments(props: {
 								)}
 							</For>
 						</tbody>
+					</table>
+				</div>
+			</Show>
+		</section>
+	);
+}
+
+type FlowerFilter = "all" | "paid" | "unpaid";
+
+/**
+ * Every flower the orders need, for buying: each bouquet's recipe times how
+ * many were ordered, added up by flower and color. Cancelled orders aren't
+ * counted.
+ */
+function FlowersToBuy(props: {
+	orders: ReportOrder[];
+	onOpen: (title: string, group: OrderGroup) => void;
+}) {
+	const [filter, setFilter] = createSignal<FlowerFilter>("all");
+	const isPaid = (order: ReportOrder) => order.received >= order.total;
+	const active = createMemo(() =>
+		props.orders.filter((order) => order.status !== "cancelled"),
+	);
+	const counted = createMemo(() =>
+		active().filter((order) =>
+			filter() === "paid"
+				? isPaid(order)
+				: filter() === "unpaid"
+					? !isPaid(order)
+					: true,
+		),
+	);
+	const tally = createMemo(() => tallyFlowers(counted()));
+	const stems = (filler: boolean) =>
+		tally()
+			.filter((row) => row.filler === filler)
+			.reduce((sum, row) => sum + row.stems, 0);
+	const withoutRecipe = createMemo(() =>
+		counted().filter((order) => order.bouquetsWithoutRecipe > 0),
+	);
+	const group = (orderIds: string[]): OrderGroup => ({
+		orders: orderIds.length,
+		orderIds,
+	});
+	const tabs: { key: FlowerFilter; label: string; count: () => number }[] = [
+		{ key: "all", label: "All orders", count: () => active().length },
+		{
+			key: "paid",
+			label: "Paid",
+			count: () => active().filter(isPaid).length,
+		},
+		{
+			key: "unpaid",
+			label: "Not paid yet",
+			count: () => active().filter((order) => !isPaid(order)).length,
+		},
+	];
+	const amount = (row: { stems: number; clusters: number }) =>
+		[
+			row.stems ? String(row.stems) : "",
+			row.clusters
+				? `${row.clusters} cluster${row.clusters === 1 ? "" : "s"}`
+				: "",
+		]
+			.filter(Boolean)
+			.join(" + ");
+	const ordersButton = (title: string, orderIds: string[]) => (
+		<button
+			type="button"
+			onClick={() => props.onOpen(title, group(orderIds))}
+			class={cn(drill, "px-1 tabular-nums")}
+		>
+			{orderIds.length}
+		</button>
+	);
+
+	return (
+		<section
+			class={cn(adminCard, "mb-6 p-5 print:break-before-page")}
+			aria-labelledby="flowers-to-buy"
+		>
+			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+				<h2 id="flowers-to-buy" class="font-semibold">
+					Flowers to buy
+				</h2>
+				<p class="text-sm tabular-nums text-petal-900/70">
+					<strong class="font-semibold">{stems(false)}</strong> flowers
+					<Show when={stems(true)}>
+						{" · "}
+						<strong class="font-semibold">{stems(true)}</strong> filler
+					</Show>
+				</p>
+			</div>
+			<p class="mb-4 text-sm text-petal-900/60">
+				Every flower in the orders: each bouquet’s recipe times how many were
+				ordered, added up by flower and color. Cancelled orders aren’t counted.
+			</p>
+			<div
+				role="tablist"
+				aria-label="Count flowers from"
+				class="mb-4 flex flex-wrap gap-2 print:hidden"
+			>
+				<For each={tabs}>
+					{(tab) => (
+						<button
+							type="button"
+							role="tab"
+							aria-selected={filter() === tab.key}
+							onClick={() => setFilter(tab.key)}
+							class={cn(
+								"rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+								filter() === tab.key
+									? "border-petal-700 bg-petal-700 font-medium text-white"
+									: "border-petal-200 bg-white hover:bg-petal-50",
+							)}
+						>
+							{tab.label}{" "}
+							<span class="tabular-nums opacity-80">({tab.count()})</span>
+						</button>
+					)}
+				</For>
+			</div>
+			<p class="mb-3 hidden text-sm print:block">
+				Counting: {tabs.find((tab) => tab.key === filter())?.label}
+			</p>
+			<Show when={withoutRecipe().length}>
+				<p class="mb-4 rounded-xl bg-warning/60 px-3 py-2 text-sm text-warning-foreground">
+					{withoutRecipe().reduce(
+						(sum, order) => sum + order.bouquetsWithoutRecipe,
+						0,
+					)}{" "}
+					bouquet(s) have no recipe on record, so their flowers aren’t counted.{" "}
+					<button
+						type="button"
+						onClick={() =>
+							props.onOpen(
+								"Bouquets with no recipe",
+								group(withoutRecipe().map((order) => order.id)),
+							)
+						}
+						class="font-medium underline underline-offset-2 print:hidden"
+					>
+						See the orders
+					</button>
+				</p>
+			</Show>
+			<Show
+				when={tally().length}
+				fallback={
+					<p class="text-sm text-petal-900/60">No flowers to count here.</p>
+				}
+			>
+				<div class="overflow-x-auto print:overflow-visible">
+					<table class="w-full min-w-[480px] text-left text-sm print:min-w-0">
+						<thead class="text-xs uppercase tracking-wide text-petal-900/55">
+							<tr>
+								<th class="pb-2 pr-4 font-medium">Flower</th>
+								<th class="pb-2 pr-4 text-right font-medium">Stems</th>
+								<th class="pb-2 pr-4 text-right font-medium">Bouquets</th>
+								<th class="pb-2 text-right font-medium">Orders</th>
+							</tr>
+						</thead>
+						<For each={tally()}>
+							{(flower) => {
+								const split = () =>
+									flower.colors.length > 1 || flower.colors[0]?.color !== "";
+								return (
+									<tbody class="border-t border-petal-100 print:break-inside-avoid">
+										<tr>
+											<th scope="row" class="py-2.5 pr-4 font-semibold">
+												{flower.flower}
+												<Show when={flower.filler}>
+													<span class="ml-2 rounded-full bg-petal-100 px-2 py-0.5 text-xs font-medium">
+														Filler
+													</span>
+												</Show>
+											</th>
+											<td class="py-2.5 pr-4 text-right font-semibold tabular-nums">
+												{amount(flower)}
+											</td>
+											<td class="py-2.5 pr-4 text-right tabular-nums">
+												<Show when={!split()}>
+													{flower.colors[0]?.bouquets}
+												</Show>
+											</td>
+											<td class="py-2.5 text-right">
+												{ordersButton(
+													`Flower: ${flower.flower}`,
+													flower.orderIds,
+												)}
+											</td>
+										</tr>
+										<Show when={split()}>
+											<For each={flower.colors}>
+												{(row) => (
+													<tr class="text-petal-900/80">
+														<th
+															scope="row"
+															class="py-1.5 pl-5 pr-4 font-normal"
+														>
+															{row.color || "No color given"}
+														</th>
+														<td class="py-1.5 pr-4 text-right tabular-nums">
+															{amount(row)}
+														</td>
+														<td class="py-1.5 pr-4 text-right tabular-nums">
+															{row.bouquets}
+														</td>
+														<td class="py-1.5 text-right">
+															{ordersButton(
+																`Flower: ${flower.flower} · ${row.color || "No color"}`,
+																row.orderIds,
+															)}
+														</td>
+													</tr>
+												)}
+											</For>
+										</Show>
+									</tbody>
+								);
+							}}
+						</For>
 					</table>
 				</div>
 			</Show>
