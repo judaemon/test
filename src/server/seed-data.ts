@@ -141,6 +141,7 @@ export const seedPaymentAccounts: PaymentAccount[] = [
 			"Open your banking app and transfer to the Maribank account below.",
 			"Send the exact amount, then enter the reference number below.",
 		],
+		notice: "",
 	},
 	{
 		method: "gcash",
@@ -155,6 +156,7 @@ export const seedPaymentAccounts: PaymentAccount[] = [
 			"Send to the GCash number below.",
 			"Pay the exact amount, then enter the reference number below.",
 		],
+		notice: "",
 	},
 	{
 		method: "cash",
@@ -165,6 +167,7 @@ export const seedPaymentAccounts: PaymentAccount[] = [
 		bankName: "",
 		qrImage: "",
 		steps: [],
+		notice: "",
 	},
 	{
 		method: "maya",
@@ -175,6 +178,7 @@ export const seedPaymentAccounts: PaymentAccount[] = [
 		bankName: "",
 		qrImage: "",
 		steps: [],
+		notice: "",
 	},
 	{
 		method: "card",
@@ -185,5 +189,6 @@ export const seedPaymentAccounts: PaymentAccount[] = [
 		bankName: "",
 		qrImage: "",
 		steps: [],
+		notice: "",
 	},
 ];

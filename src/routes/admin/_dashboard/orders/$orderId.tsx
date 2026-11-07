@@ -24,6 +24,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { PaymentNotice } from "~/components/checkout/payment-notice";
 import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
@@ -625,6 +626,16 @@ function OrderDetail() {
 								<dd>{payment().reviewedBy}</dd>
 							</Show>
 						</dl>
+						<Show when={payment().notice}>
+							{(notice) => (
+								<div class="mt-3">
+									<p class="mb-1 text-xs text-petal-900/60">
+										Warning the customer saw
+									</p>
+									<PaymentNotice text={notice()} class="px-3 py-2 text-xs" />
+								</div>
+							)}
+						</Show>
 						<Show when={payment().proofFile}>
 							{(file) => (
 								<a

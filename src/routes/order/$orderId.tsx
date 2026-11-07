@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
 
 import { pillPrimary } from "~/components/cart/cart-sheet";
+import { PaymentNotice } from "~/components/checkout/payment-notice";
 import { CompanyLabel } from "~/components/order/company-label";
 import { PaymentStatusPill } from "~/components/order/payment-status";
 import { PreorderTag } from "~/components/product/preorder-tag";
@@ -150,6 +151,11 @@ function OrderConfirmation() {
 									: "We’ll start on it once we receive your payment. Please send it as soon as you can, here or from Check your order, and don’t forget your reference number: it’s how we verify your payment."
 								: "Check your reference number and send it again."}
 						</p>
+						<Show when={order().payment.notice}>
+							{(notice) => (
+								<PaymentNotice text={notice()} class="mt-3 bg-white" />
+							)}
+						</Show>
 						<Link
 							to="/pay/$orderNumber"
 							params={{ orderNumber: order().number }}

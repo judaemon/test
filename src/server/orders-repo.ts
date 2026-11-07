@@ -38,6 +38,7 @@ import { adjustStyleStock } from "./catalog-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { adjustFlowerStock } from "./flowers-repo";
 import { writeOrderLog } from "./order-log-repo";
+import { getPaymentAccount } from "./payments-repo";
 import { adjustWrapperStock } from "./wrappers-repo";
 
 interface OrderRow {
@@ -83,6 +84,7 @@ interface OrderRow {
 	payment_method_changes: string;
 	is_test: number;
 	amount_paid_cents: number | null;
+	payment_notice: string | null;
 }
 
 function loadEvents(ids: string[]): Map<string, OrderEvent[]> {
@@ -145,6 +147,7 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 			...(row.amount_paid_cents === null
 				? {}
 				: { amountPaid: fromCents(row.amount_paid_cents) }),
+			...(row.payment_notice ? { notice: row.payment_notice } : {}),
 		},
 		customerId: row.customer_id ?? undefined,
 		delivery: {
@@ -265,11 +268,11 @@ export function createOrder(
 			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, serial_number, class_name, notes,
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
 			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id,
-			   amount_paid_cents)
+			   amount_paid_cents, payment_notice)
 			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', '', '', $firstName, $lastName, $fullName,
 			   $company, $serialNumber, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
-			   $customerId, $amountPaid)`,
+			   $customerId, $amountPaid, $paymentNotice)`,
 		).run({
 			id: order.id,
 			number: String(nextNumber),
@@ -300,6 +303,7 @@ export function createOrder(
 				order.payment.amountPaid === undefined
 					? null
 					: toCents(order.payment.amountPaid),
+			paymentNotice: order.payment.notice ?? null,
 		});
 		addEvent(order.id, "new", now);
 		writeOrderLog(order.id, actor, "placed", [
@@ -789,7 +793,7 @@ export function submitPayment(
 			.query(
 				`UPDATE orders SET payment_method = $method, payment_status = 'pending',
 				   reference_number = $reference, proof_file = $proof,
-				   payment_reviewed_by = NULL, payment_reviewed_at = NULL,
+				   payment_reviewed_by = NULL, payment_reviewed_at = NULL, payment_notice = NULL,
 				   customer_id = COALESCE(customer_id, $customerId)
 				 WHERE id = $id`,
 			)
@@ -846,11 +850,14 @@ export function changePaymentMethod(
 				...(change.proofFile ? { proofFile: change.proofFile } : {}),
 			};
 			db.query(
-				`UPDATE orders SET payment_method = $method, payment_method_changes = $changes
-			 WHERE id = $id`,
+				`UPDATE orders SET payment_method = $method, payment_method_changes = $changes,
+				   payment_notice = $notice
+				 WHERE id = $id`,
 			).run({
 				id,
 				method: change.method,
+				// The new method's warning, as it reads now.
+				notice: getPaymentAccount(change.method)?.notice || null,
 				changes: JSON.stringify([...order.paymentMethodChanges, entry]),
 			});
 		},

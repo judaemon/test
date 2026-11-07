@@ -13,6 +13,8 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { PaymentNotice } from "~/components/checkout/payment-notice";
+import { PAYMENT_NOTICE_MAX } from "~/lib/payment";
 import { cn } from "~/lib/utils";
 import {
 	listPaymentSettings,
@@ -71,6 +73,7 @@ function AccountEditor(props: { account: PaymentAccount }) {
 					bankName: form.bankName,
 					qrImage: form.qrImage,
 					steps: form.stepsText.split("\n"),
+					notice: form.notice,
 				},
 			});
 			toastSuccess(`${form.label} saved.`);
@@ -246,6 +249,34 @@ function AccountEditor(props: { account: PaymentAccount }) {
 					</div>
 				</div>
 			</Show>
+
+			<div class="mt-5 border-t border-petal-100 pt-5">
+				<Field
+					label="Warning for customers"
+					hint={`Optional. Shown in yellow when customers choose ${form.label || "this"}, at checkout and on their order. Change it whenever you need, e.g. “Please pay within 24 hours.” Orders keep the warning they were placed with.`}
+				>
+					<TextArea
+						value={form.notice}
+						onInput={(e) => setForm("notice", e.currentTarget.value)}
+						rows={2}
+						maxLength={PAYMENT_NOTICE_MAX}
+						placeholder={
+							props.account.method === "cash"
+								? "You are paying in cash. Please pay before November 10."
+								: "e.g. Please pay within 24 hours."
+						}
+						class={cn(adminInput, "h-auto py-2")}
+					/>
+				</Field>
+				<Show when={form.notice.trim()}>
+					<div class="mt-3">
+						<p class="mb-1.5 text-xs font-medium text-petal-900/60">
+							Customers see
+						</p>
+						<PaymentNotice text={form.notice} />
+					</div>
+				</Show>
+			</div>
 
 			<div class="mt-5 flex justify-end">
 				<button

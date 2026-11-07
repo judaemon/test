@@ -180,8 +180,11 @@ export function ProductInfo(props: ProductInfoProps) {
 						<span class="font-semibold text-sale">{best().sale.name}</span>
 						<span class="text-petal-900/60">
 							You save{" "}
-							{formatPrice(price() - best().price, props.product.currency)} ·{" "}
-							{saleEndsText(best().sale.endsOn)}
+							{formatPrice(
+								best().original - best().price,
+								props.product.currency,
+							)}{" "}
+							· {saleEndsText(best().sale.endsOn)}
 						</span>
 					</p>
 				)}

@@ -22,6 +22,9 @@ export function isPaymentMethod(value: unknown): value is PaymentMethod {
 	return PAYMENT_METHODS.includes(value as PaymentMethod);
 }
 
+/** Longest warning staff can set on a payment method. */
+export const PAYMENT_NOTICE_MAX = 300;
+
 /** Shown wherever a shopper chooses to send their reference number later. */
 export const ON_HOLD_NOTICE =
 	"We’ll hold your order until we receive your payment, so please send it as soon as you can.";

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/solid-start";
 import { getRequestHeaders } from "@tanstack/solid-start/server";
-import { PAYMENT_METHODS } from "~/lib/payment";
+import { PAYMENT_METHODS, PAYMENT_NOTICE_MAX } from "~/lib/payment";
 import { getStaffUser, requireOwner, requireStaff } from "../admin-auth";
 import { getAuth } from "../auth";
 import { getDb } from "../db";
@@ -37,6 +37,21 @@ export const savePaymentAccount = createServerFn({ method: "POST" })
 		const method = oneOf(source.method, PAYMENT_METHODS, "Payment method");
 		const enabled = bool(source, "enabled");
 		const label = text(source, "label", { label: "Name", max: 40 });
+		// Forms send line breaks as \r\n; keep them as one.
+		const notice = text(
+			{
+				notice:
+					typeof source.notice === "string"
+						? source.notice.replace(/\r\n?/g, "\n")
+						: "",
+			},
+			"notice",
+			{
+				label: "Warning for customers",
+				max: PAYMENT_NOTICE_MAX,
+				required: false,
+			},
+		);
 		if (method === "card" || method === "cash") {
 			return {
 				method,
@@ -48,6 +63,7 @@ export const savePaymentAccount = createServerFn({ method: "POST" })
 					bankName: "",
 					qrImage: "",
 					steps: [],
+					notice,
 				},
 			};
 		}
@@ -82,6 +98,7 @@ export const savePaymentAccount = createServerFn({ method: "POST" })
 				// Optional: without a QR, checkout shows the account details only.
 				qrImage: source.qrImage ? imageUrl(source.qrImage) : "",
 				steps,
+				notice,
 			},
 		};
 	})

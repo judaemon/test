@@ -2,6 +2,7 @@ import {
 	type PublicSale,
 	type Sale,
 	type SaleKind,
+	type SalePricing,
 	type SaleScope,
 	saleStatus,
 	shopToday,
@@ -13,6 +14,7 @@ interface SaleRow {
 	name: string;
 	kind: SaleKind;
 	value: number;
+	pricing: SalePricing;
 	starts_on: string;
 	ends_on: string;
 	enabled: number;
@@ -27,6 +29,7 @@ const toSale = (row: SaleRow): Sale => ({
 	name: row.name,
 	kind: row.kind,
 	value: row.value,
+	pricing: row.pricing,
 	startsOn: row.starts_on,
 	endsOn: row.ends_on,
 	enabled: row.enabled === 1,
@@ -63,6 +66,7 @@ export function saveSale(input: SaleInput, id?: string): Sale {
 		name: input.name,
 		kind: input.kind,
 		value: input.value,
+		pricing: input.pricing,
 		startsOn: input.startsOn,
 		endsOn: input.endsOn,
 		enabled: input.enabled ? 1 : 0,
@@ -75,7 +79,8 @@ export function saveSale(input: SaleInput, id?: string): Sale {
 	if (id) {
 		const result = db
 			.query(
-				`UPDATE sales SET name = $name, kind = $kind, value = $value, starts_on = $startsOn,
+				`UPDATE sales SET name = $name, kind = $kind, value = $value, pricing = $pricing,
+				   starts_on = $startsOn,
 				   ends_on = $endsOn, enabled = $enabled, scope = $scope,
 				   arrangement_types = $arrangementTypes, products = $products,
 				   include_custom = $includeCustom, updated_at = $now
@@ -85,9 +90,9 @@ export function saveSale(input: SaleInput, id?: string): Sale {
 		if (result.changes === 0) throw new Error("That sale was deleted.");
 	} else {
 		db.query(
-			`INSERT INTO sales (id, name, kind, value, starts_on, ends_on, enabled, scope,
+			`INSERT INTO sales (id, name, kind, value, pricing, starts_on, ends_on, enabled, scope,
 			   arrangement_types, products, include_custom, created_at, updated_at)
-			 VALUES ($id, $name, $kind, $value, $startsOn, $endsOn, $enabled, $scope,
+			 VALUES ($id, $name, $kind, $value, $pricing, $startsOn, $endsOn, $enabled, $scope,
 			   $arrangementTypes, $products, $includeCustom, $now, $now)`,
 		).run(values);
 	}

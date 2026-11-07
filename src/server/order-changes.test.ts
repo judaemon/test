@@ -510,6 +510,7 @@ describe("orders placed during a sale", () => {
 		name: "Test Sale",
 		kind: "percent" as const,
 		value: 5,
+		pricing: "discount" as const,
 		startsOn: "2000-01-01",
 		endsOn: "2999-12-31",
 		scope: "all" as const,
@@ -590,6 +591,7 @@ describe("the sales store", () => {
 			name: "Corsage week",
 			kind: "amount",
 			value: 100,
+			pricing: "discount",
 			startsOn: "2026-12-01",
 			endsOn: "2026-12-07",
 			enabled: true,
@@ -607,5 +609,94 @@ describe("the sales store", () => {
 		).toBe(false);
 		sales.deleteSale(saved.id);
 		expect(sales.listSales().some((s) => s.id === saved.id)).toBe(false);
+	});
+});
+
+describe("payment method warnings", () => {
+	const cashOrder = (notice?: string) =>
+		repo.createOrder({
+			id: crypto.randomUUID(),
+			details: { ...DETAILS, className: "1CL" },
+			cart: pricing.priceCart(
+				[{ ...second, quantity: 1 }],
+				catalog.listPublicProducts(),
+			),
+			payment: {
+				method: "cash",
+				status: "on_hold",
+				...(notice ? { notice } : {}),
+			},
+		});
+
+	test("an order keeps the warning it was placed with after staff edit it", async () => {
+		const payments = await import("./payments-repo");
+		const order = cashOrder("Please pay before November 10.");
+		const cash = payments.getPaymentAccount("cash");
+		if (!cash) throw new Error("No cash account");
+		const { method: _method, ...account } = cash;
+		payments.updatePaymentAccount("cash", {
+			...account,
+			notice: "Please pay within 24 hours.",
+		});
+		expect(repo.getOrderById(order.id)?.payment.notice).toBe(
+			"Please pay before November 10.",
+		);
+		// The customer sees it too.
+		expect(
+			repo.toCustomerOrder(repo.getOrderById(order.id) as Order).payment.notice,
+		).toBe("Please pay before November 10.");
+		// Staff switching an order to cash gives it the warning as it reads now.
+		const other = place([{ ...second, quantity: 1 }]);
+		const switched = repo.changePaymentMethod(other.id, {
+			method: "cash",
+			reason: "Paying in person",
+			changedBy: "Staff",
+		});
+		expect(switched.payment.notice).toBe("Please pay within 24 hours.");
+		payments.updatePaymentAccount("cash", account);
+	});
+
+	test("sending a payment clears the warning", () => {
+		const order = place([{ ...second, quantity: 1 }]);
+		repo.changePaymentMethod(order.id, {
+			method: "cash",
+			reason: "x",
+			changedBy: "Staff",
+		});
+		const paid = repo.submitPayment(order.id, {
+			method: "gcash",
+			referenceNumber: "1234567890",
+		});
+		expect(paid.payment.notice).toBeUndefined();
+	});
+});
+
+describe("orders placed during a before-price (markup) sale", () => {
+	test("charge the real price and keep the shown before-price", () => {
+		const cart = pricing.priceCart(
+			[{ ...second, quantity: 1 }],
+			catalog.listPublicProducts(),
+			undefined,
+			[
+				{
+					id: "markup-sale",
+					name: "Markup Sale",
+					kind: "percent",
+					value: 5,
+					pricing: "markup",
+					startsOn: "2000-01-01",
+					endsOn: "2999-12-31",
+					scope: "all",
+					arrangementTypes: [],
+					products: [],
+					includeCustom: false,
+				},
+			],
+		);
+		const [line] = cart.lines;
+		// 1,300 is the real price; 5% off 1,369 brings it back to 1,300.
+		expect(line?.unitPrice).toBe(1300);
+		expect(line?.originalUnitPrice).toBe(1369);
+		expect(cart.total).toBe(1300);
 	});
 });

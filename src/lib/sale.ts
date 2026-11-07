@@ -7,6 +7,14 @@ const SHOP_ZONE = "Asia/Manila";
 export const SALE_KINDS = ["percent", "amount"] as const;
 export type SaleKind = (typeof SALE_KINDS)[number];
 
+/**
+ * How a sale shows its discount. `discount` lowers the price. `markup` keeps
+ * the price and shows a higher "before" price that the discount brings down
+ * to it, the way marketplace sellers do.
+ */
+export const SALE_PRICINGS = ["discount", "markup"] as const;
+export type SalePricing = (typeof SALE_PRICINGS)[number];
+
 export const SALE_SCOPES = ["all", "selected"] as const;
 export type SaleScope = (typeof SALE_SCOPES)[number];
 
@@ -26,6 +34,7 @@ export interface Sale {
 	kind: SaleKind;
 	/** Percent off (1–90), or pesos off each item. */
 	value: number;
+	pricing: SalePricing;
 	/** First day, `YYYY-MM-DD`. */
 	startsOn: string;
 	/** Last day, `YYYY-MM-DD`. */
@@ -105,20 +114,46 @@ export function salePrice(price: number, sale: Pick<Sale, "kind" | "value">) {
 }
 
 /**
- * The best of the live sales for an item (sales don't add up): its new price
- * and the sale, or undefined when none covers it or none lowers the price.
+ * The "before" price a markup sale shows: the one its discount brings down to
+ * the real price. 5% off ₱1,053 is ₱1,000 (₱1,050 would give ₱997.50), and
+ * ₱100 off ₱1,100 is ₱1,000. Whole pesos, rounded up.
+ */
+export function markupPrice(price: number, sale: Pick<Sale, "kind" | "value">) {
+	return sale.kind === "percent"
+		? Math.ceil((price * 100) / (100 - sale.value))
+		: price + sale.value;
+}
+
+/** What an item costs with a sale, and the struck-through price it shows. */
+export function applySale(
+	price: number,
+	sale: Pick<Sale, "kind" | "value" | "pricing">,
+) {
+	return sale.pricing === "markup"
+		? { price, original: markupPrice(price, sale) }
+		: { price: salePrice(price, sale), original: price };
+}
+
+/**
+ * The best of the live sales for an item (sales don't add up): the lowest
+ * price wins, then the bigger "before" price. Undefined when none covers it.
  */
 export function bestSale(
 	price: number,
 	item: { productId: string; arrangement?: string },
 	sales: readonly PublicSale[],
-): { price: number; sale: PublicSale } | undefined {
-	let best: { price: number; sale: PublicSale } | undefined;
+): { price: number; original: number; sale: PublicSale } | undefined {
+	let best: { price: number; original: number; sale: PublicSale } | undefined;
 	for (const sale of sales) {
 		if (!saleCovers(sale, item)) continue;
-		const reduced = salePrice(price, sale);
-		if (reduced < price && (!best || reduced < best.price))
-			best = { price: reduced, sale };
+		const result = applySale(price, sale);
+		if (result.original <= result.price) continue;
+		if (
+			!best ||
+			result.price < best.price ||
+			(result.price === best.price && result.original > best.original)
+		)
+			best = { ...result, sale };
 	}
 	return best;
 }

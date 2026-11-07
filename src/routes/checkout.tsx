@@ -22,6 +22,7 @@ import {
 	bouquetPanelId,
 } from "~/components/checkout/bouquet-messages";
 import { ChoiceSelect } from "~/components/checkout/choice-select";
+import { PaymentNotice } from "~/components/checkout/payment-notice";
 import { PaymentSection } from "~/components/checkout/payment-section";
 import { ColorSwatch } from "~/components/order/company-label";
 import { PreorderTag } from "~/components/product/preorder-tag";
@@ -828,6 +829,11 @@ function CheckoutForm(props: {
 								<ReviewDetails
 									form={formRef}
 									paymentMethod={paymentMethod()}
+									notice={
+										paymentAccounts().find(
+											(account) => account.method === paymentMethod(),
+										)?.notice
+									}
 									referenceLater={onHold()}
 									onEdit={editSection}
 								/>
@@ -1028,6 +1034,8 @@ function ReviewBouquets(props: {
 function ReviewDetails(props: {
 	form: HTMLFormElement;
 	paymentMethod: PaymentMethod | null;
+	/** The chosen method's warning from Admin → Payments, if any. */
+	notice?: string;
 	referenceLater: boolean;
 	onEdit: (sectionId: string) => void;
 }) {
@@ -1072,6 +1080,13 @@ function ReviewDetails(props: {
 							{(method) => PAYMENT_METHOD_LABELS[method()]}
 						</Show>
 					</dd>
+					<Show when={props.notice}>
+						{(notice) => (
+							<dd class="mt-1.5">
+								<PaymentNotice text={notice()} class="px-3 py-2 text-xs" />
+							</dd>
+						)}
+					</Show>
 					<Show
 						when={!props.referenceLater}
 						fallback={

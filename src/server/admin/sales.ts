@@ -4,6 +4,7 @@ import {
 	SALE_KINDS,
 	SALE_NAME_MAX,
 	SALE_PERCENT_MAX,
+	SALE_PRICINGS,
 	SALE_SCOPES,
 	type Sale,
 } from "~/lib/sale";
@@ -57,6 +58,7 @@ export function parseSaleInput(input: unknown): SaleInput {
 		name: text(source, "name", { label: "Name", max: SALE_NAME_MAX }),
 		kind,
 		value,
+		pricing: oneOf(source.pricing ?? "discount", SALE_PRICINGS, "Pricing"),
 		startsOn,
 		endsOn,
 		enabled: source.enabled !== false,

@@ -215,6 +215,9 @@ export const placeOrder = createServerFn({ method: "POST" })
 				cardLast4: data.cardLast4,
 			};
 		}
+		// The method's warning as it reads now, kept with the order.
+		const notice = getPaymentAccount(method)?.notice;
+		if (notice) payment = { ...payment, notice };
 
 		try {
 			// Signed-in shoppers can track the order from their account.

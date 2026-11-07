@@ -8,7 +8,7 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
-
+import { PaymentNotice } from "~/components/checkout/payment-notice";
 import {
 	TextField,
 	TextFieldDescription,
@@ -124,6 +124,16 @@ export function PaymentSection(props: PaymentSectionProps) {
 					</p>
 				</Show>
 			</fieldset>
+
+			{/* The chosen method's warning from Admin → Payments, if it has one. */}
+			<Show
+				when={
+					props.accounts.find((account) => account.method === props.method)
+						?.notice
+				}
+			>
+				{(notice) => <PaymentNotice text={notice()} />}
+			</Show>
 
 			<Switch>
 				<Match when={props.method === "card"}>

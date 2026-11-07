@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import {
+	applySale,
 	bestSale,
+	markupPrice,
 	type PublicSale,
 	type Sale,
 	saleEndsText,
@@ -17,6 +19,7 @@ const sale = (overrides: Partial<Sale> = {}): Sale => ({
 	name: "November Sale",
 	kind: "percent",
 	value: 5,
+	pricing: "discount",
 	startsOn: "2026-11-07",
 	endsOn: "2026-11-09",
 	enabled: true,
@@ -93,5 +96,41 @@ describe("sale prices", () => {
 				{ unitPrice: 500, quantity: 1 },
 			]),
 		).toBe(350);
+	});
+});
+
+describe("showing a higher before-price (markup)", () => {
+	test("5% off the shown price lands on the real price", () => {
+		expect(markupPrice(1000, { kind: "percent", value: 5 })).toBe(1053);
+		expect(salePrice(1053, { kind: "percent", value: 5 })).toBe(1000);
+		expect(markupPrice(2999, { kind: "percent", value: 5 })).toBe(3157);
+		expect(salePrice(3157, { kind: "percent", value: 5 })).toBe(2999);
+		expect(markupPrice(1000, { kind: "amount", value: 100 })).toBe(1100);
+	});
+	test("customers pay the real price", () => {
+		expect(
+			applySale(1000, { kind: "percent", value: 5, pricing: "markup" }),
+		).toEqual({ price: 1000, original: 1053 });
+		expect(
+			applySale(1000, { kind: "percent", value: 5, pricing: "discount" }),
+		).toEqual({ price: 950, original: 1000 });
+	});
+	test("a real discount beats a higher before-price", () => {
+		const best = bestSale(1000, { productId: "x" }, [
+			sale({ id: "markup", pricing: "markup", value: 20 }),
+			sale({ id: "real", value: 5 }),
+		]);
+		expect(best?.sale.id).toBe("real");
+		expect(best?.price).toBe(950);
+	});
+	test("between before-prices, the higher one shows", () => {
+		const best = bestSale(1000, { productId: "x" }, [
+			sale({ id: "small", pricing: "markup", value: 5 }),
+			sale({ id: "big", pricing: "markup", value: 10 }),
+		]);
+		expect(best).toEqual(
+			expect.objectContaining({ price: 1000, original: 1112 }),
+		);
+		expect(best?.sale.id).toBe("big");
 	});
 });

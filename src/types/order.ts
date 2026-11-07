@@ -107,6 +107,11 @@ export interface OrderPayment {
 	reviewedAt?: string;
 	/** Orders added from a chat: what the customer paid so far, e.g. a deposit. */
 	amountPaid?: number;
+	/**
+	 * The payment method's warning when the order was placed (Admin →
+	 * Payments), e.g. "Please pay before November 10." Kept as it was then.
+	 */
+	notice?: string;
 }
 
 export interface OrderEvent {

@@ -60,7 +60,7 @@ export function SalePrice(props: {
 						)}
 					>
 						<span class="sr-only">was </span>
-						{formatPrice(props.price, props.currency)}
+						{formatPrice(sale().original, props.currency)}
 					</s>
 					<SaleTag sale={sale().sale} compact={props.compact} />
 				</span>

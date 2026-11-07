@@ -177,7 +177,7 @@ function withSale(line: PricedLine, sales: readonly PublicSale[]): PricedLine {
 	if (!best) return line;
 	return {
 		...line,
-		originalUnitPrice: line.unitPrice,
+		originalUnitPrice: best.original,
 		unitPrice: best.price,
 		sale: lineSale(best.sale),
 		lineTotal: roundMoney(best.price * line.quantity),

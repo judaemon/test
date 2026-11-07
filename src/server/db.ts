@@ -653,6 +653,22 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	VALUES ('november-sale-2026', 'November Sale', 'percent', 5, '2026-11-07', '2026-11-09', 1, 'all',
 		strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 	`,
+	// v44: each payment method can carry a warning shoppers see when they choose
+	// it, which staff edit in Admin → Payments; each order keeps the one it was
+	// placed with. Cash starts with the owner's "pay before November 10".
+	`
+	ALTER TABLE payment_accounts ADD COLUMN notice TEXT NOT NULL DEFAULT '';
+	UPDATE payment_accounts
+	SET notice = 'You are paying in cash. Please pay 1st Class RICARDE (Foxtrot) before November 10.'
+	WHERE method = 'cash';
+	ALTER TABLE orders ADD COLUMN payment_notice TEXT;
+	`,
+	// v45: a sale can keep the price and show a higher "before" price instead
+	// of lowering it (markup), as marketplace sellers do.
+	`
+	ALTER TABLE sales ADD COLUMN pricing TEXT NOT NULL DEFAULT 'discount'
+		CHECK (pricing IN ('discount', 'markup'));
+	`,
 ];
 
 declare global {
@@ -787,8 +803,8 @@ export function seedStarterData(db: Database) {
 
 	if (count("payment_accounts") === 0) {
 		const insert = db.query(
-			`INSERT INTO payment_accounts (method, enabled, label, account_name, account_number, bank_name, qr_image, steps, sort, updated_at)
-			 VALUES ($method, $enabled, $label, $accountName, $accountNumber, $bankName, $qrImage, $steps, $sort, $now)`,
+			`INSERT INTO payment_accounts (method, enabled, label, account_name, account_number, bank_name, qr_image, steps, notice, sort, updated_at)
+			 VALUES ($method, $enabled, $label, $accountName, $accountNumber, $bankName, $qrImage, $steps, $notice, $sort, $now)`,
 		);
 		db.transaction(() => {
 			seedPaymentAccounts.forEach((account, index) => {
@@ -801,6 +817,7 @@ export function seedStarterData(db: Database) {
 					bankName: account.bankName,
 					qrImage: account.qrImage,
 					steps: JSON.stringify(account.steps),
+					notice: account.notice,
 					sort: index,
 					now: nowIso(),
 				});

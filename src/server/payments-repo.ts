@@ -11,6 +11,7 @@ interface AccountRow {
 	bank_name: string;
 	qr_image: string;
 	steps: string;
+	notice: string;
 }
 
 const toAccount = (row: AccountRow): PaymentAccount => ({
@@ -22,6 +23,7 @@ const toAccount = (row: AccountRow): PaymentAccount => ({
 	bankName: row.bank_name,
 	qrImage: row.qr_image,
 	steps: JSON.parse(row.steps) as string[],
+	notice: row.notice,
 });
 
 export function listPaymentAccounts(): PaymentAccount[] {
@@ -46,7 +48,7 @@ export function updatePaymentAccount(
 		.query(
 			`UPDATE payment_accounts SET enabled = $enabled, label = $label, account_name = $accountName,
 			 account_number = $accountNumber, bank_name = $bankName, qr_image = $qrImage,
-			 steps = $steps, updated_at = $now WHERE method = $method`,
+			 steps = $steps, notice = $notice, updated_at = $now WHERE method = $method`,
 		)
 		.run({
 			method,
@@ -57,6 +59,7 @@ export function updatePaymentAccount(
 			bankName: input.bankName,
 			qrImage: input.qrImage,
 			steps: JSON.stringify(input.steps),
+			notice: input.notice,
 			now: nowIso(),
 		});
 	if (result.changes === 0) throw new Error("Payment method not found");

@@ -13,13 +13,16 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { formatPrice } from "~/lib/product";
 import {
+	markupPrice,
 	SALE_NAME_MAX,
 	SALE_PERCENT_MAX,
 	SALE_STATUS_LABELS,
 	type Sale,
 	type SaleStatus,
 	saleLabel,
+	salePrice,
 	saleStatus,
 	shopToday,
 } from "~/lib/sale";
@@ -189,6 +192,11 @@ function SaleSummary(props: {
 							each item
 						</span>
 					</p>
+					<p class="text-sm text-petal-900/70">
+						{props.sale.pricing === "markup"
+							? `Shows a higher before-price; customers pay the normal price (${formatPrice(1000, "PHP")} shows as ${formatPrice(markupPrice(1000, props.sale), "PHP")}).`
+							: `Lowers the price (${formatPrice(1000, "PHP")} becomes ${formatPrice(salePrice(1000, props.sale), "PHP")}).`}
+					</p>
 					<p class="mt-1 text-sm text-petal-900/70">
 						{day(props.sale.startsOn)} – {day(props.sale.endsOn)}
 						<span class="text-petal-900/50"> · Manila time, both days</span>
@@ -244,6 +252,7 @@ function SaleEditor(props: {
 	const [form, setForm] = createStore({
 		name: props.sale?.name ?? "",
 		kind: props.sale?.kind ?? "percent",
+		pricing: props.sale?.pricing ?? "discount",
 		value: String(props.sale?.value ?? ""),
 		startsOn: props.sale?.startsOn ?? today,
 		endsOn: props.sale?.endsOn ?? today,
@@ -255,6 +264,20 @@ function SaleEditor(props: {
 	});
 	const [error, setError] = createSignal<string>();
 	const [saving, setSaving] = createSignal(false);
+
+	/** How a ₱1,000 item would show with the discount as typed. */
+	const example = () => {
+		const value = Number(form.value);
+		const sale = {
+			kind: form.kind,
+			value: Number.isInteger(value) && value > 0 ? value : 5,
+		};
+		const peso = (amount: number) => formatPrice(amount, "PHP");
+		return {
+			discount: `${peso(1000)} becomes ${peso(salePrice(1000, sale))}.`,
+			markup: `${peso(1000)} shows as ${peso(markupPrice(1000, sale))} → ${peso(1000)}.`,
+		};
+	};
 
 	const toggle = (key: "arrangementTypes" | "products", id: string) =>
 		setForm(key, (ids) =>
@@ -353,6 +376,42 @@ function SaleEditor(props: {
 					Sale prices are rounded down to whole pesos. If two sales cover the
 					same item, the bigger discount wins; they don’t add up.
 				</span>
+			</fieldset>
+
+			<fieldset class="flex flex-col gap-2">
+				<legend class="mb-1.5 text-sm font-medium">How the sale shows</legend>
+				<div class="grid gap-2 sm:grid-cols-2">
+					<label class={cn(option, "items-start")}>
+						<input
+							type="radio"
+							name="sale-pricing"
+							checked={form.pricing === "discount"}
+							onChange={() => setForm("pricing", "discount")}
+							class="mt-0.5 accent-petal-700"
+						/>
+						<span>
+							<span class="block font-medium">Lower the price</span>
+							<span class="block text-xs text-petal-900/60">
+								Customers pay less. Example: {example().discount}
+							</span>
+						</span>
+					</label>
+					<label class={cn(option, "items-start")}>
+						<input
+							type="radio"
+							name="sale-pricing"
+							checked={form.pricing === "markup"}
+							onChange={() => setForm("pricing", "markup")}
+							class="mt-0.5 accent-petal-700"
+						/>
+						<span>
+							<span class="block font-medium">Show a higher before-price</span>
+							<span class="block text-xs text-petal-900/60">
+								Customers pay the normal price. Example: {example().markup}
+							</span>
+						</span>
+					</label>
+				</div>
 			</fieldset>
 
 			<div class="grid gap-4 sm:grid-cols-2">
