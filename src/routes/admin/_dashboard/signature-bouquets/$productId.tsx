@@ -79,6 +79,9 @@ export const Route = createFileRoute(
 		if (!product) throw notFound();
 		return { product, codes };
 	},
+	// The form copies the bouquet once, so it must never open on a kept
+	// copy that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: ProductEditor,
 });
 
@@ -253,6 +256,22 @@ function ProductEditor() {
 	// What the shop sees right now (the draft may have unsaved changes).
 	const savedVisible = () => loaded()?.isVisible ?? true;
 	const [uploading, setUploading] = createSignal<string | null>(null);
+
+	/**
+	 * Back to the list as it was (filters, sort and scroll) by stepping back
+	 * to it, so Back afterwards doesn't land on the form again. Opened in a
+	 * fresh tab, there's nothing to step back to and the list replaces it.
+	 */
+	const leave = async () => {
+		if (router.history.canGoBack()) router.history.back();
+		else await navigate({ to: "/admin/signature-bouquets", replace: true });
+	};
+	/** For the back and Cancel links: step back instead of adding a page. */
+	const stepBack = (event: MouseEvent) => {
+		if (!router.history.canGoBack()) return;
+		event.preventDefault();
+		router.history.back();
+	};
 
 	const updateVariant = (index: number, patch: Partial<VariantDraft>) =>
 		setDraft("variants", index, patch);
@@ -551,9 +570,10 @@ function ProductEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the bouquet.");
 			toastSuccess(isNew() ? "Bouquet created." : "Changes saved.");
-			// So the list shows this save straight away.
-			await router.invalidate();
-			await navigate({ to: "/admin/signature-bouquets", replace: true });
+			// So the list, the shop and this form show the save straight away.
+			// `sync` waits for the reloads, or leaving could cut them short.
+			await router.invalidate({ sync: true });
+			await leave();
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -566,6 +586,7 @@ function ProductEditor() {
 			{cropper.element()}
 			<Link
 				to="/admin/signature-bouquets"
+				onClick={stepBack}
 				class={cn(adminButton.ghost, "-ml-2 mb-2")}
 			>
 				← Floral arrangements
@@ -1326,7 +1347,12 @@ function ProductEditor() {
 										data: { productId: params().productId },
 									});
 									toastSuccess("Arrangement deleted.");
-									await navigate({ to: "/admin/signature-bouquets" });
+									// Not this page: its bouquet is gone.
+									await router.invalidate({
+										filter: (match) => match.routeId !== Route.id,
+										sync: true,
+									});
+									await leave();
 								} catch (error) {
 									toastError(error);
 								}
@@ -1345,6 +1371,7 @@ function ProductEditor() {
 					</button>
 					<Link
 						to="/admin/signature-bouquets"
+						onClick={stepBack}
 						class={cn(adminButton.secondary, barButton)}
 					>
 						Cancel
