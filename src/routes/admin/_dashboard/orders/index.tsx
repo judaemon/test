@@ -16,6 +16,7 @@ import {
 } from "solid-js";
 import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
+import { OrderNotes } from "~/components/admin/order-notes";
 import {
 	adminButton,
 	adminCard,
@@ -33,6 +34,12 @@ import {
 } from "~/components/order/payment-status";
 import { printDedicationCard } from "~/components/order/print-card";
 import { FacetFilter } from "~/components/ui/facet-filter";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetTitle,
+} from "~/components/ui/sheet";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
 import { orderColor } from "~/lib/cadets";
@@ -136,8 +143,17 @@ function OrdersPage() {
 	const rows = () => [...data().rows, ...more()];
 	/** Staff notes per order, from every page loaded so far. */
 	const [moreNotes, setMoreNotes] = createSignal<Record<string, number>>({});
+	/** Counts changed from the notes panel, until the list next reloads. */
+	const [noteEdits, setNoteEdits] = createSignal<Record<string, number>>({});
+	createEffect(on(data, () => setNoteEdits({}), { defer: true }));
 	const noteCount = (orderId: string) =>
-		data().noteCounts[orderId] ?? moreNotes()[orderId] ?? 0;
+		noteEdits()[orderId] ??
+		data().noteCounts[orderId] ??
+		moreNotes()[orderId] ??
+		0;
+	/** The order whose notes panel is open. */
+	const [notesFor, setNotesFor] = createSignal<NotesTarget>();
+	const context = Route.useRouteContext();
 	const hasMore = () => rows().length < data().total;
 	const viewKey = () =>
 		JSON.stringify({ ...search(), page: undefined, perPage: undefined });
@@ -563,17 +579,18 @@ function OrdersPage() {
 														minute: "2-digit",
 													})}
 												</p>
-												<Show when={noteCount(order.id)}>
-													{(count) => (
-														<p
-															class="mt-0.5 inline-flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground"
-															title="Staff notes on this order"
-														>
-															<span aria-hidden="true">📝</span>
-															{count()} {count() === 1 ? "note" : "notes"}
-														</p>
-													)}
-												</Show>
+												<NotesButton
+													count={noteCount(order.id)}
+													onClick={() =>
+														setNotesFor({
+															id: order.id,
+															number: order.number,
+															name: details.lastName
+																? `${details.lastName}, ${details.firstName}`
+																: details.fullName,
+														})
+													}
+												/>
 												<Show when={order.cancelledBouquets.length > 0}>
 													<p class="max-w-40 text-xs text-error-foreground">
 														{order.cancelledBouquets.length} bouquet
@@ -878,7 +895,96 @@ function OrdersPage() {
 					</Show>
 				</div>
 			</div>
+
+			<Sheet
+				open={!!notesFor()}
+				onOpenChange={(open) => !open && setNotesFor(undefined)}
+			>
+				<SheetContent
+					class="flex w-full flex-col gap-4 sm:max-w-md"
+					// Straight to the box: the panel is opened to write a note.
+					onOpenAutoFocus={(event: Event) => {
+						event.preventDefault();
+						document.getElementById("new-note")?.focus();
+					}}
+				>
+					<Show when={notesFor()}>
+						{(target) => (
+							<>
+								<div class="pr-8">
+									<SheetTitle class="font-semibold">
+										Notes · Order #{target().number}
+									</SheetTitle>
+									<SheetDescription class="mt-0.5 text-sm text-petal-900/60">
+										{target().name}
+										{" · "}
+										<Link
+											to="/admin/orders/$orderId"
+											params={{ orderId: target().id }}
+											class="font-medium text-petal-700 underline underline-offset-2"
+										>
+											Open order
+										</Link>
+									</SheetDescription>
+								</div>
+								<OrderNotes
+									orderId={target().id}
+									user={context().user}
+									class="flex flex-col"
+									onCountChange={(count) =>
+										setNoteEdits((edits) => ({
+											...edits,
+											[target().id]: count,
+										}))
+									}
+								/>
+							</>
+						)}
+					</Show>
+				</SheetContent>
+			</Sheet>
 		</div>
+	);
+}
+
+type NotesTarget = { id: string; number: string | number; name: string };
+
+/**
+ * A row's way into its staff notes: how many there are, or an invitation to
+ * add the first. Opens the notes panel without leaving the list.
+ */
+function NotesButton(props: { count: number; onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={() => props.onClick()}
+			title={
+				props.count
+					? "Read or add staff notes"
+					: "Add a staff note to this order"
+			}
+			class={cn(
+				"mt-1 flex w-fit items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-petal-500",
+				props.count
+					? "bg-warning text-warning-foreground hover:brightness-95"
+					: "border border-dashed border-petal-900/25 bg-white/60 text-petal-900/60 hover:border-petal-500 hover:bg-white hover:text-petal-700",
+			)}
+		>
+			<Show
+				when={props.count}
+				fallback={
+					<>
+						<span aria-hidden="true">+</span> Add note
+					</>
+				}
+			>
+				<span aria-hidden="true">📝</span>
+				{props.count} {props.count === 1 ? "note" : "notes"}
+				<span aria-hidden="true" class="opacity-60">
+					· +
+				</span>
+			</Show>
+		</button>
 	);
 }
 

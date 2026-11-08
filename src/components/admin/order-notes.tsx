@@ -65,6 +65,10 @@ const grow = (box: HTMLTextAreaElement) => {
 export function OrderNotes(props: {
 	orderId: string;
 	user: { id: string; role: "owner" | "staff" };
+	/** Replaces the card look, e.g. inside the orders list's notes panel. */
+	class?: string;
+	/** Told how many notes there are after each add or delete. */
+	onCountChange?: (count: number) => void;
 }) {
 	const [loaded] = createResource(
 		() => props.orderId,
@@ -83,6 +87,7 @@ export function OrderNotes(props: {
 			return false;
 		}
 		setNotes(result.notes);
+		props.onCountChange?.(result.notes.length);
 		toastSuccess(success);
 		return true;
 	};
@@ -108,7 +113,10 @@ export function OrderNotes(props: {
 	};
 
 	return (
-		<section class={cn(adminCard, "p-5")} aria-labelledby="notes-heading">
+		<section
+			class={props.class ?? cn(adminCard, "p-5")}
+			aria-labelledby="notes-heading"
+		>
 			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
 				<h2 id="notes-heading" class="font-semibold">
 					Staff notes
