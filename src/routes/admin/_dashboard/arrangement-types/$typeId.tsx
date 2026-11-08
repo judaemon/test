@@ -1,12 +1,7 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { useLeaveForm } from "~/components/admin/leave-form";
 
 import {
 	adminButton,
@@ -34,14 +29,19 @@ export const Route = createFileRoute(
 		if (!type) throw notFound();
 		return type;
 	},
+	// The form copies what's loaded once, so it must never open on a kept
+	// copy that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: ArrangementTypeEditor,
 });
 
 function ArrangementTypeEditor() {
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
-	const navigate = useNavigate();
-	const router = useRouter();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/arrangement-types" },
+	});
 	const isNew = () => params().typeId === "new";
 	const [draft, setDraft] = createStore({
 		savedName: loaded()?.name ?? "",
@@ -70,8 +70,8 @@ function ArrangementTypeEditor() {
 			if (!saved) throw new Error("Couldn’t save the type.");
 			toastSuccess(isNew() ? "Type added." : "Changes saved.");
 			// The shop and the arrangement editor read types from the root route.
-			await router.invalidate();
-			await navigate({ to: "/admin/arrangement-types", replace: true });
+			await refresh();
+			await leave();
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -95,6 +95,7 @@ function ArrangementTypeEditor() {
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
 			<Link
 				to="/admin/arrangement-types"
+				onClick={stepBack}
 				class={cn(adminButton.ghost, "-ml-2 mb-2")}
 			>
 				← Arrangement types
@@ -174,8 +175,8 @@ function ArrangementTypeEditor() {
 										data: { id: params().typeId },
 									});
 									toastSuccess("Type deleted.");
-									await router.invalidate();
-									await navigate({ to: "/admin/arrangement-types" });
+									await refresh();
+									await leave();
 								} catch (error) {
 									toastError(error);
 								}
@@ -184,7 +185,11 @@ function ArrangementTypeEditor() {
 							Delete
 						</ConfirmButton>
 					</Show>
-					<Link to="/admin/arrangement-types" class={adminButton.secondary}>
+					<Link
+						to="/admin/arrangement-types"
+						onClick={stepBack}
+						class={adminButton.secondary}
+					>
 						Cancel
 					</Link>
 					<button type="submit" class={adminButton.primary} disabled={saving()}>

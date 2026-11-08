@@ -1,13 +1,8 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { createCropper } from "~/components/admin/image-cropper";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	newRecipeRow,
@@ -248,30 +243,16 @@ function ProductEditor() {
 	const data = Route.useLoaderData();
 	const loaded = () => data().product;
 	const params = Route.useParams();
-	const navigate = useNavigate();
-	const router = useRouter();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/signature-bouquets" },
+	});
 	const isNew = () => params().productId === "new";
 	const [draft, setDraft] = createStore<ProductDraft>(toDraft(loaded()));
 	const [saving, setSaving] = createSignal(false);
 	// What the shop sees right now (the draft may have unsaved changes).
 	const savedVisible = () => loaded()?.isVisible ?? true;
 	const [uploading, setUploading] = createSignal<string | null>(null);
-
-	/**
-	 * Back to the list as it was (filters, sort and scroll) by stepping back
-	 * to it, so Back afterwards doesn't land on the form again. Opened in a
-	 * fresh tab, there's nothing to step back to and the list replaces it.
-	 */
-	const leave = async () => {
-		if (router.history.canGoBack()) router.history.back();
-		else await navigate({ to: "/admin/signature-bouquets", replace: true });
-	};
-	/** For the back and Cancel links: step back instead of adding a page. */
-	const stepBack = (event: MouseEvent) => {
-		if (!router.history.canGoBack()) return;
-		event.preventDefault();
-		router.history.back();
-	};
 
 	const updateVariant = (index: number, patch: Partial<VariantDraft>) =>
 		setDraft("variants", index, patch);
@@ -570,9 +551,7 @@ function ProductEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the bouquet.");
 			toastSuccess(isNew() ? "Bouquet created." : "Changes saved.");
-			// So the list, the shop and this form show the save straight away.
-			// `sync` waits for the reloads, or leaving could cut them short.
-			await router.invalidate({ sync: true });
+			await refresh();
 			await leave();
 		} catch (error) {
 			toastError(error);
@@ -1347,11 +1326,7 @@ function ProductEditor() {
 										data: { productId: params().productId },
 									});
 									toastSuccess("Arrangement deleted.");
-									// Not this page: its bouquet is gone.
-									await router.invalidate({
-										filter: (match) => match.routeId !== Route.id,
-										sync: true,
-									});
+									await refresh();
 									await leave();
 								} catch (error) {
 									toastError(error);

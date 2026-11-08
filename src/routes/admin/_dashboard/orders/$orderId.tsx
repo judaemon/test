@@ -1,9 +1,4 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import {
 	createEffect,
 	createResource,
@@ -14,6 +9,7 @@ import {
 } from "solid-js";
 import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { ChangePaymentMethodButton } from "~/components/admin/change-payment-method";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import { OrderLogTable } from "~/components/admin/order-log-table";
 import { OrderNotes } from "~/components/admin/order-notes";
 import {
@@ -72,10 +68,15 @@ const SHOW_DELIVERY = false;
 const proofId = (fileName: string) => fileName.replace(/\.(png|jpg|webp)$/, "");
 
 export const Route = createFileRoute("/admin/_dashboard/orders/$orderId")({
-	loader: async ({ params }) => {
-		const order = await getAdminOrder({ data: params.orderId });
-		if (!order) throw notFound();
-		return order;
+	// Stepped back to after editing, wait for the fresh order rather than
+	// showing the old one first and swapping it in.
+	loader: {
+		handler: async ({ params }) => {
+			const order = await getAdminOrder({ data: params.orderId });
+			if (!order) throw notFound();
+			return order;
+		},
+		staleReloadMode: "blocking",
 	},
 	component: OrderDetail,
 	notFoundComponent: () => (
@@ -92,7 +93,11 @@ function OrderDetail() {
 	const loaded = Route.useLoaderData();
 	const context = Route.useRouteContext();
 	const staff = () => context().user;
-	const router = useRouter();
+	// Back to the list as it was (filters and scroll).
+	const { stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/orders" },
+	});
 	const [order, setOrder] = createSignal<Order>(loaded());
 	createEffect(on(loaded, (fresh) => setOrder(fresh), { defer: true }));
 	const [busy, setBusy] = createSignal(false);
@@ -144,13 +149,7 @@ function OrderDetail() {
 		<div>
 			<Link
 				to="/admin/orders"
-				onClick={(event) => {
-					// Back to the list as it was (filters and scroll).
-					if (router.history.canGoBack()) {
-						event.preventDefault();
-						router.history.back();
-					}
-				}}
+				onClick={stepBack}
 				class={cn(adminButton.ghost, "-ml-2 mb-2")}
 			>
 				← Back

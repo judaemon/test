@@ -80,8 +80,13 @@ export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 		flower: textParam(search, "flower"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
-	loader: ({ abortController }) =>
-		listInventory({ signal: abortController.signal }),
+	// Stepped back to after a save, wait for the fresh rows rather than
+	// showing the old ones first and swapping them in.
+	loader: {
+		handler: ({ abortController }) =>
+			listInventory({ signal: abortController.signal }),
+		staleReloadMode: "blocking",
+	},
 	component: InventoryPage,
 });
 

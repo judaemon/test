@@ -1,12 +1,7 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import {
 	draftStems,
 	type RecipeDraft,
@@ -77,6 +72,9 @@ export const Route = createFileRoute("/admin/_dashboard/orders/new")({
 		if (!order) throw notFound();
 		return order;
 	},
+	// The form copies the order once, so it must never open on a kept copy
+	// that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: NewChatOrder,
 });
 
@@ -87,8 +85,10 @@ const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
  * total and deposit. With `?edit=<order id>`, changes that order instead.
  */
 function NewChatOrder() {
-	const navigate = useNavigate();
-	const router = useRouter();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/orders" },
+	});
 	// The order being edited, read once: the form keeps its own copy.
 	const editing = Route.useLoaderData()();
 	const details = editing?.details;
@@ -206,40 +206,18 @@ function NewChatOrder() {
 				setErrors(result.fieldErrors ?? {});
 				throw new Error(result.message);
 			}
-			if (editing) {
-				toastSuccess(`Order #${result.number} updated.`);
-				await leave(() =>
-					navigate({
-						to: "/admin/orders/$orderId",
-						params: { orderId: result.id },
-						replace: true,
-					}),
-				);
-			} else {
-				toastSuccess(`Order #${result.number} added.`);
-				await leave(() => navigate({ to: "/admin/orders", replace: true }));
-			}
+			toastSuccess(`Order #${result.number} ${editing ? "updated" : "added"}.`);
+			await refresh();
+			await leave(
+				editing
+					? { to: "/admin/orders/$orderId", params: { orderId: result.id } }
+					: undefined,
+			);
 		} catch (error) {
 			toastError(error);
 		} finally {
 			setSaving(false);
 		}
-	};
-
-	/**
-	 * Leaves the form by stepping back to the page that opened it, so Back
-	 * afterwards doesn't land on the form again. Opened in a fresh tab, there
-	 * is nothing to go back to and `fallback` replaces the form instead.
-	 */
-	const leave = async (fallback: () => Promise<void>) => {
-		if (router.history.canGoBack()) router.history.back();
-		else await fallback();
-	};
-	/** For the back and Cancel links: step back instead of adding a page. */
-	const stepBack = (event: MouseEvent) => {
-		if (!router.history.canGoBack()) return;
-		event.preventDefault();
-		router.history.back();
 	};
 
 	/** A text box for one customer field, with checkout's error under it. */

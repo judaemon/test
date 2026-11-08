@@ -14,7 +14,12 @@ import {
 } from "~/server/admin/arrangement-types";
 
 export const Route = createFileRoute("/admin/_dashboard/arrangement-types/")({
-	loader: () => listArrangementTypesAdmin(),
+	// Stepped back to after a save, wait for the fresh rows rather than
+	// showing the old ones first and swapping them in.
+	loader: {
+		handler: () => listArrangementTypesAdmin(),
+		staleReloadMode: "blocking",
+	},
 	component: ArrangementTypesPage,
 });
 

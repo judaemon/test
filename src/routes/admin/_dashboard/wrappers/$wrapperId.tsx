@@ -1,13 +1,8 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createCropper } from "~/components/admin/image-cropper";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	adminButton,
@@ -83,8 +78,10 @@ function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 function WrapperEditor() {
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
-	const navigate = useNavigate();
-	const router = useRouter();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/wrappers" },
+	});
 	const isNew = () => params().wrapperId === "new";
 	const [draft, setDraft] = createStore<WrapperDraft>(toDraft(loaded()));
 	const [saving, setSaving] = createSignal(false);
@@ -116,22 +113,6 @@ function WrapperEditor() {
 		}
 	};
 
-	/**
-	 * Back to the list as it was (filters, page and scroll) by stepping back
-	 * to it, so Back afterwards doesn't land on the form again. Opened in a
-	 * fresh tab, there's nothing to step back to and the list replaces it.
-	 */
-	const leave = async () => {
-		if (router.history.canGoBack()) router.history.back();
-		else await navigate({ to: "/admin/wrappers", replace: true });
-	};
-	/** For the back and Cancel links: step back instead of adding a page. */
-	const stepBack = (event: MouseEvent) => {
-		if (!router.history.canGoBack()) return;
-		event.preventDefault();
-		router.history.back();
-	};
-
 	const swatch = () =>
 		draft.colorHex ? swatchColors(wrapperColors(draft)) : "transparent";
 
@@ -160,9 +141,7 @@ function WrapperEditor() {
 			});
 			if (!saved) throw new Error("Couldn’t save the wrapper.");
 			toastSuccess(isNew() ? "Wrapper added." : "Changes saved.");
-			// So the list, the shop and this form show the save straight away.
-			// `sync` waits for the reloads, or leaving could cut them short.
-			await router.invalidate({ sync: true });
+			await refresh();
 			await leave();
 		} catch (error) {
 			toastError(error);
@@ -395,11 +374,7 @@ function WrapperEditor() {
 								try {
 									await deleteWrapperFn({ data: { id: params().wrapperId } });
 									toastSuccess("Wrapper deleted.");
-									// Not this page: its wrapper is gone.
-									await router.invalidate({
-										filter: (match) => match.routeId !== Route.id,
-										sync: true,
-									});
+									await refresh();
 									await leave();
 								} catch (error) {
 									toastError(error);

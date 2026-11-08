@@ -13,7 +13,12 @@ import { cn } from "~/lib/utils";
 import { listSizesAdmin, moveSizeFn } from "~/server/admin/sizes";
 
 export const Route = createFileRoute("/admin/_dashboard/sizes/")({
-	loader: () => listSizesAdmin(),
+	// Stepped back to after a save, wait for the fresh rows rather than
+	// showing the old ones first and swapping them in.
+	loader: {
+		handler: () => listSizesAdmin(),
+		staleReloadMode: "blocking",
+	},
 	component: SizesPage,
 });
 

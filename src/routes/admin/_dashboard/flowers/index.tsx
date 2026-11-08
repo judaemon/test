@@ -44,8 +44,13 @@ export const Route = createFileRoute("/admin/_dashboard/flowers/")({
 		stock: textParam(search, "stock"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
-	loader: ({ abortController }) =>
-		listFlowersAdmin({ signal: abortController.signal }),
+	// Stepped back to after a save, wait for the fresh rows rather than
+	// showing the old ones first and swapping them in.
+	loader: {
+		handler: ({ abortController }) =>
+			listFlowersAdmin({ signal: abortController.signal }),
+		staleReloadMode: "blocking",
+	},
 	component: FlowersPage,
 });
 

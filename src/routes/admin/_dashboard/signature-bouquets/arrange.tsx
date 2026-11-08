@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
+import { createFileRoute, Link } from "@tanstack/solid-router";
 import {
 	closestCenter,
 	createSortable,
@@ -10,6 +10,7 @@ import {
 	SortableProvider,
 } from "@thisbeyond/solid-dnd";
 import { createSignal, For, Show } from "solid-js";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import {
 	adminButton,
 	PageHeader,
@@ -25,6 +26,9 @@ export const Route = createFileRoute(
 )({
 	loader: ({ abortController }) =>
 		listInventory({ signal: abortController.signal }),
+	// The page copies the order once, so it must never open on a kept copy
+	// that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: ArrangePage,
 });
 
@@ -46,7 +50,10 @@ function moved(list: string[], from: number, to: number) {
  */
 function ArrangePage() {
 	const loaded = Route.useLoaderData();
-	const navigate = useNavigate();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/signature-bouquets" },
+	});
 	const saved = loaded().map((product) => product.id);
 	const byId = new Map(loaded().map((product) => [product.id, product]));
 	const [order, setOrder] = createSignal(saved);
@@ -74,7 +81,8 @@ function ArrangePage() {
 		try {
 			await reorderProductsFn({ data: { ids: order() } });
 			toastSuccess("Shop order saved.");
-			await navigate({ to: "/admin/signature-bouquets" });
+			await refresh();
+			await leave();
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -93,6 +101,7 @@ function ArrangePage() {
 						<>
 							<Link
 								to="/admin/signature-bouquets"
+								onClick={stepBack}
 								class={adminButton.secondary}
 							>
 								Cancel

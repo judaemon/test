@@ -1,13 +1,8 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createCropper } from "~/components/admin/image-cropper";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	adminButton,
@@ -39,14 +34,19 @@ export const Route = createFileRoute("/admin/_dashboard/sizes/$sizeId")({
 		if (!size) throw notFound();
 		return size;
 	},
+	// The form copies what's loaded once, so it must never open on a kept
+	// copy that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: SizeEditor,
 });
 
 function SizeEditor() {
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
-	const navigate = useNavigate();
-	const router = useRouter();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/sizes" },
+	});
 	const isNew = () => params().sizeId === "new";
 	const [draft, setDraft] = createStore({
 		savedName: loaded()?.name ?? "",
@@ -109,8 +109,8 @@ function SizeEditor() {
 			if (!saved) throw new Error("Couldn’t save the size.");
 			toastSuccess(isNew() ? "Size added." : "Changes saved.");
 			// The shop and the bouquet editor read sizes from the root route.
-			await router.invalidate();
-			await navigate({ to: "/admin/sizes", replace: true });
+			await refresh();
+			await leave();
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -121,7 +121,11 @@ function SizeEditor() {
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
 			{cropper.element()}
-			<Link to="/admin/sizes" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
+			<Link
+				to="/admin/sizes"
+				onClick={stepBack}
+				class={cn(adminButton.ghost, "-ml-2 mb-2")}
+			>
 				← Sizes
 			</Link>
 			<PageHeader
@@ -265,8 +269,8 @@ function SizeEditor() {
 								try {
 									await deleteSizeFn({ data: { id: params().sizeId } });
 									toastSuccess("Size deleted.");
-									await router.invalidate();
-									await navigate({ to: "/admin/sizes" });
+									await refresh();
+									await leave();
 								} catch (error) {
 									toastError(error);
 								}
@@ -275,7 +279,11 @@ function SizeEditor() {
 							Delete
 						</ConfirmButton>
 					</Show>
-					<Link to="/admin/sizes" class={adminButton.secondary}>
+					<Link
+						to="/admin/sizes"
+						onClick={stepBack}
+						class={adminButton.secondary}
+					>
 						Cancel
 					</Link>
 					<button

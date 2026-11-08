@@ -61,8 +61,13 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 		page: countParam(search, "page"),
 		perPage: PAGE_SIZES.find((size) => size === Number(search.perPage)),
 	}),
-	loader: ({ abortController }) =>
-		listWrappersAdmin({ signal: abortController.signal }),
+	// Stepped back to after a save, wait for the fresh rows rather than
+	// showing the old ones first and swapping them in.
+	loader: {
+		handler: ({ abortController }) =>
+			listWrappersAdmin({ signal: abortController.signal }),
+		staleReloadMode: "blocking",
+	},
 	component: WrappersPage,
 });
 

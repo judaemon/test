@@ -1,13 +1,8 @@
-import {
-	createFileRoute,
-	Link,
-	notFound,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createCropper } from "~/components/admin/image-cropper";
+import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
 import {
 	adminButton,
@@ -37,6 +32,9 @@ export const Route = createFileRoute("/admin/_dashboard/flowers/$flowerId")({
 		if (!flower) throw notFound();
 		return flower;
 	},
+	// The form copies what's loaded once, so it must never open on a kept
+	// copy that's refreshed behind it: drop it on leaving, load anew each time.
+	gcTime: 0,
 	component: FlowerEditor,
 });
 
@@ -102,8 +100,10 @@ function toDraft(flower: FlowerRecord | null): FlowerDraft {
 function FlowerEditor() {
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
-	const navigate = useNavigate();
-	const router = useRouter();
+	const { refresh, leave, stepBack } = useLeaveForm({
+		routeId: Route.id,
+		fallback: { to: "/admin/flowers" },
+	});
 	const isNew = () => params().flowerId === "new";
 	const [draft, setDraft] = createStore<FlowerDraft>(toDraft(loaded()));
 	const [saving, setSaving] = createSignal(false);
@@ -170,8 +170,8 @@ function FlowerEditor() {
 			if (!saved) throw new Error("Couldn’t save the flower.");
 			toastSuccess(isNew() ? "Flower added." : "Changes saved.");
 			// So the list shows this save straight away.
-			await router.invalidate();
-			await navigate({ to: "/admin/flowers", replace: true });
+			await refresh();
+			await leave();
 		} catch (error) {
 			toastError(error);
 		} finally {
@@ -251,7 +251,11 @@ function FlowerEditor() {
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
 			{cropper.element()}
-			<Link to="/admin/flowers" class={cn(adminButton.ghost, "-ml-2 mb-2")}>
+			<Link
+				to="/admin/flowers"
+				onClick={stepBack}
+				class={cn(adminButton.ghost, "-ml-2 mb-2")}
+			>
 				← Flowers
 			</Link>
 			<PageHeader
@@ -451,7 +455,8 @@ function FlowerEditor() {
 								try {
 									await deleteFlowerFn({ data: { id: params().flowerId } });
 									toastSuccess("Flower deleted.");
-									await navigate({ to: "/admin/flowers" });
+									await refresh();
+									await leave();
 								} catch (error) {
 									toastError(error);
 								}
@@ -460,7 +465,11 @@ function FlowerEditor() {
 							Delete
 						</ConfirmButton>
 					</Show>
-					<Link to="/admin/flowers" class={adminButton.secondary}>
+					<Link
+						to="/admin/flowers"
+						onClick={stepBack}
+						class={adminButton.secondary}
+					>
 						Cancel
 					</Link>
 					<button

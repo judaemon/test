@@ -101,11 +101,16 @@ export const Route = createFileRoute("/admin/_dashboard/orders/")({
 	validateSearch: validateOrdersSearch,
 	loaderDeps: ({ search }) => search,
 	// The first rows only; the table loads the rest as it's scrolled.
-	loader: ({ deps, abortController }) =>
-		listAdminOrderRows({
-			signal: abortController.signal,
-			data: { ...deps, page: undefined },
-		}),
+	// Stepped back to, wait for the fresh rows rather than showing the old
+	// ones first and swapping them in.
+	loader: {
+		handler: ({ deps, abortController }) =>
+			listAdminOrderRows({
+				signal: abortController.signal,
+				data: { ...deps, page: undefined },
+			}),
+		staleReloadMode: "blocking",
+	},
 	component: OrdersPage,
 });
 
