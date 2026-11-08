@@ -27,7 +27,7 @@ const style = (
 	isAvailable: true,
 	images: ["/images/x.jpg"],
 	recipe,
-	wrapperId: "",
+	wrapperIds: [] as string[],
 });
 
 const addBouquet = (

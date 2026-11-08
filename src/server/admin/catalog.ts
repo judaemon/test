@@ -183,16 +183,22 @@ function parseVariant(raw: unknown, index: number): VariantInput {
 		imageTags,
 		imageCaptions,
 		recipe: parseRecipe(source.recipe, label),
-		wrapperId: wrapperId(source, label),
+		wrapperIds: wrapperIds(source, label),
 	};
 }
 
-/** A wrapper from Admin → Wrappers, or none. */
-function wrapperId(source: Record<string, unknown>, label: string) {
-	const id = text(source, "wrapperId", { max: 64, required: false });
-	if (id && !getWrapper(id))
-		throw new InputError(`${label} wrapper isn’t in the wrapper list.`);
-	return id;
+/** Wrappers from Admin → Wrappers, used together; none is fine. */
+function wrapperIds(source: Record<string, unknown>, label: string) {
+	const ids = source.wrapperIds ?? [];
+	if (!Array.isArray(ids) || ids.length > 10)
+		throw new InputError(`${label} wrappers aren’t valid.`);
+	const chosen = new Set<string>();
+	for (const id of ids) {
+		if (typeof id !== "string" || id.length > 64 || !getWrapper(id))
+			throw new InputError(`${label} wrapper isn’t in the wrapper list.`);
+		chosen.add(id);
+	}
+	return [...chosen];
 }
 
 /** Bouquets are named after girls, e.g. "Odette", "Mary Ann" or "Corsage 1". */

@@ -22,7 +22,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
-import { WrapperSelect } from "~/components/admin/wrapper-select";
+import { WrapperList } from "~/components/admin/wrapper-select";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { DEFAULT_ARRANGEMENT, sizesForType } from "~/lib/arrangements";
 import { findFlowerKind } from "~/lib/custom-bouquet";
@@ -109,8 +109,8 @@ interface VariantDraft {
 	ownRecipe: boolean;
 	/** Kept while the switch is off, so turning it back on loses nothing. */
 	recipe: RecipeDraft[];
-	/** A wrapper from Admin → Wrappers; empty for none. */
-	wrapperId: string;
+	/** Wrappers from Admin → Wrappers, used together; may hold an unpicked "". */
+	wrapperIds: string[];
 	/** Shows the AI background note under this style's photos. */
 	aiPhotos: boolean;
 }
@@ -173,7 +173,7 @@ const newVariant = (): VariantDraft => ({
 	imageCaptions: [],
 	ownRecipe: false,
 	recipe: [],
-	wrapperId: "",
+	wrapperIds: [],
 	aiPhotos: true,
 });
 
@@ -216,7 +216,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			imageCaptions: v.images.map((_, i) => v.imageCaptions?.[i] ?? ""),
 			ownRecipe: v.hasOwnRecipe,
 			recipe: v.hasOwnRecipe ? toRecipeDraft(v.recipe) : [],
-			wrapperId: v.wrapperId ?? "",
+			wrapperIds: [...v.wrapperIds],
 			aiPhotos: v.aiPhotos ?? true,
 		})),
 	};
@@ -543,7 +543,7 @@ function ProductEditor() {
 							imageTags: v.imageTags,
 							imageCaptions: v.imageCaptions,
 							recipe: v.ownRecipe ? recipeToSave(v.recipe) : [],
-							wrapperId: v.wrapperId,
+							wrapperIds: v.wrapperIds.filter(Boolean),
 							aiPhotos: v.aiPhotos,
 						})),
 					},
@@ -1098,17 +1098,18 @@ function ProductEditor() {
 									</Show>
 								</fieldset>
 								<fieldset class="sm:col-span-2">
-									<legend class="mb-2 text-sm font-medium">Wrapper</legend>
-									<WrapperSelect
+									<legend class="mb-2 text-sm font-medium">Wrappers</legend>
+									<WrapperList
 										label="Wrapper"
 										wrappers={custom().wrappers}
-										value={variant().wrapperId}
-										onChange={(wrapperId) =>
-											updateVariant(index, { wrapperId })
+										value={variant().wrapperIds}
+										onChange={(wrapperIds) =>
+											updateVariant(index, { wrapperIds })
 										}
 									/>
 									<p class="mt-1.5 text-xs text-petal-900/55">
-										From Wrappers. Shown to shoppers and on each order.
+										From Wrappers. All of them go on the bouquet; shoppers and
+										each order see every one.
 									</p>
 								</fieldset>
 							</div>

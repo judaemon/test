@@ -2,6 +2,15 @@ import { addDays, formatDate, shopNow } from "~/lib/time";
 import type { PhotoTag, Product, ProductVariant } from "~/types/product";
 
 export const LOW_STOCK_THRESHOLD = 5;
+
+/**
+ * Between the names of a bouquet's wrappers when it has several, e.g.
+ * "2T Red Gold + Cream". Orders keep the joined names as they were.
+ */
+export const WRAPPER_JOIN = " + ";
+/** The wrapper names in an order line's or style's `wrapperColor`. */
+export const wrapperNames = (wrapperColor: string | undefined) =>
+	wrapperColor ? wrapperColor.split(WRAPPER_JOIN) : [];
 export const MAX_PER_ORDER = 10;
 
 /** Most units of a variant one bag may hold; 0 when it can't be bought. */

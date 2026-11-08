@@ -1,6 +1,7 @@
 import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { sameRecipe } from "~/lib/flowers";
+import { WRAPPER_JOIN } from "~/lib/product";
 import type { BouquetSize } from "~/lib/sizes";
 import type {
 	AdminProduct,
@@ -43,9 +44,13 @@ interface StyleRow {
 	image_tags: string;
 	image_captions: string;
 	ai_photos: number;
-	wrapper_id: string | null;
-	/** The linked wrapper's name, from the join. */
-	wrapper_name: string | null;
+}
+
+/** One of a style's wrappers, in order. */
+interface StyleWrapperRow {
+	style_id: string;
+	wrapper_id: string;
+	name: string;
 }
 
 interface RecipeRow {
@@ -74,11 +79,14 @@ export function listAdminProducts({
 		)
 		.all() as BouquetRow[];
 	const styles = db
-		.query(
-			`SELECT s.*, w.name AS wrapper_name FROM bouquet_styles s
-			 LEFT JOIN wrappers w ON w.id = s.wrapper_id ORDER BY s.sort`,
-		)
+		.query("SELECT * FROM bouquet_styles ORDER BY sort")
 		.all() as StyleRow[];
+	const styleWrappers = db
+		.query(
+			`SELECT sw.style_id, sw.wrapper_id, w.name FROM style_wrappers sw
+			 JOIN wrappers w ON w.id = sw.wrapper_id ORDER BY sw.sort`,
+		)
+		.all() as StyleWrapperRow[];
 	const readRecipes = (table: string, owner: string) =>
 		db
 			.query(
@@ -97,7 +105,16 @@ export function listAdminProducts({
 		const recipe = toRecipe(bouquetRecipes, row.id);
 		const variants = styles
 			.filter((style) => style.bouquet_id === row.id)
-			.map((style) => toVariant(style, row, size, recipe, styleRecipes));
+			.map((style) =>
+				toVariant(
+					style,
+					row,
+					size,
+					recipe,
+					styleRecipes,
+					styleWrappers.filter((w) => w.style_id === style.id),
+				),
+			);
 		return {
 			id: row.id,
 			title: row.name,
@@ -134,6 +151,7 @@ function toVariant(
 	size: BouquetSize | "",
 	bouquetRecipe: RecipeItem[],
 	styleRecipes: RecipeRow[],
+	wrappers: StyleWrapperRow[],
 ): AdminVariant {
 	const ownRecipe = toRecipe(styleRecipes, row.id);
 	const isAvailable = row.is_available === 1;
@@ -171,8 +189,8 @@ function toVariant(
 		recipe: ownRecipe.length > 0 ? ownRecipe : bouquetRecipe,
 		hasOwnRecipe: ownRecipe.length > 0,
 		size,
-		wrapperColor: row.wrapper_name ?? "",
-		...(row.wrapper_id ? { wrapperId: row.wrapper_id } : {}),
+		wrapperColor: wrappers.map((w) => w.name).join(WRAPPER_JOIN),
+		wrapperIds: wrappers.map((w) => w.wrapper_id),
 		aiPhotos: row.ai_photos === 1,
 	};
 }
@@ -194,7 +212,7 @@ export function toPublicProduct(product: AdminProduct): Product {
 		variants: product.variants.map(
 			({
 				isAvailable: _available,
-				wrapperId: _wrapperId,
+				wrapperIds: _wrapperIds,
 				readyStock: _readyStock,
 				takesPreorders: _takesPreorders,
 				preorderSlots: _preorderSlots,
@@ -254,8 +272,8 @@ export interface VariantInput {
 	 * uses the bouquet's.
 	 */
 	recipe: RecipeItem[];
-	/** A row of the wrappers table; empty for none. */
-	wrapperId: string;
+	/** Rows of the wrappers table, all used together, in order. */
+	wrapperIds: string[];
 	/** Starts on when left out. */
 	aiPhotos?: boolean;
 }
@@ -387,6 +405,13 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 		const clearRecipe = db.query(
 			"DELETE FROM style_flowers WHERE style_id = $styleId",
 		);
+		const clearWrappers = db.query(
+			"DELETE FROM style_wrappers WHERE style_id = $styleId",
+		);
+		const addWrapper = db.query(
+			`INSERT INTO style_wrappers (style_id, wrapper_id, sort)
+			 VALUES ($styleId, $wrapperId, $sort)`,
+		);
 		const addFlower = db.query(
 			`INSERT INTO style_flowers (style_id, flower_color_id, count, is_filler, sort)
 			 VALUES ($styleId, $colorId, $count, $filler, $sort)`,
@@ -417,8 +442,13 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 				imageTags: JSON.stringify(variant.imageTags ?? []),
 				imageCaptions: JSON.stringify(variant.imageCaptions ?? []),
 				aiPhotos: variant.aiPhotos === false ? 0 : 1,
-				wrapperId: variant.wrapperId || null,
+				// The first, for older code and snapshots that read only one.
+				wrapperId: variant.wrapperIds[0] ?? null,
 				sort: index,
+			});
+			clearWrappers.run({ styleId });
+			variant.wrapperIds.forEach((wrapperId, sort) => {
+				addWrapper.run({ styleId, wrapperId, sort });
 			});
 			clearRecipe.run({ styleId });
 			variant.recipe.forEach((item, sort) => {

@@ -24,7 +24,12 @@ import {
 } from "~/components/admin/ui";
 import { findArrangementType, sizesForType } from "~/lib/arrangements";
 import { formatRecipeItem, mainFlower } from "~/lib/flowers";
-import { formatPrice, stockLabel, swatchBackground } from "~/lib/product";
+import {
+	formatPrice,
+	stockLabel,
+	swatchBackground,
+	wrapperNames,
+} from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { findSize } from "~/lib/sizes";
 import { useArrangementTypes, useSizes } from "~/lib/use-catalog";
@@ -616,7 +621,11 @@ function VariantRow(props: {
 						<p class="mt-0.5 flex flex-wrap gap-x-1.5 text-xs text-petal-900/60">
 							<span>
 								{props.variant.wrapperColor
-									? `${props.variant.wrapperColor} wrapper`
+									? `${props.variant.wrapperColor} ${
+											wrapperNames(props.variant.wrapperColor).length > 1
+												? "wrappers"
+												: "wrapper"
+										}`
 									: "No wrapper"}
 							</span>
 							<span aria-hidden="true">·</span>

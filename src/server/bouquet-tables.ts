@@ -484,3 +484,26 @@ function mostCommon(values: string[]) {
 	for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
 	return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 }
+
+/** A style's wrappers, in the order they're listed; all of them go on it. */
+export const STYLE_WRAPPERS_SQL = `
+	CREATE TABLE style_wrappers (
+		style_id TEXT NOT NULL REFERENCES bouquet_styles(id) ON DELETE CASCADE,
+		wrapper_id TEXT NOT NULL REFERENCES wrappers(id) ON DELETE CASCADE,
+		sort INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (style_id, wrapper_id)
+	);
+	CREATE INDEX style_wrappers_wrapper ON style_wrappers (wrapper_id);
+`;
+
+/**
+ * Lists each style's one wrapper (`bouquet_styles.wrapper_id`, from before a
+ * style could have several) as its first. The column stays, holding the first
+ * wrapper, so older code and catalog snapshots still find one.
+ */
+export function moveWrappersToStyleList(db: Database) {
+	db.exec(`
+		INSERT OR IGNORE INTO style_wrappers (style_id, wrapper_id, sort)
+		SELECT id, wrapper_id, 0 FROM bouquet_styles WHERE wrapper_id IS NOT NULL
+	`);
+}

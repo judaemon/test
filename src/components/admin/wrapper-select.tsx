@@ -1,7 +1,7 @@
 import * as SelectPrimitive from "@kobalte/core/select";
-import { For, Show } from "solid-js";
+import { For, Index, Show } from "solid-js";
 
-import { adminInput } from "~/components/admin/ui";
+import { adminButton, adminInput } from "~/components/admin/ui";
 import {
 	createHoverPreview,
 	ZoomableImage,
@@ -112,9 +112,13 @@ export function WrapperSelect(props: {
 				value={selected()}
 				// A row that closes under the pointer never says it was left.
 				onOpenChange={(open) => !open && preview.hide()}
-				onChange={(wrapper) =>
-					wrapper && props.onChange(wrapper === NONE ? "" : wrapper.id)
-				}
+				onChange={(wrapper) => {
+					if (!wrapper) return;
+					const id = wrapper === NONE ? "" : wrapper.id;
+					// The select repeats its choice when its options change; passing
+					// that on would loop when the options depend on the choice.
+					if (id !== props.value) props.onChange(id);
+				}}
 				// Keeps an old entry visible until it's replaced.
 				placeholder="Wrapper not in list"
 				itemComponent={(item) => (
@@ -170,5 +174,74 @@ export function WrapperSelect(props: {
 			</SelectPrimitive.Root>
 			<preview.Preview />
 		</div>
+	);
+}
+
+/**
+ * Wrappers used together on one bouquet, e.g. a red sheet over a gold one:
+ * a picker per wrapper, in order. With none it shows a single "No wrapper".
+ */
+export function WrapperList(props: {
+	/** Read aloud in place of a visible label; numbered when there are several. */
+	label: string;
+	wrappers: WrapperChoice[];
+	/** Wrapper ids; an empty one is a row added but not picked yet. */
+	value: string[];
+	onChange: (wrapperIds: string[]) => void;
+}) {
+	const rows = () => (props.value.length ? props.value : [""]);
+	/** "No wrapper" on a row takes it out. */
+	const pick = (row: number, wrapperId: string) => {
+		const next = [...rows()];
+		if (wrapperId) next[row] = wrapperId;
+		else next.splice(row, 1);
+		props.onChange(next);
+	};
+
+	return (
+		<>
+			<ul class="flex flex-col gap-2">
+				<Index each={rows()}>
+					{(wrapperId, row) => (
+						<li class="flex items-center gap-2">
+							<div class="min-w-0 flex-1">
+								<WrapperSelect
+									label={
+										rows().length > 1
+											? `${props.label} ${row + 1}`
+											: props.label
+									}
+									// Each wrapper goes on once.
+									wrappers={props.wrappers.filter(
+										(w) => w.id === wrapperId() || !rows().includes(w.id),
+									)}
+									value={wrapperId()}
+									onChange={(next) => pick(row, next)}
+								/>
+							</div>
+							<Show when={rows().length > 1}>
+								<button
+									type="button"
+									class={cn(adminButton.ghost, "text-error-foreground")}
+									onClick={() => pick(row, "")}
+									aria-label={`Remove ${props.label.toLowerCase()} ${row + 1}`}
+								>
+									✕
+								</button>
+							</Show>
+						</li>
+					)}
+				</Index>
+			</ul>
+			<Show when={rows().every(Boolean)}>
+				<button
+					type="button"
+					class={cn(adminButton.ghost, "mt-1")}
+					onClick={() => props.onChange([...rows(), ""])}
+				>
+					+ Add wrapper
+				</button>
+			</Show>
+		</>
 	);
 }

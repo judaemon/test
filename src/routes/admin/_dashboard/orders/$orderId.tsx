@@ -39,7 +39,7 @@ import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet, ORDER_EDIT_HOURS } from "~/lib/order-edit";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { formatPrice, preorderNote } from "~/lib/product";
+import { formatPrice, preorderNote, wrapperNames } from "~/lib/product";
 import { useFlowerPhotos } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import {
@@ -388,7 +388,11 @@ function OrderDetail() {
 											</Show>
 											<Show when={line.wrapperColor}>
 												<span class="block text-sm">
-													<span class="font-medium">Wrapper:</span>{" "}
+													<span class="font-medium">
+														{wrapperNames(line.wrapperColor).length > 1
+															? "Wrappers:"
+															: "Wrapper:"}
+													</span>{" "}
 													{line.wrapperColor}
 												</span>
 											</Show>

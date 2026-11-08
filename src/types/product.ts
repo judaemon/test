@@ -65,7 +65,10 @@ export interface ProductVariant {
 	recipe: RecipeItem[];
 	/** The bouquet's size (see the size guide); empty if not set. */
 	size?: BouquetSize | "";
-	/** The wrapper's name, e.g. "Kraft brown"; empty if not set. */
+	/**
+	 * The wrapper's name, e.g. "Kraft brown", or the names of several used
+	 * together, e.g. "2T Red Gold + Cream"; empty if not set.
+	 */
 	wrapperColor: string;
 	/** Backgrounds were AI-enhanced, so the shop shows a note under the photos. */
 	aiPhotos?: boolean;
@@ -98,8 +101,11 @@ export interface AdminVariant extends ProductVariant {
 	takesPreorders: boolean;
 	/** Pre-orders still taken; absent for no limit. */
 	preorderSlots?: number;
-	/** The wrapper from Admin → Wrappers; `wrapperColor` is its name. */
-	wrapperId?: string;
+	/**
+	 * The wrappers from Admin → Wrappers, all used together, in order;
+	 * `wrapperColor` is their names joined with `WRAPPER_JOIN`.
+	 */
+	wrapperIds: string[];
 	/** `recipe` is this style's own, rather than the bouquet's default. */
 	hasOwnRecipe: boolean;
 }

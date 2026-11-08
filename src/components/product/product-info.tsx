@@ -30,6 +30,7 @@ import {
 	getVariantPrice,
 	preorderReadyDate,
 	stockLabel,
+	wrapperNames,
 } from "~/lib/product";
 import { methodsText, saleEndsText } from "~/lib/sale";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
@@ -297,7 +298,11 @@ export function ProductInfo(props: ProductInfoProps) {
 						)}
 					</Show>
 					<Show when={props.variant.wrapperColor}>
-						<dt class="text-muted-foreground">Wrapper</dt>
+						<dt class="text-muted-foreground">
+							{wrapperNames(props.variant.wrapperColor).length > 1
+								? "Wrappers"
+								: "Wrapper"}
+						</dt>
 						<dd>{props.variant.wrapperColor}</dd>
 					</Show>
 					<Show when={size()}>

@@ -12,6 +12,7 @@ import {
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from "~/lib/payment";
 import { type PricedLine, tracksWrapper } from "~/lib/pricing";
+import { wrapperNames } from "~/lib/product";
 import { parseList } from "~/lib/shop-filters";
 import {
 	type Order,
@@ -120,7 +121,11 @@ const FIELDS: Record<
 		],
 	},
 	wrapper: {
-		keys: ({ line }) => [line.wrapperColor || NONE],
+		// A bouquet with several wrappers is listed under each of them.
+		keys: ({ line }) => {
+			const names = wrapperNames(line.wrapperColor);
+			return names.length ? names : [NONE];
+		},
 		label: (key) => (key === NONE ? "No wrapper" : key),
 	},
 	wrapperStatus: {

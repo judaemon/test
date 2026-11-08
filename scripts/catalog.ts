@@ -23,6 +23,7 @@ import {
 	LEGACY_CATALOG_SQL,
 	moveProductsToBouquets,
 	moveRecipesToBouquets,
+	moveWrappersToStyleList,
 } from "~/server/bouquet-tables";
 import { getDb } from "~/server/db";
 import { replaceFlowers } from "~/server/flowers-repo";
@@ -49,6 +50,8 @@ interface Snapshot {
 	/** Missing from snapshots taken when each style held the whole recipe. */
 	bouquet_flowers?: Row[];
 	style_flowers?: Row[];
+	/** Missing from snapshots taken before a style could have several wrappers. */
+	style_wrappers?: Row[];
 	bouquet_redirects?: Row[];
 	/** Missing from snapshots taken before sizes had a table. */
 	sizes?: Row[];
@@ -74,6 +77,7 @@ const TABLES = [
 	"bouquet_styles",
 	"bouquet_flowers",
 	"style_flowers",
+	"style_wrappers",
 	"bouquet_redirects",
 ] as const;
 
@@ -135,7 +139,14 @@ async function writeReadableFiles(snapshot: Snapshot, photos: string[]) {
 						(item) => item.style_id === style.id,
 					),
 				),
-				wrapper: wrappers.get(style.wrapper_id)?.name ?? null,
+				// Used together, in order.
+				wrappers: snapshot.style_wrappers
+					? snapshot.style_wrappers
+							.filter((item) => item.style_id === style.id)
+							.sort((a, b) => Number(a.sort) - Number(b.sort))
+							.map((item) => wrappers.get(item.wrapper_id)?.name)
+							.filter(Boolean)
+					: [wrappers.get(style.wrapper_id)?.name].filter(Boolean),
 				aiPhotoNote: style.ai_photos === 1,
 				photos: (JSON.parse(String(style.images)) as string[]).map(photoPath),
 			})),
@@ -320,6 +331,8 @@ async function importCatalog() {
 			moveProductsToBouquets(db);
 		}
 		if (!snapshot.bouquet_flowers) moveRecipesToBouquets(db);
+		// Older snapshots give each style one wrapper, in its own column.
+		if (!snapshot.style_wrappers) moveWrappersToStyleList(db);
 	})();
 
 	const count = (table: string) =>

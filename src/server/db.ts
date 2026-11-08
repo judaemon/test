@@ -14,6 +14,8 @@ import {
 	flowerColorIdFor,
 	moveProductsToBouquets,
 	moveRecipesToBouquets,
+	moveWrappersToStyleList,
+	STYLE_WRAPPERS_SQL,
 	wrapperIdForName,
 } from "./bouquet-tables";
 import { seedBouquets, seedPaymentAccounts } from "./seed-data";
@@ -735,6 +737,13 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	);
 	CREATE INDEX order_notes_by_order ON order_notes (order_id, created_at);
 	`,
+	// v51: a signature bouquet's style can be wrapped in several wrappers at
+	// once, e.g. a red sheet over a gold one. Each style's one wrapper becomes
+	// the first on its list.
+	(db) => {
+		db.exec(STYLE_WRAPPERS_SQL);
+		moveWrappersToStyleList(db);
+	},
 ];
 
 declare global {
@@ -824,6 +833,10 @@ export function seedStarterData(db: Database) {
 			   images, wrapper_id, sort)
 			 VALUES ($id, $bouquetId, $slug, $name, $colorHex, $price, $available, $images, $wrapperId, $sort)`,
 		);
+		const insertWrapper = db.query(
+			`INSERT INTO style_wrappers (style_id, wrapper_id, sort)
+			 VALUES ($styleId, $wrapperId, 0)`,
+		);
 		const insertFlower = db.query(
 			`INSERT INTO style_flowers (style_id, flower_color_id, count, sort)
 			 VALUES ($styleId, $colorId, $count, $sort)`,
@@ -841,6 +854,7 @@ export function seedStarterData(db: Database) {
 				});
 				bouquet.styles.forEach((style, index) => {
 					const styleId = crypto.randomUUID();
+					const wrapperId = wrapperIdForName(db, style.wrapper);
 					insertStyle.run({
 						id: styleId,
 						bouquetId: bouquet.id,
@@ -850,9 +864,10 @@ export function seedStarterData(db: Database) {
 						price: toCents(style.price),
 						available: style.isAvailable ? 1 : 0,
 						images: JSON.stringify(style.images),
-						wrapperId: wrapperIdForName(db, style.wrapper),
+						wrapperId,
 						sort: index,
 					});
+					if (wrapperId) insertWrapper.run({ styleId, wrapperId });
 					style.recipe.forEach((item, sort) => {
 						insertFlower.run({
 							styleId,
