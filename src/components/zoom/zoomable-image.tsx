@@ -83,6 +83,64 @@ export function Lightbox(props: {
 	);
 }
 
+const PREVIEW = 288;
+
+/**
+ * A larger copy of a photo beside whatever the mouse is pointing at:
+ * spread `on(src)` onto the element and render `<Preview />` once.
+ */
+export function createHoverPreview() {
+	const [preview, setPreview] = createSignal<{
+		src: string;
+		x: number;
+		y: number;
+	} | null>(null);
+
+	const show = (src: string, event: PointerEvent) => {
+		if (event.pointerType !== "mouse") return;
+		const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		// Beside it, flipped to the left near the screen edge.
+		const x =
+			box.right + 12 + PREVIEW < window.innerWidth
+				? box.right + 12
+				: Math.max(8, box.left - 12 - PREVIEW);
+		const y = Math.min(
+			Math.max(8, box.top + box.height / 2 - PREVIEW / 2),
+			window.innerHeight - PREVIEW - 8,
+		);
+		setPreview({ src, x, y });
+	};
+	const hide = () => setPreview(null);
+
+	return {
+		on: (src: string) => ({
+			onPointerEnter: (event: PointerEvent) => show(src, event),
+			onPointerLeave: hide,
+		}),
+		hide,
+		Preview: () => (
+			<Show when={preview()}>
+				{(at) => (
+					<Portal>
+						<img
+							src={at().src}
+							alt=""
+							aria-hidden="true"
+							class="pointer-events-none fixed z-[55] rounded-xl border border-black/10 bg-white object-cover shadow-2xl"
+							style={{
+								left: `${at().x}px`,
+								top: `${at().y}px`,
+								width: `${PREVIEW}px`,
+								height: `${PREVIEW}px`,
+							}}
+						/>
+					</Portal>
+				)}
+			</Show>
+		),
+	};
+}
+
 /**
  * A thumbnail that opens full size in the Lightbox when clicked. With
  * `hoverPreview`, pointing at it also shows a larger preview beside it.
@@ -97,25 +155,7 @@ export function ZoomableImage(props: {
 	children?: JSX.Element;
 }) {
 	const [open, setOpen] = createSignal(false);
-	const [preview, setPreview] = createSignal<{ x: number; y: number } | null>(
-		null,
-	);
-	const PREVIEW = 288;
-
-	const showPreview = (event: PointerEvent) => {
-		if (!props.hoverPreview || event.pointerType !== "mouse") return;
-		const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
-		// Beside the thumbnail, flipped to the left near the screen edge.
-		const x =
-			box.right + 12 + PREVIEW < window.innerWidth
-				? box.right + 12
-				: Math.max(8, box.left - 12 - PREVIEW);
-		const y = Math.min(
-			Math.max(8, box.top + box.height / 2 - PREVIEW / 2),
-			window.innerHeight - PREVIEW - 8,
-		);
-		setPreview({ x, y });
-	};
+	const preview = createHoverPreview();
 
 	return (
 		<>
@@ -125,34 +165,19 @@ export function ZoomableImage(props: {
 				onClick={(event) => {
 					// Inside a clickable row, a photo click shouldn't open the row too.
 					event.stopPropagation();
-					setPreview(null);
+					preview.hide();
 					setOpen(true);
 				}}
-				onPointerEnter={showPreview}
-				onPointerLeave={() => setPreview(null)}
+				onPointerEnter={(event) =>
+					props.hoverPreview && preview.on(props.src).onPointerEnter(event)
+				}
+				onPointerLeave={preview.hide}
 				class="block cursor-zoom-in rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 			>
 				<img src={props.src} alt={props.alt} class={props.class} />
 				{props.children}
 			</button>
-			<Show when={preview()}>
-				{(at) => (
-					<Portal>
-						<img
-							src={props.src}
-							alt=""
-							aria-hidden="true"
-							class="pointer-events-none fixed z-[55] rounded-xl border border-black/10 bg-white object-cover shadow-2xl"
-							style={{
-								left: `${at().x}px`,
-								top: `${at().y}px`,
-								width: `${PREVIEW}px`,
-								height: `${PREVIEW}px`,
-							}}
-						/>
-					</Portal>
-				)}
-			</Show>
+			<preview.Preview />
 			<Lightbox
 				open={open()}
 				onOpenChange={setOpen}

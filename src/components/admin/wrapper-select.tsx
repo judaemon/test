@@ -2,7 +2,10 @@ import * as SelectPrimitive from "@kobalte/core/select";
 import { For, Show } from "solid-js";
 
 import { adminInput } from "~/components/admin/ui";
-import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import {
+	createHoverPreview,
+	ZoomableImage,
+} from "~/components/zoom/zoomable-image";
 import { type CustomWrapper, wrapperColors } from "~/lib/custom-bouquet";
 import { cn } from "~/lib/utils";
 
@@ -78,6 +81,8 @@ export function WrapperSelect(props: {
 		props.value
 			? (props.wrappers.find((w) => w.id === props.value) ?? null)
 			: NONE;
+	// Pointing at a wrapper in the list shows its photo larger, beside the list.
+	const preview = createHoverPreview();
 
 	return (
 		<div class="flex items-center gap-2">
@@ -105,6 +110,8 @@ export function WrapperSelect(props: {
 				optionValue="id"
 				optionTextValue="name"
 				value={selected()}
+				// A row that closes under the pointer never says it was left.
+				onOpenChange={(open) => !open && preview.hide()}
 				onChange={(wrapper) =>
 					wrapper && props.onChange(wrapper === NONE ? "" : wrapper.id)
 				}
@@ -113,6 +120,9 @@ export function WrapperSelect(props: {
 				itemComponent={(item) => (
 					<SelectPrimitive.Item
 						item={item.item}
+						{...(item.item.rawValue.image
+							? preview.on(item.item.rawValue.image)
+							: {})}
 						class="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm outline-none data-[highlighted]:bg-petal-50 data-[selected]:font-medium"
 					>
 						<WrapperThumb
@@ -158,6 +168,7 @@ export function WrapperSelect(props: {
 					</SelectPrimitive.Content>
 				</SelectPrimitive.Portal>
 			</SelectPrimitive.Root>
+			<preview.Preview />
 		</div>
 	);
 }
