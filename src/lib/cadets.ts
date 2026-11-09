@@ -26,6 +26,22 @@ export const COMPANIES = [
 
 export type CompanyName = (typeof COMPANIES)[number]["name"];
 
+/** Which companies make up each battalion, in the order they're listed. */
+export const BATTALIONS = [
+	{ name: "1/2 Battalion", companies: ["Alfa", "Bravo", "Charlie", "Delta"] },
+	{ name: "3/4 Battalion", companies: ["Echo", "Foxtrot", "Golf", "Hawk"] },
+] as const satisfies readonly {
+	name: string;
+	companies: readonly CompanyName[];
+}[];
+
+/** "1/2 Battalion" for Alfa; undefined for civilians or no company. */
+export function battalionOf(company: string) {
+	return BATTALIONS.find((battalion) =>
+		(battalion.companies as readonly string[]).includes(company),
+	)?.name;
+}
+
 export function isCadetClass(value: string) {
 	return (CADET_CLASSES as readonly string[]).includes(value);
 }
