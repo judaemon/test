@@ -105,6 +105,10 @@ export function CartSheet() {
 								<p class="mt-3 rounded-xl bg-sale/10 px-3 py-2 text-sm font-medium text-sale">
 									Pay with {methodsText(deal().methods)} at checkout and save{" "}
 									{formatPrice(deal().saves, cart().currency)}.
+									<Show when={!deal().methods.includes("cash")}>
+										{" "}
+										<strong>Not available for cash payments.</strong>
+									</Show>
 								</p>
 							)}
 						</Show>

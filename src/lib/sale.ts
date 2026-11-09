@@ -80,6 +80,16 @@ export function methodsText(methods: readonly PaymentMethod[]) {
 	return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
 }
 
+/**
+ * "Not available for cash payments", when a sale or promo for chosen methods
+ * leaves out cash. Cash is the one shoppers expect to work, so it's said out loud.
+ */
+export function notForCashText(scope: MethodScope) {
+	return scope.paymentMethods.length && !scope.paymentMethods.includes("cash")
+		? "Not available for cash payments."
+		: undefined;
+}
+
 export interface ItemScope {
 	scope: SaleScope;
 	/** With `selected`: every arrangement of these types… */

@@ -107,7 +107,7 @@ import {
 	lineName,
 	styleLabel,
 } from "~/lib/product";
-import { allowsMethod, PAYMENT_METHOD_SHORT } from "~/lib/sale";
+import { allowsMethod, methodsText, PAYMENT_METHOD_SHORT } from "~/lib/sale";
 import {
 	useCatalog,
 	useCustomSettings,
@@ -296,33 +296,87 @@ function CheckoutForm(props: {
 		return Math.floor(reward.minSpend - onPromo()) + 1;
 	};
 	const orderTotal = () => roundMoney(cart().total - promoDiscount());
+	/** What the order comes to when paid by `method`, sales and promo included. */
+	const pricedFor = (method: PaymentMethod) => {
+		const reward = promoProgress()?.reward;
+		const priced = priceCart(bagLines(), catalog(), custom(), sales(), method);
+		const onPromoThere = reward ? promoSubtotal(reward, priced.lines) : 0;
+		const promoThere =
+			reward && allowsMethod(reward, method) && onPromoThere > reward.minSpend
+				? Math.min(reward.amount, onPromoThere)
+				: 0;
+		return {
+			total: roundMoney(priced.total - promoThere),
+			/** The sales and promo it gets, by name. */
+			deals: [
+				...new Set([
+					...priced.lines.flatMap((line) =>
+						line.sale ? [line.sale.name] : [],
+					),
+					...(promoThere > 0 && reward ? [reward.name] : []),
+				]),
+			],
+		};
+	};
 	/**
 	 * A cheaper way to pay, when a sale or this order's promo is for payment
 	 * methods the shopper hasn't picked: "Pay with GCash and save ₱150".
 	 */
 	const methodTip = () => {
 		const current = orderTotal();
-		const reward = promoProgress()?.reward;
 		let best: { method: PaymentMethod; saves: number } | undefined;
 		for (const account of paymentAccounts()) {
 			const method = account.method;
 			if (method === paymentMethod()) continue;
-			const priced = priceCart(
-				bagLines(),
-				catalog(),
-				custom(),
-				sales(),
-				method,
-			);
-			const onPromoThere = reward ? promoSubtotal(reward, priced.lines) : 0;
-			const promoThere =
-				reward && allowsMethod(reward, method) && onPromoThere > reward.minSpend
-					? Math.min(reward.amount, onPromoThere)
-					: 0;
-			const saves = roundMoney(current - (priced.total - promoThere));
+			const saves = roundMoney(current - pricedFor(method).total);
 			if (saves > 0 && (!best || saves > best.saves)) best = { method, saves };
 		}
 		return best;
+	};
+	/**
+	 * What paying by `method` gives up next to the cheapest way to pay: the
+	 * sales and promo it misses and what it costs more. Undefined when nothing.
+	 */
+	const missedWith = (method: PaymentMethod) => {
+		const here = pricedFor(method);
+		const others = paymentAccounts()
+			.filter((account) => account.method !== method)
+			.map((account) => ({
+				method: account.method,
+				...pricedFor(account.method),
+			}));
+		const cheapest = Math.min(...others.map((other) => other.total));
+		if (!others.length || here.total <= cheapest) return undefined;
+		const better = others.filter((other) => other.total === cheapest);
+		return {
+			method,
+			total: here.total,
+			cheapest,
+			extra: roundMoney(here.total - cheapest),
+			methods: better.map((other) => other.method),
+			deals: better[0].deals.filter((deal) => !here.deals.includes(deal)),
+		};
+	};
+	/** What each way to pay misses, to label it among the choices. */
+	const missedByMethod = () => {
+		const missed: Partial<Record<PaymentMethod, string>> = {};
+		for (const account of paymentAccounts()) {
+			const lost = missedWith(account.method);
+			if (lost)
+				missed[account.method] = lost.deals.length
+					? `No ${lost.deals.join(" or ")}`
+					: "Costs more";
+		}
+		return missed;
+	};
+	/** A way to pay that misses a sale, waiting for the shopper to confirm it. */
+	const [confirmingMethod, setConfirmingMethod] =
+		createSignal<ReturnType<typeof missedWith>>();
+	/** Picking a way to pay that misses a sale asks first: it's easy to overlook. */
+	const chooseMethod = (method: PaymentMethod) => {
+		const missed = missedWith(method);
+		if (missed) setConfirmingMethod(missed);
+		else setPaymentMethod(method);
 	};
 	/** Each bouquet's card and note, by `unitKey`. */
 	const [messages, setMessages] = createStore<Record<string, BouquetMessage>>(
@@ -795,7 +849,8 @@ function CheckoutForm(props: {
 						total={orderTotal()}
 						currency={cart().currency}
 						method={paymentMethod()}
-						onMethodChange={setPaymentMethod}
+						onMethodChange={chooseMethod}
+						missed={missedByMethod()}
 						card={card()}
 						onCardChange={(patch) =>
 							setCard((current) => ({ ...current, ...patch }))
@@ -1104,6 +1159,94 @@ function CheckoutForm(props: {
 								</div>
 							</footer>
 						</Dialog.Content>
+					</div>
+				</Dialog.Portal>
+			</Dialog.Root>
+
+			{/* Paying a way that misses the sale: say what it costs, offer the better ways. */}
+			<Dialog.Root
+				open={!!confirmingMethod()}
+				onOpenChange={(open) => !open && setConfirmingMethod(undefined)}
+			>
+				<Dialog.Portal>
+					<Dialog.Overlay class="fixed inset-0 z-50 bg-petal-900/40 backdrop-blur-sm" />
+					<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+						<Show when={confirmingMethod()}>
+							{(missed) => {
+								const deal = () => missed().deals.join(" and ") || "the sale";
+								const money = (value: number) =>
+									formatPrice(value, cart().currency);
+								return (
+									<Dialog.Content class="w-full max-w-md overflow-hidden rounded-t-3xl bg-white text-petal-900 shadow-xl outline-none sm:rounded-3xl">
+										<div class="bg-sale px-5 pb-5 pt-6 text-center text-white sm:px-6">
+											<p class="text-sm font-semibold tracking-wide uppercase">
+												Wait — don’t miss out!
+											</p>
+											<Dialog.Title class="font-display type-soft mt-1 text-2xl font-semibold sm:text-3xl">
+												{deal()} isn’t available for{" "}
+												{PAYMENT_METHOD_SHORT[missed().method]} payments
+											</Dialog.Title>
+										</div>
+										<div class="flex flex-col gap-4 px-5 py-5 sm:px-6">
+											<Dialog.Description class="text-center text-base">
+												Pay with {methodsText(missed().methods)} and keep your
+												discount.
+											</Dialog.Description>
+											<dl class="grid grid-cols-2 gap-2 text-center">
+												<div class="rounded-2xl bg-success px-3 py-3 text-success-foreground">
+													<dt class="text-xs font-medium">
+														With {methodsText(missed().methods)}
+													</dt>
+													<dd class="font-display text-2xl font-semibold tabular-nums">
+														{money(missed().cheapest)}
+													</dd>
+												</div>
+												<div class="rounded-2xl bg-petal-50 px-3 py-3 text-petal-900/70">
+													<dt class="text-xs font-medium">
+														With {PAYMENT_METHOD_SHORT[missed().method]}
+													</dt>
+													<dd class="font-display text-2xl font-semibold tabular-nums line-through decoration-sale/60">
+														{money(missed().total)}
+													</dd>
+												</div>
+											</dl>
+											<p class="text-center text-sm font-semibold text-sale">
+												That’s {money(missed().extra)} you save — it only takes
+												a quick transfer.
+											</p>
+											<div class="flex flex-col gap-2">
+												<For each={missed().methods}>
+													{(method) => (
+														<button
+															type="button"
+															class={pillPrimary}
+															onClick={() => {
+																setPaymentMethod(method);
+																setConfirmingMethod(undefined);
+															}}
+														>
+															Save {money(missed().extra)} · Pay with{" "}
+															{PAYMENT_METHOD_SHORT[method]}
+														</button>
+													)}
+												</For>
+												<button
+													type="button"
+													class="h-11 rounded-full text-sm font-medium text-petal-900/60 underline-offset-2 outline-none hover:text-petal-900 hover:underline focus-visible:ring-2 focus-visible:ring-petal-500"
+													onClick={() => {
+														setPaymentMethod(missed().method);
+														setConfirmingMethod(undefined);
+													}}
+												>
+													No thanks, pay {money(missed().total)} with{" "}
+													{PAYMENT_METHOD_SHORT[missed().method]}
+												</button>
+											</div>
+										</div>
+									</Dialog.Content>
+								);
+							}}
+						</Show>
 					</div>
 				</Dialog.Portal>
 			</Dialog.Root>

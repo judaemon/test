@@ -42,7 +42,10 @@ interface PaymentSectionProps {
 	total: number;
 	currency: string;
 	method: PaymentMethod | null;
+	/** May not pick it straight away, e.g. to warn first that it misses a sale. */
 	onMethodChange: (method: PaymentMethod) => void;
+	/** Ways to pay that miss a sale or promo, and what to call it: "No November Sale". */
+	missed?: Partial<Record<PaymentMethod, string>>;
 	card: CardInput;
 	onCardChange: (patch: Partial<CardInput>) => void;
 	errors: FieldErrors;
@@ -97,9 +100,17 @@ export function PaymentSection(props: PaymentSectionProps) {
 									value={account.method}
 									checked={props.method === account.method}
 									aria-invalid={props.errors.paymentMethod ? "true" : undefined}
-									onChange={() => {
+									onChange={(event) => {
 										props.onMethodChange(account.method);
 										props.clearError("paymentMethod");
+										// Until it's confirmed (if asked first), the choice before
+										// stays ticked.
+										for (const radio of event.currentTarget
+											.closest("fieldset")
+											?.querySelectorAll<HTMLInputElement>(
+												'input[name="paymentMethod"]',
+											) ?? [])
+											radio.checked = radio.value === props.method;
 									}}
 									class="peer sr-only"
 								/>
@@ -112,6 +123,13 @@ export function PaymentSection(props: PaymentSectionProps) {
 										<span class="text-xs text-petal-900/60">
 											{METHOD_DISPLAY[account.method].hint(account)}
 										</span>
+										<Show when={props.missed?.[account.method]}>
+											{(missed) => (
+												<span class="mt-1 w-fit rounded-full bg-sale/10 px-2 py-0.5 text-xs font-semibold text-sale">
+													{missed()}
+												</span>
+											)}
+										</Show>
 									</span>
 								</span>
 							</label>
@@ -133,6 +151,13 @@ export function PaymentSection(props: PaymentSectionProps) {
 				}
 			>
 				{(notice) => <PaymentNotice text={notice()} />}
+			</Show>
+			<Show when={props.method && props.missed?.[props.method]}>
+				{(missed) => (
+					<PaymentNotice
+						text={`${missed()} with this payment method. Choose another way to pay to get the discount.`}
+					/>
+				)}
 			</Show>
 
 			<Switch>

@@ -32,7 +32,7 @@ import {
 	stockLabel,
 	wrapperNames,
 } from "~/lib/product";
-import { methodsText, saleEndsText } from "~/lib/sale";
+import { methodsText, notForCashText, saleEndsText } from "~/lib/sale";
 import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
 import {
 	useArrangementTypes,
@@ -190,7 +190,10 @@ export function ProductInfo(props: ProductInfoProps) {
 						<Show when={best().sale.paymentMethods.length}>
 							<span class="w-full text-petal-900/60">
 								When you pay with {methodsText(best().sale.paymentMethods)}.
-								Checkout takes it off once you choose.
+								Checkout takes it off once you choose.{" "}
+								<span class="font-semibold text-sale">
+									{notForCashText(best().sale)}
+								</span>
 							</span>
 						</Show>
 					</p>

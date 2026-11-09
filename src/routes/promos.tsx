@@ -14,6 +14,7 @@ import {
 	type ItemScope,
 	markupPrice,
 	methodsText,
+	notForCashText,
 	type PublicSale,
 	saleEndsText,
 	saleLabel,
@@ -153,7 +154,10 @@ function SaleCard(props: { sale: PublicSale }) {
 							<li class="font-medium text-petal-900">
 								Only when you pay with {methodsText(props.sale.paymentMethods)}:
 								checkout takes it off once you choose{" "}
-								{methodsText(props.sale.paymentMethods)}.
+								{methodsText(props.sale.paymentMethods)}.{" "}
+								<span class="font-bold text-sale">
+									{notForCashText(props.sale)}
+								</span>
 							</li>
 						</Show>
 						<li>{example()}</li>

@@ -7,7 +7,7 @@ import { setCartOpen } from "~/lib/cart-store";
 import { usePricedCart, useSessionUser } from "~/lib/use-catalog";
 
 import { FlowerMark, Wordmark } from "./brand";
-import { SaleBanner } from "./sale-banner";
+import { SaleBanner, SalePopup } from "./sale-banner";
 
 const navLink =
 	"whitespace-nowrap rounded-full px-2 py-2.5 text-sm sm:px-3 text-petal-900/80 sm:py-1.5 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
@@ -20,6 +20,7 @@ export function SiteHeader() {
 	return (
 		<header class="sticky top-0 z-20 border-b border-petal-100 bg-cream/85 backdrop-blur">
 			<SaleBanner />
+			<SalePopup />
 			<div class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
 				<Link
 					to="/"
