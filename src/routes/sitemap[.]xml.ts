@@ -9,6 +9,12 @@ interface RouteNode {
 }
 
 /**
+ * Pages that show another page and name it as their canonical address (/shop
+ * is the home page). Listing them too tells Google two things at once.
+ */
+const DUPLICATE_PAGES = new Set(["/shop"]);
+
+/**
  * Every public page with a fixed address, read from the route tree so a new
  * page file shows up without touching this list. Skips server-only routes
  * (no component), ones with params (`$`) and the private sections.
@@ -26,7 +32,12 @@ async function listStaticPages() {
 				? parentPath
 				: `${parentPath}/${path}`.replace(/\/+/g, "/");
 		const page = fullPath.replace(/(.)\/$/, "$1");
-		if (component && !page.includes("$") && !isPrivatePath(page)) {
+		if (
+			component &&
+			!page.includes("$") &&
+			!isPrivatePath(page) &&
+			!DUPLICATE_PAGES.has(page)
+		) {
 			paths.add(page);
 		}
 		for (const child of node.children ?? []) walk(child, fullPath);
@@ -60,7 +71,7 @@ export const Route = createFileRoute("/sitemap.xml")({
 					...(await listStaticPages()),
 					// Visible bouquets only, so a hidden one drops out on the next fetch.
 					...listPublicProducts().map(
-						(product) => `/products/${encodeURIComponent(product.id)}`,
+						(product) => `/products/${encodeURIComponent(product.slug)}`,
 					),
 				];
 
