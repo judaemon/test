@@ -63,6 +63,7 @@ import { Route as AdminDashboardReportsOrdersRouteImport } from './routes/admin/
 import { Route as AdminDashboardSignatureBouquetsIndexRouteImport } from './routes/admin/_dashboard/signature-bouquets/index'
 import { Route as AdminDashboardSignatureBouquetsProductIdRouteImport } from './routes/admin/_dashboard/signature-bouquets/$productId'
 import { Route as AdminDashboardSignatureBouquetsArrangeRouteImport } from './routes/admin/_dashboard/signature-bouquets/arrange'
+import { Route as AdminDashboardSignatureBouquetsFloristRouteImport } from './routes/admin/_dashboard/signature-bouquets/florist'
 import { Route as AdminDashboardSizesIndexRouteImport } from './routes/admin/_dashboard/sizes/index'
 import { Route as AdminDashboardSizesSizeIdRouteImport } from './routes/admin/_dashboard/sizes/$sizeId'
 import { Route as AdminDashboardWrappersIndexRouteImport } from './routes/admin/_dashboard/wrappers/index'
@@ -360,6 +361,12 @@ const AdminDashboardSignatureBouquetsArrangeRoute =
     path: '/signature-bouquets/arrange',
     getParentRoute: () => AdminDashboardRoute,
   } as any)
+const AdminDashboardSignatureBouquetsFloristRoute =
+  AdminDashboardSignatureBouquetsFloristRouteImport.update({
+    id: '/signature-bouquets/florist',
+    path: '/signature-bouquets/florist',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
 const AdminDashboardSizesIndexRoute =
   AdminDashboardSizesIndexRouteImport.update({
     id: '/sizes/',
@@ -457,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports/orders': typeof AdminDashboardReportsOrdersRoute
   '/admin/signature-bouquets/$productId': typeof AdminDashboardSignatureBouquetsProductIdRoute
   '/admin/signature-bouquets/arrange': typeof AdminDashboardSignatureBouquetsArrangeRoute
+  '/admin/signature-bouquets/florist': typeof AdminDashboardSignatureBouquetsFloristRoute
   '/admin/sizes/$sizeId': typeof AdminDashboardSizesSizeIdRoute
   '/admin/wrappers/$wrapperId': typeof AdminDashboardWrappersWrapperIdRoute
   '/api/admin/cancel-proofs/$': typeof ApiAdminCancelProofsSplatRoute
@@ -518,6 +526,7 @@ export interface FileRoutesByTo {
   '/admin/reports/orders': typeof AdminDashboardReportsOrdersRoute
   '/admin/signature-bouquets/$productId': typeof AdminDashboardSignatureBouquetsProductIdRoute
   '/admin/signature-bouquets/arrange': typeof AdminDashboardSignatureBouquetsArrangeRoute
+  '/admin/signature-bouquets/florist': typeof AdminDashboardSignatureBouquetsFloristRoute
   '/admin/sizes/$sizeId': typeof AdminDashboardSizesSizeIdRoute
   '/admin/wrappers/$wrapperId': typeof AdminDashboardWrappersWrapperIdRoute
   '/api/admin/cancel-proofs/$': typeof ApiAdminCancelProofsSplatRoute
@@ -583,6 +592,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/reports/orders': typeof AdminDashboardReportsOrdersRoute
   '/admin/_dashboard/signature-bouquets/$productId': typeof AdminDashboardSignatureBouquetsProductIdRoute
   '/admin/_dashboard/signature-bouquets/arrange': typeof AdminDashboardSignatureBouquetsArrangeRoute
+  '/admin/_dashboard/signature-bouquets/florist': typeof AdminDashboardSignatureBouquetsFloristRoute
   '/admin/_dashboard/sizes/$sizeId': typeof AdminDashboardSizesSizeIdRoute
   '/admin/_dashboard/wrappers/$wrapperId': typeof AdminDashboardWrappersWrapperIdRoute
   '/api/admin/cancel-proofs/$': typeof ApiAdminCancelProofsSplatRoute
@@ -649,6 +659,7 @@ export interface FileRouteTypes {
     | '/admin/reports/orders'
     | '/admin/signature-bouquets/$productId'
     | '/admin/signature-bouquets/arrange'
+    | '/admin/signature-bouquets/florist'
     | '/admin/sizes/$sizeId'
     | '/admin/wrappers/$wrapperId'
     | '/api/admin/cancel-proofs/$'
@@ -710,6 +721,7 @@ export interface FileRouteTypes {
     | '/admin/reports/orders'
     | '/admin/signature-bouquets/$productId'
     | '/admin/signature-bouquets/arrange'
+    | '/admin/signature-bouquets/florist'
     | '/admin/sizes/$sizeId'
     | '/admin/wrappers/$wrapperId'
     | '/api/admin/cancel-proofs/$'
@@ -774,6 +786,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/reports/orders'
     | '/admin/_dashboard/signature-bouquets/$productId'
     | '/admin/_dashboard/signature-bouquets/arrange'
+    | '/admin/_dashboard/signature-bouquets/florist'
     | '/admin/_dashboard/sizes/$sizeId'
     | '/admin/_dashboard/wrappers/$wrapperId'
     | '/api/admin/cancel-proofs/$'
@@ -1200,6 +1213,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AdminDashboardSignatureBouquetsArrangeRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
+    '/admin/_dashboard/signature-bouquets/florist': {
+      id: '/admin/_dashboard/signature-bouquets/florist'
+      path: '/signature-bouquets/florist'
+      fullPath: '/admin/signature-bouquets/florist'
+      preLoaderRoute: typeof AdminDashboardSignatureBouquetsFloristRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
     '/admin/_dashboard/sizes/': {
       id: '/admin/_dashboard/sizes/'
       path: '/sizes'
@@ -1317,6 +1337,7 @@ interface AdminDashboardRouteChildren {
   AdminDashboardProductsProductIdRoute: typeof AdminDashboardProductsProductIdRoute
   AdminDashboardSignatureBouquetsProductIdRoute: typeof AdminDashboardSignatureBouquetsProductIdRoute
   AdminDashboardSignatureBouquetsArrangeRoute: typeof AdminDashboardSignatureBouquetsArrangeRoute
+  AdminDashboardSignatureBouquetsFloristRoute: typeof AdminDashboardSignatureBouquetsFloristRoute
   AdminDashboardSizesSizeIdRoute: typeof AdminDashboardSizesSizeIdRoute
   AdminDashboardWrappersWrapperIdRoute: typeof AdminDashboardWrappersWrapperIdRoute
   AdminDashboardArrangementTypesIndexRoute: typeof AdminDashboardArrangementTypesIndexRoute
@@ -1347,6 +1368,8 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
     AdminDashboardSignatureBouquetsProductIdRoute,
   AdminDashboardSignatureBouquetsArrangeRoute:
     AdminDashboardSignatureBouquetsArrangeRoute,
+  AdminDashboardSignatureBouquetsFloristRoute:
+    AdminDashboardSignatureBouquetsFloristRoute,
   AdminDashboardSizesSizeIdRoute: AdminDashboardSizesSizeIdRoute,
   AdminDashboardWrappersWrapperIdRoute: AdminDashboardWrappersWrapperIdRoute,
   AdminDashboardArrangementTypesIndexRoute:

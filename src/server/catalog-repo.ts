@@ -13,6 +13,7 @@ import type {
 import { slugify, uniqueSlug } from "./bouquet-tables";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { currentPhotoUrl } from "./photo-watermarks";
+import { deleteRecipeVersions, recordRecipeVersion } from "./recipe-versions";
 import { InputError } from "./validate";
 
 interface BouquetRow {
@@ -297,7 +298,12 @@ export interface ProductInput {
  * transaction. Styles missing from `input.variants` are removed; past orders
  * keep their own snapshot, so removing a style never rewrites history.
  */
-export function saveProduct(productId: string | null, input: ProductInput) {
+export function saveProduct(
+	productId: string | null,
+	input: ProductInput,
+	/** Who saved it, for the flowers' version history. */
+	savedBy = "Staff",
+) {
 	const copy = input.variants.find(
 		(v) => v.recipe.length > 0 && sameRecipe(v.recipe, input.recipe),
 	);
@@ -464,6 +470,8 @@ export function saveProduct(productId: string | null, input: ProductInput) {
 		const remove = db.query("DELETE FROM bouquet_styles WHERE id = $id");
 		for (const styleId of existing.values())
 			if (!kept.has(styleId)) remove.run({ id: styleId });
+		// A new version for the florist's list if the flowers changed.
+		recordRecipeVersion(db, id, savedBy);
 		return id;
 	})();
 }
@@ -564,14 +572,22 @@ export function setProductVisible(productId: string, isVisible: boolean) {
  * what was bought, so they're unaffected.
  */
 export function deleteProduct(productId: string) {
-	const { changes } = getDb()
-		.query("DELETE FROM signature_bouquets WHERE id = $id")
-		.run({ id: productId });
-	return changes > 0;
+	const db = getDb();
+	return db.transaction(() => {
+		const { changes } = db
+			.query("DELETE FROM signature_bouquets WHERE id = $id")
+			.run({ id: productId });
+		if (changes > 0) deleteRecipeVersions(db, productId);
+		return changes > 0;
+	})();
 }
 
 /** Deletes one style of a bouquet; a bouquet keeps at least one style. */
-export function deleteVariant(productId: string, variantId: string) {
+export function deleteVariant(
+	productId: string,
+	variantId: string,
+	deletedBy = "Staff",
+) {
 	const db = getDb();
 	return db.transaction(() => {
 		const { count } = db
@@ -586,6 +602,8 @@ export function deleteVariant(productId: string, variantId: string) {
 		db.query(
 			"DELETE FROM bouquet_styles WHERE bouquet_id = $productId AND slug = $variantId",
 		).run({ productId, variantId });
+		// Its own flowers, if it had any, leave the recipe: a new version.
+		recordRecipeVersion(db, productId, deletedBy);
 	})();
 }
 

@@ -18,6 +18,7 @@ import {
 	STYLE_WRAPPERS_SQL,
 	wrapperIdForName,
 } from "./bouquet-tables";
+import { backfillRecipeVersions, RECIPE_VERSIONS_SQL } from "./recipe-versions";
 import { seedBouquets, seedPaymentAccounts } from "./seed-data";
 
 // Server-only. Requires the Bun runtime (`bun run dev`, `bun .output/server/index.mjs`).
@@ -757,6 +758,12 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		PRIMARY KEY (scope, flower_key)
 	);
 	`,
+	// v53: versions of each bouquet's flowers for the florist's list (v1, v2,
+	// …): every bouquet starts on v1 with its flowers as they are now.
+	(db) => {
+		db.exec(RECIPE_VERSIONS_SQL);
+		backfillRecipeVersions(db);
+	},
 ];
 
 declare global {

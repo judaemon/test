@@ -257,6 +257,12 @@ function InventoryPage() {
 								</a>
 							</Show>
 							<Link
+								to="/admin/signature-bouquets/florist"
+								class={adminButton.secondary}
+							>
+								Florist list
+							</Link>
+							<Link
 								to="/admin/signature-bouquets/arrange"
 								class={adminButton.secondary}
 							>

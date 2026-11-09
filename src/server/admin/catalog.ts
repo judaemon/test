@@ -277,7 +277,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
 		const name = flowerCodeKey(data.product.title);
 		const other = listAdminProducts().find(
 			(product) =>
@@ -296,7 +296,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
 				);
 			seen.add(key);
 		}
-		const id = saveProduct(data.productId, data.product);
+		const id = saveProduct(data.productId, data.product, user.name);
 		return getAdminProduct(id);
 	});
 
@@ -521,7 +521,7 @@ export const deleteVariantFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		deleteVariant(data.productId, data.variantId);
+		const user = await requireStaff();
+		deleteVariant(data.productId, data.variantId, user.name);
 		return getAdminProduct(data.productId) ?? null;
 	});
