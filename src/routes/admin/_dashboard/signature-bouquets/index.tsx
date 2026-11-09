@@ -71,6 +71,8 @@ interface InventorySearch {
 	themes?: string;
 	/** Comma-separated flower names. */
 	flower?: string;
+	/** Comma-separated wrapper ids, or "none" for styles without one. */
+	wrapper?: string;
 	/** Missing: newest first. "shop": the shop's order. */
 	sort?: (typeof SORTS)[number];
 }
@@ -83,6 +85,7 @@ export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 		status: textParam(search, "status"),
 		themes: textParam(search, "themes"),
 		flower: textParam(search, "flower"),
+		wrapper: textParam(search, "wrapper"),
 		sort: choiceParam(search, "sort", SORTS),
 	}),
 	// Stepped back to after a save, wait for the fresh rows rather than
@@ -123,13 +126,38 @@ function InventoryPage() {
 			search().size ||
 			search().status ||
 			search().themes ||
-			search().flower
+			search().flower ||
+			search().wrapper
 		);
 
 	const flowersOf = (product: AdminProduct) =>
 		new Set(product.variants.flatMap((v) => v.recipe.map((i) => i.flower)));
 	const flowerNames = () =>
 		[...new Set(products.flatMap((p) => [...flowersOf(p)]))].sort();
+	/** The wrapper ids a bouquet's styles use; "none" if a style has none. */
+	const wrappersOf = (product: AdminProduct) =>
+		new Set(
+			product.variants.flatMap((v) =>
+				v.wrapperIds.length ? v.wrapperIds : ["none"],
+			),
+		);
+	/** Keyed by id: some wrapper names have commas, which the address splits on. */
+	const wrapperChoices = () => {
+		const names = new Map<string, string>();
+		for (const variant of products.flatMap((p) => p.variants)) {
+			const labels = wrapperNames(variant.wrapperColor);
+			variant.wrapperIds.forEach((id, i) => {
+				if (!names.has(id)) names.set(id, labels[i] ?? id);
+			});
+		}
+		const hasNone = products.some((p) => wrappersOf(p).has("none"));
+		return [
+			...[...names]
+				.sort(([, a], [, b]) => a.localeCompare(b))
+				.map(([key, label]) => ({ key, label })),
+			...(hasNone ? [{ key: "none", label: "No wrapper" }] : []),
+		];
+	};
 
 	/** A bouquet's styles that match the search (all, if it names the bouquet). */
 	const colorsOf = (product: AdminProduct) =>
@@ -158,6 +186,10 @@ function InventoryPage() {
 		flower: {
 			chosen: parseList(search().flower),
 			matches: (p, key) => flowersOf(p).has(key),
+		},
+		wrapper: {
+			chosen: parseList(search().wrapper),
+			matches: (p, key) => wrappersOf(p).has(key),
 		},
 	});
 	const filterOf = (
@@ -263,6 +295,7 @@ function InventoryPage() {
 							"Flower",
 							flowerNames().map((name) => ({ key: name, label: name })),
 						),
+						filterOf("wrapper", "Wrapper", wrapperChoices()),
 						filterOf("status", "In the shop", [
 							{ key: "shown", label: "Shown" },
 							{ key: "hidden", label: "Hidden" },
@@ -302,6 +335,7 @@ function InventoryPage() {
 							status: undefined,
 							themes: undefined,
 							flower: undefined,
+							wrapper: undefined,
 						})
 					}
 				/>
