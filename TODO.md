@@ -13,3 +13,6 @@
   - Account verification: confirm a customer's email when they sign up, using
     Better Auth's `emailVerification` and `requireEmailVerification` options.
     Password reset by email would use the same setup.
+- **Make checkout simple enough for a five-year-old.** Shoppers should never
+  have to think: one clear next step at a time, big buttons, plain words, and
+  no surprises at the end (e.g. a sale that doesn't apply to cash).
