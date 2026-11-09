@@ -370,8 +370,21 @@ function CheckoutForm(props: {
 		return missed;
 	};
 	/** A way to pay that misses a sale, waiting for the shopper to confirm it. */
-	const [confirmingMethod, setConfirmingMethod] =
-		createSignal<ReturnType<typeof missedWith>>();
+	const [confirmOpen, setConfirmOpen] = createSignal(false);
+	/**
+	 * Kept after it closes, so the dialog's content stays until it's gone: the
+	 * dialog's layer would otherwise be left over the page, blocking taps.
+	 */
+	const [confirmingMethod, setConfirmData] = createSignal<
+		NonNullable<ReturnType<typeof missedWith>> & {
+			/** Asked again on Place order: keeping it goes on to the review. */
+			placing?: boolean;
+		}
+	>();
+	const setConfirmingMethod = (missed: ReturnType<typeof confirmingMethod>) => {
+		if (missed) setConfirmData(missed);
+		setConfirmOpen(!!missed);
+	};
 	/** Picking a way to pay that misses a sale asks first: it's easy to overlook. */
 	const chooseMethod = (method: PaymentMethod) => {
 		const missed = missedWith(method);
@@ -572,7 +585,11 @@ function CheckoutForm(props: {
 		if (validateForm()) {
 			setNoCancelAccepted(false);
 			setNoCancelMissing(false);
-			setReviewing(true);
+			// Paying a way that misses a sale: one last chance to switch first.
+			const method = paymentMethod();
+			const missed = method && missedWith(method);
+			if (missed) setConfirmingMethod({ ...missed, placing: true });
+			else setReviewing(true);
 		} else focusFirstInvalid(formRef);
 	};
 
@@ -1164,10 +1181,7 @@ function CheckoutForm(props: {
 			</Dialog.Root>
 
 			{/* Paying a way that misses the sale: say what it costs, offer the better ways. */}
-			<Dialog.Root
-				open={!!confirmingMethod()}
-				onOpenChange={(open) => !open && setConfirmingMethod(undefined)}
-			>
+			<Dialog.Root open={confirmOpen()} onOpenChange={setConfirmOpen}>
 				<Dialog.Portal>
 					<Dialog.Overlay class="fixed inset-0 z-50 bg-petal-900/40 backdrop-blur-sm" />
 					<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
@@ -1180,7 +1194,9 @@ function CheckoutForm(props: {
 									<Dialog.Content class="w-full max-w-md overflow-hidden rounded-t-3xl bg-white text-petal-900 shadow-xl outline-none sm:rounded-3xl">
 										<div class="bg-sale px-5 pb-5 pt-6 text-center text-white sm:px-6">
 											<p class="text-sm font-semibold tracking-wide uppercase">
-												Wait — don’t miss out!
+												{missed().placing
+													? "Before you place your order"
+													: "Wait — don’t miss out!"}
 											</p>
 											<Dialog.Title class="font-display type-soft mt-1 text-2xl font-semibold sm:text-3xl">
 												{deal()} isn’t available for{" "}
@@ -1221,8 +1237,11 @@ function CheckoutForm(props: {
 															type="button"
 															class={pillPrimary}
 															onClick={() => {
+																const placing = missed().placing;
 																setPaymentMethod(method);
 																setConfirmingMethod(undefined);
+																// Their payment details for it are still to fill in.
+																if (placing) editSection(PAYMENT_SECTION);
 															}}
 														>
 															Save {money(missed().extra)} · Pay with{" "}
@@ -1234,8 +1253,10 @@ function CheckoutForm(props: {
 													type="button"
 													class="h-11 rounded-full text-sm font-medium text-petal-900/60 underline-offset-2 outline-none hover:text-petal-900 hover:underline focus-visible:ring-2 focus-visible:ring-petal-500"
 													onClick={() => {
+														const placing = missed().placing;
 														setPaymentMethod(missed().method);
 														setConfirmingMethod(undefined);
+														if (placing) setReviewing(true);
 													}}
 												>
 													No thanks, pay {money(missed().total)} with{" "}
