@@ -8,6 +8,7 @@ import {
 	flowersFromSettings,
 	type LegacyFlowerOption,
 } from "~/lib/custom-bouquet";
+import { assignMissingSlugs, BOUQUET_SLUGS_SQL } from "./bouquet-slugs";
 import {
 	BOUQUET_FLOWERS_SQL,
 	BOUQUET_TABLES_SQL,
@@ -764,6 +765,12 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		db.exec(RECIPE_VERSIONS_SQL);
 		backfillRecipeVersions(db);
 	},
+	// v54: a bouquet's shop link follows its name (/products/fiona), apart
+	// from its id; the links it had before redirect to it.
+	(db) => {
+		db.exec(BOUQUET_SLUGS_SQL);
+		assignMissingSlugs(db);
+	},
 ];
 
 declare global {
@@ -789,6 +796,8 @@ export function getDb(): Database {
 	migrate(db);
 	migrated = true;
 	seedStarterData(db);
+	// Starter bouquets are added without links.
+	assignMissingSlugs(db);
 	globalThis.__oraiaDb = db;
 	return db;
 }

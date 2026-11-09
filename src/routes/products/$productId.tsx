@@ -39,9 +39,19 @@ export const Route = createFileRoute("/products/$productId")({
 		variant: typeof search.variant === "string" ? search.variant : undefined,
 	}),
 	loaderDeps: ({ search }) => ({ variant: search.variant }),
-	loader: async ({ params, deps }) => {
-		const product = await getProduct({ data: params.productId });
-		if (product) return product;
+	loader: async ({ params, deps, location }) => {
+		// The param is the bouquet's link (from its name), not its id.
+		const found = await getProduct({ data: params.productId });
+		if (found && "product" in found) return found.product;
+		// Renamed (an old link), or a link made from its id: go to its link now.
+		if (found)
+			throw redirect({
+				to: "/products/$productId",
+				params: { productId: found.moved },
+				// Keep the theme picked (e.g. ?theme=pink).
+				search: location.search as ProductSearch,
+				statusCode: 301,
+			});
 		// An old /products/<product>?variant=<color> link: go to that bouquet.
 		const moved = await findMovedProduct({
 			data: { productId: params.productId, variant: deps.variant ?? "" },
@@ -56,7 +66,7 @@ export const Route = createFileRoute("/products/$productId")({
 	},
 	head: ({ loaderData: product }) => {
 		if (!product) return { meta: [{ title: "ORAIA" }] };
-		const path = `/products/${product.id}`;
+		const path = `/products/${product.slug}`;
 		const photos = product.variants.flatMap((variant) => variant.images);
 		const head = pageHead({
 			title: `${product.title} bouquet · ORAIA Baguio flower shop`,

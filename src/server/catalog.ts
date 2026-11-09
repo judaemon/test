@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/solid-start";
+import type { Product } from "~/types/product";
 import { listArrangementTypes } from "./arrangement-types-repo";
+import { findBouquetBySlug } from "./bouquet-slugs";
 import {
 	findBouquetRedirect,
 	getAdminProduct,
@@ -7,6 +9,7 @@ import {
 	toPublicProduct,
 } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
+import { getDb } from "./db";
 import { listLiveOrderPromos } from "./order-promos-repo";
 import { listLiveSales } from "./sales-repo";
 import { listSizes } from "./sizes-repo";
@@ -40,14 +43,25 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 	},
 );
 
+export type ProductLookup =
+	| { product: Product }
+	/** An old link (or an id): the bouquet's link now. */
+	| { moved: string }
+	| null;
+
+/** The bouquet a shop link is for, or where an old link of one goes now. */
 export const getProduct = createServerFn({ method: "GET" })
-	.validator((productId: unknown) => {
-		if (typeof productId !== "string") throw new Error("Invalid product id");
-		return productId;
+	.validator((link: unknown) => {
+		if (typeof link !== "string") throw new Error("Invalid product link");
+		return link.slice(0, 120);
 	})
-	.handler(async ({ data }) => {
-		const product = getAdminProduct(data);
-		return product?.isVisible ? toPublicProduct(product) : null;
+	.handler(async ({ data }): Promise<ProductLookup> => {
+		const found = findBouquetBySlug(getDb(), data);
+		const product = found && getAdminProduct(found.id);
+		if (!found || !product?.isVisible) return null;
+		return found.moved
+			? { moved: found.slug }
+			: { product: toPublicProduct(product) };
 	});
 
 /** Where an old product link (from before bouquets had their own pages) goes now. */

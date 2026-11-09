@@ -1,12 +1,14 @@
 import type { Database } from "bun:sqlite";
 
+import { slugify } from "~/lib/slug";
+
 // Signature bouquets and their styles, and moving the old products/variants
 // tables into them. Kept apart from db.ts because the migration, the starter
 // data and the catalog snapshot import all use it.
 
 export const BOUQUET_TABLES_SQL = `
 	CREATE TABLE signature_bouquets (
-		-- Also the shop link: /products/<id>.
+		-- Never changes; the shop link is the slug column (v54), from the name.
 		id TEXT PRIMARY KEY,
 		-- A girl's name, e.g. Odette.
 		name TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -92,17 +94,8 @@ export const LEGACY_CATALOG_SQL = `
 
 const now = () => new Date().toISOString();
 
-export function slugify(value: string) {
-	return (
-		value
-			.toLowerCase()
-			.normalize("NFKD")
-			.replace(/[̀-ͯ]/g, "")
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/^-+|-+$/g, "")
-			.slice(0, 60) || "item"
-	);
-}
+// Shared with the admin, which shows a bouquet's link as its name is typed.
+export { slugify } from "~/lib/slug";
 
 /** `base`, or `base-2`, `base-3`… if it's taken; adds the result to `taken`. */
 export function uniqueSlug(base: string, taken: Set<string>) {

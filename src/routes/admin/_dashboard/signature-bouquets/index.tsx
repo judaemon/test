@@ -397,7 +397,7 @@ function InventoryPage() {
 								<div class="flex items-center gap-1">
 									<Show when={product.isVisible}>
 										<a
-											href={`/products/${product.id}`}
+											href={`/products/${product.slug}`}
 											target="_blank"
 											rel="noreferrer"
 											class={adminButton.ghost}

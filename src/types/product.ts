@@ -76,8 +76,10 @@ export interface ProductVariant {
 
 /** A floral arrangement (bouquet, corsage or boutonnière), e.g. Odette, with its styles. */
 export interface Product {
-	/** Also its shop link: /products/<id>. */
+	/** Never changes: orders and carts point at it. */
 	id: string;
+	/** Its shop link, /products/<slug>, from its name; old ones redirect. */
+	slug: string;
 	/** The bouquet's name, a girl's name. */
 	title: string;
 	description: string;

@@ -10,6 +10,7 @@ import type {
 	Product,
 	RecipeItem,
 } from "~/types/product";
+import { updateBouquetSlug } from "./bouquet-slugs";
 import { slugify, uniqueSlug } from "./bouquet-tables";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { currentPhotoUrl } from "./photo-watermarks";
@@ -18,6 +19,8 @@ import { InputError } from "./validate";
 
 interface BouquetRow {
 	id: string;
+	/** Its shop link; null only until links are assigned. */
+	slug: string | null;
 	name: string;
 	description: string;
 	size_id: string | null;
@@ -118,6 +121,7 @@ export function listAdminProducts({
 			);
 		return {
 			id: row.id,
+			slug: row.slug ?? row.id,
 			title: row.name,
 			description: row.description,
 			// The cheapest style, for "from ₱…".
@@ -204,6 +208,7 @@ export function getAdminProduct(id: string): AdminProduct | undefined {
 export function toPublicProduct(product: AdminProduct): Product {
 	return {
 		id: product.id,
+		slug: product.slug,
 		title: product.title,
 		description: product.description,
 		basePrice: product.basePrice,
@@ -232,13 +237,14 @@ export function listPublicProducts(): Product[] {
 	return listAdminProducts({ includeHidden: false }).map(toPublicProduct);
 }
 
-/** Where an old /products/<product>?variant=<color> link goes now. */
+/** Where an old /products/<product>?variant=<color> link goes now (`productId` is the bouquet's link). */
 export function findBouquetRedirect(oldProductId: string, oldVariantId = "") {
 	return getDb()
 		.query(
-			`SELECT bouquet_id AS productId, style_slug AS variant FROM bouquet_redirects
-			 WHERE old_product_id = $productId
-			 ORDER BY old_variant_id = $variantId DESC, rowid LIMIT 1`,
+			`SELECT COALESCE(b.slug, b.id) AS productId, r.style_slug AS variant
+			 FROM bouquet_redirects r JOIN signature_bouquets b ON b.id = r.bouquet_id
+			 WHERE r.old_product_id = $productId
+			 ORDER BY r.old_variant_id = $variantId DESC, r.rowid LIMIT 1`,
 		)
 		.get({ productId: oldProductId, variantId: oldVariantId }) as {
 		productId: string;
@@ -365,6 +371,8 @@ export function saveProduct(
 				});
 			if (result.changes === 0) throw new Error("Bouquet not found");
 		}
+		// The shop link follows the name; the old one redirects to it.
+		updateBouquetSlug(db, id, input.title);
 
 		db.query("DELETE FROM bouquet_flowers WHERE bouquet_id = $id").run({ id });
 		const addDefaultFlower = db.query(

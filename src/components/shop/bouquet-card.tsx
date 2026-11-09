@@ -19,7 +19,7 @@ export function BouquetCard(props: {
 	return (
 		<Link
 			to="/products/$productId"
-			params={{ productId: props.product.id }}
+			params={{ productId: props.product.slug }}
 			search={{ theme: props.variant.id }}
 			class="group block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-4 focus-visible:ring-offset-cream sm:rounded-3xl"
 		>

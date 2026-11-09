@@ -20,7 +20,7 @@ export function ProductCard(props: { product: Product }) {
 	return (
 		<Link
 			to="/products/$productId"
-			params={{ productId: props.product.id }}
+			params={{ productId: props.product.slug }}
 			class="group block rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-4 focus-visible:ring-offset-cream"
 		>
 			<div class="relative aspect-square overflow-hidden rounded-3xl bg-petal-50 shadow-[0_18px_40px_-24px] shadow-petal-900/40">

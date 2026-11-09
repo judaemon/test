@@ -39,6 +39,7 @@ import {
 	swatchBackground,
 } from "~/lib/product";
 import type { BouquetSize } from "~/lib/sizes";
+import { slugify } from "~/lib/slug";
 import { shopNow } from "~/lib/time";
 import {
 	useArrangementTypes,
@@ -242,6 +243,24 @@ function ProductEditor() {
 		);
 	const data = Route.useLoaderData();
 	const loaded = () => data().product;
+	/**
+	 * The shop link the name gives, as the server works it out: a name that
+	 * reads the same as a link (or a numbered copy, e.g. ana-2) keeps it.
+	 */
+	const linkHint = () => {
+		const base = slugify(draft.title.trim());
+		const saved = loaded()?.slug;
+		if (!draft.title.trim()) return "A girl’s name, e.g. Odette.";
+		if (!saved || isNew())
+			return `A girl’s name, e.g. Odette. Its shop link will be oraiashop.com/products/${base}.`;
+		const keeps =
+			saved === base ||
+			(saved.startsWith(`${base}-`) &&
+				/^\d+$/.test(saved.slice(base.length + 1)));
+		return keeps
+			? `Shop link: oraiashop.com/products/${saved}`
+			: `Saving moves the shop link to oraiashop.com/products/${base}. The old link, /products/${saved}, will still open this bouquet.`;
+	};
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
 		routeId: Route.id,
@@ -577,7 +596,7 @@ function ProductEditor() {
 				actions={
 					<Show when={!isNew() && loaded()?.isVisible}>
 						<a
-							href={`/products/${params().productId}`}
+							href={`/products/${loaded()?.slug ?? params().productId}`}
 							target="_blank"
 							rel="noreferrer"
 							class={adminButton.secondary}
@@ -595,11 +614,7 @@ function ProductEditor() {
 				</p>
 			</Show>
 			<section class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-2")}>
-				<Field
-					label="Name"
-					hint="A girl’s name, e.g. Odette. It’s also the shop link."
-					class="sm:col-span-2"
-				>
+				<Field label="Name" hint={linkHint()} class="sm:col-span-2">
 					<span class="flex gap-2">
 						<input
 							value={draft.title}
