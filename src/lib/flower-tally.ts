@@ -14,8 +14,13 @@ export interface OrderFlower {
 	bouquets: number;
 }
 
-const keyOf = (item: { flower: string; color?: string; filler?: boolean }) =>
-	[item.flower, item.color ?? "", item.filler ? "f" : ""].join("|");
+/** Names one flower and color (filler apart), e.g. for its bought status. */
+export const flowerKey = (item: {
+	flower: string;
+	color?: string;
+	filler?: boolean;
+}) => [item.flower, item.color ?? "", item.filler ? "f" : ""].join("|");
+const keyOf = flowerKey;
 
 /**
  * The flowers an order's bouquets need, from the recipe each line was ordered

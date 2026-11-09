@@ -18,8 +18,15 @@ import {
 	type PaymentStatus,
 } from "~/types/order";
 import { requireStaff } from "../admin-auth";
+import {
+	type FlowerPurchase,
+	listFlowerPurchases,
+	PURCHASE_STATUSES,
+	setFlowerPurchase,
+} from "../flower-purchases-repo";
 import { listOrders } from "../orders-repo";
 import { listPaymentAccounts } from "../payments-repo";
+import { asRecord, oneOf, text } from "../validate";
 
 /** A group of orders: every number on the page opens its orders. */
 export interface OrderGroup {
@@ -328,3 +335,29 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 		};
 	},
 );
+
+/** Flowers to buy: which flowers and colors staff have ordered or bought. */
+export const getFlowerPurchases = createServerFn({ method: "GET" }).handler(
+	async (): Promise<FlowerPurchase[]> => {
+		await requireStaff();
+		return listFlowerPurchases();
+	},
+);
+
+export const setFlowerPurchaseFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			scope: text(source, "scope", { max: 64 }),
+			flowerKey: text(source, "flowerKey", { max: 300 }),
+			status:
+				source.status === null
+					? null
+					: oneOf(source.status, PURCHASE_STATUSES, "Status"),
+		};
+	})
+	.handler(async ({ data }): Promise<FlowerPurchase[]> => {
+		const user = await requireStaff();
+		setFlowerPurchase(data.scope, data.flowerKey, data.status, user.name);
+		return listFlowerPurchases();
+	});

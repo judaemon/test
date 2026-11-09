@@ -744,6 +744,19 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		db.exec(STYLE_WRAPPERS_SQL);
 		moveWrappersToStyleList(db);
 	},
+	// v52: Reports → Flowers to buy: whether each flower and color has been
+	// ordered from the supplier or bought, kept per battalion filter ("all",
+	// "1/2 Battalion", …) since they may be bought in batches. No row: not yet.
+	`
+	CREATE TABLE flower_purchases (
+		scope TEXT NOT NULL,
+		flower_key TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('ordered', 'bought')),
+		updated_by TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (scope, flower_key)
+	);
+	`,
 ];
 
 declare global {

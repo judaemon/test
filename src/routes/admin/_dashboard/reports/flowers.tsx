@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	on,
+	Show,
+} from "solid-js";
 import { Portal } from "solid-js/web";
 
 import {
@@ -10,15 +17,99 @@ import {
 	OrderList,
 	useReport,
 } from "~/components/admin/reports";
-import { adminButton, adminCard } from "~/components/admin/ui";
+import { adminButton, adminCard, toastError } from "~/components/admin/ui";
 import { BATTALIONS, battalionOf } from "~/lib/cadets";
-import { type FlowerTally, tallyFlowers } from "~/lib/flower-tally";
+import { type FlowerTally, flowerKey, tallyFlowers } from "~/lib/flower-tally";
 import { cn } from "~/lib/utils";
-import type { OrderGroup, ReportOrder } from "~/server/admin/reports";
+import {
+	getFlowerPurchases,
+	type OrderGroup,
+	type ReportOrder,
+	setFlowerPurchaseFn,
+} from "~/server/admin/reports";
+import type {
+	FlowerPurchase,
+	PurchaseStatus,
+} from "~/server/flower-purchases-repo";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/flowers")({
+	loader: () => getFlowerPurchases(),
 	component: FlowersToBuy,
 });
+
+type FlowerRow = FlowerTally["colors"][number];
+
+/** Bought rows go green and ordered ones amber, so what's left stands out. */
+const rowTint = (purchase?: FlowerPurchase) =>
+	purchase?.status === "bought"
+		? "bg-success/40"
+		: purchase?.status === "ordered"
+			? "bg-warning/40"
+			: undefined;
+
+const STATUS_OPTIONS: { status: PurchaseStatus | null; label: string }[] = [
+	{ status: null, label: "Not yet" },
+	{ status: "ordered", label: "Ordered" },
+	{ status: "bought", label: "Bought" },
+];
+
+/** Not yet / Ordered / Bought for one flower and color; says who set it. */
+function StatusPicker(props: {
+	name: string;
+	purchase?: FlowerPurchase;
+	onChange: (status: PurchaseStatus | null) => void;
+}) {
+	const current = () => props.purchase?.status ?? null;
+	const who = () =>
+		props.purchase
+			? `${props.purchase.status === "bought" ? "Bought" : "Ordered"}, marked by ${props.purchase.updatedBy} on ${new Date(
+					props.purchase.updatedAt,
+				).toLocaleString("en-PH", {
+					timeZone: "Asia/Manila",
+					dateStyle: "medium",
+					timeStyle: "short",
+				})}`
+			: "Not ordered or bought yet";
+	return (
+		<>
+			<fieldset
+				title={who()}
+				class="m-0 inline-flex min-w-0 rounded-full border border-petal-200 bg-white p-0.5 text-xs print:hidden"
+			>
+				<legend class="sr-only">{props.name}: status</legend>
+				<For each={STATUS_OPTIONS}>
+					{(option) => (
+						<button
+							type="button"
+							aria-pressed={current() === option.status}
+							onClick={() =>
+								current() !== option.status && props.onChange(option.status)
+							}
+							class={cn(
+								"rounded-full px-2.5 py-1 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+								current() === option.status
+									? option.status === "bought"
+										? "bg-success font-semibold text-success-foreground ring-1 ring-success-foreground/50"
+										: option.status === "ordered"
+											? "bg-warning font-semibold text-warning-foreground ring-1 ring-warning-foreground/50"
+											: "bg-petal-100 font-medium text-petal-900"
+									: "text-petal-900/60 hover:bg-petal-50 hover:text-petal-900",
+							)}
+						>
+							<Show when={current() === option.status && option.status}>
+								<span aria-hidden="true">✓ </span>
+							</Show>
+							{option.label}
+						</button>
+					)}
+				</For>
+			</fieldset>
+			<span class="hidden text-xs print:inline">
+				{STATUS_OPTIONS.find((o) => o.status === current())?.label}
+			</span>
+		</>
+	);
+}
 
 type FlowerFilter = "all" | "paid" | "unpaid";
 /** A battalion's name, everyone, or "none" for civilians and no company. */
@@ -135,6 +226,50 @@ function FlowersToBuy() {
 		});
 	};
 	/** E.g. "3/4 Battalion · Paid (12)", for the printouts. */
+	// Ordered / bought, per battalion filter: buying for 3/4 Battalion doesn't
+	// mark 1/2 Battalion's flowers.
+	const loaded = Route.useLoaderData();
+	const [purchases, setPurchases] = createSignal<FlowerPurchase[]>(loaded());
+	createEffect(on(loaded, setPurchases, { defer: true }));
+	const purchaseOf = (row: FlowerRow) =>
+		purchases().find(
+			(p) => p.scope === battalion() && p.flowerKey === flowerKey(row),
+		);
+	const setStatus = async (row: FlowerRow, status: PurchaseStatus | null) => {
+		const scope = battalion();
+		const key = flowerKey(row);
+		const before = purchases();
+		setPurchases([
+			...before.filter((p) => !(p.scope === scope && p.flowerKey === key)),
+			...(status
+				? [
+						{
+							scope,
+							flowerKey: key,
+							status,
+							updatedBy: "you",
+							updatedAt: new Date().toISOString(),
+						},
+					]
+				: []),
+		]);
+		try {
+			setPurchases(
+				await setFlowerPurchaseFn({ data: { scope, flowerKey: key, status } }),
+			);
+		} catch (error) {
+			setPurchases(before);
+			toastError(error, "Couldn't save that. Try again.");
+		}
+	};
+	const colorRows = () => tally().flatMap((flower) => flower.colors);
+	const statusCount = (status: PurchaseStatus) =>
+		colorRows().filter((row) => purchaseOf(row)?.status === status).length;
+	const battalionLabel = () =>
+		battalion() === "all"
+			? "everyone"
+			: (battalionTabs.find((t) => t.key === battalion())?.label ?? "");
+
 	const tabLabel = () => {
 		const tab = tabs.find((t) => t.key === filter());
 		const unit = battalionTabs.find((t) => t.key === battalion());
@@ -226,23 +361,53 @@ function FlowersToBuy() {
 					<p class="text-sm text-petal-900/60">No flowers to count here.</p>
 				}
 			>
+				<p class="mb-3 text-sm tabular-nums text-petal-900/70 print:hidden">
+					<strong class="font-semibold text-success-foreground">
+						{statusCount("bought")}
+					</strong>{" "}
+					bought ·{" "}
+					<strong class="font-semibold text-warning-foreground">
+						{statusCount("ordered")}
+					</strong>{" "}
+					ordered ·{" "}
+					<strong class="font-semibold">
+						{colorRows().length -
+							statusCount("bought") -
+							statusCount("ordered")}
+					</strong>{" "}
+					not yet
+					<span class="text-petal-900/55">
+						{" "}
+						(for {battalionLabel()}; each battalion filter keeps its own)
+					</span>
+				</p>
 				<div class="overflow-x-auto print:overflow-visible">
-					<table class="w-full min-w-[480px] text-left text-sm print:min-w-0">
+					<table class="w-full min-w-[560px] max-w-4xl text-left text-sm print:min-w-0">
 						<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 							<tr>
 								<th class="pb-2 pr-4 font-medium">Flower</th>
-								<th class="pb-2 pr-4 text-right font-medium">Stems</th>
-								<th class="pb-2 pr-4 text-right font-medium">Bouquets</th>
-								<th class="pb-2 text-right font-medium">Orders</th>
+								<th class="w-20 pb-2 pr-4 text-right font-medium">Stems</th>
+								<th class="w-20 pb-2 pr-4 text-right font-medium">Bouquets</th>
+								<th class="w-16 pb-2 pr-4 text-right font-medium">Orders</th>
+								<th class="w-60 pb-2 font-medium">Status</th>
 							</tr>
 						</thead>
 						<For each={tally()}>
 							{(flower) => {
 								const split = () =>
 									flower.colors.length > 1 || flower.colors[0]?.color !== "";
+								const bought = () =>
+									flower.colors.filter(
+										(row) => purchaseOf(row)?.status === "bought",
+									).length;
 								return (
 									<tbody class="border-t border-petal-100 print:break-inside-avoid">
-										<tr>
+										<tr
+											class={cn(
+												!split() &&
+													rowTint(purchaseOf(flower.colors[0] as FlowerRow)),
+											)}
+										>
 											<th scope="row" class="py-2.5 pr-4 font-semibold">
 												{flower.flower}
 												<Show when={flower.filler}>
@@ -259,17 +424,50 @@ function FlowersToBuy() {
 													{flower.colors[0]?.bouquets}
 												</Show>
 											</td>
-											<td class="py-2.5 text-right">
+											<td class="py-2.5 pr-4 text-right">
 												{ordersButton(
 													`Flower: ${flower.flower}`,
 													flower.orderIds,
 												)}
 											</td>
+											<td class="py-2">
+												<Show
+													when={!split()}
+													fallback={
+														<span
+															class={cn(
+																"text-xs tabular-nums",
+																bought() === flower.colors.length
+																	? "font-semibold text-success-foreground"
+																	: "text-petal-900/60",
+															)}
+														>
+															{bought()} of {flower.colors.length} bought
+														</span>
+													}
+												>
+													<StatusPicker
+														name={flower.flower}
+														purchase={purchaseOf(flower.colors[0] as FlowerRow)}
+														onChange={(status) =>
+															void setStatus(
+																flower.colors[0] as FlowerRow,
+																status,
+															)
+														}
+													/>
+												</Show>
+											</td>
 										</tr>
 										<Show when={split()}>
 											<For each={flower.colors}>
 												{(row) => (
-													<tr class="text-petal-900/80">
+													<tr
+														class={cn(
+															"text-petal-900/80",
+															rowTint(purchaseOf(row)),
+														)}
+													>
 														<th
 															scope="row"
 															class="py-1.5 pl-5 pr-4 font-normal"
@@ -282,11 +480,20 @@ function FlowersToBuy() {
 														<td class="py-1.5 pr-4 text-right tabular-nums">
 															{row.bouquets}
 														</td>
-														<td class="py-1.5 text-right">
+														<td class="py-1.5 pr-4 text-right">
 															{ordersButton(
 																`Flower: ${flower.flower} · ${row.color || "No color"}`,
 																row.orderIds,
 															)}
+														</td>
+														<td class="py-1">
+															<StatusPicker
+																name={`${flower.flower}, ${row.color || "no color"}`}
+																purchase={purchaseOf(row)}
+																onChange={(status) =>
+																	void setStatus(row, status)
+																}
+															/>
 														</td>
 													</tr>
 												)}
