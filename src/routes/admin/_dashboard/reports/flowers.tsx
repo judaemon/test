@@ -11,15 +11,18 @@ import {
 	useReport,
 } from "~/components/admin/reports";
 import { adminButton, adminCard } from "~/components/admin/ui";
+import { BATTALIONS, battalionOf } from "~/lib/cadets";
 import { type FlowerTally, tallyFlowers } from "~/lib/flower-tally";
 import { cn } from "~/lib/utils";
-import type { OrderGroup } from "~/server/admin/reports";
+import type { OrderGroup, ReportOrder } from "~/server/admin/reports";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/flowers")({
 	component: FlowersToBuy,
 });
 
 type FlowerFilter = "all" | "paid" | "unpaid";
+/** A battalion's name, everyone, or "none" for civilians and no company. */
+type BattalionFilter = "all" | "none" | (typeof BATTALIONS)[number]["name"];
 
 /**
  * Every flower the orders need, for buying: each bouquet's recipe times how
@@ -30,9 +33,38 @@ function FlowersToBuy() {
 	const report = useReport();
 	const list = createOrderList();
 	const [filter, setFilter] = createSignal<FlowerFilter>("all");
-	const active = createMemo(() =>
+	const [battalion, setBattalion] = createSignal<BattalionFilter>("all");
+	const notCancelled = createMemo(() =>
 		report().orders.filter((order) => order.status !== "cancelled"),
 	);
+	const inBattalion = (order: ReportOrder, key: BattalionFilter) =>
+		key === "all" ||
+		(key === "none"
+			? !battalionOf(order.company)
+			: battalionOf(order.company) === key);
+	/** The orders in the chosen battalion; the payment tabs count from these. */
+	const active = createMemo(() =>
+		notCancelled().filter((order) => inBattalion(order, battalion())),
+	);
+	const battalionTabs: {
+		key: BattalionFilter;
+		label: string;
+		count: () => number;
+	}[] = [
+		{ key: "all", label: "Everyone", count: () => notCancelled().length },
+		...BATTALIONS.map((b) => ({
+			key: b.name,
+			label: b.name,
+			count: () =>
+				notCancelled().filter((order) => inBattalion(order, b.name)).length,
+		})),
+		{
+			key: "none",
+			label: "Civilians",
+			count: () =>
+				notCancelled().filter((order) => inBattalion(order, "none")).length,
+		},
+	];
 	const counted = createMemo(() =>
 		active().filter((order) =>
 			filter() === "paid"
@@ -102,9 +134,16 @@ function FlowersToBuy() {
 			setTimeout(done, 1000);
 		});
 	};
+	/** E.g. "3/4 Battalion · Paid (12)", for the printouts. */
 	const tabLabel = () => {
 		const tab = tabs.find((t) => t.key === filter());
-		return tab ? `${tab.label} (${tab.count()})` : "";
+		const unit = battalionTabs.find((t) => t.key === battalion());
+		return [
+			battalion() === "all" ? "" : unit?.label,
+			tab ? `${tab.label} (${tab.count()})` : "",
+		]
+			.filter(Boolean)
+			.join(" · ");
 	};
 
 	return (
@@ -146,15 +185,23 @@ function FlowersToBuy() {
 				Every flower in the orders: each bouquet’s recipe times how many were
 				ordered, added up by flower and color. Cancelled orders aren’t counted.
 			</p>
-			<FilterTabs
-				label="Count flowers from"
-				tabs={tabs}
-				value={filter()}
-				onChange={setFilter}
-			/>
-			<p class="mb-3 hidden text-sm print:block">
-				Counting: {tabs.find((tab) => tab.key === filter())?.label}
-			</p>
+			<div class="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+				<FilterTabs
+					label="Battalion"
+					tabs={battalionTabs}
+					value={battalion()}
+					onChange={setBattalion}
+					class="mb-0"
+				/>
+				<FilterTabs
+					label="Count flowers from"
+					tabs={tabs}
+					value={filter()}
+					onChange={setFilter}
+					class="mb-0"
+				/>
+			</div>
+			<p class="mb-3 hidden text-sm print:block">Counting: {tabLabel()}</p>
 			<Show when={withoutRecipe().length}>
 				<p class="mb-4 rounded-xl bg-warning/60 px-3 py-2 text-sm text-warning-foreground">
 					{missing()} bouquet(s) have no recipe on record, so their flowers
