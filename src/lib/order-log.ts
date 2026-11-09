@@ -28,6 +28,7 @@ export const ORDER_LOG_ACTIONS = {
 	payment_review: "Reviewed the payment",
 	payment_method: "Changed the payment method",
 	payment_sent: "Sent a payment",
+	payment_reference: "Set the reference number",
 	cancelled: "Cancelled the order",
 	bouquet_cancelled: "Cancelled a bouquet",
 	customer_edit: "Edited the order",

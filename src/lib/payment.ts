@@ -61,6 +61,19 @@ export function validateReferenceNumber(value: string): string | undefined {
 	return undefined;
 }
 
+/**
+ * A reference number staff type in for a customer, e.g. one sent over chat.
+ * Empty is allowed (there's none yet, or it's being removed).
+ */
+export function validateStaffReferenceNumber(
+	value: string,
+): string | undefined {
+	const compact = normalizeReferenceNumber(value);
+	if (compact && !/^[A-Za-z0-9]{6,30}$/.test(compact))
+		return "Use the 6–30 letters or digits from the receipt’s Ref No.";
+	return undefined;
+}
+
 /** Strips the spaces and dashes apps insert for readability. */
 export function normalizeReferenceNumber(value: string) {
 	return value.replace(/[\s-]/g, "");

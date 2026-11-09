@@ -832,6 +832,47 @@ export function submitPayment(
 }
 
 /**
+ * The payment status once staff record a reference number: one that was still
+ * owed (on hold, or rejected) now waits for staff to check it, like a payment
+ * the customer sends. Anything else stays as staff left it.
+ */
+export function statusWithReference(
+	status: PaymentStatus,
+	referenceNumber: string | undefined,
+): PaymentStatus {
+	return referenceNumber && isPaymentDue(status) ? "pending" : status;
+}
+
+/**
+ * Staff add, fix or remove an order's reference number, e.g. one the customer
+ * sent over chat. It works at any stage, so a balance paid later can be noted.
+ */
+export function setReferenceNumber(
+	id: string,
+	referenceNumber: string | undefined,
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
+	return tracked(id, actor, "payment_reference", () => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("Cancelled orders can’t be changed.");
+		if (order.payment.method === "card")
+			throw new OrderRuleError("Card payments don’t have a reference number.");
+		getDb()
+			.query(
+				`UPDATE orders SET reference_number = $reference, payment_status = $status
+				 WHERE id = $id`,
+			)
+			.run({
+				id,
+				reference: referenceNumber || null,
+				status: statusWithReference(order.payment.status, referenceNumber),
+			});
+	});
+}
+
+/**
  * Staff switch how an order is paid, saying why (and optionally attaching a
  * photo). The payment's status and anything the shopper sent stay as they
  * were, so staff still verify it as usual. Card payments are only taken at
@@ -933,7 +974,10 @@ export function updateChatOrder(
 	update: {
 		details: CheckoutDetails;
 		line: PricedLine;
-		payment: Pick<OrderPayment, "method" | "status" | "amountPaid">;
+		payment: Pick<
+			OrderPayment,
+			"method" | "status" | "amountPaid" | "referenceNumber"
+		>;
 	},
 	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
@@ -959,7 +1003,8 @@ export function updateChatOrder(
 			   serial_number = $serialNumber, class_name = $className, notes = $notes,
 			   dedication_for = $dedicationFor, gift_message = $dedicationMessage, lines = $lines,
 			   subtotal_cents = $total, total_cents = $total, payment_method = $method,
-			   payment_status = $status, amount_paid_cents = $amountPaid
+			   payment_status = $status, amount_paid_cents = $amountPaid,
+			   reference_number = $reference
 			 WHERE id = $id`,
 		).run({
 			id,
@@ -977,6 +1022,7 @@ export function updateChatOrder(
 			total,
 			method: update.payment.method,
 			status: update.payment.status,
+			reference: update.payment.referenceNumber || null,
 			amountPaid:
 				update.payment.amountPaid === undefined
 					? null

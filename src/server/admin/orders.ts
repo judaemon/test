@@ -16,7 +16,12 @@ import {
 } from "~/lib/checkout";
 import { CUSTOM_IMAGE, CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { validateOrdersSearch } from "~/lib/order-filters";
-import { isPaymentMethod, type PaymentMethod } from "~/lib/payment";
+import {
+	isPaymentMethod,
+	normalizeReferenceNumber,
+	type PaymentMethod,
+	validateStaffReferenceNumber,
+} from "~/lib/payment";
 import type { PricedLine } from "~/lib/pricing";
 import {
 	BOARD_STAGES,
@@ -52,8 +57,10 @@ import {
 	setDeliveryPhoto,
 	setOrderStage,
 	setOrderTest,
+	setReferenceNumber,
 	setRider,
 	setWrapperStatus,
+	statusWithReference,
 	updateChatOrder,
 } from "../orders-repo";
 import { parseRecipe } from "../recipe-input";
@@ -249,6 +256,30 @@ export const markOrderTest = createServerFn({ method: "POST" })
 		);
 	});
 
+/** Reads a reference number staff typed; empty means none. Throws if malformed. */
+function staffReferenceNumber(value: unknown) {
+	const raw = typeof value === "string" ? value : "";
+	const problem = validateStaffReferenceNumber(raw);
+	if (problem) throw new InputError(problem);
+	return normalizeReferenceNumber(raw) || undefined;
+}
+
+/** Staff add, fix or remove an order's reference number. */
+export const setReferenceNumberFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			id: text(source, "id", { max: 64 }),
+			referenceNumber: staffReferenceNumber(source.referenceNumber),
+		};
+	})
+	.handler(async ({ data }) => {
+		const user = await requireStaff();
+		return runAction(() =>
+			setReferenceNumber(data.id, data.referenceNumber, staffActor(user)),
+		);
+	});
+
 export const reviewOrderPayment = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
 		const source = asRecord(input);
@@ -369,6 +400,7 @@ function parseChatOrderForm(input: unknown) {
 	const method = field("method");
 	if (!isPaymentMethod(method))
 		throw new InputError("Choose how the customer pays.");
+	const referenceNumber = staffReferenceNumber(field("referenceNumber"));
 	if (
 		!(CONTACT_PLATFORMS as readonly string[]).includes(field("contactPlatform"))
 	)
@@ -405,6 +437,7 @@ function parseChatOrderForm(input: unknown) {
 		total: Math.round(total * 100) / 100,
 		paid: Math.round(paid * 100) / 100,
 		method: method as PaymentMethod,
+		referenceNumber,
 		contactPlatform,
 		photos,
 		keptPhotos,
@@ -533,9 +566,14 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 					},
 					payment: {
 						method: data.method,
-						// Paid in full is settled; anything owing waits like any unpaid order.
-						status: data.paid >= data.total ? "verified" : "on_hold",
+						// Paid in full is settled; anything owing waits like any unpaid
+						// order, or for staff to check its reference number.
+						status:
+							data.paid >= data.total
+								? "verified"
+								: statusWithReference("on_hold", data.referenceNumber),
 						amountPaid: data.paid,
+						referenceNumber: data.referenceNumber,
 					},
 				},
 				staffActor(user),
@@ -578,7 +616,10 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 		const kept = existing.filter((url) => data.form.keptPhotos.includes(url));
 		const { paid, total } = data.form;
 		// Paid in full settles it; staff's own payment decisions otherwise stand.
-		const status = paid >= total ? "verified" : order.payment.status;
+		const status =
+			paid >= total
+				? "verified"
+				: statusWithReference(order.payment.status, data.form.referenceNumber);
 		if (order.stage !== "new" && !canStartMaking({ status, amountPaid: paid }))
 			return {
 				ok: false,
@@ -604,7 +645,12 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 						],
 						previous,
 					),
-					payment: { method: data.form.method, status, amountPaid: paid },
+					payment: {
+						method: data.form.method,
+						status,
+						amountPaid: paid,
+						referenceNumber: data.form.referenceNumber,
+					},
 				},
 				staffActor(user),
 			);

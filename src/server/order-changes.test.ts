@@ -1068,3 +1068,72 @@ describe("staff notes", () => {
 		).not.toContain("Called the customer");
 	});
 });
+
+describe("staff recording a reference number", () => {
+	let logRepo: typeof import("./order-log-repo");
+	let payment: typeof import("~/lib/payment");
+	beforeAll(async () => {
+		logRepo = await import("./order-log-repo");
+		payment = await import("~/lib/payment");
+		// Earlier tests use up the stock; these only need orders to exist.
+		db.getDb()
+			.query(
+				"UPDATE bouquet_styles SET stock_quantity = 50 WHERE bouquet_id = $p AND slug = $v",
+			)
+			.run({ p: first.productId, v: first.variantId });
+	});
+
+	test("an unpaid order waits for staff to check it, and it's logged", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		const saved = repo.setReferenceNumber(order.id, "1012345678901");
+		expect(saved.payment.referenceNumber).toBe("1012345678901");
+		expect(saved.payment.status).toBe("pending");
+		const logged = logRepo
+			.listOrderLog({ orderId: order.id })
+			.entries.filter((e) => e.action === "payment_reference");
+		expect(logged).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					field: "reference_number",
+					to: "1012345678901",
+				}),
+			]),
+		);
+	});
+
+	test("works once the order is being made, without undoing a verified payment", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		repo.reviewPayment(order.id, "verified", "Staff");
+		repo.setOrderStage(order.id, "making");
+		const saved = repo.setReferenceNumber(order.id, "ABC123456");
+		expect(saved.stage).toBe("making");
+		expect(saved.payment.status).toBe("verified");
+		expect(saved.payment.referenceNumber).toBe("ABC123456");
+	});
+
+	test("can be fixed or removed", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		repo.setReferenceNumber(order.id, "1111111111");
+		expect(
+			repo.setReferenceNumber(order.id, "2222222222").payment.referenceNumber,
+		).toBe("2222222222");
+		expect(
+			repo.setReferenceNumber(order.id, undefined).payment.referenceNumber,
+		).toBeUndefined();
+	});
+
+	test("refused for a cancelled order", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		repo.cancelOrder(order.id, { reason: "Test", cancelledBy: "Staff" });
+		expect(() => repo.setReferenceNumber(order.id, "1234567890")).toThrow();
+	});
+
+	test("checks the number, but allows none", () => {
+		expect(payment.validateStaffReferenceNumber("")).toBeUndefined();
+		expect(
+			payment.validateStaffReferenceNumber("1012 345-678901"),
+		).toBeUndefined();
+		expect(payment.validateStaffReferenceNumber("12")).toBeDefined();
+		expect(payment.validateStaffReferenceNumber("12#45678")).toBeDefined();
+	});
+});

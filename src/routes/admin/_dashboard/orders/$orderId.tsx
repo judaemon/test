@@ -12,6 +12,7 @@ import { ChangePaymentMethodButton } from "~/components/admin/change-payment-met
 import { useLeaveForm } from "~/components/admin/leave-form";
 import { OrderLogTable } from "~/components/admin/order-log-table";
 import { OrderNotes } from "~/components/admin/order-notes";
+import { ReferenceNumberEditor } from "~/components/admin/reference-number";
 import {
 	adminButton,
 	adminCard,
@@ -725,9 +726,14 @@ function OrderDetail() {
 							</div>
 						</Show>
 						<Show when={payment().method !== "card" && !cancelled()}>
+							<ReferenceNumberEditor
+								order={order()}
+								disabled={busy()}
+								onSaved={setOrder}
+							/>
 							<ChangePaymentMethodButton
 								order={order()}
-								class={cn(adminButton.secondary, "mt-4 w-full")}
+								class={cn(adminButton.secondary, "mt-2 w-full")}
 								disabled={busy()}
 								onChanged={setOrder}
 							>

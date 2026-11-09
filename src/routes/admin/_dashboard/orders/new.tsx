@@ -46,6 +46,7 @@ import {
 	PAYMENT_METHOD_LABELS,
 	PAYMENT_METHODS,
 	type PaymentMethod,
+	validateStaffReferenceNumber,
 } from "~/lib/payment";
 import { formatPrice } from "~/lib/product";
 import { useCustomSettings } from "~/lib/use-catalog";
@@ -101,6 +102,12 @@ function NewChatOrder() {
 	const [method, setMethod] = createSignal<PaymentMethod>(
 		editing?.payment.method ?? "gcash",
 	);
+	// The receipt's Ref No., usually sent in the chat with a screenshot.
+	const [reference, setReference] = createSignal(
+		editing?.payment.referenceNumber ?? "",
+	);
+	// Cash has no receipt number; it's left out rather than kept hidden.
+	const takesReference = () => method() !== "cash";
 	const [platform, setPlatform] = createSignal<ContactPlatform | "">(
 		line?.contactPlatform ?? "",
 	);
@@ -171,11 +178,22 @@ function NewChatOrder() {
 	const save = async (event: SubmitEvent) => {
 		event.preventDefault();
 		if (saving()) return;
+		const referenceProblem =
+			takesReference() && validateStaffReferenceNumber(reference());
+		if (referenceProblem) {
+			setErrors((current) => ({
+				...current,
+				referenceNumber: referenceProblem,
+			}));
+			toastError(new Error(referenceProblem));
+			return;
+		}
 		const body = new FormData();
 		body.set("message", message());
 		body.set("total", total());
 		body.set("paid", paid());
 		body.set("method", method());
+		body.set("referenceNumber", takesReference() ? reference() : "");
 		body.set("contactPlatform", platform());
 		body.set("wrapperId", wrapperId());
 		body.set(
@@ -574,11 +592,42 @@ function NewChatOrder() {
 						</select>
 					</Field>
 				</div>
+				<Show when={takesReference()}>
+					<div class="grid gap-1 sm:max-w-xs">
+						<Field
+							label="Reference no. (optional)"
+							hint="The Ref No. on the customer’s receipt. Add or change it any time."
+						>
+							<input
+								type="text"
+								name="referenceNumber"
+								value={reference()}
+								onInput={(e) => {
+									setReference(e.currentTarget.value);
+									setErrors(({ referenceNumber: _cleared, ...rest }) => rest);
+								}}
+								maxLength={40}
+								autocomplete="off"
+								spellcheck={false}
+								placeholder="e.g. 1012 345 678901"
+								aria-invalid={errors().referenceNumber ? true : undefined}
+								class={cn(adminInput, "font-mono")}
+							/>
+						</Field>
+						<Show when={errors().referenceNumber}>
+							<p class="text-xs text-error-foreground">
+								{errors().referenceNumber}
+							</p>
+						</Show>
+					</div>
+				</Show>
 				<Show when={totalAmount() > 0}>
 					<p class="text-sm text-petal-900/70">
-						{balance() > 0
-							? `${formatPrice(balance(), "PHP")} still to pay. The order waits as On hold until you mark the payment verified.`
-							: "Paid in full: the payment is marked verified."}
+						{balance() <= 0
+							? "Paid in full: the payment is marked verified."
+							: takesReference() && reference().trim()
+								? `${formatPrice(balance(), "PHP")} still to pay. With a reference number, the payment waits for you to check and verify it.`
+								: `${formatPrice(balance(), "PHP")} still to pay. The order waits as On hold until you mark the payment verified.`}
 					</p>
 				</Show>
 			</section>
