@@ -56,6 +56,7 @@ import {
 	FACETS,
 	isFiltering,
 	type OrdersSearch,
+	rowsSearch,
 	typeKeys,
 	typeParam,
 	validateOrdersSearch,
@@ -89,6 +90,9 @@ import {
 	type WrapperStatus,
 } from "~/types/order";
 
+/** How often the table-only view brings in new orders and changes. */
+const MONITOR_REFRESH_MS = 30_000;
+
 /** The stages an order can be moved to from its row. */
 const ROW_STAGES = BOARD_STAGES;
 type RowStage = (typeof ROW_STAGES)[number];
@@ -107,7 +111,8 @@ const WRAPPER_CLASS: Record<WrapperStatus, string> = {
 
 export const Route = createFileRoute("/admin/_dashboard/orders/")({
 	validateSearch: validateOrdersSearch,
-	loaderDeps: ({ search }) => search,
+	// Switching to the table-only view keeps the rows already loaded.
+	loaderDeps: ({ search }) => rowsSearch(search),
 	// The first rows only; the table loads the rest as it's scrolled.
 	// Stepped back to, wait for the fresh rows rather than showing the old
 	// ones first and swapping them in.
@@ -169,12 +174,16 @@ function OrdersPage() {
 	const context = Route.useRouteContext();
 	const hasMore = () => rows().length < data().total;
 	const viewKey = () =>
-		JSON.stringify({ ...search(), page: undefined, perPage: undefined });
+		JSON.stringify({
+			...rowsSearch(search()),
+			page: undefined,
+			perPage: undefined,
+		});
 	let shownKey = viewKey();
 	// Bumped whenever the view changes, so a late answer for the old one is dropped.
 	let generation = 0;
 	const fetchPage = (page: number) =>
-		listAdminOrderRows({ data: { ...search(), page } });
+		listAdminOrderRows({ data: { ...rowsSearch(search()), page } });
 	createEffect(
 		on(
 			data,
@@ -366,7 +375,10 @@ function OrdersPage() {
 		try {
 			const result = allMatching()
 				? await assignFloristMatchingFn({
-						data: { floristId, search: { ...search(), page: undefined } },
+						data: {
+							floristId,
+							search: { ...rowsSearch(search()), page: undefined },
+						},
 					})
 				: await assignFloristFn({
 						data: { floristId, bouquets: [...picked().values()] },
@@ -382,59 +394,193 @@ function OrdersPage() {
 		}
 	};
 
+	// Table only: the table fills the screen, for keeping an eye on orders
+	// (e.g. on the owner's iPad). It's in the address, so it survives a reload.
+	const tableOnly = () => search().view === "table";
+	const setTableOnly = (on: boolean) =>
+		navigate({
+			search: (prev) => ({ ...prev, view: on ? "table" : undefined }),
+			replace: true,
+			resetScroll: false,
+		});
+	const [updatedAt, setUpdatedAt] = createSignal(new Date());
+	createEffect(on(data, () => setUpdatedAt(new Date())));
+	createEffect(() => {
+		if (!tableOnly()) return;
+		// The page behind mustn't scroll under the table.
+		const root = document.documentElement;
+		const was = root.style.overflow;
+		root.style.overflow = "hidden";
+		const onKey = (event: KeyboardEvent) => {
+			// Not while a dialog or panel is open: Escape closes that first.
+			if (event.key === "Escape" && !document.querySelector('[role="dialog"]'))
+				void setTableOnly(false);
+		};
+		window.addEventListener("keydown", onKey);
+		// New orders and changes from other staff come in on their own, but not
+		// while someone is picking from a menu in a row, so nothing jumps.
+		const timer = setInterval(() => {
+			if (document.hidden || loading() || loadingMore()) return;
+			if (document.activeElement?.closest("select, input, textarea")) return;
+			if (document.querySelector('[role="dialog"]')) return;
+			void router.invalidate();
+		}, MONITOR_REFRESH_MS);
+		onCleanup(() => {
+			root.style.overflow = was;
+			window.removeEventListener("keydown", onKey);
+			clearInterval(timer);
+		});
+	});
+
+	// On tablets and phones the filters fold away behind a button.
+	const [filtersOpen, setFiltersOpen] = createSignal(false);
+	const facetsInUse = () => FACETS.filter((facet) => search()[facet.id]).length;
+
 	return (
-		<div class={cn(pickedCount() > 0 && "pb-24")}>
-			<PageHeader
-				title="Orders"
-				description="Every bouquet ordered, colored by company. Change a status right in its row, or open the order to check its payment."
-				actions={
-					<Link to="/admin/orders/new" class={adminButton.primary}>
-						+ Add custom order
-					</Link>
+		<div
+			class={cn(
+				pickedCount() > 0 && "pb-24",
+				// Over the whole screen, sidebar and all.
+				tableOnly() && "fixed inset-0 z-40 flex flex-col bg-cream",
+			)}
+		>
+			<Show
+				when={tableOnly()}
+				fallback={
+					<>
+						<PageHeader
+							title="Orders"
+							description="Every bouquet ordered, colored by company. Change a status right in its row, or open the order to check its payment."
+							actions={
+								<>
+									<button
+										type="button"
+										onClick={() => void setTableOnly(true)}
+										title="Show only the table, filling the screen"
+										class={adminButton.secondary}
+									>
+										<ExpandIcon />
+										Table only
+									</button>
+									<Link to="/admin/orders/new" class={adminButton.primary}>
+										+ Add custom order
+									</Link>
+								</>
+							}
+						/>
+
+						<ArrangementCards
+							cards={data().summary}
+							selected={parseList(search().arrangement)}
+							onSelect={(key) => setSearch({ arrangement: key })}
+						/>
+
+						<nav
+							aria-label="Filter by status"
+							class={cn(
+								"-mx-1 flex gap-1 overflow-x-auto px-1 pb-1",
+								tableOnly() ? "min-w-0 flex-1" : "mb-4",
+							)}
+						>
+							<For each={stageTabs()}>
+								{(tab) => {
+									const active = () => search().stage === tab.key;
+									return (
+										<button
+											type="button"
+											onClick={() => setSearch({ stage: tab.key })}
+											aria-current={active() ? "page" : undefined}
+											class={cn(
+												"inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+												active()
+													? "bg-petal-700 font-medium text-white"
+													: "bg-white text-petal-900/70 hover:bg-petal-100",
+											)}
+										>
+											{tab.label}
+											<span
+												class={cn(
+													"rounded-full px-1.5 text-xs tabular-nums",
+													active()
+														? "bg-white/20"
+														: "bg-petal-100 text-petal-900/60",
+												)}
+											>
+												{tab.count.toLocaleString()}
+											</span>
+										</button>
+									);
+								}}
+							</For>
+						</nav>
+					</>
 				}
-			/>
-
-			<ArrangementCards
-				cards={data().summary}
-				selected={parseList(search().arrangement)}
-				onSelect={(key) => setSearch({ arrangement: key })}
-			/>
-
-			<nav
-				aria-label="Filter by status"
-				class="-mx-1 mb-4 flex gap-1 overflow-x-auto px-1 pb-1"
 			>
-				<For each={stageTabs()}>
-					{(tab) => {
-						const active = () => search().stage === tab.key;
-						return (
-							<button
-								type="button"
-								onClick={() => setSearch({ stage: tab.key })}
-								aria-current={active() ? "page" : undefined}
-								class={cn(
-									"inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
-									active()
-										? "bg-petal-700 font-medium text-white"
-										: "bg-white text-petal-900/70 hover:bg-petal-100",
-								)}
-							>
-								{tab.label}
-								<span
-									class={cn(
-										"rounded-full px-1.5 text-xs tabular-nums",
-										active() ? "bg-white/20" : "bg-petal-100 text-petal-900/60",
-									)}
-								>
-									{tab.count.toLocaleString()}
-								</span>
-							</button>
-						);
-					}}
-				</For>
-			</nav>
+				<div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 pt-3 pb-2">
+					<h1 class="font-display type-soft text-xl">Orders</h1>
+					<nav
+						aria-label="Filter by status"
+						class={cn(
+							"-mx-1 flex gap-1 overflow-x-auto px-1 pb-1",
+							tableOnly() ? "min-w-0 flex-1" : "mb-4",
+						)}
+					>
+						<For each={stageTabs()}>
+							{(tab) => {
+								const active = () => search().stage === tab.key;
+								return (
+									<button
+										type="button"
+										onClick={() => setSearch({ stage: tab.key })}
+										aria-current={active() ? "page" : undefined}
+										class={cn(
+											"inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+											active()
+												? "bg-petal-700 font-medium text-white"
+												: "bg-white text-petal-900/70 hover:bg-petal-100",
+										)}
+									>
+										{tab.label}
+										<span
+											class={cn(
+												"rounded-full px-1.5 text-xs tabular-nums",
+												active()
+													? "bg-white/20"
+													: "bg-petal-100 text-petal-900/60",
+											)}
+										>
+											{tab.count.toLocaleString()}
+										</span>
+									</button>
+								);
+							}}
+						</For>
+					</nav>
+					<p class="text-xs text-petal-900/55" aria-live="polite">
+						Updated{" "}
+						{updatedAt().toLocaleTimeString("en-PH", {
+							timeZone: "Asia/Manila",
+							hour: "numeric",
+							minute: "2-digit",
+						})}
+					</p>
+					<button
+						type="button"
+						onClick={() => void setTableOnly(false)}
+						class={adminButton.secondary}
+					>
+						<CollapseIcon />
+						Exit table only
+					</button>
+				</div>
+			</Show>
 
-			<div class="mb-3 flex flex-wrap items-center gap-2">
+			<div
+				class={cn(
+					"flex flex-wrap items-center gap-2",
+					tableOnly() ? "px-3 pb-2" : "mb-3",
+				)}
+			>
 				<label class="flex h-10 w-full items-center gap-2 rounded-xl border border-petal-200 bg-white px-3 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 sm:w-72">
 					<svg
 						aria-hidden="true"
@@ -458,34 +604,62 @@ function OrdersPage() {
 						class="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-petal-900/40 sm:text-sm"
 					/>
 				</label>
-				<DateRangeFilter
-					from={search().from}
-					to={search().to}
-					onChange={(from, to) => setSearch({ from, to })}
-				/>
-				<For each={FACETS}>
-					{(facet) => (
-						<Show when={facetOptions(facet.id).length}>
-							<FacetFilter
-								label={facet.label}
-								options={facetOptions(facet.id)}
-								selected={
-									facet.id === "type"
-										? typeKeys(search().type)
-										: parseList(search()[facet.id])
-								}
-								onChange={(chosen) =>
-									setSearch({
-										[facet.id]:
-											facet.id === "type"
-												? typeParam(chosen)
-												: joinList(chosen),
-									})
-								}
-							/>
+				<Show when={!tableOnly()}>
+					<button
+						type="button"
+						onClick={() => setFiltersOpen((open) => !open)}
+						aria-expanded={filtersOpen()}
+						class="inline-flex h-10 items-center gap-2 rounded-xl border border-petal-200 bg-white px-3 text-sm font-medium text-petal-900/80 outline-none transition-colors hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500 xl:hidden"
+					>
+						Filters
+						<Show when={facetsInUse() + (search().from || search().to ? 1 : 0)}>
+							{(used) => (
+								<span class="rounded-full bg-petal-700 px-1.5 text-xs tabular-nums text-white">
+									{used()}
+								</span>
+							)}
 						</Show>
-					)}
-				</For>
+						<span aria-hidden="true" class="text-xs">
+							{filtersOpen() ? "▲" : "▼"}
+						</span>
+					</button>
+					{/* Folded away below desktop width unless opened. */}
+					<div
+						class={cn(
+							"w-full flex-wrap items-center gap-2 xl:contents",
+							filtersOpen() ? "flex" : "hidden",
+						)}
+					>
+						<DateRangeFilter
+							from={search().from}
+							to={search().to}
+							onChange={(from, to) => setSearch({ from, to })}
+						/>
+						<For each={FACETS}>
+							{(facet) => (
+								<Show when={facetOptions(facet.id).length}>
+									<FacetFilter
+										label={facet.label}
+										options={facetOptions(facet.id)}
+										selected={
+											facet.id === "type"
+												? typeKeys(search().type)
+												: parseList(search()[facet.id])
+										}
+										onChange={(chosen) =>
+											setSearch({
+												[facet.id]:
+													facet.id === "type"
+														? typeParam(chosen)
+														: joinList(chosen),
+											})
+										}
+									/>
+								</Show>
+							)}
+						</For>
+					</div>
+				</Show>
 				<Show when={isFiltering(search())}>
 					<button
 						type="button"
@@ -496,41 +670,66 @@ function OrdersPage() {
 						<span aria-hidden="true">✕</span>
 					</button>
 				</Show>
+				<Show when={tableOnly()}>
+					<span class="ml-auto text-sm text-petal-900/65">
+						<p aria-live="polite">
+							<Show when={data().total} fallback="No bouquets">
+								Showing{" "}
+								<span class="font-medium text-petal-900 tabular-nums">
+									{rows().length.toLocaleString()}
+								</span>{" "}
+								of{" "}
+								<span class="font-medium text-petal-900 tabular-nums">
+									{data().total.toLocaleString()}
+								</span>{" "}
+								{data().total === 1 ? "bouquet" : "bouquets"}
+							</Show>
+						</p>
+					</span>
+				</Show>
 			</div>
 
-			<div class="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-petal-900/65">
-				<p aria-live="polite">
-					<Show when={data().total} fallback="No bouquets">
-						Showing{" "}
-						<span class="font-medium text-petal-900 tabular-nums">
-							{rows().length.toLocaleString()}
-						</span>{" "}
-						of{" "}
-						<span class="font-medium text-petal-900 tabular-nums">
-							{data().total.toLocaleString()}
-						</span>{" "}
-						{data().total === 1 ? "bouquet" : "bouquets"}
-					</Show>
-				</p>
-				<label class="flex items-center gap-2">
-					Sort
-					<select
-						value={search().sort ?? "newest"}
-						onChange={(e) =>
-							setSearch({
-								sort: e.currentTarget.value === "oldest" ? "oldest" : undefined,
-							})
-						}
-						class={cn(adminInput, "h-9 w-auto py-0 pr-8 sm:h-9")}
-					>
-						<option value="newest">Latest order on top</option>
-						<option value="oldest">First order on top</option>
-					</select>
-				</label>
-			</div>
+			<Show when={!tableOnly()}>
+				<div class="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm text-petal-900/65">
+					<p aria-live="polite">
+						<Show when={data().total} fallback="No bouquets">
+							Showing{" "}
+							<span class="font-medium text-petal-900 tabular-nums">
+								{rows().length.toLocaleString()}
+							</span>{" "}
+							of{" "}
+							<span class="font-medium text-petal-900 tabular-nums">
+								{data().total.toLocaleString()}
+							</span>{" "}
+							{data().total === 1 ? "bouquet" : "bouquets"}
+						</Show>
+					</p>
+					<label class="flex items-center gap-2">
+						Sort
+						<select
+							value={search().sort ?? "newest"}
+							onChange={(e) =>
+								setSearch({
+									sort:
+										e.currentTarget.value === "oldest" ? "oldest" : undefined,
+								})
+							}
+							class={cn(adminInput, "h-9 w-auto py-0 pr-8 sm:h-9")}
+						>
+							<option value="newest">Latest order on top</option>
+							<option value="oldest">First order on top</option>
+						</select>
+					</label>
+				</div>
+			</Show>
 
 			<Show when={allLoadedPicked() && data().total > selectable().length}>
-				<p class="mb-2 rounded-xl bg-petal-100 px-3 py-2 text-sm">
+				<p
+					class={cn(
+						"mb-2 rounded-xl bg-petal-100 px-3 py-2 text-sm",
+						tableOnly() && "mx-3",
+					)}
+				>
 					<Show
 						when={allMatching()}
 						fallback={
@@ -560,7 +759,13 @@ function OrdersPage() {
 				</p>
 			</Show>
 
-			<div class={cn(adminCard, "overflow-hidden")}>
+			<div
+				class={cn(
+					adminCard,
+					"overflow-hidden",
+					tableOnly() && "mx-2 mb-2 min-h-0 flex-1 md:mx-3 md:mb-3",
+				)}
+			>
 				{/*
 				 * The table scrolls inside a screen-high box, so its header and its
 				 * side-scrollbar are always in view, however many rows there are.
@@ -569,14 +774,17 @@ function OrdersPage() {
 					ref={scroller}
 					aria-busy={loading()}
 					class={cn(
-						"relative overflow-x-auto transition-opacity md:max-h-[calc(100svh-15rem)] md:min-h-80 md:overflow-y-auto",
+						"relative overflow-x-auto overscroll-contain transition-opacity",
+						tableOnly()
+							? "h-full overflow-y-auto"
+							: "md:max-h-[calc(100svh-15rem)] md:min-h-80 md:overflow-y-auto",
 						loading() && "opacity-60",
 					)}
 				>
 					<table class="stack-table w-full text-left text-sm md:min-w-[1920px]">
 						<thead class="sticky top-0 z-10 bg-white text-xs uppercase tracking-wide text-petal-900/55 shadow-[0_1px_0_var(--color-petal-100)]">
 							<tr>
-								<th class="px-3 py-3 pl-5 font-medium">
+								<th class="z-20 px-3 py-3 pl-5 font-medium md:sticky md:left-0 md:w-40 md:min-w-40 md:bg-white">
 									<label class="flex cursor-pointer items-center gap-2">
 										<input
 											type="checkbox"
@@ -589,7 +797,9 @@ function OrdersPage() {
 										Order
 									</label>
 								</th>
-								<th class="px-3 py-3 font-medium">Name</th>
+								<th class="z-20 px-3 py-3 font-medium md:sticky md:left-40 md:min-w-36 md:max-w-44 md:bg-white md:shadow-[inset_-1px_0_0_var(--color-petal-100)]">
+									Name
+								</th>
 								<th class="px-3 py-3 font-medium">Company</th>
 								<th class="px-3 py-3 font-medium">Class</th>
 								<th class="px-3 py-3 font-medium">Status</th>
@@ -646,7 +856,11 @@ function OrdersPage() {
 												// Dialogs opened from a row aren't inside it, but their
 												// clicks still bubble to it.
 												if (!event.currentTarget.contains(target)) return;
-												if (target.closest("a, button, select, input, label"))
+												if (
+													target.closest(
+														"a, button, select, input, label, summary, details",
+													)
+												)
 													return;
 												// Don't hijack selecting text to copy it.
 												if (window.getSelection()?.toString()) return;
@@ -669,12 +883,15 @@ function OrdersPage() {
 										>
 											<td
 												data-wide
-												class="px-5 py-2 md:px-3 md:py-3 pl-5"
+												class="px-5 py-2 md:sticky md:left-0 md:z-[1] md:w-40 md:min-w-40 md:px-3 md:py-3 pl-5 md:[background:var(--pin-bg)]"
 												style={{
 													// Company stripe; the outline keeps Bravo's white visible.
 													"box-shadow": color
 														? `inset 6px 0 0 ${color}, inset 7px 0 0 rgb(0 0 0 / 0.15)`
 														: undefined,
+													// Pinned while the table scrolls sideways, so it needs
+													// the row's color without letting the cells under it show.
+													"--pin-bg": pinBackground(color),
 												}}
 											>
 												<span class="inline-flex items-center gap-2">
@@ -686,7 +903,7 @@ function OrdersPage() {
 																togglePick(row, e.currentTarget.checked)
 															}
 															aria-label={`Tick ${line.sku}, order ${order.number}`}
-															class="size-5 cursor-pointer accent-petal-700 md:size-4"
+															class="size-5 cursor-pointer accent-petal-700 md:size-4 pointer-coarse:md:size-5"
 														/>
 													</Show>
 													<Link
@@ -711,18 +928,66 @@ function OrdersPage() {
 														minute: "2-digit",
 													})}
 												</p>
-												<NotesButton
-													count={noteCount(order.id)}
-													onClick={() =>
-														setNotesFor({
-															id: order.id,
-															number: order.number,
-															name: details.lastName
-																? `${details.lastName}, ${details.firstName}`
-																: details.fullName,
-														})
-													}
-												/>
+												<div class="flex flex-wrap items-center gap-x-2">
+													<NotesButton
+														count={noteCount(order.id)}
+														onClick={() =>
+															setNotesFor({
+																id: order.id,
+																number: order.number,
+																name: details.lastName
+																	? `${details.lastName}, ${details.firstName}`
+																	: details.fullName,
+															})
+														}
+													/>
+													{/* Less used, so folded away to keep rows short. */}
+													<details class="group mt-1">
+														<summary class="w-fit cursor-pointer list-none rounded-full py-1 text-xs font-medium text-petal-900/60 hover:text-petal-900 [&::-webkit-details-marker]:hidden">
+															More{" "}
+															<span
+																aria-hidden="true"
+																class="inline-block transition-transform group-open:rotate-180"
+															>
+																▾
+															</span>
+														</summary>
+														<button
+															type="button"
+															disabled={marking() === order.id}
+															onClick={() => markTest(order.id, !order.isTest)}
+															class="mt-1 whitespace-nowrap py-1 text-xs font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900 disabled:opacity-50"
+														>
+															{order.isTest ? "Not a test" : "Mark as test"}
+														</button>
+														<Show
+															when={
+																order.stage === "new" ||
+																order.stage === "making"
+															}
+														>
+															<Show when={canCancelOneBouquet(order)}>
+																<CancelOrderButton
+																	order={order}
+																	line={line}
+																	class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
+																	onCancelled={() => router.invalidate()}
+																>
+																	Cancel this bouquet
+																</CancelOrderButton>
+															</Show>
+															<CancelOrderButton
+																order={order}
+																class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
+																onCancelled={() => router.invalidate()}
+															>
+																{order.itemCount > 1
+																	? "Cancel whole order"
+																	: "Cancel order"}
+															</CancelOrderButton>
+														</Show>
+													</details>
+												</div>
 												<Show when={order.cancelledBouquets.length > 0}>
 													<p class="max-w-40 text-xs text-error-foreground">
 														{order.cancelledBouquets.length} bouquet
@@ -738,43 +1003,11 @@ function OrdersPage() {
 														</p>
 													)}
 												</Show>
-												<button
-													type="button"
-													disabled={marking() === order.id}
-													onClick={() => markTest(order.id, !order.isTest)}
-													class="mt-1 whitespace-nowrap py-1 text-xs font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900 disabled:opacity-50"
-												>
-													{order.isTest ? "Not a test" : "Mark as test"}
-												</button>
-												<Show
-													when={
-														order.stage === "new" || order.stage === "making"
-													}
-												>
-													<Show when={canCancelOneBouquet(order)}>
-														<CancelOrderButton
-															order={order}
-															line={line}
-															class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
-															onCancelled={() => router.invalidate()}
-														>
-															Cancel this bouquet
-														</CancelOrderButton>
-													</Show>
-													<CancelOrderButton
-														order={order}
-														class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
-														onCancelled={() => router.invalidate()}
-													>
-														{order.itemCount > 1
-															? "Cancel whole order"
-															: "Cancel order"}
-													</CancelOrderButton>
-												</Show>
 											</td>
 											<td
 												data-label="Name"
-												class="px-5 py-2 md:px-3 md:py-3 font-medium"
+												class="px-5 py-2 md:sticky md:left-40 md:z-[1] md:min-w-36 md:max-w-44 md:px-3 md:py-3 font-medium md:shadow-[inset_-1px_0_0_rgb(0_0_0/0.08)] md:[background:var(--pin-bg)]"
+												style={{ "--pin-bg": pinBackground(color) }}
 											>
 												{details.lastName
 													? `${details.lastName}, ${details.firstName}`
@@ -1031,6 +1264,7 @@ function OrdersPage() {
 
 			<Show when={pickedCount() > 0}>
 				<GiveToFloristBar
+					fullWidth={tableOnly()}
 					count={pickedCount()}
 					florists={data().florists}
 					busy={giving()}
@@ -1087,6 +1321,44 @@ function OrdersPage() {
 				</SheetContent>
 			</Sheet>
 		</div>
+	);
+}
+
+/** A pinned cell's background: the row's company tint, on white. */
+const pinBackground = (color: string | undefined) =>
+	color ? `linear-gradient(${color}2e, ${color}2e), #ffffff` : "#ffffff";
+
+function ExpandIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class="size-4"
+		>
+			<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+		</svg>
+	);
+}
+
+function CollapseIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class="size-4"
+		>
+			<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+		</svg>
 	);
 }
 
@@ -1153,7 +1425,7 @@ function FloristSelect(props: { row: OrderRow; florists: FloristOption[] }) {
 					disabled={saving()}
 					onChange={(e) => void save(e.currentTarget)}
 					class={cn(
-						"h-10 max-w-44 cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs",
+						"h-10 max-w-44 cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs pointer-coarse:sm:h-10 pointer-coarse:sm:text-sm",
 						current()
 							? "bg-sage-100 text-sage-600 ring-1 ring-sage-300"
 							: "bg-white/80 text-petal-900/60 ring-1 ring-petal-200",
@@ -1183,6 +1455,8 @@ function FloristSelect(props: { row: OrderRow; florists: FloristOption[] }) {
 
 /** Along the bottom while rows are ticked: give them all to one florist. */
 function GiveToFloristBar(props: {
+	/** Over the table-only view, which covers the sidebar too. */
+	fullWidth?: boolean;
 	count: number;
 	florists: FloristOption[];
 	busy: boolean;
@@ -1322,7 +1596,7 @@ function ArrangementCards(props: {
 	return (
 		<section
 			aria-label="Bouquets by arrangement type"
-			class="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4"
+			class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4"
 		>
 			<For each={props.cards}>
 				{(card) => {
@@ -1340,7 +1614,7 @@ function ArrangementCards(props: {
 							}
 							onClick={() => props.onSelect(active() ? undefined : card.key)}
 							class={cn(
-								"flex flex-col items-start gap-1 rounded-2xl border bg-white p-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+								"flex flex-col items-start gap-1 rounded-2xl border bg-white p-3 text-left lg:p-4 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
 								active()
 									? "border-petal-700 shadow-[inset_0_0_0_1px] shadow-petal-700"
 									: "border-petal-100 hover:border-petal-300",
@@ -1350,7 +1624,7 @@ function ArrangementCards(props: {
 							<span class="text-sm font-medium text-petal-900/70">
 								{card.label}
 							</span>
-							<span class="font-display text-3xl font-semibold tabular-nums">
+							<span class="font-display text-2xl font-semibold tabular-nums lg:text-3xl">
 								{card.bouquets.toLocaleString()}
 							</span>
 							<span class="mt-1 flex flex-wrap gap-1.5">
@@ -1447,7 +1721,7 @@ function RowSelect<T extends string>(props: {
 			disabled={saving()}
 			onChange={(e) => void save(e.currentTarget)}
 			class={cn(
-				"h-10 max-w-full cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs",
+				"h-10 max-w-full cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs pointer-coarse:sm:h-10 pointer-coarse:sm:text-sm",
 				props.class,
 			)}
 		>

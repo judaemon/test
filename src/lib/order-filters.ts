@@ -33,6 +33,8 @@ export interface OrdersSearch {
 	q?: string;
 	/** Latest order on top unless "oldest". */
 	sort?: "oldest";
+	/** "table": only the table, filling the screen, for keeping an eye on orders. */
+	view?: "table";
 	page?: number;
 	perPage?: number;
 }
@@ -100,6 +102,7 @@ export function validateOrdersSearch(
 		to: date("to"),
 		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 80) : undefined,
 		sort: search.sort === "oldest" ? "oldest" : undefined,
+		view: search.view === "table" ? "table" : undefined,
 		page: Number.isInteger(page) && page > 1 ? page : undefined,
 		perPage: (PAGE_SIZES as readonly number[]).includes(perPage)
 			? perPage
@@ -117,6 +120,11 @@ export function typeKeys(type?: string) {
 export function typeParam(keys: string[]) {
 	if (keys.length === 1 && keys[0] === "real") return undefined;
 	return joinList(keys) ?? "all";
+}
+
+/** The search without how it's shown, for loading rows: the view doesn't change them. */
+export function rowsSearch({ view: _, ...search }: OrdersSearch) {
+	return search;
 }
 
 /** Whether any filter is changed from its default; the stage tab doesn't count. */
