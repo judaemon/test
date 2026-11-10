@@ -75,6 +75,14 @@ export interface ProductVariant {
 }
 
 /** A floral arrangement (bouquet, corsage or boutonnière), e.g. Odette, with its styles. */
+/** Something shoppers should know before ordering, e.g. a wrapper change. */
+export interface BouquetNotice {
+	/** The notice as a picture; empty if it's words only. */
+	image: string;
+	/** What it says; empty if the picture says it all. */
+	text: string;
+}
+
 export interface Product {
 	/** Never changes: orders and carts point at it. */
 	id: string;
@@ -91,6 +99,8 @@ export interface Product {
 	/** One of its type's sizes, e.g. Petite; empty if not set. */
 	size: BouquetSize | "";
 	variants: ProductVariant[];
+	/** Shown when shoppers open its page; missing when there's none. */
+	notice?: BouquetNotice;
 }
 
 /** What staff see and edit; the shop only ever receives `Product`. */
@@ -112,7 +122,9 @@ export interface AdminVariant extends ProductVariant {
 	hasOwnRecipe: boolean;
 }
 
-export interface AdminProduct extends Omit<Product, "variants"> {
+export interface AdminProduct extends Omit<Product, "variants" | "notice"> {
+	/** Kept while switched off, so staff can turn it back on. */
+	notice: BouquetNotice & { enabled: boolean };
 	isVisible: boolean;
 	/** When the bouquet was added, ISO 8601; admin only. */
 	createdAt: string;

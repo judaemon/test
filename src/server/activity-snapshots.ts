@@ -114,7 +114,14 @@ export function bouquetSnapshot(
 		],
 		["visible", "Shown in the shop", yesNo(product.isVisible)],
 		["recipe", "Flowers", recipeText(product.recipe)],
+		["noticeOn", "Notice shown", yesNo(product.notice.enabled)],
+		["noticeText", "Notice text", product.notice.text],
 	]);
+	snapshot.set("noticeImage", {
+		field: "Notice picture",
+		value: product.notice.image,
+		show: photo,
+	});
 	for (const style of product.variants) {
 		const set = (
 			key: string,

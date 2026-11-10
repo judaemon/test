@@ -815,6 +815,13 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	CREATE INDEX activity_log_by_area ON activity_log (area, entity_id, id);
 	CREATE INDEX activity_log_by_actor ON activity_log (actor_name);
 	`,
+	// v57: a notice on an arrangement (e.g. "the wrapper changed"): an image
+	// and some words shoppers see when they open its page.
+	`
+	ALTER TABLE signature_bouquets ADD COLUMN notice_enabled INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE signature_bouquets ADD COLUMN notice_image TEXT NOT NULL DEFAULT '';
+	ALTER TABLE signature_bouquets ADD COLUMN notice_text TEXT NOT NULL DEFAULT '';
+	`,
 ];
 
 declare global {

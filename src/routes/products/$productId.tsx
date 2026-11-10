@@ -6,6 +6,7 @@ import {
 } from "@tanstack/solid-router";
 import { createMemo, Show } from "solid-js";
 
+import { BouquetNoticePanel } from "~/components/product/bouquet-notice";
 import { ProductGallery } from "~/components/product/product-gallery";
 import { ProductInfo } from "~/components/product/product-info";
 import { RelatedBouquets } from "~/components/product/related-bouquets";
@@ -153,6 +154,16 @@ function ProductPage() {
 						</BreadcrumbItem>
 					</BreadcrumbList>
 				</Breadcrumb>
+
+				<Show when={product().notice}>
+					{(notice) => (
+						<BouquetNoticePanel
+							productId={product().id}
+							title={product().title}
+							notice={notice()}
+						/>
+					)}
+				</Show>
 
 				<div class="grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-12">
 					<div class="lg:sticky lg:top-20 lg:self-start">

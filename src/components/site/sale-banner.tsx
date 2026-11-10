@@ -2,6 +2,7 @@ import * as Dialog from "@kobalte/core/dialog";
 import { Link, useLocation } from "@tanstack/solid-router";
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { orderPromoLabel } from "~/lib/order-promo";
+import { popupClaimed } from "~/lib/popup-gate";
 import {
 	methodsText,
 	notForCashText,
@@ -133,7 +134,10 @@ export function SalePopup() {
 		} catch {
 			// Storage blocked: show it; it can't be remembered either way.
 		}
-		const timer = setTimeout(() => setOpen(true), 600);
+		// Not marked seen when it gives way, so it shows on another visit.
+		const timer = setTimeout(() => {
+			if (!popupClaimed()) setOpen(true);
+		}, 600);
 		onCleanup(() => clearTimeout(timer));
 	});
 	const close = () => {

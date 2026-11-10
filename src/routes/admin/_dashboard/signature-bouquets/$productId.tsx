@@ -54,6 +54,7 @@ import {
 	listFlowerCodes,
 	saveProductFn,
 	uploadBouquetPhoto,
+	uploadProductImage,
 } from "~/server/admin/catalog";
 import type { AdminProduct, PhotoTag, ProductVariant } from "~/types/product";
 
@@ -151,6 +152,8 @@ interface ProductDraft {
 	isVisible: boolean;
 	recipe: RecipeDraft[];
 	variants: VariantDraft[];
+	/** Shown to shoppers who open the arrangement's page. */
+	notice: { enabled: boolean; image: string; text: string };
 }
 
 /** Keeps all four buttons of the bottom bar on one line on phones. */
@@ -188,6 +191,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 			isVisible: true,
 			recipe: [newRecipeRow()],
 			variants: [newVariant()],
+			notice: { enabled: false, image: "", text: "" },
 		};
 	}
 	return {
@@ -196,6 +200,7 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 		arrangement: product.arrangement,
 		size: product.size,
 		isVisible: product.isVisible,
+		notice: { ...product.notice },
 		recipe: toRecipeDraft(product.recipe),
 		variants: product.variants.map((v) => ({
 			key: v.id,
@@ -424,6 +429,29 @@ function ProductEditor() {
 
 	const cropper = createCropper();
 
+	/** The notice's picture, uncropped: posters come in any shape. */
+	const [noticeUploading, setNoticeUploading] = createSignal(false);
+	const uploadNotice = async (files: FileList | null) => {
+		const file = files?.[0];
+		if (!file) return;
+		setNoticeUploading(true);
+		try {
+			const body = new FormData();
+			body.set("file", file);
+			const result = await uploadProductImage({ data: body });
+			if (result.ok) {
+				// A first notice is meant to be seen: switch it on with it.
+				const first = !draft.notice.image && !draft.notice.text;
+				setDraft("notice", "image", result.url);
+				if (first) setDraft("notice", "enabled", true);
+			} else toastError(new Error(result.message));
+		} catch (error) {
+			toastError(error);
+		} finally {
+			setNoticeUploading(false);
+		}
+	};
+
 	const uploadImages = async (index: number, files: FileList | null) => {
 		if (!files?.length) return;
 		const variant = draft.variants[index];
@@ -544,6 +572,7 @@ function ProductEditor() {
 							? draft.size
 							: "",
 						isVisible: draft.isVisible,
+						notice: { ...draft.notice },
 						recipe: recipeToSave(draft.recipe),
 						variants: draft.variants.map((v) => ({
 							id: v.id,
@@ -764,6 +793,114 @@ function ProductEditor() {
 						</p>
 					</fieldset>
 				</Show>
+			</section>
+
+			<h2 class="text-lg font-semibold">Notice for shoppers</h2>
+			<p class="mb-3 text-sm text-petal-900/60">
+				Something to tell everyone who opens this arrangement in the shop, like
+				a wrapper that changed. It pops up once per visit, and stays on the page
+				as a banner they can open again.
+			</p>
+			<section
+				class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
+				aria-label="Notice for shoppers"
+			>
+				<div class="flex flex-col items-start gap-1 text-xs">
+					<Show
+						when={draft.notice.image}
+						fallback={
+							<span class="flex size-32 items-center justify-center rounded-lg border border-dashed border-petal-300 px-2 text-center text-petal-900/50">
+								No picture
+							</span>
+						}
+					>
+						{(src) => (
+							<ZoomableImage
+								src={src()}
+								alt="Notice picture"
+								hoverPreview
+								class="size-32 rounded-lg border border-black/10 bg-white object-contain"
+							/>
+						)}
+					</Show>
+					<span class="flex gap-2">
+						<label
+							class={cn(
+								"cursor-pointer py-2 text-petal-700 underline-offset-2 hover:underline sm:py-0",
+								noticeUploading() && "pointer-events-none opacity-60",
+							)}
+						>
+							{noticeUploading()
+								? "Uploading…"
+								: draft.notice.image
+									? "Replace"
+									: "Add picture"}
+							<input
+								type="file"
+								accept="image/png,image/jpeg,image/webp"
+								class="sr-only"
+								aria-label="Notice picture"
+								onChange={(e) => {
+									void uploadNotice(e.currentTarget.files);
+									e.currentTarget.value = "";
+								}}
+							/>
+						</label>
+						<Show when={draft.notice.image}>
+							<button
+								type="button"
+								class="py-2 text-error-foreground underline-offset-2 hover:underline sm:py-0"
+								onClick={() => setDraft("notice", "image", "")}
+							>
+								Remove
+							</button>
+						</Show>
+					</span>
+				</div>
+				<div class="grid content-start gap-4">
+					<Field
+						label="What it says"
+						hint="Optional with a picture. Shown under it, e.g. “Only the wrapper changes; the flowers stay the same.”"
+					>
+						<TextArea
+							value={draft.notice.text}
+							onInput={(e) => setDraft("notice", "text", e.currentTarget.value)}
+							maxLength={600}
+							rows={3}
+							class={cn(adminInput, "h-auto py-2 leading-relaxed")}
+						/>
+					</Field>
+					<div class="flex flex-col gap-1">
+						<Toggle
+							label="Show this notice in the shop"
+							checked={draft.notice.enabled}
+							onChange={(checked) => setDraft("notice", "enabled", checked)}
+						/>
+						<Show
+							when={draft.notice.enabled}
+							fallback={
+								<span class="text-xs text-petal-900/55">
+									Off: shoppers don’t see it. It’s kept here for next time.
+								</span>
+							}
+						>
+							<Show
+								when={draft.notice.image || draft.notice.text.trim()}
+								fallback={
+									<span class="text-xs text-warning-foreground">
+										Add a picture or some words first, or switch it off.
+									</span>
+								}
+							>
+								<span class="text-xs text-petal-900/55">
+									On: shoppers see it when they open{" "}
+									{draft.title.trim() || "this arrangement"}, once you save.
+									Switch it off when it no longer applies.
+								</span>
+							</Show>
+						</Show>
+					</div>
+				</div>
 			</section>
 
 			<h2 class="text-lg font-semibold">Flowers</h2>

@@ -27,6 +27,9 @@ interface BouquetRow {
 	arrangement: string | null;
 	is_visible: number;
 	created_at: string;
+	notice_enabled: number;
+	notice_image: string;
+	notice_text: string;
 }
 
 interface StyleRow {
@@ -133,6 +136,11 @@ export function listAdminProducts({
 			size,
 			isVisible: row.is_visible === 1,
 			createdAt: row.created_at,
+			notice: {
+				enabled: row.notice_enabled === 1,
+				image: row.notice_image,
+				text: row.notice_text,
+			},
 			recipe,
 			variants,
 		};
@@ -215,6 +223,14 @@ export function toPublicProduct(product: AdminProduct): Product {
 		currency: product.currency,
 		arrangement: product.arrangement,
 		size: product.size,
+		...(product.notice.enabled && (product.notice.image || product.notice.text)
+			? {
+					notice: {
+						image: currentPhotoUrl(product.notice.image),
+						text: product.notice.text,
+					},
+				}
+			: {}),
 		variants: product.variants.map(
 			({
 				isAvailable: _available,
@@ -297,6 +313,8 @@ export interface ProductInput {
 	/** The default flowers, for styles without their own. */
 	recipe: RecipeItem[];
 	variants: VariantInput[];
+	/** Left out (seed scripts, say), the notice stays as it is. */
+	notice?: AdminProduct["notice"];
 }
 
 /**
@@ -371,6 +389,16 @@ export function saveProduct(
 				});
 			if (result.changes === 0) throw new Error("Bouquet not found");
 		}
+		if (input.notice)
+			db.query(
+				`UPDATE signature_bouquets SET notice_enabled = $enabled,
+				   notice_image = $image, notice_text = $text WHERE id = $id`,
+			).run({
+				id,
+				enabled: input.notice.enabled ? 1 : 0,
+				image: input.notice.image,
+				text: input.notice.text,
+			});
 		// The shop link follows the name; the old one redirects to it.
 		updateBouquetSlug(db, id, input.title);
 

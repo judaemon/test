@@ -231,6 +231,26 @@ function wrapperIds(source: Record<string, unknown>, label: string) {
 	return [...chosen];
 }
 
+/** Longest notice text shoppers are shown. */
+const NOTICE_TEXT_MAX = 600;
+
+/** The notice shoppers see on the arrangement's page: a picture, words, or both. */
+function parseNotice(raw: unknown) {
+	const source = asRecord(raw);
+	const image = source.image ? imageUrl(source.image) : "";
+	const words = text(source, "text", {
+		label: "Notice text",
+		max: NOTICE_TEXT_MAX,
+		required: false,
+	});
+	const enabled = bool(source, "enabled");
+	if (enabled && !image && !words)
+		throw new InputError(
+			"Add a picture or some words to the notice, or switch it off.",
+		);
+	return { enabled, image, text: words };
+}
+
 /** Bouquets are named after girls, e.g. "Odette", "Mary Ann" or "Corsage 1". */
 function bouquetName(source: Record<string, unknown>) {
 	const name = text(source, "title", { label: "Name", max: 30 }).replace(
@@ -300,6 +320,9 @@ export const saveProductFn = createServerFn({ method: "POST" })
 			isVisible: bool(product, "isVisible"),
 			recipe: parseRecipe(product.recipe, "Bouquet"),
 			variants: rawVariants.map(parseVariant),
+			...(product.notice === undefined
+				? {}
+				: { notice: parseNotice(product.notice) }),
 		};
 		return {
 			productId: typeof source.productId === "string" ? source.productId : null,

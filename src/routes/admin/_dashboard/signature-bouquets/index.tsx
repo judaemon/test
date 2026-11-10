@@ -374,6 +374,14 @@ function InventoryPage() {
 												Hidden from shop
 											</span>
 										</Show>
+										<Show when={product.notice.enabled}>
+											<span
+												class="rounded-full bg-petal-100 px-2 py-0.5 text-xs font-medium text-petal-800"
+												title="Shoppers see a notice when they open it. Change it in Edit."
+											>
+												Notice on
+											</span>
+										</Show>
 									</h2>
 									<p class="text-xs text-petal-900/55">
 										{findArrangementType(
