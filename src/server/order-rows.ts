@@ -27,10 +27,15 @@ import { countOrderNotes } from "./order-notes-repo";
 import { listOrders } from "./orders-repo";
 
 /** One bouquet of an order: the table shows a row per bouquet. */
+/**
+ * One bouquet of an order: a line ordered twice is two rows, so neither is
+ * missed. `index` is the line, `unit` which of its bouquets, from 0.
+ */
 export interface OrderRow {
 	order: Order;
 	line: PricedLine;
 	index: number;
+	unit: number;
 }
 
 export interface FilterOption {
@@ -205,7 +210,14 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 			);
 		})
 		.flatMap((order) =>
-			order.lines.map((line, index) => ({ order, line, index })),
+			order.lines.flatMap((line, index) =>
+				Array.from({ length: Math.max(line.quantity, 1) }, (_, unit) => ({
+					order,
+					line,
+					index,
+					unit,
+				})),
+			),
 		);
 
 	const chosen = Object.fromEntries(
@@ -265,7 +277,11 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 				Number(a.order.number) - Number(b.order.number) ||
 				a.order.createdAt.localeCompare(b.order.createdAt);
 			// An order's bouquets stay in their own order either way.
-			return (search.sort === "oldest" ? order : -order) || a.index - b.index;
+			return (
+				(search.sort === "oldest" ? order : -order) ||
+				a.index - b.index ||
+				a.unit - b.unit
+			);
 		});
 	// The cards above the table: every arrangement type, how many bouquets
 	// of it and how far they are, for the other filters but not type or stage.
@@ -288,13 +304,12 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 			stages: { new: 0, making: 0, done: 0, cancelled: 0 },
 			wrappers: { needed: 0, made: 0 },
 		};
-		// A row can be several of the same bouquet.
-		entry.bouquets += row.line.quantity;
-		entry.stages[row.order.stage] += row.line.quantity;
+		// Each row is one bouquet.
+		entry.bouquets += 1;
+		entry.stages[row.order.stage] += 1;
 		if (row.order.stage !== "cancelled" && tracksWrapper(row.line)) {
-			entry.wrappers.needed += row.line.quantity;
-			if (row.line.wrapperStatus === "made")
-				entry.wrappers.made += row.line.quantity;
+			entry.wrappers.needed += 1;
+			if (row.line.wrapperStatus === "made") entry.wrappers.made += 1;
 		}
 		summaryCounts.set(key, entry);
 	});

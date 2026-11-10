@@ -521,7 +521,7 @@ function OrdersPage() {
 									</tr>
 								}
 							>
-								{({ order, line, index }) => {
+								{({ order, line, index, unit }) => {
 									const details = order.details;
 									const color = orderColor(details.company, details.className);
 									return (
@@ -684,7 +684,7 @@ function OrdersPage() {
 												data-label="Price"
 												class="px-5 py-2 md:px-3 md:py-3 font-medium tabular-nums md:text-right"
 											>
-												{formatPrice(line.lineTotal, order.currency)}
+												{formatPrice(line.unitPrice, order.currency)}
 											</td>
 											<td
 												data-label="Payment"
@@ -717,9 +717,10 @@ function OrdersPage() {
 											</td>
 											<td data-label="Style" class="px-5 py-2 md:px-3 md:py-3">
 												<span class="font-semibold">{line.sku}</span>
+												{/* Each bouquet has its own row; this says which. */}
 												<Show when={line.quantity > 1}>
-													<span class="ml-1 text-xs font-semibold">
-														× {line.quantity}
+													<span class="ml-1.5 whitespace-nowrap rounded-full bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold text-petal-900/70">
+														{unit + 1} of {line.quantity}
 													</span>
 												</Show>
 												<p class="text-xs text-petal-900/60">
@@ -806,19 +807,13 @@ function OrdersPage() {
 												class="px-5 py-2 md:px-3 md:py-3 text-xs md:max-w-64"
 											>
 												<Show
-													when={rowMessages(order, index).length > 0}
+													when={rowMessages(order, index, unit).length > 0}
 													fallback="—"
 												>
 													<ul class="flex flex-col gap-1.5 wrap-anywhere">
-														<For each={rowMessages(order, index)}>
+														<For each={rowMessages(order, index, unit)}>
 															{(entry) => (
 																<li>
-																	<Show when={(entry.of ?? 1) > 1}>
-																		<p class="font-semibold text-petal-900/60">
-																			Bouquet {(entry.unit ?? 0) + 1} of{" "}
-																			{entry.of}
-																		</p>
-																	</Show>
 																	<Show when={entry.note}>
 																		<p class="whitespace-pre-line">
 																			<span class="font-semibold">Notes:</span>{" "}
@@ -1251,14 +1246,17 @@ function WrapperStatusSelect(props: {
 }
 
 /**
- * A table row's cards and notes: its bouquet's own, plus (on older orders)
+ * A table row's cards and notes: its own bouquet's, plus (on older orders)
  * the one for the whole order.
  */
 function rowMessages(
 	order: Parameters<typeof orderMessages>[0],
 	index: number,
+	unit: number,
 ) {
 	return orderMessages(order).filter(
-		(entry) => entry.lineIndex === undefined || entry.lineIndex === index,
+		(entry) =>
+			entry.lineIndex === undefined ||
+			(entry.lineIndex === index && (entry.unit ?? 0) === unit),
 	);
 }
