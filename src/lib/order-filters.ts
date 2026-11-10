@@ -10,6 +10,8 @@ export interface OrdersSearch {
 	stage?: string;
 	payment?: string;
 	method?: string;
+	/** Battalion names, or "none" for civilians and orders with no company. */
+	battalion?: string;
 	company?: string;
 	class?: string;
 	/** Arrangement type ids, or "custom" for custom bouquets. */
@@ -39,6 +41,7 @@ export interface OrdersSearch {
 export const FACETS = [
 	{ id: "payment", label: "Payment" },
 	{ id: "method", label: "Method" },
+	{ id: "battalion", label: "Battalion" },
 	{ id: "company", label: "Company" },
 	{ id: "class", label: "Class" },
 	{ id: "arrangement", label: "Arrangement" },
@@ -82,6 +85,7 @@ export function validateOrdersSearch(
 		stage: list("stage"),
 		payment: list("payment"),
 		method: list("method"),
+		battalion: list("battalion"),
 		company: list("company"),
 		class: list("class"),
 		arrangement: list("arrangement"),

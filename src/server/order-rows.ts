@@ -1,5 +1,10 @@
 import { hasCard } from "~/lib/bouquet-messages";
-import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
+import {
+	BATTALIONS,
+	battalionOf,
+	CLASS_OPTIONS,
+	COMPANIES,
+} from "~/lib/cadets";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { type FloristOption, floristOf } from "~/lib/florists";
 import {
@@ -105,6 +110,11 @@ const FIELDS: Record<
 		keys: ({ order }) => [order.payment.method],
 		fixed: PAYMENT_METHODS,
 		label: (key) => PAYMENT_METHOD_LABELS[key as Order["payment"]["method"]],
+	},
+	battalion: {
+		keys: ({ order }) => [battalionOf(order.details.company) ?? NONE],
+		fixed: [...BATTALIONS.map((battalion) => battalion.name), NONE],
+		label: (key) => (key === NONE ? "Civilians" : key),
 	},
 	company: {
 		keys: ({ order }) => [order.details.company || NONE],
