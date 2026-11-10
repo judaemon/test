@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { MAX_WRAPPER_COLORS, normalizeWrapperCode } from "~/lib/custom-bouquet";
 import { requireStaff } from "../admin-auth";
 import { checkBuilderCanSell, getCustomSettings } from "../custom-repo";
+import { getSupplier } from "../suppliers-repo";
 import {
 	asRecord,
 	bool,
@@ -37,6 +38,9 @@ export const getWrapperAdmin = createServerFn({ method: "GET" })
 		return getWrapper(data);
 	});
 
+/** Most suppliers one wrapper can list. */
+const MAX_WRAPPER_SUPPLIERS = 10;
+
 function parseWrapper(source: Record<string, unknown>): WrapperInput {
 	const name = text(source, "name", { label: "Wrapper name", max: 40 });
 	const code = normalizeWrapperCode(
@@ -58,6 +62,16 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 			: integer(source, key, { label: `${name} ${label}`, max: 100_000 });
 	const stock = count("stock", "stock on hand");
 	const stockActual = count("stockActual", "stock actual");
+	const supplierIds = [
+		...new Set(Array.isArray(source.supplierIds) ? source.supplierIds : []),
+	];
+	if (supplierIds.length > MAX_WRAPPER_SUPPLIERS)
+		throw new InputError(
+			`Pick at most ${MAX_WRAPPER_SUPPLIERS} suppliers for a wrapper.`,
+		);
+	for (const supplierId of supplierIds)
+		if (typeof supplierId !== "string" || !supplierId || supplierId.length > 64)
+			throw new InputError("Invalid supplier.");
 	return {
 		...(code ? { code } : {}),
 		name,
@@ -68,6 +82,7 @@ function parseWrapper(source: Record<string, unknown>): WrapperInput {
 		...(stock === undefined ? {} : { stock }),
 		...(stockActual === undefined ? {} : { stockActual }),
 		image: source.image ? imageUrl(source.image) : "",
+		...(supplierIds.length ? { supplierIds: supplierIds as string[] } : {}),
 	};
 }
 
@@ -94,6 +109,12 @@ export const saveWrapperFn = createServerFn({ method: "POST" })
 		const other = data.wrapper.code && getWrapperByCode(data.wrapper.code);
 		if (other && other.id !== data.id)
 			throw new InputError(`“${other.name}” already uses that code.`);
+		if (
+			data.wrapper.supplierIds?.some((supplierId) => !getSupplier(supplierId))
+		)
+			throw new InputError(
+				"A supplier you picked was deleted. Check them again.",
+			);
 		return getWrapper(saveWrapper(data.id, data.wrapper));
 	});
 

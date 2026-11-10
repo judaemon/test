@@ -771,6 +771,28 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		db.exec(BOUQUET_SLUGS_SQL);
 		assignMissingSlugs(db);
 	},
+	// v55: suppliers (Admin → Suppliers). A wrapper can come from several;
+	// deleting a supplier just takes it off its wrappers.
+	`
+	CREATE TABLE suppliers (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		contact_name TEXT NOT NULL DEFAULT '',
+		phone TEXT NOT NULL DEFAULT '',
+		email TEXT NOT NULL DEFAULT '',
+		notes TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	CREATE UNIQUE INDEX suppliers_by_name ON suppliers (lower(name));
+	CREATE TABLE wrapper_suppliers (
+		wrapper_id TEXT NOT NULL REFERENCES wrappers(id) ON DELETE CASCADE,
+		supplier_id TEXT NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+		sort INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (wrapper_id, supplier_id)
+	);
+	CREATE INDEX wrapper_suppliers_by_supplier ON wrapper_suppliers (supplier_id);
+	`,
 ];
 
 declare global {

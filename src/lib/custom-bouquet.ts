@@ -102,6 +102,8 @@ export interface CustomWrapper {
 	stockActual?: number;
 	/** Photo of the wrapper; empty if none. */
 	image?: string;
+	/** Who supplies it (Admin → Suppliers), first listed first; staff only. Missing if none. */
+	supplierIds?: string[];
 }
 
 /** A wrapper can show this many colors, counting its first. */

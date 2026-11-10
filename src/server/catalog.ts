@@ -21,11 +21,15 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 		return {
 			products: listPublicProducts(),
 			// The builder's prices are public anyway; the bag needs them to show
-			// totals. Staff's stock count isn't.
+			// totals. Staff's stock count and suppliers aren't.
 			custom: {
 				...custom,
 				wrappers: custom.wrappers.map(
-					({ stockActual: _stockActual, ...wrapper }) => wrapper,
+					({
+						stockActual: _stockActual,
+						supplierIds: _supplierIds,
+						...wrapper
+					}) => wrapper,
 				),
 			},
 			// For the size guide and the shop's size filter.

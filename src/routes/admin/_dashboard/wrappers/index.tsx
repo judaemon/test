@@ -23,6 +23,7 @@ import { type CustomWrapper, wrapperColors } from "~/lib/custom-bouquet";
 import { formatPrice, LOW_STOCK_THRESHOLD, swatchColors } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
+import { listSuppliersAdmin } from "~/server/admin/suppliers";
 import {
 	listWrappersAdmin,
 	setWrapperEnabledFn,
@@ -38,6 +39,8 @@ interface WrappersSearch {
 	use?: string;
 	/** Comma-separated: "low", "sold-out", "not-counted". */
 	stock?: string;
+	/** Comma-separated supplier ids, or "none" for wrappers without one. */
+	supplier?: string;
 	/** Missing: the builder's order. */
 	sort?: (typeof SORTS)[number];
 	/** Missing: the first. */
@@ -45,6 +48,12 @@ interface WrappersSearch {
 	/** Missing: the smallest of `PAGE_SIZES`. */
 	perPage?: number;
 }
+
+/** "A", "A and B", "A, B and C". */
+const joinNames = (names: string[]) =>
+	names.length <= 1
+		? (names[0] ?? "")
+		: `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 /** A whole number from the address, if it's at least 1. */
 const countParam = (search: Record<string, unknown>, key: string) => {
@@ -57,6 +66,7 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 		q: textParam(search, "q"),
 		use: textParam(search, "use"),
 		stock: textParam(search, "stock"),
+		supplier: textParam(search, "supplier"),
 		sort: choiceParam(search, "sort", SORTS),
 		page: countParam(search, "page"),
 		perPage: PAGE_SIZES.find((size) => size === Number(search.perPage)),
@@ -64,15 +74,27 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 	// Stepped back to after a save, wait for the fresh rows rather than
 	// showing the old ones first and swapping them in.
 	loader: {
-		handler: ({ abortController }) =>
-			listWrappersAdmin({ signal: abortController.signal }),
+		handler: async ({ abortController }) => {
+			const [wrappers, suppliers] = await Promise.all([
+				listWrappersAdmin({ signal: abortController.signal }),
+				listSuppliersAdmin({ signal: abortController.signal }),
+			]);
+			return { wrappers, suppliers };
+		},
 		staleReloadMode: "blocking",
 	},
 	component: WrappersPage,
 });
 
 function WrappersPage() {
-	const all = Route.useLoaderData();
+	const loaded = Route.useLoaderData();
+	const all = () => loaded().wrappers;
+	/** The wrapper's supplier names, as listed on it; deleted ones are gone. */
+	const supplierNames = (wrapper: CustomWrapper) =>
+		(wrapper.supplierIds ?? []).flatMap((id) => {
+			const name = loaded().suppliers.find((s) => s.id === id)?.name;
+			return name ? [name] : [];
+		});
 	const router = useRouter();
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
@@ -83,10 +105,14 @@ function WrappersPage() {
 			replace: true,
 			resetScroll: false,
 		});
-	const filtered = () => !!(search().q || search().use || search().stock);
+	const filtered = () =>
+		!!(search().q || search().use || search().stock || search().supplier);
 	const searched = () =>
 		all().filter((wrapper) =>
-			matchesQuery(search().q, `${wrapper.name} ${wrapper.code ?? ""}`),
+			matchesQuery(
+				search().q,
+				`${wrapper.name} ${wrapper.code ?? ""} ${supplierNames(wrapper).join(" ")}`,
+			),
 		);
 	const facets = (): Record<string, Facet<CustomWrapper>> => ({
 		use: {
@@ -103,9 +129,16 @@ function WrappersPage() {
 				);
 			},
 		},
+		supplier: {
+			chosen: parseList(search().supplier),
+			matches: (wrapper, key) =>
+				key === "none"
+					? !wrapper.supplierIds?.length
+					: !!wrapper.supplierIds?.includes(key),
+		},
 	});
 	const filterOf = (
-		name: "use" | "stock",
+		name: "use" | "stock" | "supplier",
 		label: string,
 		choices: { key: string; label: string }[],
 	) => ({
@@ -171,7 +204,7 @@ function WrappersPage() {
 			<ListToolbar
 				query={search().q ?? ""}
 				onQuery={(q) => setSearch({ q: q || undefined })}
-				placeholder="Wrapper name or code"
+				placeholder="Wrapper name, code or supplier"
 				filters={[
 					filterOf("use", "Custom bouquets", [
 						{ key: "custom", label: "Offered" },
@@ -181,6 +214,13 @@ function WrappersPage() {
 						{ key: "low", label: `Low (${LOW_STOCK_THRESHOLD} or fewer)` },
 						{ key: "sold-out", label: "Sold out" },
 						{ key: "not-counted", label: "Not counted" },
+					]),
+					filterOf("supplier", "Supplier", [
+						...loaded().suppliers.map((supplier) => ({
+							key: supplier.id,
+							label: supplier.name,
+						})),
+						{ key: "none", label: "No supplier" },
 					]),
 				]}
 				sort={{
@@ -202,7 +242,12 @@ function WrappersPage() {
 				}
 				filtered={filtered()}
 				onClear={() =>
-					setSearch({ q: undefined, use: undefined, stock: undefined })
+					setSearch({
+						q: undefined,
+						use: undefined,
+						stock: undefined,
+						supplier: undefined,
+					})
 				}
 			/>
 			<section class={adminCard}>
@@ -277,6 +322,11 @@ function WrappersPage() {
 												· {wrapper.stockActual} actual
 											</Show>
 										</p>
+										<Show when={supplierNames(wrapper).length > 0}>
+											<p class="text-xs text-petal-900/55">
+												From {joinNames(supplierNames(wrapper))}
+											</p>
+										</Show>
 									</div>
 									<div class="flex w-44 items-center gap-2.5">
 										<span

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
-import { createSignal, Index, Show } from "solid-js";
+import { createSignal, For, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createCropper } from "~/components/admin/image-cropper";
 import { useLeaveForm } from "~/components/admin/leave-form";
@@ -24,6 +24,7 @@ import {
 import { swatchColors } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
+import { listSuppliersAdmin } from "~/server/admin/suppliers";
 import {
 	deleteWrapperFn,
 	getWrapperAdmin,
@@ -32,10 +33,14 @@ import {
 
 export const Route = createFileRoute("/admin/_dashboard/wrappers/$wrapperId")({
 	loader: async ({ params }) => {
-		if (params.wrapperId === "new") return null;
-		const wrapper = await getWrapperAdmin({ data: params.wrapperId });
-		if (!wrapper) throw notFound();
-		return wrapper;
+		const [wrapper, suppliers] = await Promise.all([
+			params.wrapperId === "new"
+				? null
+				: getWrapperAdmin({ data: params.wrapperId }),
+			listSuppliersAdmin(),
+		]);
+		if (params.wrapperId !== "new" && !wrapper) throw notFound();
+		return { wrapper, suppliers };
 	},
 	// The form copies the wrapper once, so it must never open on a kept
 	// copy that's refreshed behind it: drop it on leaving, load anew each time.
@@ -57,6 +62,8 @@ interface WrapperDraft {
 	stockActual: string;
 	enabled: boolean;
 	image: string;
+	/** Empty: no supplier. */
+	supplierIds: string[];
 }
 
 function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
@@ -72,6 +79,7 @@ function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 			wrapper?.stockActual === undefined ? "" : String(wrapper.stockActual),
 		enabled: wrapper?.enabled ?? true,
 		image: wrapper?.image ?? "",
+		supplierIds: [...(wrapper?.supplierIds ?? [])],
 	};
 }
 
@@ -83,7 +91,9 @@ function WrapperEditor() {
 		fallback: { to: "/admin/wrappers" },
 	});
 	const isNew = () => params().wrapperId === "new";
-	const [draft, setDraft] = createStore<WrapperDraft>(toDraft(loaded()));
+	const [draft, setDraft] = createStore<WrapperDraft>(
+		toDraft(loaded().wrapper),
+	);
 	const [saving, setSaving] = createSignal(false);
 	const [uploading, setUploading] = createSignal(false);
 
@@ -136,6 +146,7 @@ function WrapperEditor() {
 								: Number(draft.stockActual),
 						enabled: draft.enabled,
 						image: draft.image,
+						supplierIds: [...draft.supplierIds],
 					},
 				},
 			});
@@ -245,6 +256,58 @@ function WrapperEditor() {
 							class={adminInput}
 						/>
 					</Field>
+					<fieldset class="flex flex-col gap-1.5 sm:col-span-2">
+						<legend class="mb-1.5 text-sm font-medium">Suppliers</legend>
+						<Show
+							when={loaded().suppliers.length > 0}
+							fallback={
+								<span class="text-xs text-petal-900/55">
+									None yet. Add them in{" "}
+									<Link
+										to="/admin/suppliers"
+										class="underline underline-offset-2 hover:text-petal-900"
+									>
+										Suppliers
+									</Link>
+									.
+								</span>
+							}
+						>
+							<div class="flex flex-wrap gap-2">
+								<For each={loaded().suppliers}>
+									{(supplier) => (
+										<label
+											class={cn(
+												"flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-petal-500",
+												draft.supplierIds.includes(supplier.id)
+													? "border-petal-500 bg-petal-50 text-petal-900"
+													: "border-petal-200 bg-white text-petal-900/75 hover:bg-petal-50",
+											)}
+										>
+											<input
+												type="checkbox"
+												class="accent-petal-600"
+												checked={draft.supplierIds.includes(supplier.id)}
+												onChange={(e) => {
+													const on = e.currentTarget.checked;
+													setDraft("supplierIds", (list) =>
+														on
+															? [...list, supplier.id]
+															: list.filter((id) => id !== supplier.id),
+													);
+												}}
+											/>
+											{supplier.name}
+										</label>
+									)}
+								</For>
+							</div>
+							<span class="text-xs text-petal-900/55">
+								Everyone you buy this wrapper from. Pick as many as apply, or
+								none.
+							</span>
+						</Show>
+					</fieldset>
 					<div class="flex flex-col gap-1.5">
 						<span class="text-sm font-medium">Color</span>
 						<div class="flex flex-wrap items-center gap-2">

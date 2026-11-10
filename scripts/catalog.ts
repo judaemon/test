@@ -3,7 +3,7 @@
  * so a fresh install can start with the real shop. `.data/` itself stays out of
  * git: it also holds orders, accounts, login sessions and payment details.
  *
- *   bun run catalog:export           save signature bouquets, flowers, wrappers and custom bouquet settings
+ *   bun run catalog:export           save signature bouquets, flowers, wrappers, suppliers and custom bouquet settings
  *   bun run catalog:import           restore them (refuses if the shop has orders)
  *   bun run catalog:import --force   restore anyway; replaces bouquets and stock
  *
@@ -62,6 +62,9 @@ interface Snapshot {
 	flowers?: Row[];
 	flower_colors?: Row[];
 	wrappers?: Row[];
+	/** Missing from snapshots taken before wrappers had suppliers. */
+	suppliers?: Row[];
+	wrapper_suppliers?: Row[];
 	/** Missing from snapshots taken before bouquet photos were watermarked. */
 	photo_watermarks?: Row[];
 	photo_redirects?: Row[];
@@ -71,7 +74,9 @@ interface Snapshot {
 const TABLES = [
 	"flowers",
 	"flower_colors",
+	"suppliers",
 	"wrappers",
+	"wrapper_suppliers",
 	"sizes",
 	"signature_bouquets",
 	"bouquet_styles",
@@ -295,12 +300,19 @@ async function importCatalog() {
 		if (snapshot.flowers) {
 			db.exec("DELETE FROM flowers");
 			db.exec("DELETE FROM wrappers");
+			// Older snapshots have no suppliers; then the shop's own stay.
+			if (snapshot.suppliers) {
+				db.exec("DELETE FROM suppliers");
+				for (const row of snapshot.suppliers) insertRow("suppliers", row);
+			}
 			// Snapshots from before every flower was counted have this column.
 			for (const { counted: _counted, ...row } of snapshot.flowers)
 				insertRow("flowers", row);
 			for (const row of snapshot.flower_colors ?? [])
 				insertRow("flower_colors", row);
 			for (const row of snapshot.wrappers ?? []) insertRow("wrappers", row);
+			for (const row of snapshot.wrapper_suppliers ?? [])
+				insertRow("wrapper_suppliers", row);
 		} else {
 			// An older snapshot keeps flowers and wrappers in the settings.
 			replaceFlowers(flowersFromSettings(saved));

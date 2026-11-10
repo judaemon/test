@@ -266,6 +266,13 @@ export const AdminIcons = {
 			<path d="M8 4l4 6 4-6" />
 		</svg>
 	),
+	suppliers: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M2 6h11v10H2zM13 9h4l4 4v3h-8" />
+			<circle cx="6" cy="17.5" r="1.8" />
+			<circle cx="17" cy="17.5" r="1.8" />
+		</svg>
+	),
 	types: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<rect x="3" y="3" width="7" height="7" rx="1.5" />
