@@ -19,8 +19,8 @@ import { changePaymentMethodFn } from "~/server/admin/orders";
 import { type Order, PAYMENT_CHANGE_REASON_MAX } from "~/types/order";
 
 /**
- * Staff switch how an order is paid: a reason is required and a photo is
- * optional, both staff-only. Card is left out: it's only taken at checkout.
+ * Staff switch how an order is paid: a reason and a photo as proof are both
+ * required, and both staff-only. Card is left out: it's only taken at checkout.
  */
 export function ChangePaymentMethodButton(props: {
 	order: Pick<Order, "id" | "number" | "payment">;
@@ -35,6 +35,7 @@ export function ChangePaymentMethodButton(props: {
 	const [reason, setReason] = createSignal("");
 	const [reasonError, setReasonError] = createSignal<string>();
 	const [proof, setProof] = createSignal<File>();
+	const [proofError, setProofError] = createSignal<string>();
 	const [formError, setFormError] = createSignal<string>();
 	const [busy, setBusy] = createSignal(false);
 	let reasonInput: HTMLTextAreaElement | undefined;
@@ -55,6 +56,7 @@ export function ChangePaymentMethodButton(props: {
 			setReasonError(undefined);
 			setFormError(undefined);
 			setProof(undefined);
+			setProofError(undefined);
 		}
 	};
 
@@ -71,6 +73,13 @@ export function ChangePaymentMethodButton(props: {
 			reasonInput?.focus();
 			return;
 		}
+		const file = proof();
+		if (!file) {
+			setProofError(
+				"Add a photo of the payment, e.g. the bank receipt the customer sent.",
+			);
+			return;
+		}
 		setFormError(undefined);
 		setBusy(true);
 		try {
@@ -78,8 +87,7 @@ export function ChangePaymentMethodButton(props: {
 			body.set("id", props.order.id);
 			body.set("method", chosen);
 			body.set("reason", reason());
-			const file = proof();
-			if (file) body.set("proof", file);
+			body.set("proof", file);
 			const result = await changePaymentMethodFn({ data: body });
 			if (!result.ok) {
 				setFormError(result.message);
@@ -179,16 +187,29 @@ export function ChangePaymentMethodButton(props: {
 								<span class="text-xs text-destructive">{reasonError()}</span>
 							</Show>
 							<span class="text-xs text-petal-900/55">
-								Only staff see the reason and the photo.
+								Only staff see the reason and the photo. Both go in the order
+								log.
 							</span>
 						</label>
 
-						<ProofPicker
-							file={proof()}
-							onChange={setProof}
-							onError={setFormError}
-							disabled={busy()}
-						/>
+						<div class="flex flex-col gap-1.5">
+							<ProofPicker
+								file={proof()}
+								onChange={(file) => {
+									setProof(file);
+									if (file) setProofError(undefined);
+								}}
+								onError={setFormError}
+								disabled={busy()}
+								hint="(required)"
+							/>
+							<Show when={proofError()}>
+								<span class="text-xs text-destructive">{proofError()}</span>
+							</Show>
+							<span class="text-xs text-petal-900/55">
+								A screenshot or photo of the payment as it was really made.
+							</span>
+						</div>
 
 						<Show when={formError()}>
 							<p role="alert" class="text-sm text-destructive">

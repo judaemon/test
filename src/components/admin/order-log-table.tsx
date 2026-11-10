@@ -25,6 +25,27 @@ const ACTOR_TYPE = {
 
 const cell = "px-3 py-2.5 align-top";
 
+/** A logged value; a payment proof opens its photo. */
+function LogValue(props: { field: OrderLogEntry["field"]; value?: string }) {
+	return (
+		<Show
+			when={props.field === "payment_proof" && props.value}
+			fallback={formatLogValue(props.field, props.value) || "—"}
+		>
+			{(file) => (
+				<a
+					href={`/api/admin/proofs/${file().replace(/\.(png|jpg|webp)$/, "")}`}
+					target="_blank"
+					rel="noreferrer"
+					class="font-medium text-petal-700 underline underline-offset-2"
+				>
+					View photo
+				</a>
+			)}
+		</Show>
+	);
+}
+
 /**
  * The order log as a table: when, who, what changed from what to what, and
  * where. With `showOrder`, each row also links to its order.
@@ -137,7 +158,7 @@ export function OrderLogTable(props: {
 											"min-w-28 max-w-72 whitespace-pre-line break-words text-petal-900/65",
 										)}
 									>
-										{formatLogValue(entry.field, entry.from) || "—"}
+										<LogValue field={entry.field} value={entry.from} />
 									</td>
 									<td
 										class={cn(
@@ -145,7 +166,7 @@ export function OrderLogTable(props: {
 											"min-w-28 max-w-72 whitespace-pre-line break-words font-medium",
 										)}
 									>
-										{formatLogValue(entry.field, entry.to) || "—"}
+										<LogValue field={entry.field} value={entry.to} />
 									</td>
 									<Show when={!props.compact}>
 										<td

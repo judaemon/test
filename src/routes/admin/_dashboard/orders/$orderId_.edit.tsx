@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 
+import { ChangePaymentMethodButton } from "~/components/admin/change-payment-method";
 import { useLeaveForm } from "~/components/admin/leave-form";
 import {
 	adminButton,
@@ -38,6 +39,7 @@ import {
 	SERIAL_NUMBER_MAX,
 	serialDigits,
 } from "~/lib/checkout";
+import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
 import { lineName } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { getAdminOrder, updateShopOrderFn } from "~/server/admin/orders";
@@ -65,6 +67,9 @@ interface UnitDraft extends BouquetMessage {
 
 function EditShopOrder() {
 	const order = Route.useLoaderData();
+	// The payment method is changed on its own, with a reason and proof, so
+	// it's kept apart from the form's draft.
+	const [payment, setPayment] = createSignal(order().payment);
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
 		routeId: Route.id,
@@ -188,7 +193,7 @@ function EditShopOrder() {
 			</Link>
 			<PageHeader
 				title={`Edit order #${order().number}`}
-				description="Change the customer, their notes and cards. The bouquets, prices and payment stay as they are; to take a bouquet off, cancel it on the order page. Every change goes in the order log under your name."
+				description="Change the customer, their notes, cards and payment method. The bouquets and prices stay as they are; to take a bouquet off, cancel it on the order page. Every change goes in the order log under your name."
 			/>
 
 			<Show
@@ -304,6 +309,39 @@ function EditShopOrder() {
 							maxLength={EMAIL_MAX}
 						/>
 					</div>
+				</section>
+
+				<section class={cn(adminCard, "mb-5 grid gap-3 p-5")}>
+					<h2 class="font-semibold">Payment method</h2>
+					<p class="text-sm">
+						Paid by{" "}
+						<strong class="font-semibold">
+							{PAYMENT_METHOD_LABELS[payment().method]}
+						</strong>
+					</p>
+					<Show
+						when={payment().method !== "card"}
+						fallback={
+							<p class="text-xs text-petal-900/60">
+								Card payments were taken at checkout and can’t be switched.
+							</p>
+						}
+					>
+						<p class="text-xs text-petal-900/60">
+							If the customer paid another way than they chose (e.g. chose GCash
+							but sent a bank transfer), change it so reports add it up right.
+							You’ll need a reason and a photo of the payment. It’s saved
+							straight away and goes in the order log.
+						</p>
+						<ChangePaymentMethodButton
+							order={{ ...order(), payment: payment() }}
+							class={cn(adminButton.secondary, "justify-self-start")}
+							disabled={saving()}
+							onChanged={(changed) => setPayment(changed.payment)}
+						>
+							Change payment method
+						</ChangePaymentMethodButton>
+					</Show>
 				</section>
 
 				<section class={cn(adminCard, "mb-5 grid gap-4 p-5")}>

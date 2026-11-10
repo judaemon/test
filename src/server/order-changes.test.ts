@@ -482,15 +482,26 @@ describe("the order log", () => {
 		const order = place([{ ...first, quantity: 1 }]);
 		repo.changePaymentMethod(
 			order.id,
-			{ method: "cash", reason: "Handed cash", changedBy: "Person 1" },
+			{
+				method: "cash",
+				reason: "Handed cash",
+				changedBy: "Person 1",
+				proofFile: "handed-cash.jpg",
+			},
 			staff,
 		);
-		expect(logOf(order.id).at(-1)).toMatchObject({
+		const log = logOf(order.id).filter((e) => e.action === "payment_method");
+		expect(log.find((e) => e.field === "payment_method")).toMatchObject({
 			action: "payment_method",
-			field: "payment_method",
 			from: "gcash",
 			to: "cash",
 			reason: "Handed cash",
+		});
+		// The proof is logged with it.
+		expect(log.find((e) => e.field === "payment_proof")).toMatchObject({
+			action: "payment_method",
+			from: "",
+			to: "handed-cash.jpg",
 		});
 	});
 
@@ -653,6 +664,7 @@ describe("payment method warnings", () => {
 			method: "cash",
 			reason: "Paying in person",
 			changedBy: "Staff",
+			proofFile: "in-person.jpg",
 		});
 		expect(switched.payment.notice).toBe("Please pay within 24 hours.");
 		payments.updatePaymentAccount("cash", account);
@@ -664,6 +676,7 @@ describe("payment method warnings", () => {
 			method: "cash",
 			reason: "x",
 			changedBy: "Staff",
+			proofFile: "x.jpg",
 		});
 		const paid = repo.submitPayment(order.id, {
 			method: "gcash",

@@ -50,6 +50,7 @@ export const ORDER_LOG_FIELDS = {
 	stage: "Stage",
 	payment_status: "Payment status",
 	payment_method: "Payment method",
+	payment_proof: "Payment proof",
 	reference_number: "Reference no.",
 	amount_paid: "Paid so far",
 	total: "Total",
@@ -112,6 +113,8 @@ function snapshot(order: Order): [OrderLogField, string][] {
 		["stage", order.stage],
 		["payment_status", order.payment.status],
 		["payment_method", order.payment.method],
+		// The photo staff gave for the latest change of method.
+		["payment_proof", order.paymentMethodChanges.at(-1)?.proofFile ?? ""],
 		["reference_number", order.payment.referenceNumber ?? ""],
 		["amount_paid", money(order, order.payment.amountPaid)],
 		["total", money(order, order.total)],

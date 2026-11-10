@@ -223,9 +223,9 @@ export const cancelBouquetFn = createServerFn({ method: "POST" })
 	});
 
 /**
- * Switches how the order is paid. A reason is required and a photo is
- * optional; both are staff-only, and the photo is kept with the payment
- * screenshots.
+ * Switches how the order is paid. A reason and a photo as proof are both
+ * required, so reports can be trusted; both are staff-only, and the photo is
+ * kept with the payment screenshots.
  */
 export const changePaymentMethodFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
@@ -233,7 +233,9 @@ export const changePaymentMethodFn = createServerFn({ method: "POST" })
 		const method = parsed.form.get("method");
 		if (!isPaymentMethod(method))
 			throw new InputError("Choose how the order is paid.");
-		return { ...parsed, method };
+		if (!parsed.proof)
+			throw new InputError("Add a photo of the payment as proof.");
+		return { ...parsed, method, proof: parsed.proof };
 	})
 	.handler(async ({ data }): Promise<OrderActionResult> => {
 		const user = await requireStaff();
@@ -244,7 +246,8 @@ export const changePaymentMethodFn = createServerFn({ method: "POST" })
 					method: data.method,
 					reason: data.reason,
 					changedBy: user.name,
-					proofFile,
+					// withProof saved it, as one was required.
+					proofFile: proofFile as string,
 				},
 				staffActor(user),
 			),
@@ -713,6 +716,12 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 		const previous = order?.lines[0];
 		if (!order || !previous || !isChatOrder(order))
 			return { ok: false, message: "That order can’t be edited here." };
+		if (data.form.method !== order.payment.method)
+			return {
+				ok: false,
+				message:
+					"Change the payment method with Change payment method on the order page. It needs a reason and proof.",
+			};
 		const checked = checkChatOrder(data.form, previous.custom?.wrapperId);
 		if (checked.problem) return checked.problem;
 		const existing = previous.custom?.referenceImages ?? [];

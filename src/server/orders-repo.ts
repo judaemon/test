@@ -895,8 +895,8 @@ export function setReferenceNumber(
 }
 
 /**
- * Staff switch how an order is paid, saying why (and optionally attaching a
- * photo). The payment's status and anything the shopper sent stay as they
+ * Staff switch how an order is paid, saying why and attaching a photo as
+ * proof (e.g. the bank receipt when the shopper picked GCash). The payment's status and anything the shopper sent stay as they
  * were, so staff still verify it as usual. Card payments are only taken at
  * checkout, so card is neither switched from nor to.
  */
@@ -906,7 +906,7 @@ export function changePaymentMethod(
 		method: PaymentMethod;
 		reason: string;
 		changedBy: string;
-		proofFile?: string;
+		proofFile: string;
 	},
 	actor: OrderActor = SYSTEM_ACTOR,
 ): Order {
@@ -934,7 +934,7 @@ export function changePaymentMethod(
 				reason: change.reason,
 				changedBy: change.changedBy,
 				at: nowIso(),
-				...(change.proofFile ? { proofFile: change.proofFile } : {}),
+				proofFile: change.proofFile,
 			};
 			db.query(
 				`UPDATE orders SET payment_method = $method, payment_method_changes = $changes,

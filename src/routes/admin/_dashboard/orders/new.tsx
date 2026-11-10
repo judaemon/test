@@ -574,12 +574,20 @@ function NewChatOrder() {
 							class={cn(adminInput, "tabular-nums")}
 						/>
 					</Field>
-					<Field label="Paid by">
+					<Field
+						label="Paid by"
+						hint={
+							editing
+								? "To change it, use Change payment method on the order page. It needs a reason and proof."
+								: undefined
+						}
+					>
 						<select
 							value={method()}
 							onChange={(e) =>
 								setMethod(e.currentTarget.value as PaymentMethod)
 							}
+							disabled={!!editing}
 							class={adminInput}
 						>
 							<For each={PAYMENT_METHODS}>
