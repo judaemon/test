@@ -3,6 +3,9 @@ import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { productPhotoId, THUMB_WIDTH } from "~/lib/photos";
 import { flowerCodeKey, isPhotoTag, PHOTO_CAPTION_MAX } from "~/lib/product";
 import { WATERMARK_VERSION } from "~/lib/watermark";
+import type { AdminProduct } from "~/types/product";
+import { writeActivity } from "../activity-log-repo";
+import { bouquetChanges } from "../activity-snapshots";
 import { requireStaff } from "../admin-auth";
 import { listArrangementTypes } from "../arrangement-types-repo";
 import {
@@ -18,6 +21,7 @@ import {
 	type VariantInput,
 } from "../catalog-repo";
 import { cloudflareConfigured, purgePaths } from "../cloudflare-cache";
+import { staffActor } from "../order-actor";
 import {
 	cleanOriginal,
 	photosNeedingWatermark,
@@ -98,10 +102,33 @@ export const updateStyleFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
+		const before = getAdminProduct(data.productId);
 		updateStyle(data.productId, data.variantId, data);
-		return getAdminProduct(data.productId) ?? null;
+		const after = getAdminProduct(data.productId);
+		logBouquet(user, "quick_edit", before, after);
+		return after ?? null;
 	});
+
+/** Logs what changed on an arrangement, if anything did, and who did it. */
+function logBouquet(
+	user: Awaited<ReturnType<typeof requireStaff>>,
+	action: "added" | "edited" | "quick_edit" | "style_deleted",
+	before: AdminProduct | undefined | null,
+	after: AdminProduct | undefined | null,
+) {
+	const product = after ?? before;
+	if (!product) return;
+	const changes = bouquetChanges(before, after);
+	if (action !== "added" && changes.length === 0) return;
+	writeActivity(
+		"bouquets",
+		{ id: product.id, name: product.title },
+		staffActor(user),
+		action,
+		changes,
+	);
+}
 
 /** Quick edit from the list of bouquets: shows or hides it in the shop. */
 export const setProductVisibleFn = createServerFn({ method: "POST" })
@@ -113,9 +140,12 @@ export const setProductVisibleFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
+		const before = getAdminProduct(data.productId);
 		setProductVisible(data.productId, data.isVisible);
-		return getAdminProduct(data.productId) ?? null;
+		const after = getAdminProduct(data.productId);
+		logBouquet(user, "quick_edit", before, after);
+		return after ?? null;
 	});
 
 function parseVariant(raw: unknown, index: number): VariantInput {
@@ -296,8 +326,11 @@ export const saveProductFn = createServerFn({ method: "POST" })
 				);
 			seen.add(key);
 		}
+		const before = data.productId ? getAdminProduct(data.productId) : undefined;
 		const id = saveProduct(data.productId, data.product, user.name);
-		return getAdminProduct(id);
+		const after = getAdminProduct(id);
+		logBouquet(user, before ? "edited" : "added", before, after);
+		return after;
 	});
 
 /** Sets the shop's order from every bouquet's id, the first shown first. */
@@ -313,8 +346,14 @@ export const reorderProductsFn = createServerFn({ method: "POST" })
 		return { ids: ids as string[] };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
 		reorderProducts(data.ids);
+		writeActivity(
+			"bouquets",
+			{ id: null, name: "Shop order" },
+			staffActor(user),
+			"reordered",
+		);
 		return { ok: true as const };
 	});
 
@@ -506,9 +545,16 @@ export const deleteProductFn = createServerFn({ method: "POST" })
 		productId: text(asRecord(input), "productId", { max: 80 }),
 	}))
 	.handler(async ({ data }) => {
-		await requireStaff();
-		if (!deleteProduct(data.productId))
+		const user = await requireStaff();
+		const before = getAdminProduct(data.productId);
+		if (!before || !deleteProduct(data.productId))
 			throw new InputError("That bouquet was already deleted.");
+		writeActivity(
+			"bouquets",
+			{ id: data.productId, name: before.title },
+			staffActor(user),
+			"deleted",
+		);
 		return { ok: true as const };
 	});
 
@@ -522,6 +568,9 @@ export const deleteVariantFn = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		const user = await requireStaff();
+		const before = getAdminProduct(data.productId);
 		deleteVariant(data.productId, data.variantId, user.name);
-		return getAdminProduct(data.productId) ?? null;
+		const after = getAdminProduct(data.productId);
+		logBouquet(user, "style_deleted", before, after);
+		return after ?? null;
 	});

@@ -48,7 +48,7 @@ const NAV = [
 	{ to: "/admin/sizes", label: "Sizes", icon: AdminIcons.sizes },
 	{ to: "/admin/custom", label: "Custom bouquets", icon: AdminIcons.custom },
 	{ to: "/admin/reports", label: "Reports", icon: AdminIcons.reports },
-	{ to: "/admin/order-log", label: "Order log", icon: AdminIcons.log },
+	{ to: "/admin/logs", label: "Logs", icon: AdminIcons.log },
 	{
 		to: "/admin/sales",
 		label: "Sales",

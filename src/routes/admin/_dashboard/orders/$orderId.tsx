@@ -778,14 +778,27 @@ function OrderDetail() {
 
 					<div class="flex flex-col gap-2">
 						{/* Orders added from a chat are edited in their own form. */}
-						<Show when={isChatOrder(order()) && !cancelled()}>
-							<Link
-								to="/admin/orders/new"
-								search={{ edit: order().id }}
-								class={cn(adminButton.secondary, "w-full")}
+						<Show when={!cancelled()}>
+							<Show
+								when={isChatOrder(order())}
+								fallback={
+									<Link
+										to="/admin/orders/$orderId/edit"
+										params={{ orderId: order().id }}
+										class={cn(adminButton.secondary, "w-full")}
+									>
+										Edit order
+									</Link>
+								}
 							>
-								Edit order
-							</Link>
+								<Link
+									to="/admin/orders/new"
+									search={{ edit: order().id }}
+									class={cn(adminButton.secondary, "w-full")}
+								>
+									Edit order
+								</Link>
+							</Show>
 						</Show>
 						<button
 							type="button"
@@ -834,8 +847,8 @@ function OrderActivity(props: { order: Order }) {
 				</h2>
 				<Show when={(log.latest?.total ?? 0) > ACTIVITY_SHOWN}>
 					<Link
-						to="/admin/order-log"
-						search={{ order: props.order.id }}
+						to="/admin/logs"
+						search={{ area: "orders", item: props.order.id }}
 						class="text-sm font-medium text-petal-700 underline-offset-2 hover:underline"
 					>
 						See all {log.latest?.total} changes

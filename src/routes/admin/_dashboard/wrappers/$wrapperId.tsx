@@ -173,6 +173,17 @@ function WrapperEditor() {
 			</Link>
 			<PageHeader
 				title={isNew() ? "New wrapper" : draft.savedName || "Untitled wrapper"}
+				actions={
+					<Show when={!isNew()}>
+						<Link
+							to="/admin/logs"
+							search={{ area: "wrappers", item: params().wrapperId }}
+							class={adminButton.secondary}
+						>
+							Change history
+						</Link>
+					</Show>
+				}
 			/>
 
 			<section

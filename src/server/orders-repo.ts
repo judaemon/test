@@ -1031,6 +1031,56 @@ export function updateChatOrder(
 	});
 }
 
+/**
+ * Staff change a shop order's customer details, notes and cards. The bouquets,
+ * prices and payment stay as they are, so stock and totals don't move.
+ */
+export function updateShopOrderDetails(
+	id: string,
+	update: { details: CheckoutDetails; lines: PricedLine[] },
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
+	return tracked(id, actor, "staff_edit", () => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("Cancelled orders can’t be changed.");
+		const same = (a: PricedLine[], b: PricedLine[]) =>
+			a.length === b.length &&
+			a.every(
+				(line, index) =>
+					lineKey(line) === lineKey(b[index] as PricedLine) &&
+					line.quantity === b[index]?.quantity,
+			);
+		if (!same(order.lines, update.lines))
+			throw new OrderRuleError(
+				"This order’s bouquets changed while you were editing. Reload and try again.",
+			);
+		getDb()
+			.query(
+				`UPDATE orders SET email = $email, recipient_name = $fullName, first_name = $firstName,
+				   last_name = $lastName, full_name = $fullName, company = $company,
+				   serial_number = $serialNumber, class_name = $className, notes = $notes,
+				   dedication_for = $dedicationFor, gift_message = $dedicationMessage, lines = $lines
+				 WHERE id = $id`,
+			)
+			.run({
+				id,
+				email: update.details.email,
+				firstName: update.details.firstName,
+				lastName: update.details.lastName,
+				fullName: update.details.fullName,
+				company: update.details.company,
+				serialNumber: update.details.serialNumber,
+				className: update.details.className,
+				notes: update.details.notes,
+				dedicationFor: update.details.dedicationFor,
+				dedicationMessage: update.details.dedicationMessage,
+				lines: JSON.stringify(update.lines),
+			});
+	});
+}
+
 export function setWrapperStatus(
 	id: string,
 	lineIndex: number,

@@ -95,6 +95,17 @@ function SupplierEditor() {
 				title={
 					isNew() ? "New supplier" : draft.savedName || "Untitled supplier"
 				}
+				actions={
+					<Show when={!isNew()}>
+						<Link
+							to="/admin/logs"
+							search={{ area: "suppliers", item: params().supplierId }}
+							class={adminButton.secondary}
+						>
+							Change history
+						</Link>
+					</Show>
+				}
 			/>
 
 			<section class={cn(adminCard, "grid gap-4 p-5 sm:grid-cols-2")}>

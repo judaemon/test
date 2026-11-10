@@ -793,6 +793,28 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	);
 	CREATE INDEX wrapper_suppliers_by_supplier ON wrapper_suppliers (supplier_id);
 	`,
+	// v56: Admin → Logs: changes to floral arrangements, wrappers and
+	// suppliers, beside the order log: who, when, and each field before and after.
+	`
+	CREATE TABLE activity_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		at TEXT NOT NULL,
+		actor_type TEXT NOT NULL,
+		actor_name TEXT NOT NULL,
+		actor_id TEXT,
+		source TEXT,
+		area TEXT NOT NULL,
+		entity_id TEXT,
+		entity_name TEXT NOT NULL DEFAULT '',
+		action TEXT NOT NULL,
+		field TEXT,
+		about TEXT,
+		from_value TEXT,
+		to_value TEXT
+	);
+	CREATE INDEX activity_log_by_area ON activity_log (area, entity_id, id);
+	CREATE INDEX activity_log_by_actor ON activity_log (actor_name);
+	`,
 ];
 
 declare global {

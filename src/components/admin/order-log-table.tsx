@@ -132,11 +132,19 @@ export function OrderLogTable(props: {
 										</Show>
 									</td>
 									<td
-										class={cn(cell, "min-w-28 break-words text-petal-900/65")}
+										class={cn(
+											cell,
+											"min-w-28 max-w-72 whitespace-pre-line break-words text-petal-900/65",
+										)}
 									>
 										{formatLogValue(entry.field, entry.from) || "—"}
 									</td>
-									<td class={cn(cell, "min-w-28 break-words font-medium")}>
+									<td
+										class={cn(
+											cell,
+											"min-w-28 max-w-72 whitespace-pre-line break-words font-medium",
+										)}
+									>
 										{formatLogValue(entry.field, entry.to) || "—"}
 									</td>
 									<Show when={!props.compact}>

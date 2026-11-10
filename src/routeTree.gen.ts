@@ -32,6 +32,7 @@ import { Route as ProductsProductIdRouteImport } from './routes/products/$produc
 import { Route as UploadsSplatRouteImport } from './routes/uploads/$'
 import { Route as AdminDashboardIndexRouteImport } from './routes/admin/_dashboard/index'
 import { Route as AdminDashboardCustomRouteImport } from './routes/admin/_dashboard/custom'
+import { Route as AdminDashboardLogsRouteImport } from './routes/admin/_dashboard/logs'
 import { Route as AdminDashboardOrderLogRouteImport } from './routes/admin/_dashboard/order-log'
 import { Route as AdminDashboardPasswordRouteImport } from './routes/admin/_dashboard/password'
 import { Route as AdminDashboardPaymentsRouteImport } from './routes/admin/_dashboard/payments'
@@ -74,6 +75,7 @@ import { Route as ApiAdminCancelProofsSplatRouteImport } from './routes/api/admi
 import { Route as ApiAdminPhotoOriginalsSplatRouteImport } from './routes/api/admin/photo-originals/$'
 import { Route as ApiAdminProofsSplatRouteImport } from './routes/api/admin/proofs/$'
 import { Route as ApiOrdersOrderIdDeliveryPhotoRouteImport } from './routes/api/orders/$orderId/delivery-photo'
+import { Route as AdminDashboardOrdersOrderIdEditRouteImport } from './routes/admin/_dashboard/orders/$orderId_.edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -188,6 +190,11 @@ const AdminDashboardIndexRoute = AdminDashboardIndexRouteImport.update({
 const AdminDashboardCustomRoute = AdminDashboardCustomRouteImport.update({
   id: '/custom',
   path: '/custom',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardLogsRoute = AdminDashboardLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
 const AdminDashboardOrderLogRoute = AdminDashboardOrderLogRouteImport.update({
@@ -428,6 +435,12 @@ const ApiOrdersOrderIdDeliveryPhotoRoute =
     path: '/api/orders/$orderId/delivery-photo',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AdminDashboardOrdersOrderIdEditRoute =
+  AdminDashboardOrdersOrderIdEditRouteImport.update({
+    id: '/orders/$orderId_/edit',
+    path: '/orders/$orderId/edit',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -452,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
+  '/admin/logs': typeof AdminDashboardLogsRoute
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
@@ -495,6 +509,7 @@ export interface FileRoutesByFullPath {
   '/admin/sizes/': typeof AdminDashboardSizesIndexRoute
   '/admin/suppliers/': typeof AdminDashboardSuppliersIndexRoute
   '/admin/wrappers/': typeof AdminDashboardWrappersIndexRoute
+  '/admin/orders/$orderId/edit': typeof AdminDashboardOrdersOrderIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -517,6 +532,7 @@ export interface FileRoutesByTo {
   '/uploads/$': typeof UploadsSplatRoute
   '/account': typeof AccountIndexRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
+  '/admin/logs': typeof AdminDashboardLogsRoute
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
@@ -559,6 +575,7 @@ export interface FileRoutesByTo {
   '/admin/sizes': typeof AdminDashboardSizesIndexRoute
   '/admin/suppliers': typeof AdminDashboardSuppliersIndexRoute
   '/admin/wrappers': typeof AdminDashboardWrappersIndexRoute
+  '/admin/orders/$orderId/edit': typeof AdminDashboardOrdersOrderIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -584,6 +601,7 @@ export interface FileRoutesById {
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
   '/admin/_dashboard/custom': typeof AdminDashboardCustomRoute
+  '/admin/_dashboard/logs': typeof AdminDashboardLogsRoute
   '/admin/_dashboard/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/_dashboard/password': typeof AdminDashboardPasswordRoute
   '/admin/_dashboard/payments': typeof AdminDashboardPaymentsRoute
@@ -627,6 +645,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/sizes/': typeof AdminDashboardSizesIndexRoute
   '/admin/_dashboard/suppliers/': typeof AdminDashboardSuppliersIndexRoute
   '/admin/_dashboard/wrappers/': typeof AdminDashboardWrappersIndexRoute
+  '/admin/_dashboard/orders/$orderId_/edit': typeof AdminDashboardOrdersOrderIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -653,6 +672,7 @@ export interface FileRouteTypes {
     | '/uploads/$'
     | '/account/'
     | '/admin/custom'
+    | '/admin/logs'
     | '/admin/order-log'
     | '/admin/password'
     | '/admin/payments'
@@ -696,6 +716,7 @@ export interface FileRouteTypes {
     | '/admin/sizes/'
     | '/admin/suppliers/'
     | '/admin/wrappers/'
+    | '/admin/orders/$orderId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -718,6 +739,7 @@ export interface FileRouteTypes {
     | '/uploads/$'
     | '/account'
     | '/admin/custom'
+    | '/admin/logs'
     | '/admin/order-log'
     | '/admin/password'
     | '/admin/payments'
@@ -760,6 +782,7 @@ export interface FileRouteTypes {
     | '/admin/sizes'
     | '/admin/suppliers'
     | '/admin/wrappers'
+    | '/admin/orders/$orderId/edit'
   id:
     | '__root__'
     | '/'
@@ -784,6 +807,7 @@ export interface FileRouteTypes {
     | '/uploads/$'
     | '/account/'
     | '/admin/_dashboard/custom'
+    | '/admin/_dashboard/logs'
     | '/admin/_dashboard/order-log'
     | '/admin/_dashboard/password'
     | '/admin/_dashboard/payments'
@@ -827,6 +851,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/sizes/'
     | '/admin/_dashboard/suppliers/'
     | '/admin/_dashboard/wrappers/'
+    | '/admin/_dashboard/orders/$orderId_/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1020,6 +1045,13 @@ declare module '@tanstack/solid-router' {
       path: '/custom'
       fullPath: '/admin/custom'
       preLoaderRoute: typeof AdminDashboardCustomRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/logs': {
+      id: '/admin/_dashboard/logs'
+      path: '/logs'
+      fullPath: '/admin/logs'
+      preLoaderRoute: typeof AdminDashboardLogsRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
     '/admin/_dashboard/order-log': {
@@ -1316,6 +1348,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof ApiOrdersOrderIdDeliveryPhotoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/_dashboard/orders/$orderId_/edit': {
+      id: '/admin/_dashboard/orders/$orderId_/edit'
+      path: '/orders/$orderId/edit'
+      fullPath: '/admin/orders/$orderId/edit'
+      preLoaderRoute: typeof AdminDashboardOrdersOrderIdEditRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
   }
 }
 
@@ -1363,6 +1402,7 @@ const AdminDashboardReportsRouteWithChildren =
 
 interface AdminDashboardRouteChildren {
   AdminDashboardCustomRoute: typeof AdminDashboardCustomRoute
+  AdminDashboardLogsRoute: typeof AdminDashboardLogsRoute
   AdminDashboardOrderLogRoute: typeof AdminDashboardOrderLogRoute
   AdminDashboardPasswordRoute: typeof AdminDashboardPasswordRoute
   AdminDashboardPaymentsRoute: typeof AdminDashboardPaymentsRoute
@@ -1389,10 +1429,12 @@ interface AdminDashboardRouteChildren {
   AdminDashboardSizesIndexRoute: typeof AdminDashboardSizesIndexRoute
   AdminDashboardSuppliersIndexRoute: typeof AdminDashboardSuppliersIndexRoute
   AdminDashboardWrappersIndexRoute: typeof AdminDashboardWrappersIndexRoute
+  AdminDashboardOrdersOrderIdEditRoute: typeof AdminDashboardOrdersOrderIdEditRoute
 }
 
 const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardCustomRoute: AdminDashboardCustomRoute,
+  AdminDashboardLogsRoute: AdminDashboardLogsRoute,
   AdminDashboardOrderLogRoute: AdminDashboardOrderLogRoute,
   AdminDashboardPasswordRoute: AdminDashboardPasswordRoute,
   AdminDashboardPaymentsRoute: AdminDashboardPaymentsRoute,
@@ -1426,6 +1468,7 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardSizesIndexRoute: AdminDashboardSizesIndexRoute,
   AdminDashboardSuppliersIndexRoute: AdminDashboardSuppliersIndexRoute,
   AdminDashboardWrappersIndexRoute: AdminDashboardWrappersIndexRoute,
+  AdminDashboardOrdersOrderIdEditRoute: AdminDashboardOrdersOrderIdEditRoute,
 }
 
 const AdminDashboardRouteWithChildren = AdminDashboardRoute._addFileChildren(

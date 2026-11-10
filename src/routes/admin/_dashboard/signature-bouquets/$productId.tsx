@@ -594,16 +594,27 @@ function ProductEditor() {
 					isNew() ? "New arrangement" : draft.title || "Untitled arrangement"
 				}
 				actions={
-					<Show when={!isNew() && loaded()?.isVisible}>
-						<a
-							href={`/products/${loaded()?.slug ?? params().productId}`}
-							target="_blank"
-							rel="noreferrer"
-							class={adminButton.secondary}
-						>
-							View in shop
-						</a>
-					</Show>
+					<>
+						<Show when={!isNew()}>
+							<Link
+								to="/admin/logs"
+								search={{ area: "bouquets", item: params().productId }}
+								class={adminButton.secondary}
+							>
+								Change history
+							</Link>
+						</Show>
+						<Show when={!isNew() && loaded()?.isVisible}>
+							<a
+								href={`/products/${loaded()?.slug ?? params().productId}`}
+								target="_blank"
+								rel="noreferrer"
+								class={adminButton.secondary}
+							>
+								View in shop
+							</a>
+						</Show>
+					</>
 				}
 			/>
 

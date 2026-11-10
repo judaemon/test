@@ -1,8 +1,11 @@
 import { createServerFn } from "@tanstack/solid-start";
 
 import { MAX_WRAPPER_COLORS, normalizeWrapperCode } from "~/lib/custom-bouquet";
+import { writeActivity } from "../activity-log-repo";
+import { wrapperChanges } from "../activity-snapshots";
 import { requireStaff } from "../admin-auth";
 import { checkBuilderCanSell, getCustomSettings } from "../custom-repo";
+import { staffActor } from "../order-actor";
 import { getSupplier } from "../suppliers-repo";
 import {
 	asRecord,
@@ -102,9 +105,9 @@ export const saveWrapperFn = createServerFn({ method: "POST" })
 		return { id: id || null, wrapper: parseWrapper(asRecord(source.wrapper)) };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		if (data.id && !getWrapper(data.id))
-			throw new InputError("That wrapper was deleted.");
+		const user = await requireStaff();
+		const before = data.id ? getWrapper(data.id) : null;
+		if (data.id && !before) throw new InputError("That wrapper was deleted.");
 		if (data.id && !data.wrapper.enabled) keepAWrapperOffered(data.id);
 		const other = data.wrapper.code && getWrapperByCode(data.wrapper.code);
 		if (other && other.id !== data.id)
@@ -115,7 +118,18 @@ export const saveWrapperFn = createServerFn({ method: "POST" })
 			throw new InputError(
 				"A supplier you picked was deleted. Check them again.",
 			);
-		return getWrapper(saveWrapper(data.id, data.wrapper));
+		const after = getWrapper(saveWrapper(data.id, data.wrapper));
+		const changes = wrapperChanges(before, after);
+		// Saved with nothing changed: nothing to log.
+		if (after && (!before || changes.length))
+			writeActivity(
+				"wrappers",
+				{ id: after.id, name: after.name },
+				staffActor(user),
+				before ? "edited" : "added",
+				changes,
+			);
+		return after;
 	});
 
 /** One row of an Excel import: overwrites the wrapper with its code, if any. */
@@ -126,8 +140,21 @@ export const importWrapperFn = createServerFn({ method: "POST" })
 		return { ...wrapper, code: wrapper.code };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
-		return { id: importWrapper(data) };
+		const user = await requireStaff();
+		const before = getWrapperByCode(data.code);
+		const id = importWrapper(data);
+		const after = getWrapper(id);
+		const changes = wrapperChanges(before, after);
+		// Re-importing a sheet that matches changes nothing: nothing to log.
+		if (after && (!before || changes.length))
+			writeActivity(
+				"wrappers",
+				{ id, name: after.name },
+				staffActor(user),
+				"imported",
+				changes,
+			);
+		return { id };
 	});
 
 export const setWrapperEnabledFn = createServerFn({ method: "POST" })
@@ -139,10 +166,21 @@ export const setWrapperEnabledFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
 		if (!data.enabled) keepAWrapperOffered(data.id);
+		const before = getWrapper(data.id);
 		if (!setWrapperEnabled(data.id, data.enabled))
 			throw new InputError("That wrapper was deleted.");
+		const after = getWrapper(data.id);
+		const changes = wrapperChanges(before, after);
+		if (after && changes.length)
+			writeActivity(
+				"wrappers",
+				{ id: after.id, name: after.name },
+				staffActor(user),
+				"quick_edit",
+				changes,
+			);
 		return { ok: true as const };
 	});
 
@@ -151,9 +189,16 @@ export const deleteWrapperFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
 		keepAWrapperOffered(data.id);
-		if (!deleteWrapper(data.id))
+		const before = getWrapper(data.id);
+		if (!before || !deleteWrapper(data.id))
 			throw new InputError("That wrapper was already deleted.");
+		writeActivity(
+			"wrappers",
+			{ id: data.id, name: before.name },
+			staffActor(user),
+			"deleted",
+		);
 		return { ok: true as const };
 	});

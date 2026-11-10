@@ -1,3 +1,4 @@
+import { lineKey } from "~/lib/bouquet-messages";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
 import { formatPrice, lineName } from "~/lib/product";
 import {
@@ -59,6 +60,9 @@ export const ORDER_LOG_FIELDS = {
 	company: "Company",
 	serial: "Serial number",
 	notes: "Notes",
+	card: "Card",
+	bouquet_card: "Card",
+	bouquet_note: "Note",
 } as const;
 export type OrderLogField = keyof typeof ORDER_LOG_FIELDS;
 
@@ -119,12 +123,42 @@ function snapshot(order: Order): [OrderLogField, string][] {
 		["company", d.company],
 		["serial", d.serialNumber],
 		["notes", d.notes],
+		["card", cardText(d.dedicationFor, d.dedicationMessage)],
 	];
 }
 
+/** A card as one line of the log: "To Ana: Happy birthday!". */
+const cardText = (to = "", message = "") =>
+	message ? (to ? `To ${to}: ${message}` : message) : to ? `To ${to}` : "";
+
 /**
- * What changed between two versions of an order. A wrapper is compared per
- * bouquet; notes and the delivery photo say only that they changed.
+ * Each bouquet's card and note, keyed by bouquet and which of its kind, so
+ * they compare across edits that keep the bouquet.
+ */
+function bouquetMessages(order: Order) {
+	const byUnit = new Map<
+		string,
+		{ about: string; card: string; note: string }
+	>();
+	for (const line of order.lines) {
+		for (let unit = 0; unit < line.quantity; unit++) {
+			const message = line.messages?.[unit];
+			byUnit.set(`${lineKey(line)}#${unit}`, {
+				about:
+					line.quantity > 1
+						? `${lineName(line)} (${unit + 1} of ${line.quantity})`
+						: lineName(line),
+				card: cardText(message?.to, message?.message),
+				note: message?.note ?? "",
+			});
+		}
+	}
+	return byUnit;
+}
+
+/**
+ * What changed between two versions of an order. Wrappers, cards and notes
+ * are compared per bouquet; the delivery photo says only that it changed.
  */
 export function diffOrders(
 	before: Order | undefined,
@@ -136,7 +170,7 @@ export function diffOrders(
 	for (const [field, value] of snapshot(after)) {
 		const was = old.get(field) ?? "";
 		if (was === value) continue;
-		if (field === "notes" || field === "delivery_photo")
+		if (field === "delivery_photo")
 			changes.push({ field, from: was ? "set" : "", to: value ? "set" : "" });
 		else changes.push({ field, from: was, to: value });
 	}
@@ -154,6 +188,27 @@ export function diffOrders(
 				about: lineName(line),
 			});
 	});
+	// Cards and notes of bouquets on both versions; a bouquet added or taken
+	// off shows in "Bouquets" instead.
+	const oldMessages = bouquetMessages(before);
+	for (const [key, now] of bouquetMessages(after)) {
+		const was = oldMessages.get(key);
+		if (!was) continue;
+		if (was.card !== now.card)
+			changes.push({
+				field: "bouquet_card",
+				from: was.card,
+				to: now.card,
+				about: now.about,
+			});
+		if (was.note !== now.note)
+			changes.push({
+				field: "bouquet_note",
+				from: was.note,
+				to: now.note,
+				about: now.about,
+			});
+	}
 	return changes;
 }
 
@@ -171,6 +226,7 @@ export function formatLogValue(field: OrderLogField | undefined, value = "") {
 			return WRAPPER_STATUS_LABELS[value as WrapperStatus] ?? value;
 		case "test":
 			return value === "yes" ? "Yes" : "No";
+		// Older entries only say a note was there, not what it said.
 		case "notes":
 		case "delivery_photo":
 			return value === "set" ? "Added" : value;
@@ -185,8 +241,16 @@ export function formatLogSource(actor: OrderActor) {
 	if (!path) return actor.type === "system" ? "Automatic" : "—";
 	const pages: [RegExp, string][] = [
 		[/^\/admin\/orders\/new/, "Admin · Add custom order"],
+		[/^\/admin\/orders\/[^/]+\/edit/, "Admin · Edit order"],
 		[/^\/admin\/orders\/[^/]+/, "Admin · Order page"],
 		[/^\/admin\/orders\/?$/, "Admin · Orders list"],
+		[/^\/admin\/signature-bouquets\/arrange/, "Admin · Arrange the shop"],
+		[/^\/admin\/signature-bouquets\/[^/]+/, "Admin · Arrangement page"],
+		[/^\/admin\/signature-bouquets/, "Admin · Floral arrangements"],
+		[/^\/admin\/wrappers\/[^/]+/, "Admin · Wrapper page"],
+		[/^\/admin\/wrappers/, "Admin · Wrappers list"],
+		[/^\/admin\/suppliers\/[^/]+/, "Admin · Supplier page"],
+		[/^\/admin\/suppliers/, "Admin · Suppliers list"],
 		[/^\/admin\/?$/, "Admin · Board"],
 		[/^\/admin/, "Admin"],
 		[/^\/checkout/, "Checkout"],

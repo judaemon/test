@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/solid-start";
 import {
+	attachMessages,
+	type BouquetMessageErrors,
+} from "~/lib/bouquet-messages";
+import {
 	CHAT_MESSAGE_MAX,
 	CHAT_PHOTOS_MAX,
 	CONTACT_PLATFORM_LABELS,
@@ -17,6 +21,7 @@ import {
 import { CUSTOM_IMAGE, CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { validateOrdersSearch } from "~/lib/order-filters";
 import {
+	isMethodAllowedFor,
 	isPaymentMethod,
 	normalizeReferenceNumber,
 	type PaymentMethod,
@@ -62,6 +67,7 @@ import {
 	setWrapperStatus,
 	statusWithReference,
 	updateChatOrder,
+	updateShopOrderDetails,
 } from "../orders-repo";
 import { parseRecipe } from "../recipe-input";
 import {
@@ -663,6 +669,79 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 		} catch (error) {
 			for (const file of saved) await deleteUpload("references", file);
 			if (error instanceof UploadError || error instanceof OrderRuleError)
+				return { ok: false, message: error.message };
+			throw error;
+		}
+	});
+
+export type ShopOrderEditResult =
+	| { ok: true }
+	| {
+			ok: false;
+			message: string;
+			fieldErrors?: FieldErrors;
+			bouquetErrors?: Record<string, BouquetMessageErrors>;
+	  };
+
+/**
+ * Staff change a shop order's customer, its notes and its cards, at any stage
+ * before it's cancelled. Bouquets, prices and payment stay as they are; the
+ * order log records each change and who made it.
+ */
+export const updateShopOrderFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			id: text(source, "id", { max: 64 }),
+			details: source.details,
+			messages: source.messages,
+		};
+	})
+	.handler(async ({ data }): Promise<ShopOrderEditResult> => {
+		const user = await requireStaff();
+		const order = getOrderById(data.id);
+		if (!order) return { ok: false, message: "Order not found." };
+		if (isChatOrder(order))
+			return { ok: false, message: "Edit this order in its own form." };
+		const parsed = parseCheckoutDetails(data.details);
+		// The delivery date isn't on this form, and may be past by now.
+		const fieldErrors = validateCheckoutDetails({
+			...parsed,
+			deliveryDate: "",
+		});
+		if (!isMethodAllowedFor(order.payment.method, parsed.className))
+			fieldErrors.className =
+				"Cash payment is for cadets only. Change the payment method first.";
+		if (hasErrors(fieldErrors))
+			return {
+				ok: false,
+				message: "Please check the highlighted fields.",
+				fieldErrors,
+			};
+		const details: CheckoutDetails = {
+			...parsed,
+			deliveryDate: order.details.deliveryDate,
+		};
+		// Cards and notes go on the bouquets the order has; nothing else changes.
+		const withMessages = attachMessages(
+			order.lines.map(({ messages: _old, ...line }) => line),
+			data.messages,
+		);
+		if (Object.keys(withMessages.errors).length > 0)
+			return {
+				ok: false,
+				message: "Please check the cards and notes.",
+				bouquetErrors: withMessages.errors,
+			};
+		try {
+			updateShopOrderDetails(
+				order.id,
+				{ details, lines: withMessages.lines },
+				staffActor(user),
+			);
+			return { ok: true };
+		} catch (error) {
+			if (error instanceof OrderRuleError)
 				return { ok: false, message: error.message };
 			throw error;
 		}
