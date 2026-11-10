@@ -1279,6 +1279,11 @@ describe("open orders follow their arrangement's flowers", () => {
 		{ flower: "Misty", color: "Violet", count: 1, filler: true },
 	];
 	const staff = { type: "staff" as const, name: "Owner" };
+	/** A style as it is now: these flowers, and (by default) no wrapper. */
+	const now = (items: typeof recipe, wrapperColor = "") => ({
+		recipe: items,
+		wrapperColor,
+	});
 
 	test("open orders take the new flowers and log it; done and cancelled keep theirs", () => {
 		const open = place([{ ...first, quantity: 2 }]);
@@ -1287,7 +1292,7 @@ describe("open orders follow their arrangement's flowers", () => {
 		setRow(done.id, "stage = 'done'", {});
 		repo.cancelOrder(gone.id, { reason: "x", cancelledBy: "Owner" });
 		const result = repo.syncOrderRecipes(
-			new Map([[key(first), recipe]]),
+			new Map([[key(first), now(recipe)]]),
 			staff,
 		);
 		expect(result.orders).toBeGreaterThanOrEqual(1);
@@ -1310,7 +1315,10 @@ describe("open orders follow their arrangement's flowers", () => {
 		);
 	});
 	test("running it again changes nothing", () => {
-		const again = repo.syncOrderRecipes(new Map([[key(first), recipe]]), staff);
+		const again = repo.syncOrderRecipes(
+			new Map([[key(first), now(recipe)]]),
+			staff,
+		);
 		expect(again).toEqual({ orders: 0, bouquets: 0 });
 	});
 	test("other styles and empty recipes are left alone", () => {
@@ -1318,13 +1326,41 @@ describe("open orders follow their arrangement's flowers", () => {
 		const before = line(order, second).recipe;
 		repo.syncOrderRecipes(
 			new Map([
-				[key(first), recipe],
-				[key(second), []],
+				[key(first), now(recipe)],
+				[key(second), now([])],
 			]),
 			staff,
 		);
 		expect(line(repo.getOrderById(order.id) as Order, second).recipe).toEqual(
 			before,
+		);
+	});
+	test("a bouquet ordered with no wrapper gets the style's; one with a wrapper keeps it", () => {
+		const bare = place([{ ...first, quantity: 1 }]);
+		const wrapped = place([{ ...first, quantity: 1 }]);
+		const withWrapper = (order: Order, wrapperColor: string) =>
+			setRow(order.id, "lines = $lines", {
+				lines: JSON.stringify([
+					{ ...line(order, first), recipe, wrapperColor },
+				]),
+			});
+		withWrapper(bare, "");
+		withWrapper(wrapped, "Pink");
+		repo.syncOrderRecipes(
+			new Map([[key(first), now(recipe, "Dior Black")]]),
+			staff,
+		);
+		expect(line(repo.getOrderById(bare.id) as Order, first).wrapperColor).toBe(
+			"Dior Black",
+		);
+		expect(
+			line(repo.getOrderById(wrapped.id) as Order, first).wrapperColor,
+		).toBe("Pink");
+		const entry = logRepo
+			.listOrderLog({ orderId: bare.id })
+			.entries.find((e) => e.field === "wrapper_used");
+		expect(entry).toEqual(
+			expect.objectContaining({ from: "", to: "Dior Black" }),
 		);
 	});
 });

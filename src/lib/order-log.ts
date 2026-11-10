@@ -41,7 +41,7 @@ export const ORDER_LOG_ACTIONS = {
 	rider: "Set the rider",
 	delivery_photo: "Added a delivery photo",
 	florist: "Assigned a florist",
-	recipe_sync: "Flowers updated from the arrangement",
+	recipe_sync: "Updated from the arrangement",
 } as const;
 export type OrderLogAction = keyof typeof ORDER_LOG_ACTIONS;
 
@@ -69,6 +69,7 @@ export const ORDER_LOG_FIELDS = {
 	bouquet_note: "Note",
 	florist: "Florist",
 	recipe: "Flowers",
+	wrapper_used: "Wrapper used",
 } as const;
 export type OrderLogField = keyof typeof ORDER_LOG_FIELDS;
 
@@ -212,6 +213,13 @@ export function diffOrders(
 				field: "recipe",
 				from: was,
 				to: now,
+				about: lineName(line),
+			});
+		if ((previous.wrapperColor ?? "") !== (line.wrapperColor ?? ""))
+			changes.push({
+				field: "wrapper_used",
+				from: previous.wrapperColor ?? "",
+				to: line.wrapperColor ?? "",
 				about: lineName(line),
 			});
 	});

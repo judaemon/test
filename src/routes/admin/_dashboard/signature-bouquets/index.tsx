@@ -265,8 +265,8 @@ function InventoryPage() {
 							</Link>
 							<ConfirmButton
 								class={adminButton.secondary}
-								title="Update the flowers on open orders?"
-								description="Every bouquet on a new or being-made order gets the flowers its arrangement has now, so the flower report and florist sheets match. Done and cancelled orders, and custom bouquets, stay as they are. Each change is kept in Logs. Saving an arrangement already does this for its own orders."
+								title="Update flowers and wrappers on open orders?"
+								description="Every bouquet on a new or being-made order gets the flowers its arrangement has now, and its wrapper if it was ordered with none, so the reports and florist sheets match. A wrapper a bouquet already has is kept. Done and cancelled orders, and custom bouquets, stay as they are. Each change is kept in Logs. Saving an arrangement already does this for its own orders."
 								confirmLabel="Update orders"
 								onConfirm={async () => {
 									try {
@@ -275,15 +275,15 @@ function InventoryPage() {
 											!result.enabled
 												? "Orders keep their own flowers now; nothing changed."
 												: result.orders
-													? `Flowers updated on ${result.bouquets} ${result.bouquets === 1 ? "bouquet" : "bouquets"} in ${result.orders} ${result.orders === 1 ? "order" : "orders"}.`
-													: "Every open order already has its arrangement’s flowers.",
+													? `Updated ${result.bouquets} ${result.bouquets === 1 ? "bouquet" : "bouquets"} in ${result.orders} ${result.orders === 1 ? "order" : "orders"}.`
+													: "Every open order already has its arrangement’s flowers and wrapper.",
 										);
 									} catch (error) {
 										toastError(error);
 									}
 								}}
 							>
-								Update orders’ flowers
+								Update orders’ flowers and wrappers
 							</ConfirmButton>
 							<Link
 								to="/admin/signature-bouquets/arrange"

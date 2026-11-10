@@ -1,8 +1,7 @@
 import { lineKey } from "~/lib/bouquet-messages";
 import type { OrderActor } from "~/lib/order-log";
-import type { RecipeItem } from "~/types/product";
 import { listAdminProducts } from "./catalog-repo";
-import { syncOrderRecipes } from "./orders-repo";
+import { type StyleNow, syncOrderRecipes } from "./orders-repo";
 
 /**
  * For now, while the arrangements' flowers are still being filled in: when
@@ -23,14 +22,14 @@ export function syncOrderRecipesFromCatalog(
 	productIds?: readonly string[],
 ) {
 	if (!SYNC_ORDER_RECIPES) return { orders: 0, bouquets: 0 };
-	const recipes = new Map<string, RecipeItem[]>();
+	const styles = new Map<string, StyleNow>();
 	for (const product of listAdminProducts()) {
 		if (productIds && !productIds.includes(product.id)) continue;
 		for (const variant of product.variants)
-			recipes.set(
-				lineKey({ productId: product.id, variantId: variant.id }),
-				variant.recipe,
-			);
+			styles.set(lineKey({ productId: product.id, variantId: variant.id }), {
+				recipe: variant.recipe,
+				wrapperColor: variant.wrapperColor ?? "",
+			});
 	}
-	return syncOrderRecipes(recipes, actor);
+	return syncOrderRecipes(styles, actor);
 }

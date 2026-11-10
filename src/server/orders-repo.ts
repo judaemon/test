@@ -1113,12 +1113,6 @@ export function updateShopOrderDetails(
 	});
 }
 
-/**
- * Gives the bouquets on open orders (new or being made) the flowers their
- * arrangement has now, from `recipes` by `lineKey`. Done and cancelled orders
- * keep what they were made with; custom bouquets keep their own. Each order
- * changed is logged. Returns how many orders and bouquets changed.
- */
 /** A recipe as text that ignores how it was stored, to compare two. */
 const recipeKey = (recipe: RecipeItem[]) =>
 	JSON.stringify(
@@ -1130,8 +1124,23 @@ const recipeKey = (recipe: RecipeItem[]) =>
 		]),
 	);
 
+/** What an arrangement's style has now, for bringing orders up to date. */
+export interface StyleNow {
+	recipe: RecipeItem[];
+	/** Its wrapper names, "" for none. */
+	wrapperColor: string;
+}
+
+/**
+ * Gives the bouquets on open orders (new or being made) the flowers their
+ * arrangement's style has now, and its wrapper where they were ordered with
+ * none (a wrapper they already have is kept: a changed wrapper is for new
+ * orders). From `styles` by `lineKey`. Done and cancelled orders keep what
+ * they were made with; custom bouquets keep their own. Each order changed is
+ * logged. Returns how many orders and bouquets changed.
+ */
 export function syncOrderRecipes(
-	recipes: ReadonlyMap<string, RecipeItem[]>,
+	styles: ReadonlyMap<string, StyleNow>,
 	actor: OrderActor = SYSTEM_ACTOR,
 ) {
 	let orders = 0;
@@ -1143,11 +1152,19 @@ export function syncOrderRecipes(
 		})) {
 			let changedHere = 0;
 			const lines = order.lines.map((line) => {
-				const recipe = recipes.get(lineKey(line));
-				if (!recipe?.length) return line;
-				if (recipeKey(recipe) === recipeKey(line.recipe ?? [])) return line;
+				const style = styles.get(lineKey(line));
+				if (!style) return line;
+				const newRecipe =
+					style.recipe.length > 0 &&
+					recipeKey(style.recipe) !== recipeKey(line.recipe ?? []);
+				const newWrapper = !line.wrapperColor && !!style.wrapperColor;
+				if (!newRecipe && !newWrapper) return line;
 				changedHere += line.quantity;
-				return { ...line, recipe };
+				return {
+					...line,
+					...(newRecipe ? { recipe: style.recipe } : {}),
+					...(newWrapper ? { wrapperColor: style.wrapperColor } : {}),
+				};
 			});
 			if (!changedHere) continue;
 			orders += 1;

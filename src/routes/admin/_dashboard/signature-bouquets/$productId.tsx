@@ -603,7 +603,7 @@ function ProductEditor() {
 				isNew()
 					? "Bouquet created."
 					: updated
-						? `Changes saved. Its flowers were updated on ${updated} open ${updated === 1 ? "order" : "orders"}.`
+						? `Changes saved. Its flowers and wrappers were updated on ${updated} open ${updated === 1 ? "order" : "orders"}.`
 						: "Changes saved.",
 			);
 			await refresh();
