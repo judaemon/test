@@ -61,7 +61,7 @@ import {
 	validateOrdersSearch,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
-import { type PricedLine, tracksWrapper } from "~/lib/pricing";
+import type { PricedLine } from "~/lib/pricing";
 import { formatPrice, preorderNote } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
@@ -1532,27 +1532,25 @@ function WrapperStatusSelect(props: {
 }) {
 	const status = () => props.line.wrapperStatus ?? "todo";
 	return (
-		<Show when={tracksWrapper(props.line)} fallback="—">
-			<Show
-				when={props.order.stage !== "cancelled"}
-				fallback={WRAPPER_STATUS_LABELS[status()]}
-			>
-				<RowSelect
-					label={`Wrapper status for ${props.line.sku}, order ${props.order.number}`}
-					value={status()}
-					options={WRAPPER_STATUSES.map((value) => ({
-						value,
-						label: WRAPPER_STATUS_LABELS[value],
-					}))}
-					class={WRAPPER_CLASS[status()]}
-					onSave={(value) =>
-						updateWrapperStatus({
-							data: { id: props.order.id, line: props.index, status: value },
-						})
-					}
-					saved={(label) => `${props.line.sku} wrapper: ${label}.`}
-				/>
-			</Show>
+		<Show
+			when={props.order.stage !== "cancelled"}
+			fallback={WRAPPER_STATUS_LABELS[status()]}
+		>
+			<RowSelect
+				label={`Wrapper status for ${props.line.sku}, order ${props.order.number}`}
+				value={status()}
+				options={WRAPPER_STATUSES.map((value) => ({
+					value,
+					label: WRAPPER_STATUS_LABELS[value],
+				}))}
+				class={WRAPPER_CLASS[status()]}
+				onSave={(value) =>
+					updateWrapperStatus({
+						data: { id: props.order.id, line: props.index, status: value },
+					})
+				}
+				saved={(label) => `${props.line.sku} wrapper: ${label}.`}
+			/>
 		</Show>
 	);
 }

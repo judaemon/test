@@ -17,7 +17,7 @@ import {
 	typeKeys,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from "~/lib/payment";
-import { type PricedLine, tracksWrapper } from "~/lib/pricing";
+import type { PricedLine } from "~/lib/pricing";
 import { wrapperNames } from "~/lib/product";
 import { parseList } from "~/lib/shop-filters";
 import {
@@ -148,9 +148,9 @@ const FIELDS: Record<
 		label: (key) => (key === NONE ? "No wrapper" : key),
 	},
 	wrapperStatus: {
-		// Ready-made bouquets without a wrapper have no wrapper status to filter by.
-		keys: ({ line }) =>
-			tracksWrapper(line) ? [line.wrapperStatus ?? "todo"] : [],
+		// Every bouquet has one, corsages and boutonnières too: staff track
+		// each item's making with it, wrapper or not.
+		keys: ({ line }) => [line.wrapperStatus ?? "todo"],
 		fixed: WRAPPER_STATUSES,
 		label: (key) =>
 			WRAPPER_STATUS_LABELS[key as keyof typeof WRAPPER_STATUS_LABELS],
@@ -362,7 +362,7 @@ function filterOrderRows(search: OrdersSearch) {
 		// Each row is one bouquet.
 		entry.bouquets += 1;
 		entry.stages[row.order.stage] += 1;
-		if (row.order.stage !== "cancelled" && tracksWrapper(row.line)) {
+		if (row.order.stage !== "cancelled") {
 			entry.wrappers.needed += 1;
 			if (row.line.wrapperStatus === "made") entry.wrappers.made += 1;
 		}

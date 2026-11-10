@@ -299,13 +299,3 @@ export function withPromo(
 export function roundMoney(amount: number) {
 	return Math.round(amount * 100) / 100;
 }
-
-/**
- * Bouquets with a wrapper track how far it is. Custom orders always do: one
- * added from a chat often has its wrapper described in the message instead.
- */
-export function tracksWrapper(
-	line: Pick<PricedLine, "wrapperColor" | "productId">,
-) {
-	return !!line.wrapperColor || line.productId === CUSTOM_PRODUCT_ID;
-}
