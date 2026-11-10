@@ -598,7 +598,14 @@ function ProductEditor() {
 				},
 			});
 			if (!saved) throw new Error("Couldn’t save the bouquet.");
-			toastSuccess(isNew() ? "Bouquet created." : "Changes saved.");
+			const updated = "ordersUpdated" in saved ? saved.ordersUpdated : 0;
+			toastSuccess(
+				isNew()
+					? "Bouquet created."
+					: updated
+						? `Changes saved. Its flowers were updated on ${updated} open ${updated === 1 ? "order" : "orders"}.`
+						: "Changes saved.",
+			);
 			await refresh();
 			await leave();
 		} catch (error) {

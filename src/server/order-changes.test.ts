@@ -1137,3 +1137,194 @@ describe("staff recording a reference number", () => {
 		expect(payment.validateStaffReferenceNumber("12#45678")).toBeDefined();
 	});
 });
+
+describe("florists", () => {
+	let florists: typeof import("./florists-repo");
+	let logRepo: typeof import("./order-log-repo");
+	let work: typeof import("./florist-work");
+	const staff = {
+		type: "staff" as const,
+		name: "Owner",
+		source: "/admin/orders",
+	};
+	let ana = "";
+	let ben = "";
+	beforeAll(async () => {
+		florists = await import("./florists-repo");
+		logRepo = await import("./order-log-repo");
+		work = await import("./florist-work");
+		const base = { phone: "", email: "", notes: "", active: true };
+		ana = florists.saveFlorist(null, { ...base, name: "Ana Florist" });
+		ben = florists.saveFlorist(null, { ...base, name: "Ben Florist" });
+	});
+	const ref = (orderId: string, unit: number) => ({
+		orderId,
+		lineKey: key(first),
+		unit,
+	});
+
+	test("gives one bouquet of several, and logs it by name", () => {
+		const order = place([{ ...first, quantity: 3 }]);
+		const result = repo.assignFlorist([ref(order.id, 1)], ana, staff);
+		expect(result).toEqual({ changed: 1, skipped: 0 });
+		const after = repo.getOrderById(order.id) as Order;
+		expect(line(after, first).florists).toEqual(["", ana, ""]);
+		const entry = logRepo
+			.listOrderLog({ orderId: order.id })
+			.entries.find((e) => e.action === "florist");
+		expect(entry).toEqual(
+			expect.objectContaining({
+				field: "florist",
+				from: "",
+				to: "Ana Florist",
+				actor: expect.objectContaining({ name: "Owner" }),
+			}),
+		);
+		expect(entry?.about).toContain("(2 of 3)");
+	});
+	test("giving the same florist again changes and logs nothing", () => {
+		const order = place([{ ...first, quantity: 1 }]);
+		repo.assignFlorist([ref(order.id, 0)], ana, staff);
+		const count = () =>
+			logRepo
+				.listOrderLog({ orderId: order.id })
+				.entries.filter((e) => e.action === "florist").length;
+		expect(count()).toBe(1);
+		expect(repo.assignFlorist([ref(order.id, 0)], ana, staff).changed).toBe(0);
+		expect(count()).toBe(1);
+	});
+	test("taking every bouquet off leaves the line as if never assigned", () => {
+		const order = place([{ ...first, quantity: 2 }]);
+		repo.assignFlorist([ref(order.id, 0), ref(order.id, 1)], ben, staff);
+		repo.assignFlorist([ref(order.id, 0), ref(order.id, 1)], "", staff);
+		const after = repo.getOrderById(order.id) as Order;
+		expect(line(after, first).florists).toBeUndefined();
+	});
+	test("skips cancelled orders and bouquets no longer on the order", () => {
+		const live = place([{ ...first, quantity: 1 }]);
+		const gone = place([{ ...first, quantity: 1 }]);
+		repo.cancelOrder(gone.id, { reason: "x", cancelledBy: "Owner" });
+		const result = repo.assignFlorist(
+			[ref(live.id, 0), ref(live.id, 5), ref(gone.id, 0)],
+			ana,
+			staff,
+		);
+		expect(result).toEqual({ changed: 1, skipped: 2 });
+	});
+	test("cancelling one bouquet takes its florist with it", () => {
+		const order = place([{ ...first, quantity: 3 }]);
+		repo.assignFlorist(
+			[ref(order.id, 0), ref(order.id, 1), ref(order.id, 2)],
+			ana,
+			staff,
+		);
+		repo.assignFlorist([ref(order.id, 1)], ben, staff);
+		const after = repo.cancelBouquet(order.id, {
+			lineKey: key(first),
+			unit: 1,
+			reason: "x",
+			cancelledBy: "Owner",
+		});
+		expect(line(after, first).florists).toEqual([ana, ana]);
+	});
+	test("a customer's edit keeps the florists of bouquets still ordered", () => {
+		const order = place([{ ...first, quantity: 2 }]);
+		repo.assignFlorist([ref(order.id, 0), ref(order.id, 1)], ben, staff);
+		const current = repo.getOrderById(order.id) as Order;
+		const cart = pricing.priceCart(
+			[{ ...first, quantity: 1 }],
+			catalog.listPublicProducts(),
+		);
+		const after = repo.updateCustomerOrder(order.id, {
+			details: current.details,
+			lines: cart.lines,
+		});
+		expect(line(after, first).florists).toEqual([ben]);
+	});
+	test("a florist's sheet lists their bouquets still to make, nothing else", () => {
+		const mine = place([{ ...first, quantity: 2 }]);
+		repo.assignFlorist([ref(mine.id, 1)], ben, staff);
+		const florist = florists.getFlorist(ben);
+		if (!florist) throw new Error("missing florist");
+		const sheet = work.floristWork(florist, {
+			includeDone: false,
+			forStaff: false,
+		});
+		const found = sheet.bouquets.filter((b) => b.orderNumber === mine.number);
+		expect(found).toHaveLength(1);
+		expect(found[0]).toEqual(expect.objectContaining({ unit: 1, quantity: 2 }));
+		// Their own link never carries order ids or anyone else's bouquets.
+		expect(found[0]?.orderId).toBeUndefined();
+		expect(JSON.stringify(sheet)).not.toContain("shopper@example.com");
+	});
+	test("private link: a new one replaces the old, off finds nothing", () => {
+		const first = florists.setFloristLink(ana, true) as string;
+		expect(florists.getFloristByToken(first)?.id).toBe(ana);
+		const second = florists.setFloristLink(ana, true) as string;
+		expect(second).not.toBe(first);
+		expect(florists.getFloristByToken(first)).toBeNull();
+		florists.setFloristLink(ana, false);
+		expect(florists.getFloristByToken(second)).toBeNull();
+		expect(florists.getFloristByToken("")).toBeNull();
+	});
+});
+
+describe("open orders follow their arrangement's flowers", () => {
+	let logRepo: typeof import("./order-log-repo");
+	beforeAll(async () => {
+		logRepo = await import("./order-log-repo");
+	});
+	const recipe = [
+		{ flower: "Roses", color: "Red", count: 7 },
+		{ flower: "Misty", color: "Violet", count: 1, filler: true },
+	];
+	const staff = { type: "staff" as const, name: "Owner" };
+
+	test("open orders take the new flowers and log it; done and cancelled keep theirs", () => {
+		const open = place([{ ...first, quantity: 2 }]);
+		const done = place([{ ...first, quantity: 1 }]);
+		const gone = place([{ ...first, quantity: 1 }]);
+		setRow(done.id, "stage = 'done'", {});
+		repo.cancelOrder(gone.id, { reason: "x", cancelledBy: "Owner" });
+		const result = repo.syncOrderRecipes(
+			new Map([[key(first), recipe]]),
+			staff,
+		);
+		expect(result.orders).toBeGreaterThanOrEqual(1);
+		const after = repo.getOrderById(open.id) as Order;
+		expect(line(after, first).recipe).toEqual(recipe);
+		expect(line(repo.getOrderById(done.id) as Order, first).recipe).toEqual(
+			line(done, first).recipe,
+		);
+		expect(line(repo.getOrderById(gone.id) as Order, first).recipe).toEqual(
+			line(gone, first).recipe,
+		);
+		const entry = logRepo
+			.listOrderLog({ orderId: open.id })
+			.entries.find((e) => e.action === "recipe_sync");
+		expect(entry).toEqual(
+			expect.objectContaining({
+				field: "recipe",
+				to: "7 × Roses · Red, 1 × Misty · Violet (filler)",
+			}),
+		);
+	});
+	test("running it again changes nothing", () => {
+		const again = repo.syncOrderRecipes(new Map([[key(first), recipe]]), staff);
+		expect(again).toEqual({ orders: 0, bouquets: 0 });
+	});
+	test("other styles and empty recipes are left alone", () => {
+		const order = place([{ ...second, quantity: 1 }]);
+		const before = line(order, second).recipe;
+		repo.syncOrderRecipes(
+			new Map([
+				[key(first), recipe],
+				[key(second), []],
+			]),
+			staff,
+		);
+		expect(line(repo.getOrderById(order.id) as Order, second).recipe).toEqual(
+			before,
+		);
+	});
+});

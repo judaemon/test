@@ -6,6 +6,7 @@ import {
 	CIVILIAN_COLOR,
 	COMPANIES,
 } from "~/lib/cadets";
+import { type FloristOption, floristOf } from "~/lib/florists";
 import { type OrderFlower, orderFlowers } from "~/lib/flower-tally";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
 import { savings } from "~/lib/sale";
@@ -17,7 +18,9 @@ import {
 	orderStatus,
 	type PaymentStatus,
 } from "~/types/order";
+import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
+import { listFloristOptions } from "../florists-repo";
 import {
 	type FlowerPurchase,
 	listFlowerPurchases,
@@ -64,6 +67,18 @@ export interface BouquetRow extends OrderGroup {
 	sales: number;
 }
 
+/** One line of an order, for counting flowers by florist and by bouquet. */
+export interface ReportLine {
+	code: string;
+	title: string;
+	colorName: string;
+	image?: string;
+	quantity: number;
+	recipe: RecipeItem[];
+	/** Each bouquet's florist id, "" for not assigned. */
+	florists: string[];
+}
+
 /** Just enough of an order to list it when a number is clicked. */
 export interface ReportOrder {
 	id: string;
@@ -85,6 +100,7 @@ export interface ReportOrder {
 	total: number;
 	createdAt: string;
 	bouquets: { code: string; title: string; quantity: number }[];
+	lines: ReportLine[];
 	/** The flowers its bouquets need, from the recipes they were ordered with. */
 	flowers: OrderFlower[];
 	/** Its bouquets with no recipe on record, so not in `flowers`. */
@@ -135,6 +151,7 @@ export interface Report {
 	byBouquet: BouquetRow[];
 	/** Every order the groups point at, active and cancelled. */
 	orders: ReportOrder[];
+	florists: FloristOption[];
 	currency: string;
 }
 
@@ -311,6 +328,17 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 					title: line.title,
 					quantity: line.quantity,
 				})),
+				lines: order.lines.map((line) => ({
+					code: line.sku,
+					title: line.title,
+					colorName: line.colorName,
+					...(line.image ? { image: line.image } : {}),
+					quantity: line.quantity,
+					recipe: line.recipe ?? [],
+					florists: Array.from({ length: line.quantity }, (_, unit) =>
+						floristOf(line, unit),
+					),
+				})),
 				flowers: needs.flowers,
 				bouquetsWithoutRecipe: needs.missing,
 				cancelReason: order.cancelReason,
@@ -331,6 +359,7 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 				(a, b) => b.quantity - a.quantity || a.code.localeCompare(b.code),
 			),
 			orders,
+			florists: listFloristOptions(),
 			currency: active[0]?.currency ?? "PHP",
 		};
 	},

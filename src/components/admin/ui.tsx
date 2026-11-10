@@ -273,6 +273,14 @@ export const AdminIcons = {
 			<circle cx="17" cy="17.5" r="1.8" />
 		</svg>
 	),
+	/** Florist's shears. */
+	florists: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<circle cx="6" cy="18" r="2.6" />
+			<circle cx="18" cy="18" r="2.6" />
+			<path d="M7.8 16.2 17 4M16.2 16.2 7 4" />
+		</svg>
+	),
 	types: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<rect x="3" y="3" width="7" height="7" rx="1.5" />

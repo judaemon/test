@@ -33,17 +33,26 @@ import {
 	subtotalBeforeSale,
 } from "~/components/shop/sale-price";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
-import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
+import {
+	hasCard,
+	lineKey,
+	orderCards,
+	orderMessages,
+} from "~/lib/bouquet-messages";
 import { isChatOrder } from "~/lib/chat-order";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
+import { type FloristOption, floristName, floristOf } from "~/lib/florists";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet, ORDER_EDIT_HOURS } from "~/lib/order-edit";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
+import type { PricedLine } from "~/lib/pricing";
 import { formatPrice, preorderNote, wrapperNames } from "~/lib/product";
 import { useFlowerPhotos } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
+import { listFloristOptionsFn } from "~/server/admin/florists";
 import {
+	assignFloristFn,
 	assignRider,
 	getAdminOrder,
 	listOrderLogFn,
@@ -105,6 +114,7 @@ function OrderDetail() {
 
 	const details = () => order().details;
 	const flowerPhoto = useFlowerPhotos();
+	const [florists] = createResource(() => listFloristOptionsFn());
 	const payment = () => order().payment;
 	const cancelled = () => order().stage === "cancelled";
 
@@ -397,6 +407,12 @@ function OrderDetail() {
 													{line.wrapperColor}
 												</span>
 											</Show>
+											<LineFlorists
+												order={order()}
+												line={line}
+												florists={florists() ?? []}
+												onChange={setOrder}
+											/>
 										</span>
 										<span class="text-sm tabular-nums">
 											<LinePrice line={line} currency={order().currency} />
@@ -830,6 +846,107 @@ function OrderDetail() {
 const ACTIVITY_SHOWN = 20;
 
 /** Who changed what on this order, and when; reloads as the order changes. */
+/** Who makes each bouquet of a line; saved as soon as it's picked. */
+function LineFlorists(props: {
+	order: Order;
+	line: PricedLine;
+	florists: FloristOption[];
+	onChange: (order: Order) => void;
+}) {
+	const [saving, setSaving] = createSignal<number | null>(null);
+	const units = () => Array.from({ length: props.line.quantity }, (_, i) => i);
+	const save = async (unit: number, select: HTMLSelectElement) => {
+		const floristId = select.value;
+		const before = floristOf(props.line, unit);
+		setSaving(unit);
+		try {
+			const result = await assignFloristFn({
+				data: {
+					floristId,
+					bouquets: [
+						{ orderId: props.order.id, lineKey: lineKey(props.line), unit },
+					],
+				},
+			});
+			if (result.skipped) throw new Error(result.message);
+			const fresh = await getAdminOrder({ data: props.order.id });
+			if (fresh) props.onChange(fresh);
+			toastSuccess(
+				floristId
+					? `Given to ${floristName(props.florists, floristId)}.`
+					: `Taken off ${floristName(props.florists, before)}.`,
+			);
+		} catch (error) {
+			select.value = before;
+			toastError(error);
+		} finally {
+			setSaving(null);
+		}
+	};
+	return (
+		<Show when={props.order.stage !== "cancelled"}>
+			<span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+				<span class="font-medium">Florist:</span>
+				<Show
+					when={props.florists.length}
+					fallback={
+						<Link
+							to="/admin/florists/$floristId"
+							params={{ floristId: "new" }}
+							class="text-petal-700 underline underline-offset-2"
+						>
+							Add a florist
+						</Link>
+					}
+				>
+					<For each={units()}>
+						{(unit) => {
+							const current = () => floristOf(props.line, unit);
+							return (
+								<label class="inline-flex items-center gap-1.5">
+									<Show when={props.line.quantity > 1}>
+										<span class="text-xs text-petal-900/60 tabular-nums">
+											{unit + 1} of {props.line.quantity}
+										</span>
+									</Show>
+									<select
+										aria-label={
+											props.line.quantity > 1
+												? `Florist for bouquet ${unit + 1} of ${props.line.quantity}`
+												: "Florist"
+										}
+										disabled={saving() === unit}
+										onChange={(e) => void save(unit, e.currentTarget)}
+										class={cn(adminInput, "h-9 w-auto py-0 pr-8 sm:h-9")}
+									>
+										<option value="" selected={!current()}>
+											Not assigned
+										</option>
+										<For
+											each={props.florists.filter(
+												(f) => f.active || f.id === current(),
+											)}
+										>
+											{(florist) => (
+												<option
+													value={florist.id}
+													selected={florist.id === current()}
+												>
+													{florist.name}
+												</option>
+											)}
+										</For>
+									</select>
+								</label>
+							);
+						}}
+					</For>
+				</Show>
+			</span>
+		</Show>
+	);
+}
+
 function OrderActivity(props: { order: Order }) {
 	const [log] = createResource(
 		// Each change made here replaces the order; reload the log then.

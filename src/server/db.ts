@@ -822,6 +822,24 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE signature_bouquets ADD COLUMN notice_image TEXT NOT NULL DEFAULT '';
 	ALTER TABLE signature_bouquets ADD COLUMN notice_text TEXT NOT NULL DEFAULT '';
 	`,
+	// v58: florists (Admin → Florists), the sub-contractors who make the
+	// bouquets. Which bouquet each makes is kept on the order's lines. A
+	// florist's private link (share_token) is off until staff turn it on.
+	`
+	CREATE TABLE florists (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		phone TEXT NOT NULL DEFAULT '',
+		email TEXT NOT NULL DEFAULT '',
+		notes TEXT NOT NULL DEFAULT '',
+		is_active INTEGER NOT NULL DEFAULT 1,
+		share_token TEXT,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	CREATE UNIQUE INDEX florists_by_name ON florists (lower(name));
+	CREATE UNIQUE INDEX florists_by_token ON florists (share_token);
+	`,
 ];
 
 declare global {

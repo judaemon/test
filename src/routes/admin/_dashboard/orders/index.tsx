@@ -41,9 +41,15 @@ import {
 	SheetTitle,
 } from "~/components/ui/sheet";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
-import { hasCard, orderCards, orderMessages } from "~/lib/bouquet-messages";
+import {
+	hasCard,
+	lineKey,
+	orderCards,
+	orderMessages,
+} from "~/lib/bouquet-messages";
 import { orderColor } from "~/lib/cadets";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
+import { type FloristOption, floristName, floristOf } from "~/lib/florists";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet } from "~/lib/order-edit";
 import {
@@ -60,6 +66,8 @@ import { formatPrice, preorderNote } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
 import {
+	assignFloristFn,
+	assignFloristMatchingFn,
 	listAdminOrderRows,
 	markOrderTest,
 	moveOrder,
@@ -314,8 +322,68 @@ function OrdersPage() {
 		}
 	};
 
+	// Ticked rows, to give to a florist together. A new view starts afresh.
+	const [picked, setPicked] = createSignal<Map<string, BouquetPick>>(new Map());
+	/** Every bouquet the filters match, not just the rows loaded. */
+	const [allMatching, setAllMatching] = createSignal(false);
+	createEffect(
+		on(
+			viewKey,
+			() => {
+				setPicked(new Map());
+				setAllMatching(false);
+			},
+			{ defer: true },
+		),
+	);
+	const selectable = () =>
+		rows().filter((row) => row.order.stage !== "cancelled");
+	const isPicked = (row: OrderRow) => picked().has(pickKey(row));
+	const togglePick = (row: OrderRow, on: boolean) => {
+		setAllMatching(false);
+		setPicked((current) => {
+			const next = new Map(current);
+			if (on) next.set(pickKey(row), toPick(row));
+			else next.delete(pickKey(row));
+			return next;
+		});
+	};
+	const allLoadedPicked = () =>
+		selectable().length > 0 && selectable().every(isPicked);
+	const toggleAll = (on: boolean) => {
+		setAllMatching(false);
+		setPicked(
+			on
+				? new Map(selectable().map((row) => [pickKey(row), toPick(row)]))
+				: new Map(),
+		);
+	};
+	const pickedCount = () => (allMatching() ? data().total : picked().size);
+	const [giving, setGiving] = createSignal(false);
+	const giveTo = async (floristId: string) => {
+		if (giving()) return;
+		setGiving(true);
+		try {
+			const result = allMatching()
+				? await assignFloristMatchingFn({
+						data: { floristId, search: { ...search(), page: undefined } },
+					})
+				: await assignFloristFn({
+						data: { floristId, bouquets: [...picked().values()] },
+					});
+			toastSuccess(result.message);
+			setPicked(new Map());
+			setAllMatching(false);
+			await router.invalidate();
+		} catch (error) {
+			toastError(error);
+		} finally {
+			setGiving(false);
+		}
+	};
+
 	return (
-		<div>
+		<div class={cn(pickedCount() > 0 && "pb-24")}>
 			<PageHeader
 				title="Orders"
 				description="Every bouquet ordered, colored by company. Change a status right in its row, or open the order to check its payment."
@@ -461,6 +529,37 @@ function OrdersPage() {
 				</label>
 			</div>
 
+			<Show when={allLoadedPicked() && data().total > selectable().length}>
+				<p class="mb-2 rounded-xl bg-petal-100 px-3 py-2 text-sm">
+					<Show
+						when={allMatching()}
+						fallback={
+							<>
+								All {selectable().length} bouquets shown are ticked.{" "}
+								<button
+									type="button"
+									onClick={() => setAllMatching(true)}
+									class="font-medium text-petal-700 underline underline-offset-2"
+								>
+									Tick all {data().total.toLocaleString()} that match these
+									filters
+								</button>
+							</>
+						}
+					>
+						All {data().total.toLocaleString()} bouquets that match these
+						filters are ticked (cancelled ones are skipped).{" "}
+						<button
+							type="button"
+							onClick={() => toggleAll(false)}
+							class="font-medium text-petal-700 underline underline-offset-2"
+						>
+							Untick all
+						</button>
+					</Show>
+				</p>
+			</Show>
+
 			<div class={cn(adminCard, "overflow-hidden")}>
 				{/*
 				 * The table scrolls inside a screen-high box, so its header and its
@@ -474,15 +573,28 @@ function OrdersPage() {
 						loading() && "opacity-60",
 					)}
 				>
-					<table class="stack-table w-full text-left text-sm md:min-w-[1780px]">
+					<table class="stack-table w-full text-left text-sm md:min-w-[1920px]">
 						<thead class="sticky top-0 z-10 bg-white text-xs uppercase tracking-wide text-petal-900/55 shadow-[0_1px_0_var(--color-petal-100)]">
 							<tr>
-								<th class="px-3 py-3 pl-5 font-medium">Order</th>
+								<th class="px-3 py-3 pl-5 font-medium">
+									<label class="flex cursor-pointer items-center gap-2">
+										<input
+											type="checkbox"
+											checked={allLoadedPicked()}
+											disabled={!selectable().length}
+											onChange={(e) => toggleAll(e.currentTarget.checked)}
+											aria-label="Tick every bouquet shown"
+											class="size-4 accent-petal-700"
+										/>
+										Order
+									</label>
+								</th>
 								<th class="px-3 py-3 font-medium">Name</th>
 								<th class="px-3 py-3 font-medium">Company</th>
 								<th class="px-3 py-3 font-medium">Class</th>
 								<th class="px-3 py-3 font-medium">Status</th>
 								<th class="px-3 py-3 font-medium">Wrapper status</th>
+								<th class="px-3 py-3 font-medium">Florist</th>
 								<th class="px-3 py-3 text-right font-medium">Price</th>
 								<th class="px-3 py-3 font-medium">Payment</th>
 								<th class="px-3 py-3 font-medium">Method</th>
@@ -500,7 +612,7 @@ function OrdersPage() {
 								fallback={
 									<tr>
 										<td
-											colSpan={15}
+											colSpan={16}
 											data-wide
 											class="px-4 py-12 text-center text-petal-900/55"
 										>
@@ -521,7 +633,8 @@ function OrdersPage() {
 									</tr>
 								}
 							>
-								{({ order, line, index, unit }) => {
+								{(row) => {
+									const { order, line, index, unit } = row;
 									const details = order.details;
 									const color = orderColor(details.company, details.className);
 									return (
@@ -533,7 +646,8 @@ function OrdersPage() {
 												// Dialogs opened from a row aren't inside it, but their
 												// clicks still bubble to it.
 												if (!event.currentTarget.contains(target)) return;
-												if (target.closest("a, button, select")) return;
+												if (target.closest("a, button, select, input, label"))
+													return;
 												// Don't hijack selecting text to copy it.
 												if (window.getSelection()?.toString()) return;
 												if (event.ctrlKey || event.metaKey) {
@@ -563,13 +677,26 @@ function OrdersPage() {
 														: undefined,
 												}}
 											>
-												<Link
-													to="/admin/orders/$orderId"
-													params={{ orderId: order.id }}
-													class="font-semibold text-petal-700 tabular-nums underline-offset-2 hover:underline"
-												>
-													#{order.number}
-												</Link>
+												<span class="inline-flex items-center gap-2">
+													<Show when={order.stage !== "cancelled"}>
+														<input
+															type="checkbox"
+															checked={allMatching() || isPicked(row)}
+															onChange={(e) =>
+																togglePick(row, e.currentTarget.checked)
+															}
+															aria-label={`Tick ${line.sku}, order ${order.number}`}
+															class="size-5 cursor-pointer accent-petal-700 md:size-4"
+														/>
+													</Show>
+													<Link
+														to="/admin/orders/$orderId"
+														params={{ orderId: order.id }}
+														class="font-semibold text-petal-700 tabular-nums underline-offset-2 hover:underline"
+													>
+														#{order.number}
+													</Link>
+												</span>
 												<Show when={order.isTest}>
 													<span class="ml-1.5 rounded-full bg-petal-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
 														Test
@@ -679,6 +806,12 @@ function OrdersPage() {
 													line={line}
 													index={index}
 												/>
+											</td>
+											<td
+												data-label="Florist"
+												class="px-5 py-2 md:px-3 md:py-3"
+											>
+												<FloristSelect row={row} florists={data().florists} />
 											</td>
 											<td
 												data-label="Price"
@@ -896,6 +1029,16 @@ function OrdersPage() {
 				</div>
 			</div>
 
+			<Show when={pickedCount() > 0}>
+				<GiveToFloristBar
+					count={pickedCount()}
+					florists={data().florists}
+					busy={giving()}
+					onGive={(floristId) => void giveTo(floristId)}
+					onClear={() => toggleAll(false)}
+				/>
+			</Show>
+
 			<Sheet
 				open={!!notesFor()}
 				onOpenChange={(open) => !open && setNotesFor(undefined)}
@@ -948,6 +1091,175 @@ function OrdersPage() {
 }
 
 type NotesTarget = { id: string; number: string | number; name: string };
+
+/** One ticked bouquet, as the server finds it. */
+type BouquetPick = { orderId: string; lineKey: string; unit: number };
+const pickKey = (row: OrderRow) =>
+	`${row.order.id}|${lineKey(row.line)}|${row.unit}`;
+const toPick = (row: OrderRow): BouquetPick => ({
+	orderId: row.order.id,
+	lineKey: lineKey(row.line),
+	unit: row.unit,
+});
+
+/** Who makes this bouquet; changed right in the row. */
+function FloristSelect(props: { row: OrderRow; florists: FloristOption[] }) {
+	const router = useRouter();
+	const [saving, setSaving] = createSignal(false);
+	const current = () => floristOf(props.row.line, props.row.unit);
+	// Florists switched off can't be given new bouquets, but keep the ones they have.
+	const options = () =>
+		props.florists.filter((f) => f.active || f.id === current());
+	const save = async (select: HTMLSelectElement) => {
+		const floristId = select.value;
+		setSaving(true);
+		try {
+			const result = await assignFloristFn({
+				data: { floristId, bouquets: [toPick(props.row)] },
+			});
+			toastSuccess(
+				floristId
+					? `${props.row.line.sku} given to ${floristName(props.florists, floristId)}.`
+					: `${props.row.line.sku} taken off ${floristName(props.florists, current())}.`,
+			);
+			if (result.skipped) toastError(new Error(result.message));
+			await router.invalidate();
+		} catch (error) {
+			select.value = current();
+			toastError(error);
+		} finally {
+			setSaving(false);
+		}
+	};
+	return (
+		<Show
+			when={props.row.order.stage !== "cancelled"}
+			fallback={current() ? floristName(props.florists, current()) : "—"}
+		>
+			<Show
+				when={props.florists.length}
+				fallback={
+					<Link
+						to="/admin/florists/$floristId"
+						params={{ floristId: "new" }}
+						class="whitespace-nowrap text-xs font-medium text-petal-700 underline underline-offset-2"
+					>
+						Add a florist
+					</Link>
+				}
+			>
+				<select
+					aria-label={`Florist for ${props.row.line.sku}, order ${props.row.order.number}`}
+					disabled={saving()}
+					onChange={(e) => void save(e.currentTarget)}
+					class={cn(
+						"h-10 max-w-44 cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs",
+						current()
+							? "bg-sage-100 text-sage-600 ring-1 ring-sage-300"
+							: "bg-white/80 text-petal-900/60 ring-1 ring-petal-200",
+					)}
+				>
+					<option value="" selected={!current()}>
+						Not assigned
+					</option>
+					<For each={options()}>
+						{(florist) => (
+							<option value={florist.id} selected={florist.id === current()}>
+								{florist.name}
+								{florist.active ? "" : " (off)"}
+							</option>
+						)}
+					</For>
+					<Show when={current() && !options().some((f) => f.id === current())}>
+						<option value={current()} selected>
+							Removed florist
+						</option>
+					</Show>
+				</select>
+			</Show>
+		</Show>
+	);
+}
+
+/** Along the bottom while rows are ticked: give them all to one florist. */
+function GiveToFloristBar(props: {
+	count: number;
+	florists: FloristOption[];
+	busy: boolean;
+	onGive: (floristId: string) => void;
+	onClear: () => void;
+}) {
+	const [choice, setChoice] = createSignal("");
+	const active = () => props.florists.filter((f) => f.active);
+	return (
+		<section
+			aria-label="Ticked bouquets"
+			class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgb(0_0_0/0.06)] backdrop-blur lg:left-[240px]"
+		>
+			<div class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
+				<p class="text-sm">
+					<strong class="font-semibold tabular-nums">
+						{props.count.toLocaleString()}
+					</strong>{" "}
+					{props.count === 1 ? "bouquet" : "bouquets"} ticked
+				</p>
+				<button
+					type="button"
+					onClick={() => props.onClear()}
+					class="text-sm text-petal-900/65 underline underline-offset-2 hover:text-petal-900"
+				>
+					Untick
+				</button>
+				<div class="ml-auto flex flex-wrap items-center gap-2">
+					<Show
+						when={props.florists.length}
+						fallback={
+							<Link
+								to="/admin/florists/$floristId"
+								params={{ floristId: "new" }}
+								class={adminButton.primary}
+							>
+								Add a florist first
+							</Link>
+						}
+					>
+						<label class="sr-only" for="give-to-florist">
+							Florist
+						</label>
+						<select
+							id="give-to-florist"
+							value={choice()}
+							onChange={(e) => setChoice(e.currentTarget.value)}
+							class={cn(adminInput, "w-auto min-w-48")}
+						>
+							<option value="">Choose a florist…</option>
+							<For each={active()}>
+								{(florist) => (
+									<option value={florist.id}>{florist.name}</option>
+								)}
+							</For>
+							<option value="__none">Take off their florist</option>
+						</select>
+						<button
+							type="button"
+							disabled={!choice() || props.busy}
+							onClick={() =>
+								props.onGive(choice() === "__none" ? "" : choice())
+							}
+							class={adminButton.primary}
+						>
+							{props.busy
+								? "Saving…"
+								: choice() === "__none"
+									? "Take off florist"
+									: "Give to florist"}
+						</button>
+					</Show>
+				</div>
+			</div>
+		</section>
+	);
+}
 
 /**
  * A row's way into its staff notes: how many there are, or an invitation to

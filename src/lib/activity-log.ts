@@ -6,6 +6,7 @@ export const LOG_AREAS = {
 	bouquets: "Floral arrangements",
 	wrappers: "Wrappers",
 	suppliers: "Suppliers",
+	florists: "Florists",
 } as const;
 export type LogArea = keyof typeof LOG_AREAS;
 /** Areas kept in `activity_log`; orders have their own log. */
@@ -24,6 +25,9 @@ export const ACTIVITY_ACTIONS = {
 	reordered: "Reordered the shop",
 	style_deleted: "Deleted a style",
 	supplier_deleted: "Its supplier was deleted",
+	link_on: "Turned on the private link",
+	link_new: "Made a new private link",
+	link_off: "Turned off the private link",
 } as const;
 export type ActivityAction = keyof typeof ACTIVITY_ACTIONS;
 

@@ -23,6 +23,10 @@ import {
 import { cloudflareConfigured, purgePaths } from "../cloudflare-cache";
 import { staffActor } from "../order-actor";
 import {
+	SYNC_ORDER_RECIPES,
+	syncOrderRecipesFromCatalog,
+} from "../order-recipe-sync";
+import {
 	cleanOriginal,
 	photosNeedingWatermark,
 	recordWatermark,
@@ -353,8 +357,26 @@ export const saveProductFn = createServerFn({ method: "POST" })
 		const id = saveProduct(data.productId, data.product, user.name);
 		const after = getAdminProduct(id);
 		logBouquet(user, before ? "edited" : "added", before, after);
-		return after;
+		// Its bouquets on open orders take its flowers as they are now.
+		const synced = before
+			? syncOrderRecipesFromCatalog(staffActor(user), [id])
+			: { orders: 0, bouquets: 0 };
+		return after ? { ...after, ordersUpdated: synced.orders } : after;
 	});
+
+/**
+ * Gives every open order's bouquets the flowers their arrangement has now.
+ * For while the recipes are still being filled in (see `SYNC_ORDER_RECIPES`).
+ */
+export const syncAllOrderRecipesFn = createServerFn({ method: "POST" }).handler(
+	async () => {
+		const user = await requireStaff();
+		return {
+			enabled: SYNC_ORDER_RECIPES,
+			...syncOrderRecipesFromCatalog(staffActor(user)),
+		};
+	},
+);
 
 /** Sets the shop's order from every bouquet's id, the first shown first. */
 export const reorderProductsFn = createServerFn({ method: "POST" })

@@ -1,4 +1,5 @@
 import { lineKey } from "~/lib/bouquet-messages";
+import { formatRecipeItem } from "~/lib/flowers";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
 import { formatPrice, lineName } from "~/lib/product";
 import {
@@ -9,6 +10,7 @@ import {
 	WRAPPER_STATUS_LABELS,
 	type WrapperStatus,
 } from "~/types/order";
+import type { RecipeItem } from "~/types/product";
 
 /** Who made a change to an order, and from which page. */
 export interface OrderActor {
@@ -38,6 +40,8 @@ export const ORDER_LOG_ACTIONS = {
 	wrapper: "Updated a wrapper",
 	rider: "Set the rider",
 	delivery_photo: "Added a delivery photo",
+	florist: "Assigned a florist",
+	recipe_sync: "Flowers updated from the arrangement",
 } as const;
 export type OrderLogAction = keyof typeof ORDER_LOG_ACTIONS;
 
@@ -63,6 +67,8 @@ export const ORDER_LOG_FIELDS = {
 	card: "Card",
 	bouquet_card: "Card",
 	bouquet_note: "Note",
+	florist: "Florist",
+	recipe: "Flowers",
 } as const;
 export type OrderLogField = keyof typeof ORDER_LOG_FIELDS;
 
@@ -127,6 +133,10 @@ function snapshot(order: Order): [OrderLogField, string][] {
 	];
 }
 
+/** "6 × Roses · Pink, 1 × Misty · Violet (filler)". */
+const recipeText = (recipe: RecipeItem[] | undefined) =>
+	(recipe ?? []).map(formatRecipeItem).join(", ");
+
 /** A card as one line of the log: "To Ana: Happy birthday!". */
 const cardText = (to = "", message = "") =>
 	message ? (to ? `To ${to}: ${message}` : message) : to ? `To ${to}` : "";
@@ -138,7 +148,7 @@ const cardText = (to = "", message = "") =>
 function bouquetMessages(order: Order) {
 	const byUnit = new Map<
 		string,
-		{ about: string; card: string; note: string }
+		{ about: string; card: string; note: string; florist: string }
 	>();
 	for (const line of order.lines) {
 		for (let unit = 0; unit < line.quantity; unit++) {
@@ -150,6 +160,7 @@ function bouquetMessages(order: Order) {
 						: lineName(line),
 				card: cardText(message?.to, message?.message),
 				note: message?.note ?? "",
+				florist: line.florists?.[unit] ?? "",
 			});
 		}
 	}
@@ -163,6 +174,8 @@ function bouquetMessages(order: Order) {
 export function diffOrders(
 	before: Order | undefined,
 	after: Order,
+	/** A florist's name from their id, so the log reads as names. */
+	floristName: (id: string) => string = (id) => id,
 ): OrderLogChange[] {
 	if (!before) return [];
 	const old = new Map(snapshot(before));
@@ -188,6 +201,20 @@ export function diffOrders(
 				about: lineName(line),
 			});
 	});
+	// Flowers by bouquet, e.g. when an arrangement's recipe is brought over.
+	after.lines.forEach((line, index) => {
+		const previous = before.lines[index];
+		if (!previous || lineKey(previous) !== lineKey(line)) return;
+		const was = recipeText(previous.recipe);
+		const now = recipeText(line.recipe);
+		if (was !== now)
+			changes.push({
+				field: "recipe",
+				from: was,
+				to: now,
+				about: lineName(line),
+			});
+	});
 	// Cards and notes of bouquets on both versions; a bouquet added or taken
 	// off shows in "Bouquets" instead.
 	const oldMessages = bouquetMessages(before);
@@ -206,6 +233,13 @@ export function diffOrders(
 				field: "bouquet_note",
 				from: was.note,
 				to: now.note,
+				about: now.about,
+			});
+		if (was.florist !== now.florist)
+			changes.push({
+				field: "florist",
+				from: was.florist ? floristName(was.florist) : "",
+				to: now.florist ? floristName(now.florist) : "",
 				about: now.about,
 			});
 	}
@@ -250,6 +284,9 @@ export function formatLogSource(actor: OrderActor) {
 		[/^\/admin\/wrappers\/[^/]+/, "Admin · Wrapper page"],
 		[/^\/admin\/wrappers/, "Admin · Wrappers list"],
 		[/^\/admin\/suppliers\/[^/]+/, "Admin · Supplier page"],
+		[/^\/admin\/flowers/, "Admin · Flowers"],
+		[/^\/admin\/florists\/[^/]+/, "Admin · Florist page"],
+		[/^\/admin\/florists/, "Admin · Florists list"],
 		[/^\/admin\/suppliers/, "Admin · Suppliers list"],
 		[/^\/admin\/?$/, "Admin · Board"],
 		[/^\/admin/, "Admin"],

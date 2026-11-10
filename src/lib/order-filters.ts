@@ -19,6 +19,8 @@ export interface OrdersSearch {
 	flower?: string;
 	wrapper?: string;
 	wrapperStatus?: string;
+	/** Florist ids, or "none" for bouquets not given to a florist yet. */
+	florist?: string;
 	/** "yes" or "no". */
 	card?: string;
 	/** "real" or "test"; missing means real orders only, "all" means both. */
@@ -44,6 +46,7 @@ export const FACETS = [
 	{ id: "flower", label: "Flower" },
 	{ id: "wrapper", label: "Wrapper" },
 	{ id: "wrapperStatus", label: "Wrapper status" },
+	{ id: "florist", label: "Florist" },
 	{ id: "card", label: "Dedication card" },
 	{ id: "type", label: "Real / test" },
 ] as const;
@@ -86,6 +89,7 @@ export function validateOrdersSearch(
 		flower: list("flower"),
 		wrapper: list("wrapper"),
 		wrapperStatus: list("wrapperStatus"),
+		florist: list("florist"),
 		card: list("card"),
 		type: list("type"),
 		from: date("from"),

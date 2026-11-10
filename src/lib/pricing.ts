@@ -66,6 +66,11 @@ export interface PricedLine {
 	 * unit of `quantity`. Missing when nothing was written for this line.
 	 */
 	messages?: BouquetMessage[];
+	/**
+	 * Who makes each of its bouquets: a florist id per bouquet, like
+	 * `messages`; "" or missing means not given to anyone yet.
+	 */
+	florists?: string[];
 	quantity: number;
 	/** What one costs, after any sale. */
 	unitPrice: number;

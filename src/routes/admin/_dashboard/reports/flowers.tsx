@@ -1,3 +1,4 @@
+import * as Dialog from "@kobalte/core/dialog";
 import { createFileRoute } from "@tanstack/solid-router";
 import {
 	createEffect,
@@ -19,11 +20,18 @@ import {
 } from "~/components/admin/reports";
 import { adminButton, adminCard, toastError } from "~/components/admin/ui";
 import { BATTALIONS, battalionOf } from "~/lib/cadets";
-import { type FlowerTally, flowerKey, tallyFlowers } from "~/lib/flower-tally";
+import {
+	type FlowerTally,
+	flowerKey,
+	orderFlowers,
+	tallyFlowers,
+} from "~/lib/flower-tally";
+import { photoSrc } from "~/lib/photos";
 import { cn } from "~/lib/utils";
 import {
 	getFlowerPurchases,
 	type OrderGroup,
+	type ReportLine,
 	type ReportOrder,
 	setFlowerPurchaseFn,
 } from "~/server/admin/reports";
@@ -112,6 +120,15 @@ function StatusPicker(props: {
 }
 
 type FlowerFilter = "all" | "paid" | "unpaid";
+/** A florist's id, everyone, or "none" for bouquets not given to anyone. */
+type FloristFilter = string;
+
+/** The flower (and color, if picked) whose bouquets are listed. */
+interface FlowerPick {
+	flower: string;
+	filler: boolean;
+	color?: string;
+}
 /** A battalion's name, everyone, or "none" for civilians and no company. */
 type BattalionFilter = "all" | "none" | (typeof BATTALIONS)[number]["name"];
 
@@ -125,8 +142,36 @@ function FlowersToBuy() {
 	const list = createOrderList();
 	const [filter, setFilter] = createSignal<FlowerFilter>("all");
 	const [battalion, setBattalion] = createSignal<BattalionFilter>("all");
+	const [florist, setFlorist] = createSignal<FloristFilter>("all");
+	/** An order's bouquets for one florist (or not given to anyone). */
+	const linesFor = (order: ReportOrder, key: FloristFilter): ReportLine[] =>
+		key === "all"
+			? order.lines
+			: order.lines
+					.map((line) => {
+						const florists = line.florists.filter(
+							(id) => (id || "none") === key,
+						);
+						return { ...line, florists, quantity: florists.length };
+					})
+					.filter((line) => line.quantity > 0);
+	/** Each order with only the chosen florist's bouquets, and their flowers. */
+	const scoped = (order: ReportOrder, key: FloristFilter) => {
+		if (key === "all") return order;
+		const lines = linesFor(order, key);
+		const needs = orderFlowers(lines);
+		return {
+			...order,
+			lines,
+			flowers: needs.flowers,
+			bouquetsWithoutRecipe: needs.missing,
+		};
+	};
 	const notCancelled = createMemo(() =>
-		report().orders.filter((order) => order.status !== "cancelled"),
+		report()
+			.orders.filter((order) => order.status !== "cancelled")
+			.map((order) => scoped(order, florist()))
+			.filter((order) => order.lines.length > 0),
 	);
 	const inBattalion = (order: ReportOrder, key: BattalionFilter) =>
 		key === "all" ||
@@ -166,6 +211,33 @@ function FlowersToBuy() {
 		),
 	);
 	const tally = createMemo(() => tallyFlowers(counted()));
+	const allNotCancelled = createMemo(() =>
+		report().orders.filter((order) => order.status !== "cancelled"),
+	);
+	const bouquetsOf = (key: FloristFilter) =>
+		allNotCancelled()
+			.filter((order) => inBattalion(order, battalion()))
+			.reduce(
+				(sum, order) =>
+					sum + linesFor(order, key).reduce((n, line) => n + line.quantity, 0),
+				0,
+			);
+	const floristTabs = () => [
+		{ key: "all", label: "Everyone", count: () => bouquetsOf("all") },
+		...report()
+			.florists.filter((f) => f.active || bouquetsOf(f.id) > 0)
+			.map((f) => ({
+				key: f.id,
+				label: f.name,
+				count: () => bouquetsOf(f.id),
+			})),
+		{ key: "none", label: "Not assigned", count: () => bouquetsOf("none") },
+	];
+	const floristLabel = () =>
+		florist() === "all"
+			? ""
+			: (floristTabs().find((t) => t.key === florist())?.label ?? "");
+	const [picked, setPicked] = createSignal<FlowerPick | null>(null);
 	const stems = (filler: boolean) =>
 		tally()
 			.filter((row) => row.filler === filler)
@@ -231,12 +303,15 @@ function FlowersToBuy() {
 	const loaded = Route.useLoaderData();
 	const [purchases, setPurchases] = createSignal<FlowerPurchase[]>(loaded());
 	createEffect(on(loaded, setPurchases, { defer: true }));
+	// Each florist gets their own flowers, so each keeps their own marks.
+	const scopeKey = () =>
+		florist() === "all" ? battalion() : `${battalion()}|${florist()}`;
 	const purchaseOf = (row: FlowerRow) =>
 		purchases().find(
-			(p) => p.scope === battalion() && p.flowerKey === flowerKey(row),
+			(p) => p.scope === scopeKey() && p.flowerKey === flowerKey(row),
 		);
 	const setStatus = async (row: FlowerRow, status: PurchaseStatus | null) => {
-		const scope = battalion();
+		const scope = scopeKey();
 		const key = flowerKey(row);
 		const before = purchases();
 		setPurchases([
@@ -266,14 +341,20 @@ function FlowersToBuy() {
 	const statusCount = (status: PurchaseStatus) =>
 		colorRows().filter((row) => purchaseOf(row)?.status === status).length;
 	const battalionLabel = () =>
-		battalion() === "all"
-			? "everyone"
-			: (battalionTabs.find((t) => t.key === battalion())?.label ?? "");
+		[
+			battalion() === "all"
+				? "everyone"
+				: (battalionTabs.find((t) => t.key === battalion())?.label ?? ""),
+			floristLabel(),
+		]
+			.filter(Boolean)
+			.join(" · ");
 
 	const tabLabel = () => {
 		const tab = tabs.find((t) => t.key === filter());
 		const unit = battalionTabs.find((t) => t.key === battalion());
 		return [
+			florist() === "all" ? "" : `Florist: ${floristLabel()}`,
 			battalion() === "all" ? "" : unit?.label,
 			tab ? `${tab.label} (${tab.count()})` : "",
 		]
@@ -320,6 +401,15 @@ function FlowersToBuy() {
 				Every flower in the orders: each bouquet’s recipe times how many were
 				ordered, added up by flower and color. Cancelled orders aren’t counted.
 			</p>
+			<Show when={report().florists.length}>
+				<FilterTabs
+					label="Florist"
+					tabs={floristTabs()}
+					value={florist()}
+					onChange={setFlorist}
+					class="mb-3"
+				/>
+			</Show>
 			<div class="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
 				<FilterTabs
 					label="Battalion"
@@ -378,7 +468,7 @@ function FlowersToBuy() {
 					not yet
 					<span class="text-petal-900/55">
 						{" "}
-						(for {battalionLabel()}; each battalion filter keeps its own)
+						(for {battalionLabel()}; each battalion and florist keeps its own)
 					</span>
 				</p>
 				<div class="overflow-x-auto print:overflow-visible">
@@ -409,7 +499,19 @@ function FlowersToBuy() {
 											)}
 										>
 											<th scope="row" class="py-2.5 pr-4 font-semibold">
-												{flower.flower}
+												<button
+													type="button"
+													onClick={() =>
+														setPicked({
+															flower: flower.flower,
+															filler: flower.filler,
+														})
+													}
+													title="See the bouquets with this flower"
+													class="rounded text-left underline decoration-petal-300 decoration-dotted underline-offset-4 outline-none hover:text-petal-700 hover:decoration-solid focus-visible:ring-2 focus-visible:ring-petal-500 print:no-underline"
+												>
+													{flower.flower}
+												</button>
 												<Show when={flower.filler}>
 													<span class="ml-2 rounded-full bg-petal-100 px-2 py-0.5 text-xs font-medium">
 														Filler
@@ -472,7 +574,20 @@ function FlowersToBuy() {
 															scope="row"
 															class="py-1.5 pl-5 pr-4 font-normal"
 														>
-															{row.color || "No color given"}
+															<button
+																type="button"
+																onClick={() =>
+																	setPicked({
+																		flower: flower.flower,
+																		filler: flower.filler,
+																		color: row.color,
+																	})
+																}
+																title="See the bouquets with this color"
+																class="rounded text-left underline decoration-petal-300 decoration-dotted underline-offset-4 outline-none hover:text-petal-700 hover:decoration-solid focus-visible:ring-2 focus-visible:ring-petal-500 print:no-underline"
+															>
+																{row.color || "No color given"}
+															</button>
 														</th>
 														<td class="py-1.5 pr-4 text-right tabular-nums">
 															{amount(row)}
@@ -506,8 +621,254 @@ function FlowersToBuy() {
 					</table>
 				</div>
 			</Show>
+			<FlowerBouquets
+				pick={picked()}
+				orders={counted()}
+				florists={report().florists}
+				showFlorist={florist() === "all" && report().florists.length > 0}
+				counting={tabLabel()}
+				onClose={() => setPicked(null)}
+				onOrders={(title, orderIds) => {
+					setPicked(null);
+					list.show(title, group(orderIds));
+				}}
+			/>
 			<OrderList list={list} />
 		</section>
+	);
+}
+
+/** One style using the picked flower, across the counted orders. */
+interface StyleUse {
+	key: string;
+	code: string;
+	title: string;
+	colorName: string;
+	image?: string;
+	bouquets: number;
+	/** Stems of the flower in one bouquet (several colors added up). */
+	each: number;
+	stems: number;
+	clusters: number;
+	orderIds: string[];
+	/** Bouquets per florist id ("" not assigned). */
+	byFlorist: Map<string, number>;
+}
+
+/**
+ * The bouquets to be made with one flower (or one of its colors): each style,
+ * how many of it, how many stems each needs, and who's making them.
+ */
+function FlowerBouquets(props: {
+	pick: FlowerPick | null;
+	orders: ReportOrder[];
+	florists: { id: string; name: string }[];
+	showFlorist: boolean;
+	counting: string;
+	onClose: () => void;
+	onOrders: (title: string, orderIds: string[]) => void;
+}) {
+	const name = () => {
+		const pick = props.pick;
+		if (!pick) return "";
+		return pick.color !== undefined
+			? `${pick.flower} · ${pick.color || "no color given"}`
+			: pick.flower;
+	};
+	const uses = createMemo((): StyleUse[] => {
+		const pick = props.pick;
+		if (!pick) return [];
+		const styles = new Map<string, StyleUse>();
+		for (const order of props.orders) {
+			for (const line of order.lines) {
+				const items = line.recipe.filter(
+					(item) =>
+						item.flower === pick.flower &&
+						!!item.filler === pick.filler &&
+						(pick.color === undefined || (item.color ?? "") === pick.color),
+				);
+				if (!items.length) continue;
+				const each = items.reduce((sum, item) => sum + (item.count ?? 0), 0);
+				const clusters = items.filter((item) => !item.count).length;
+				const key = `${line.code}|${line.title}|${line.colorName}|${each}`;
+				const use: StyleUse = styles.get(key) ?? {
+					key,
+					code: line.code,
+					title: line.title,
+					colorName: line.colorName,
+					image: line.image,
+					bouquets: 0,
+					each,
+					stems: 0,
+					clusters: 0,
+					orderIds: [],
+					byFlorist: new Map(),
+				};
+				use.bouquets += line.quantity;
+				use.stems += each * line.quantity;
+				use.clusters += clusters * line.quantity;
+				if (!use.orderIds.includes(order.id)) use.orderIds.push(order.id);
+				for (const id of line.florists.slice(0, line.quantity))
+					use.byFlorist.set(id, (use.byFlorist.get(id) ?? 0) + 1);
+				styles.set(key, use);
+			}
+		}
+		return [...styles.values()].sort(
+			(a, b) => b.stems - a.stems || b.bouquets - a.bouquets,
+		);
+	});
+	const total = (pickOut: (use: StyleUse) => number) =>
+		uses().reduce((sum, use) => sum + pickOut(use), 0);
+	const allOrders = () => [...new Set(uses().flatMap((use) => use.orderIds))];
+	const floristText = (use: StyleUse) =>
+		[...use.byFlorist.entries()]
+			.sort((a, b) => Number(!a[0]) - Number(!b[0]) || b[1] - a[1])
+			.map(
+				([id, n]) =>
+					`${id ? (props.florists.find((f) => f.id === id)?.name ?? "Removed florist") : "Not assigned"} × ${n}`,
+			)
+			.join(", ");
+
+	return (
+		<Dialog.Root
+			open={!!props.pick}
+			onOpenChange={(open) => !open && props.onClose()}
+		>
+			<Dialog.Portal>
+				<Dialog.Overlay class="fixed inset-0 z-50 bg-petal-900/40 print:hidden" />
+				<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6 print:static print:block print:p-0">
+					<Dialog.Content
+						data-print-sheet
+						class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-white text-petal-900 shadow-xl outline-none sm:rounded-2xl print:block print:max-h-none print:max-w-none print:overflow-visible print:rounded-none print:shadow-none"
+					>
+						<div class="flex items-start justify-between gap-4 border-b border-petal-100 px-5 py-4 print:px-0">
+							<div>
+								<Dialog.Title class="text-lg font-semibold">
+									Bouquets with {name()}
+								</Dialog.Title>
+								<Dialog.Description class="text-sm tabular-nums text-petal-900/65">
+									{total((u) => u.bouquets)} bouquets · {total((u) => u.stems)}{" "}
+									stems
+									<Show when={total((u) => u.clusters)}>
+										{" "}
+										+ {total((u) => u.clusters)} clusters
+									</Show>
+									<Show when={props.counting}>
+										<span class="block text-xs">
+											Counting: {props.counting}
+										</span>
+									</Show>
+								</Dialog.Description>
+							</div>
+							<div class="flex shrink-0 items-center gap-2 print:hidden">
+								<button
+									type="button"
+									onClick={() => window.print()}
+									class={adminButton.secondary}
+								>
+									Print
+								</button>
+								<Dialog.CloseButton
+									aria-label="Close"
+									class="flex size-10 items-center justify-center rounded-full text-lg outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									✕
+								</Dialog.CloseButton>
+							</div>
+						</div>
+						<div class="overflow-y-auto px-5 py-3 print:overflow-visible print:px-0">
+							<Show
+								when={uses().length}
+								fallback={
+									<p class="py-6 text-center text-sm text-petal-900/60">
+										No bouquets here use it.
+									</p>
+								}
+							>
+								<ul class="divide-y divide-petal-50">
+									<For each={uses()}>
+										{(use) => (
+											<li class="flex items-center gap-3 py-3 print:break-inside-avoid">
+												<span class="size-14 shrink-0 overflow-hidden rounded-xl bg-petal-50">
+													<Show when={use.image}>
+														{(src) => (
+															<img
+																src={photoSrc(src(), "thumb")}
+																alt=""
+																class="size-full object-cover"
+															/>
+														)}
+													</Show>
+												</span>
+												<span class="min-w-0 flex-1">
+													<span class="block font-medium leading-tight">
+														{use.title}
+														<span class="font-normal text-petal-900/60">
+															{" "}
+															· {use.colorName}
+														</span>
+													</span>
+													<span class="block text-sm text-petal-900/65 tabular-nums">
+														{use.code !== use.title ? `${use.code} · ` : ""}
+														{use.each
+															? `${use.each} ${use.each === 1 ? "stem" : "stems"} each`
+															: "a cluster each"}
+													</span>
+													<Show when={props.showFlorist}>
+														<span class="block text-xs text-petal-900/60">
+															{floristText(use)}
+														</span>
+													</Show>
+												</span>
+												<span class="shrink-0 text-right tabular-nums">
+													<span class="block text-lg font-semibold leading-tight">
+														× {use.bouquets}
+													</span>
+													<Show when={use.stems}>
+														<span class="block text-xs text-petal-900/60">
+															{use.stems} stems
+														</span>
+													</Show>
+												</span>
+												<button
+													type="button"
+													onClick={() =>
+														props.onOrders(
+															`${use.title} · ${use.colorName} with ${name()}`,
+															use.orderIds,
+														)
+													}
+													class={cn(
+														drill,
+														"shrink-0 px-2 text-sm print:hidden",
+													)}
+												>
+													{use.orderIds.length}{" "}
+													{use.orderIds.length === 1 ? "order" : "orders"}
+												</button>
+											</li>
+										)}
+									</For>
+								</ul>
+							</Show>
+						</div>
+						<Show when={allOrders().length > 1}>
+							<div class="border-t border-petal-100 px-5 py-3 text-right print:hidden">
+								<button
+									type="button"
+									onClick={() =>
+										props.onOrders(`Orders with ${name()}`, allOrders())
+									}
+									class={adminButton.secondary}
+								>
+									See all {allOrders().length} orders
+								</button>
+							</div>
+						</Show>
+					</Dialog.Content>
+				</div>
+			</Dialog.Portal>
+		</Dialog.Root>
 	);
 }
 

@@ -10,6 +10,7 @@ export const PRIVATE_PATHS = [
 	"/sign-in",
 	"/order",
 	"/pay",
+	"/florist",
 	"/api",
 	"/uploads/payments",
 	"/uploads/references",

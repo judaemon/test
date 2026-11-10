@@ -8,6 +8,7 @@ import { type CustomWrapper, wrapperColors } from "~/lib/custom-bouquet";
 import { formatPrice } from "~/lib/product";
 import type { AdminProduct, RecipeItem } from "~/types/product";
 import { listArrangementTypes } from "./arrangement-types-repo";
+import type { Florist } from "./florists-repo";
 import { listSizes } from "./sizes-repo";
 import type { Supplier } from "./suppliers-repo";
 import { listSuppliers } from "./suppliers-repo";
@@ -90,6 +91,19 @@ export function supplierSnapshot(
 		["phone", "Phone", supplier.phone],
 		["email", "Email", supplier.email],
 		["notes", "Notes", supplier.notes],
+	]);
+}
+
+export function floristSnapshot(
+	florist: Florist | null | undefined,
+): ActivitySnapshot {
+	if (!florist) return new Map();
+	return fields([
+		["name", "Name", florist.name],
+		["phone", "Phone", florist.phone],
+		["email", "Email", florist.email],
+		["notes", "Notes", florist.notes],
+		["active", "Can be given bouquets", yesNo(florist.active)],
 	]);
 }
 

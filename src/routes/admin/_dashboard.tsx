@@ -40,6 +40,7 @@ const NAV = [
 	{ to: "/admin/flowers", label: "Flowers", icon: AdminIcons.flowers },
 	{ to: "/admin/wrappers", label: "Wrappers", icon: AdminIcons.wrappers },
 	{ to: "/admin/suppliers", label: "Suppliers", icon: AdminIcons.suppliers },
+	{ to: "/admin/florists", label: "Florists", icon: AdminIcons.florists },
 	{
 		to: "/admin/arrangement-types",
 		label: "Arrangement types",

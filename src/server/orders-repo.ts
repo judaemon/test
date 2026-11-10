@@ -1,6 +1,7 @@
 import { hasContent, lineKey } from "~/lib/bouquet-messages";
 import type { CheckoutDetails } from "~/lib/checkout";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import { keepFlorists, withFlorist } from "~/lib/florists";
 import {
 	ORDER_EDIT_HOURS,
 	ORDER_EDIT_LOCKED,
@@ -35,8 +36,10 @@ import {
 	type PaymentStatus,
 	type WrapperStatus,
 } from "~/types/order";
+import type { RecipeItem } from "~/types/product";
 import { adjustStyleStock } from "./catalog-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
+import { floristNames } from "./florists-repo";
 import { adjustFlowerStock } from "./flowers-repo";
 import { writeOrderLog } from "./order-log-repo";
 import { getPaymentAccount } from "./payments-repo";
@@ -358,7 +361,12 @@ function tracked(
 		change();
 		const after = getOrderById(id);
 		if (!after) return;
-		const changes = diffOrders(before, after);
+		const names = floristNames();
+		const changes = diffOrders(
+			before,
+			after,
+			(floristId) => names.get(floristId) ?? "Removed florist",
+		);
 		if (changes.length) writeOrderLog(id, actor, action, changes, reason);
 	})();
 	return getOrderById(id) as Order;
@@ -625,6 +633,15 @@ export function updateCustomerOrder(
 			(sum, line) => sum + toCents(line.lineTotal),
 			0,
 		);
+		// Bouquets still on the order keep their florists.
+		const lines = update.lines.map((line) => {
+			const { florists: _, ...rest } = line;
+			const kept = keepFlorists(
+				order.lines.find((old) => lineKey(old) === lineKey(line))?.florists,
+				line.quantity,
+			);
+			return kept ? { ...rest, florists: kept } : rest;
+		});
 		db.query(
 			`UPDATE orders SET email = $email, recipient_name = $fullName, first_name = $firstName,
 			   last_name = $lastName, full_name = $fullName, company = $company,
@@ -643,7 +660,7 @@ export function updateCustomerOrder(
 			company: update.details.company,
 			serialNumber: update.details.serialNumber,
 			className: update.details.className,
-			lines: JSON.stringify(update.lines),
+			lines: JSON.stringify(lines),
 			subtotal,
 			now: nowIso(),
 		});
@@ -703,11 +720,16 @@ export function cancelBouquet(
 			const lines = order.lines.flatMap((candidate) => {
 				if (candidate !== line) return [candidate];
 				if (candidate.quantity === 1) return [];
-				const { messages, ...rest } = candidate;
+				const { messages, florists, ...rest } = candidate;
 				const kept = messages?.filter((_, unit) => unit !== cancellation.unit);
+				const keptFlorists = keepFlorists(
+					florists?.filter((_, unit) => unit !== cancellation.unit),
+					candidate.quantity - 1,
+				);
 				return [
 					{
 						...rest,
+						...(keptFlorists ? { florists: keptFlorists } : {}),
 						quantity: candidate.quantity - 1,
 						lineTotal: fromCents(
 							toCents(candidate.unitPrice) * (candidate.quantity - 1),
@@ -987,7 +1009,10 @@ export function updateChatOrder(
 		if (!order) throw new OrderRuleError("Order not found.");
 		if (order.stage === "cancelled")
 			throw new OrderRuleError("Cancelled orders can’t be changed.");
-		const lines = [update.line];
+		const { florists: _, ...line } = update.line;
+		// The bouquet keeps its florist through an edit.
+		const kept = keepFlorists(order.lines[0]?.florists, line.quantity);
+		const lines = [kept ? { ...line, florists: kept } : line];
 		if (!order.isTest) {
 			adjustWrapperStock(order.lines, 1);
 			const short = adjustWrapperStock(lines, -1);
@@ -1076,9 +1101,123 @@ export function updateShopOrderDetails(
 				notes: update.details.notes,
 				dedicationFor: update.details.dedicationFor,
 				dedicationMessage: update.details.dedicationMessage,
-				lines: JSON.stringify(update.lines),
+				// Florists are given from the orders list; keep whatever's there now.
+				lines: JSON.stringify(
+					update.lines.map((line, index) => {
+						const { florists: _, ...rest } = line;
+						const current = order.lines[index]?.florists;
+						return current ? { ...rest, florists: current } : rest;
+					}),
+				),
 			});
 	});
+}
+
+/**
+ * Gives the bouquets on open orders (new or being made) the flowers their
+ * arrangement has now, from `recipes` by `lineKey`. Done and cancelled orders
+ * keep what they were made with; custom bouquets keep their own. Each order
+ * changed is logged. Returns how many orders and bouquets changed.
+ */
+/** A recipe as text that ignores how it was stored, to compare two. */
+const recipeKey = (recipe: RecipeItem[]) =>
+	JSON.stringify(
+		recipe.map((item) => [
+			item.flower,
+			item.color ?? "",
+			item.count ?? 0,
+			!!item.filler,
+		]),
+	);
+
+export function syncOrderRecipes(
+	recipes: ReadonlyMap<string, RecipeItem[]>,
+	actor: OrderActor = SYSTEM_ACTOR,
+) {
+	let orders = 0;
+	let bouquets = 0;
+	getDb().transaction(() => {
+		for (const order of listOrders({
+			stages: ["new", "making"],
+			limit: 1_000_000,
+		})) {
+			let changedHere = 0;
+			const lines = order.lines.map((line) => {
+				const recipe = recipes.get(lineKey(line));
+				if (!recipe?.length) return line;
+				if (recipeKey(recipe) === recipeKey(line.recipe ?? [])) return line;
+				changedHere += line.quantity;
+				return { ...line, recipe };
+			});
+			if (!changedHere) continue;
+			orders += 1;
+			bouquets += changedHere;
+			tracked(order.id, actor, "recipe_sync", () => {
+				getDb()
+					.query("UPDATE orders SET lines = $lines WHERE id = $id")
+					.run({ id: order.id, lines: JSON.stringify(lines) });
+			});
+		}
+	})();
+	return { orders, bouquets };
+}
+
+/** One bouquet of an order: its line (by `lineKey`) and which of its kind. */
+export interface BouquetRef {
+	orderId: string;
+	lineKey: string;
+	unit: number;
+}
+
+/**
+ * Gives bouquets to a florist ("" takes them off whoever has them). Each
+ * order's change is logged on its own. Cancelled orders, and bouquets no
+ * longer on their order, are skipped and counted.
+ */
+export function assignFlorist(
+	bouquets: readonly BouquetRef[],
+	floristId: string,
+	actor: OrderActor = SYSTEM_ACTOR,
+) {
+	const byOrder = new Map<string, BouquetRef[]>();
+	for (const ref of bouquets)
+		byOrder.set(ref.orderId, [...(byOrder.get(ref.orderId) ?? []), ref]);
+	let changed = 0;
+	let skipped = 0;
+	getDb().transaction(() => {
+		for (const [orderId, refs] of byOrder) {
+			const order = getOrderById(orderId);
+			if (!order || order.stage === "cancelled") {
+				skipped += refs.length;
+				continue;
+			}
+			let lines = order.lines;
+			let changedHere = 0;
+			for (const ref of refs) {
+				const index = lines.findIndex((line) => lineKey(line) === ref.lineKey);
+				const line = lines[index];
+				if (!line || ref.unit < 0 || ref.unit >= line.quantity) {
+					skipped += 1;
+					continue;
+				}
+				if ((line.florists?.[ref.unit] ?? "") === floristId) continue;
+				const { florists: _, ...rest } = line;
+				const next = withFlorist(line, ref.unit, floristId);
+				lines = lines.map((candidate, i) =>
+					i === index ? (next ? { ...rest, florists: next } : rest) : candidate,
+				);
+				changedHere += 1;
+			}
+			if (!changedHere) continue;
+			changed += changedHere;
+			tracked(orderId, actor, "florist", () => {
+				getDb()
+					.query("UPDATE orders SET lines = $lines WHERE id = $id")
+					.run({ id: orderId, lines: JSON.stringify(lines) });
+			});
+		}
+	})();
+	return { changed, skipped };
 }
 
 export function setWrapperStatus(

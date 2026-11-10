@@ -1,6 +1,7 @@
 import { hasCard } from "~/lib/bouquet-messages";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import { type FloristOption, floristOf } from "~/lib/florists";
 import {
 	CUSTOM_ARRANGEMENT,
 	DEFAULT_PAGE_SIZE,
@@ -23,6 +24,7 @@ import {
 } from "~/types/order";
 import { listArrangementTypes } from "./arrangement-types-repo";
 import { listAdminProducts } from "./catalog-repo";
+import { listFloristOptions } from "./florists-repo";
 import { countOrderNotes } from "./order-notes-repo";
 import { listOrders } from "./orders-repo";
 
@@ -56,6 +58,8 @@ export interface OrderRowsPage {
 	summary: ArrangementSummary[];
 	/** Staff notes per order on this page; orders without any are left out. */
 	noteCounts: Record<string, number>;
+	/** Every florist, for the rows' florist pickers. */
+	florists: FloristOption[];
 }
 
 /** One card above the orders table: an arrangement type and its bouquets. */
@@ -141,6 +145,14 @@ const FIELDS: Record<
 		label: (key) =>
 			WRAPPER_STATUS_LABELS[key as keyof typeof WRAPPER_STATUS_LABELS],
 	},
+	florist: {
+		keys: ({ line, unit }) => [floristOf(line, unit) || NONE],
+		fixed: [],
+		label: (key) =>
+			key === NONE
+				? "Not assigned"
+				: (floristLabels.get(key) ?? "Removed florist"),
+	},
 	card: {
 		// This bouquet's own card, or an older order's card for the whole order.
 		keys: ({ order, line }) => [
@@ -162,7 +174,15 @@ const FIELDS: Record<
 let productTypes = new Map<string, string>();
 let typeNames = new Map<string, string>();
 let typePlurals = new Map<string, string>();
+let floristLabels = new Map<string, string>();
+let florists: FloristOption[] = [];
 const refreshArrangements = () => {
+	florists = listFloristOptions();
+	floristLabels = new Map(
+		florists.map((florist) => [florist.id, florist.name]),
+	);
+	// Not assigned first, then every florist A–Z, even with no bouquets yet.
+	FIELDS.florist.fixed = [NONE, ...florists.map((florist) => florist.id)];
 	const types = listArrangementTypes();
 	typeNames = new Map(types.map((type) => [type.id, type.name]));
 	typePlurals = new Map(types.map((type) => [type.id, type.pluralName]));
@@ -201,6 +221,31 @@ const placedDay = (createdAt: string) =>
  * page here, so the page only ever holds what's on screen.
  */
 export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
+	const { matching, options, summary } = filterOrderRows(search);
+	const pageSize = search.perPage ?? DEFAULT_PAGE_SIZE;
+	const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
+	const page = Math.min(search.page ?? 1, pageCount);
+	const pageRows = matching.slice((page - 1) * pageSize, page * pageSize);
+	return {
+		rows: pageRows,
+		noteCounts: countOrderNotes([
+			...new Set(pageRows.map((row) => row.order.id)),
+		]),
+		total: matching.length,
+		page,
+		pageSize,
+		pageCount,
+		options,
+		summary,
+		florists,
+	};
+}
+
+/** Every bouquet the table's filters match, on all pages. */
+export const matchingOrderRows = (search: OrdersSearch) =>
+	filterOrderRows(search).matching;
+
+function filterOrderRows(search: OrdersSearch) {
 	refreshArrangements();
 	const rows = listOrders({ search: search.q, limit: 1_000_000 })
 		.filter((order) => {
@@ -254,7 +299,7 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 		});
 		const fixed = (field.fixed ?? []).filter(
 			// "None" only shows once some row has it.
-			(key) => key !== NONE || counts.has(key),
+			(key) => key !== NONE || counts.has(key) || id === "florist",
 		);
 		const rest = [...counts.keys()]
 			.filter((key) => !fixed.includes(key))
@@ -320,20 +365,5 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 			(entry.key !== CUSTOM_ARRANGEMENT && entry.key !== NONE),
 	);
 
-	const pageSize = search.perPage ?? DEFAULT_PAGE_SIZE;
-	const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
-	const page = Math.min(search.page ?? 1, pageCount);
-	const pageRows = matching.slice((page - 1) * pageSize, page * pageSize);
-	return {
-		rows: pageRows,
-		noteCounts: countOrderNotes([
-			...new Set(pageRows.map((row) => row.order.id)),
-		]),
-		total: matching.length,
-		page,
-		pageSize,
-		pageCount,
-		options,
-		summary,
-	};
+	return { matching, options, summary };
 }

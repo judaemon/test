@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import {
 	attachMessages,
 	type BouquetMessageErrors,
+	lineKey,
 } from "~/lib/bouquet-messages";
 import {
 	CHAT_MESSAGE_MAX,
@@ -39,6 +40,7 @@ import {
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
+import { getFlorist } from "../florists-repo";
 import { staffActor } from "../order-actor";
 import { listOrderLog } from "../order-log-repo";
 import {
@@ -50,8 +52,10 @@ import {
 	ORDER_NOTE_MAX,
 	type OrderNote,
 } from "../order-notes-repo";
-import { queryOrderRows } from "../order-rows";
+import { matchingOrderRows, queryOrderRows } from "../order-rows";
 import {
+	assignFlorist,
+	type BouquetRef,
 	cancelBouquet,
 	cancelOrder,
 	changePaymentMethod,
@@ -315,6 +319,100 @@ export const updateWrapperStatus = createServerFn({ method: "POST" })
 		return runAction(() =>
 			setWrapperStatus(data.id, data.line, data.status, staffActor(user)),
 		);
+	});
+
+/** Most bouquets one "Assign" can change: every bouquet a filter could match. */
+const ASSIGN_MAX = 5000;
+
+/** A florist who can be given bouquets, or "" to take bouquets off whoever has them. */
+function assignableFlorist(id: string) {
+	if (!id) return "";
+	const florist = getFlorist(id);
+	if (!florist)
+		throw new InputError("That florist was deleted. Reload the page.");
+	if (!florist.active)
+		throw new InputError(
+			`${florist.name} is turned off. Turn them on in Florists to give them bouquets.`,
+		);
+	return florist.id;
+}
+
+function assignedMessage(
+	result: { changed: number; skipped: number },
+	floristId: string,
+) {
+	const name = floristId ? (getFlorist(floristId)?.name ?? "") : "";
+	const count = `${result.changed} ${result.changed === 1 ? "bouquet" : "bouquets"}`;
+	return [
+		result.changed === 0
+			? "Nothing to change."
+			: floristId
+				? `${count} given to ${name}.`
+				: `${count} taken off their florist.`,
+		result.skipped
+			? `${result.skipped} skipped: cancelled, or no longer on the order.`
+			: "",
+	]
+		.filter(Boolean)
+		.join(" ");
+}
+
+/** Gives the chosen bouquets (rows of the orders table) to a florist. */
+export const assignFloristFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		if (!Array.isArray(source.bouquets) || !source.bouquets.length)
+			throw new InputError("Choose at least one bouquet.");
+		if (source.bouquets.length > ASSIGN_MAX)
+			throw new InputError(`Choose up to ${ASSIGN_MAX} bouquets at a time.`);
+		return {
+			floristId: text(source, "floristId", { max: 64, required: false }),
+			bouquets: source.bouquets.map((item): BouquetRef => {
+				const ref = asRecord(item);
+				return {
+					orderId: text(ref, "orderId", { max: 64 }),
+					lineKey: text(ref, "lineKey", { max: 300 }),
+					unit: integer(ref, "unit", { label: "Bouquet", min: 0, max: 500 }),
+				};
+			}),
+		};
+	})
+	.handler(async ({ data }) => {
+		const user = await requireStaff();
+		const floristId = assignableFlorist(data.floristId);
+		const result = assignFlorist(data.bouquets, floristId, staffActor(user));
+		return { ...result, message: assignedMessage(result, floristId) };
+	});
+
+/** Gives every bouquet the orders table's filters match (all pages) to a florist. */
+export const assignFloristMatchingFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		return {
+			floristId: text(source, "floristId", { max: 64, required: false }),
+			search: validateOrdersSearch(asRecord(source.search ?? {})),
+		};
+	})
+	.handler(async ({ data }) => {
+		const user = await requireStaff();
+		const floristId = assignableFlorist(data.floristId);
+		const rows = matchingOrderRows(data.search).filter(
+			(row) => row.order.stage !== "cancelled",
+		);
+		if (rows.length > ASSIGN_MAX)
+			throw new InputError(
+				`That's ${rows.length} bouquets. Narrow the filters to ${ASSIGN_MAX} or fewer.`,
+			);
+		const result = assignFlorist(
+			rows.map((row) => ({
+				orderId: row.order.id,
+				lineKey: lineKey(row.line),
+				unit: row.unit,
+			})),
+			floristId,
+			staffActor(user),
+		);
+		return { ...result, message: assignedMessage(result, floristId) };
 	});
 
 export const assignRider = createServerFn({ method: "POST" })

@@ -11,6 +11,8 @@ import {
 	saveFlower,
 	setFlowerEnabled,
 } from "../flowers-repo";
+import { staffActor } from "../order-actor";
+import { syncOrderRecipesFromCatalog } from "../order-recipe-sync";
 import {
 	asRecord,
 	bool,
@@ -102,7 +104,7 @@ export const saveFlowerFn = createServerFn({ method: "POST" })
 		return { id: id || null, flower: parseFlower(asRecord(source.flower)) };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		const user = await requireStaff();
 		const before = data.id ? getFlower(data.id) : null;
 		if (data.id && !before) throw new InputError("That flower was deleted.");
 		if (flowerNameTaken(data.flower.name, data.id ?? undefined))
@@ -110,7 +112,10 @@ export const saveFlowerFn = createServerFn({ method: "POST" })
 				`There’s already a flower called “${data.flower.name}”.`,
 			);
 		if (before && !data.flower.enabled) keepAFlowerOffered(before.name);
-		return getFlower(saveFlower(data.id, data.flower));
+		const saved = getFlower(saveFlower(data.id, data.flower));
+		// A renamed flower or color: open orders' recipes follow.
+		if (before) syncOrderRecipesFromCatalog(staffActor(user));
+		return saved;
 	});
 
 export const setFlowerEnabledFn = createServerFn({ method: "POST" })

@@ -39,6 +39,7 @@ import {
 	deleteVariantFn,
 	listInventory,
 	setProductVisibleFn,
+	syncAllOrderRecipesFn,
 	updateStyleFn,
 } from "~/server/admin/catalog";
 import type { AdminProduct, AdminVariant } from "~/types/product";
@@ -262,6 +263,28 @@ function InventoryPage() {
 							>
 								Florist list
 							</Link>
+							<ConfirmButton
+								class={adminButton.secondary}
+								title="Update the flowers on open orders?"
+								description="Every bouquet on a new or being-made order gets the flowers its arrangement has now, so the flower report and florist sheets match. Done and cancelled orders, and custom bouquets, stay as they are. Each change is kept in Logs. Saving an arrangement already does this for its own orders."
+								confirmLabel="Update orders"
+								onConfirm={async () => {
+									try {
+										const result = await syncAllOrderRecipesFn();
+										toastSuccess(
+											!result.enabled
+												? "Orders keep their own flowers now; nothing changed."
+												: result.orders
+													? `Flowers updated on ${result.bouquets} ${result.bouquets === 1 ? "bouquet" : "bouquets"} in ${result.orders} ${result.orders === 1 ? "order" : "orders"}.`
+													: "Every open order already has its arrangement’s flowers.",
+										);
+									} catch (error) {
+										toastError(error);
+									}
+								}}
+							>
+								Update orders’ flowers
+							</ConfirmButton>
 							<Link
 								to="/admin/signature-bouquets/arrange"
 								class={adminButton.secondary}
