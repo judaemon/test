@@ -1,7 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { createMemo, createSignal, For, Show } from "solid-js";
 
-import { FilterTabs, isPaid, useReport } from "~/components/admin/reports";
+import {
+	FilterTabs,
+	isPaid,
+	useMoney,
+	useReport,
+} from "~/components/admin/reports";
 import { adminCard } from "~/components/admin/ui";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
@@ -11,6 +16,14 @@ import { cn } from "~/lib/utils";
 import type { ReportOrder } from "~/server/admin/reports";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/deliveries")({
+	// The day to open on, e.g. from Orders' "Print handover list".
+	validateSearch: (search: Record<string, unknown>): { day?: string } => ({
+		day:
+			typeof search.day === "string" &&
+			(search.day === "none" || /^\d{4}-\d{2}-\d{2}$/.test(search.day))
+				? search.day
+				: undefined,
+	}),
 	component: Deliveries,
 });
 
@@ -33,6 +46,7 @@ const companyRank = (name: string) => {
  */
 function Deliveries() {
 	const report = useReport();
+	const money = useMoney();
 	const active = createMemo(() =>
 		report().orders.filter((order) => order.status !== "cancelled"),
 	);
@@ -48,7 +62,9 @@ function Deliveries() {
 	});
 	const firstDay = () =>
 		upcomingDeliveryDates(report().deliveryDates)[0] ?? days()[0] ?? NONE;
-	const [day, setDay] = createSignal<string>();
+	const [day, setDay] = createSignal<string | undefined>(
+		Route.useSearch()().day,
+	);
 	const [klass, setKlass] = createSignal<string>(ALL);
 	const [company, setCompany] = createSignal<string>(ALL);
 	const [pagePerCompany, setPagePerCompany] = createSignal(false);
@@ -97,6 +113,9 @@ function Deliveries() {
 		);
 	});
 
+	/** What's still owed on it, to collect at handover. */
+	const owed = (order: ReportOrder) =>
+		Math.max(0, order.total - order.received);
 	const bouquetCount = (orders: ReportOrder[]) =>
 		orders.reduce(
 			(sum, order) =>
@@ -126,10 +145,13 @@ function Deliveries() {
 
 	return (
 		<section class={cn(adminCard, "p-5 print:border-0 print:p-0")}>
+			{/* A4, like the florist's sheets; the other reports print on letter. */}
+			<style>{"@page { size: A4 portrait; margin: 10mm; }"}</style>
 			<div class="print:hidden">
 				<h2 class="mb-1 font-semibold">Deliveries</h2>
 				<p class="mb-4 text-sm text-petal-900/60">
-					Who gets a bouquet on each day, by company and class. Pick a day and
+					The handover list: who gets a bouquet on each day, by company and
+					class, with what’s left to collect and room to sign. Pick a day and
 					narrow it down, then print. Give orders their day in Orders, in the
 					Delivery date column.
 				</p>
@@ -231,6 +253,15 @@ function Deliveries() {
 									{orders.length} {orders.length === 1 ? "order" : "orders"} ·{" "}
 									{bouquetCount(orders)}{" "}
 									{bouquetCount(orders) === 1 ? "bouquet" : "bouquets"}
+									<Show when={orders.reduce((sum, o) => sum + owed(o), 0)}>
+										{(total) => (
+											<>
+												{" · "}
+												<strong class="font-semibold">{money(total())}</strong>{" "}
+												to collect
+											</>
+										)}
+									</Show>
 								</p>
 							</header>
 							<div class="overflow-x-auto print:overflow-visible">
@@ -238,14 +269,17 @@ function Deliveries() {
 									<thead class="text-xs uppercase tracking-wide text-petal-900/55 print:text-[7.5pt] print:text-black/70">
 										<tr>
 											<th class="w-8 pb-1.5 pr-2 font-medium">
-												<span class="sr-only">Delivered</span>✓
+												<span class="sr-only">Handed over</span>✓
 											</th>
 											<th class="pb-1.5 pr-3 font-medium">Order</th>
 											<th class="pb-1.5 pr-3 font-medium">Name</th>
 											<th class="pb-1.5 pr-3 font-medium">Class</th>
 											<th class="pb-1.5 pr-3 font-medium">Serial no.</th>
 											<th class="pb-1.5 pr-3 font-medium">Bouquets</th>
-											<th class="pb-1.5 font-medium">Payment</th>
+											<th class="pb-1.5 pr-3 text-right font-medium">
+												To collect
+											</th>
+											<th class="w-[22%] pb-1.5 font-medium">Signature</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -293,19 +327,23 @@ function Deliveries() {
 															)}
 														</For>
 													</td>
-													<td class="py-2 print:py-1">
+													<td class="py-2 pr-3 text-right print:py-1">
 														<Show
-															when={isPaid(order)}
+															when={!isPaid(order)}
 															fallback={
-																<span class="whitespace-nowrap rounded-full bg-error px-2 py-0.5 text-xs font-semibold text-error-foreground print:border print:border-black print:bg-transparent print:px-1.5 print:text-[8pt] print:text-black">
-																	Not paid
+																<span class="whitespace-nowrap text-xs font-medium text-success-foreground print:text-[8pt] print:text-black">
+																	Paid
 																</span>
 															}
 														>
-															<span class="whitespace-nowrap text-xs font-medium text-success-foreground print:text-[8pt] print:text-black">
-																Paid
+															<span class="whitespace-nowrap rounded-full bg-error px-2 py-0.5 text-xs font-semibold tabular-nums text-error-foreground print:border print:border-black print:bg-transparent print:px-1.5 print:text-[9pt] print:text-black">
+																{money(owed(order))}
 															</span>
 														</Show>
+													</td>
+													{/* Room for the customer to sign as they take their bouquet. */}
+													<td class="py-2 print:h-[11mm] print:py-1">
+														<span class="block h-full min-h-8 border-b border-petal-900/30 print:min-h-0 print:border-black/50" />
 													</td>
 												</tr>
 											)}

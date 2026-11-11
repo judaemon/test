@@ -464,6 +464,19 @@ function OrdersPage() {
 										<ExpandIcon />
 										Table only
 									</button>
+									{/* The day's list to hand bouquets over with: the filtered day, if one. */}
+									<Link
+										to="/admin/reports/deliveries"
+										search={{
+											day:
+												parseList(search().delivery).length === 1
+													? parseList(search().delivery)[0]
+													: undefined,
+										}}
+										class={adminButton.secondary}
+									>
+										Print handover list
+									</Link>
 									<Link to="/admin/orders/new" class={adminButton.primary}>
 										+ Add custom order
 									</Link>
