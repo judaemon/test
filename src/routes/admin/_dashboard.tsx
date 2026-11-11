@@ -42,6 +42,11 @@ const NAV = [
 	{ to: "/admin/suppliers", label: "Suppliers", icon: AdminIcons.suppliers },
 	{ to: "/admin/florists", label: "Florists", icon: AdminIcons.florists },
 	{
+		to: "/admin/delivery-dates",
+		label: "Delivery dates",
+		icon: AdminIcons.calendar,
+	},
+	{
 		to: "/admin/arrangement-types",
 		label: "Arrangement types",
 		icon: AdminIcons.types,

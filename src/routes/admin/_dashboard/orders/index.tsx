@@ -49,6 +49,7 @@ import {
 } from "~/lib/bouquet-messages";
 import { orderColor } from "~/lib/cadets";
 import { cashTotal, formatBills } from "~/lib/custom-bouquet";
+import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { type FloristOption, floristName, floristOf } from "~/lib/florists";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet } from "~/lib/order-edit";
@@ -74,6 +75,7 @@ import {
 	moveOrder,
 	type OrderActionResult,
 	reviewOrderPayment,
+	updateDeliveryDate,
 	updateWrapperStatus,
 } from "~/server/admin/orders";
 import type { ArrangementSummary, OrderRow } from "~/server/order-rows";
@@ -802,6 +804,7 @@ function OrdersPage() {
 								</th>
 								<th class="px-3 py-3 font-medium">Company</th>
 								<th class="px-3 py-3 font-medium">Class</th>
+								<th class="px-3 py-3 font-medium">Delivery date</th>
 								<th class="px-3 py-3 font-medium">Status</th>
 								<th class="px-3 py-3 font-medium">Wrapper status</th>
 								<th class="px-3 py-3 font-medium">Florist</th>
@@ -822,7 +825,7 @@ function OrdersPage() {
 								fallback={
 									<tr>
 										<td
-											colSpan={16}
+											colSpan={17}
 											data-wide
 											class="px-4 py-12 text-center text-petal-900/55"
 										>
@@ -1026,6 +1029,15 @@ function OrdersPage() {
 											</td>
 											<td data-label="Class" class="px-5 py-2 md:px-3 md:py-3">
 												{details.className || "—"}
+											</td>
+											<td
+												data-label="Delivery date"
+												class="px-5 py-2 md:px-3 md:py-3"
+											>
+												<DeliveryDateSelect
+													order={order}
+													dates={data().deliveryDates}
+												/>
 											</td>
 											<td data-label="Status" class="px-5 py-2 md:px-3 md:py-3">
 												<OrderStageSelect order={order} />
@@ -1794,6 +1806,42 @@ function PaymentStatusSelect(props: { order: Order }) {
 					reviewOrderPayment({ data: { id: props.order.id, status: value } })
 				}
 				saved={(label) => `Order #${props.order.number}: ${label}.`}
+			/>
+		</Show>
+	);
+}
+
+/**
+ * The order's delivery day, picked from the event's days: to give older
+ * orders one, or move a cadet to the other day. Any other day it already
+ * has stays on the list.
+ */
+function DeliveryDateSelect(props: { order: Order; dates: string[] }) {
+	const date = () => props.order.details.deliveryDate ?? "";
+	const options = () => [
+		...(date() ? [] : [{ value: "", label: "Not set", disabled: true }]),
+		...[...new Set([...props.dates, ...(date() ? [date()] : [])])]
+			.sort()
+			.map((value) => ({ value, label: shortDeliveryDate(value) })),
+	];
+	return (
+		<Show
+			when={props.order.stage !== "cancelled"}
+			fallback={date() ? shortDeliveryDate(date()) : "—"}
+		>
+			<RowSelect
+				label={`Delivery date, order ${props.order.number}`}
+				value={date()}
+				options={options()}
+				class={
+					date()
+						? "bg-petal-50 text-petal-900"
+						: "bg-warning text-warning-foreground"
+				}
+				onSave={(value) =>
+					updateDeliveryDate({ data: { id: props.order.id, date: value } })
+				}
+				saved={(label) => `Order #${props.order.number}: delivery ${label}.`}
 			/>
 		</Show>
 	);

@@ -322,6 +322,12 @@ export const AdminIcons = {
 			<circle cx="8" cy="8" r="1.5" />
 		</svg>
 	),
+	calendar: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<rect x="3" y="5" width="18" height="16" rx="2" />
+			<path d="M3 10h18M8 3v4M16 3v4" />
+		</svg>
+	),
 	log: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<circle cx="12" cy="12" r="9" />

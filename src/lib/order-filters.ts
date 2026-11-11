@@ -10,6 +10,8 @@ export interface OrdersSearch {
 	stage?: string;
 	payment?: string;
 	method?: string;
+	/** Delivery days, YYYY-MM-DD, or "none" for orders without one. */
+	delivery?: string;
 	/** Battalion names, or "none" for civilians and orders with no company. */
 	battalion?: string;
 	company?: string;
@@ -43,6 +45,7 @@ export interface OrdersSearch {
 export const FACETS = [
 	{ id: "payment", label: "Payment" },
 	{ id: "method", label: "Method" },
+	{ id: "delivery", label: "Delivery date" },
 	{ id: "battalion", label: "Battalion" },
 	{ id: "company", label: "Company" },
 	{ id: "class", label: "Class" },
@@ -87,6 +90,7 @@ export function validateOrdersSearch(
 		stage: list("stage"),
 		payment: list("payment"),
 		method: list("method"),
+		delivery: list("delivery"),
 		battalion: list("battalion"),
 		company: list("company"),
 		class: list("class"),

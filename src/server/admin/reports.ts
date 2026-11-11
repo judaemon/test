@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/solid-start";
-
 import {
 	CADET_CLASSES,
 	CIVILIAN,
@@ -20,6 +19,7 @@ import {
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
+import { getDeliveryDates } from "../delivery-dates-repo";
 import { listFloristOptions } from "../florists-repo";
 import {
 	type FlowerPurchase,
@@ -99,6 +99,8 @@ export interface ReportOrder {
 	referenceNumber?: string;
 	total: number;
 	createdAt: string;
+	/** The day it's to be delivered, `YYYY-MM-DD`; "" when none was chosen. */
+	deliveryDate: string;
 	bouquets: { code: string; title: string; quantity: number }[];
 	lines: ReportLine[];
 	/** The flowers its bouquets need, from the recipes they were ordered with. */
@@ -152,6 +154,8 @@ export interface Report {
 	/** Every order the groups point at, active and cancelled. */
 	orders: ReportOrder[];
 	florists: FloristOption[];
+	/** The event's delivery days, past ones too. */
+	deliveryDates: string[];
 	currency: string;
 }
 
@@ -323,6 +327,7 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 				referenceNumber: order.payment.referenceNumber,
 				total: order.total,
 				createdAt: order.createdAt,
+				deliveryDate: order.details.deliveryDate ?? "",
 				bouquets: order.lines.map((line) => ({
 					code: line.sku,
 					title: line.title,
@@ -360,6 +365,7 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			),
 			orders,
 			florists: listFloristOptions(),
+			deliveryDates: getDeliveryDates(),
 			currency: active[0]?.currency ?? "PHP",
 		};
 	},

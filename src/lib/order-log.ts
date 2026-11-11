@@ -1,4 +1,5 @@
 import { lineKey } from "~/lib/bouquet-messages";
+import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { formatRecipeItem } from "~/lib/flowers";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
 import { formatPrice, lineName } from "~/lib/product";
@@ -42,6 +43,7 @@ export const ORDER_LOG_ACTIONS = {
 	delivery_photo: "Added a delivery photo",
 	florist: "Assigned a florist",
 	recipe_sync: "Updated from the arrangement",
+	delivery_date: "Changed the delivery date",
 } as const;
 export type OrderLogAction = keyof typeof ORDER_LOG_ACTIONS;
 
@@ -71,6 +73,7 @@ export const ORDER_LOG_FIELDS = {
 	florist: "Florist",
 	recipe: "Flowers",
 	wrapper_used: "Wrapper used",
+	delivery_date: "Delivery date",
 } as const;
 export type OrderLogField = keyof typeof ORDER_LOG_FIELDS;
 
@@ -134,6 +137,7 @@ function snapshot(order: Order): [OrderLogField, string][] {
 		["serial", d.serialNumber],
 		["notes", d.notes],
 		["card", cardText(d.dedicationFor, d.dedicationMessage)],
+		["delivery_date", d.deliveryDate ?? ""],
 	];
 }
 
@@ -271,6 +275,8 @@ export function formatLogValue(field: OrderLogField | undefined, value = "") {
 			return WRAPPER_STATUS_LABELS[value as WrapperStatus] ?? value;
 		case "test":
 			return value === "yes" ? "Yes" : "No";
+		case "delivery_date":
+			return shortDeliveryDate(value);
 		// Older entries only say a note was there, not what it said.
 		case "notes":
 		case "delivery_photo":

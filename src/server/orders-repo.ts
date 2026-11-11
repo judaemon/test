@@ -1261,6 +1261,23 @@ export function setWrapperStatus(
 	});
 }
 
+/** Moves an order to another delivery day, or "" for none. */
+export function setDeliveryDate(
+	id: string,
+	date: string,
+	actor: OrderActor = SYSTEM_ACTOR,
+): Order {
+	return tracked(id, actor, "delivery_date", () => {
+		const order = getOrderById(id);
+		if (!order) throw new OrderRuleError("Order not found.");
+		if (order.stage === "cancelled")
+			throw new OrderRuleError("This order was cancelled.");
+		getDb()
+			.query("UPDATE orders SET delivery_date = $date WHERE id = $id")
+			.run({ id, date });
+	});
+}
+
 export function setRider(
 	id: string,
 	rider: { name: string; phone: string },

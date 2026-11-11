@@ -33,6 +33,7 @@ import { Route as ProductsProductIdRouteImport } from './routes/products/$produc
 import { Route as UploadsSplatRouteImport } from './routes/uploads/$'
 import { Route as AdminDashboardIndexRouteImport } from './routes/admin/_dashboard/index'
 import { Route as AdminDashboardCustomRouteImport } from './routes/admin/_dashboard/custom'
+import { Route as AdminDashboardDeliveryDatesRouteImport } from './routes/admin/_dashboard/delivery-dates'
 import { Route as AdminDashboardLogsRouteImport } from './routes/admin/_dashboard/logs'
 import { Route as AdminDashboardOrderLogRouteImport } from './routes/admin/_dashboard/order-log'
 import { Route as AdminDashboardPasswordRouteImport } from './routes/admin/_dashboard/password'
@@ -61,6 +62,7 @@ import { Route as AdminDashboardReportsIndexRouteImport } from './routes/admin/_
 import { Route as AdminDashboardReportsBattalionsRouteImport } from './routes/admin/_dashboard/reports/battalions'
 import { Route as AdminDashboardReportsBouquetsRouteImport } from './routes/admin/_dashboard/reports/bouquets'
 import { Route as AdminDashboardReportsCashRouteImport } from './routes/admin/_dashboard/reports/cash'
+import { Route as AdminDashboardReportsDeliveriesRouteImport } from './routes/admin/_dashboard/reports/deliveries'
 import { Route as AdminDashboardReportsFlowersRouteImport } from './routes/admin/_dashboard/reports/flowers'
 import { Route as AdminDashboardReportsMoneyRouteImport } from './routes/admin/_dashboard/reports/money'
 import { Route as AdminDashboardReportsOrdersRouteImport } from './routes/admin/_dashboard/reports/orders'
@@ -201,6 +203,12 @@ const AdminDashboardCustomRoute = AdminDashboardCustomRouteImport.update({
   path: '/custom',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
+const AdminDashboardDeliveryDatesRoute =
+  AdminDashboardDeliveryDatesRouteImport.update({
+    id: '/delivery-dates',
+    path: '/delivery-dates',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
 const AdminDashboardLogsRoute = AdminDashboardLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -355,6 +363,12 @@ const AdminDashboardReportsCashRoute =
     path: '/cash',
     getParentRoute: () => AdminDashboardReportsRoute,
   } as any)
+const AdminDashboardReportsDeliveriesRoute =
+  AdminDashboardReportsDeliveriesRouteImport.update({
+    id: '/deliveries',
+    path: '/deliveries',
+    getParentRoute: () => AdminDashboardReportsRoute,
+  } as any)
 const AdminDashboardReportsFlowersRoute =
   AdminDashboardReportsFlowersRouteImport.update({
     id: '/flowers',
@@ -493,6 +507,7 @@ export interface FileRoutesByFullPath {
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
+  '/admin/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
   '/admin/logs': typeof AdminDashboardLogsRoute
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
@@ -516,6 +531,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports/battalions': typeof AdminDashboardReportsBattalionsRoute
   '/admin/reports/bouquets': typeof AdminDashboardReportsBouquetsRoute
   '/admin/reports/cash': typeof AdminDashboardReportsCashRoute
+  '/admin/reports/deliveries': typeof AdminDashboardReportsDeliveriesRoute
   '/admin/reports/flowers': typeof AdminDashboardReportsFlowersRoute
   '/admin/reports/money': typeof AdminDashboardReportsMoneyRoute
   '/admin/reports/orders': typeof AdminDashboardReportsOrdersRoute
@@ -564,6 +580,7 @@ export interface FileRoutesByTo {
   '/uploads/$': typeof UploadsSplatRoute
   '/account': typeof AccountIndexRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
+  '/admin/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
   '/admin/logs': typeof AdminDashboardLogsRoute
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
@@ -586,6 +603,7 @@ export interface FileRoutesByTo {
   '/admin/reports/battalions': typeof AdminDashboardReportsBattalionsRoute
   '/admin/reports/bouquets': typeof AdminDashboardReportsBouquetsRoute
   '/admin/reports/cash': typeof AdminDashboardReportsCashRoute
+  '/admin/reports/deliveries': typeof AdminDashboardReportsDeliveriesRoute
   '/admin/reports/flowers': typeof AdminDashboardReportsFlowersRoute
   '/admin/reports/money': typeof AdminDashboardReportsMoneyRoute
   '/admin/reports/orders': typeof AdminDashboardReportsOrdersRoute
@@ -637,6 +655,7 @@ export interface FileRoutesById {
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
   '/admin/_dashboard/custom': typeof AdminDashboardCustomRoute
+  '/admin/_dashboard/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
   '/admin/_dashboard/logs': typeof AdminDashboardLogsRoute
   '/admin/_dashboard/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/_dashboard/password': typeof AdminDashboardPasswordRoute
@@ -660,6 +679,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/reports/battalions': typeof AdminDashboardReportsBattalionsRoute
   '/admin/_dashboard/reports/bouquets': typeof AdminDashboardReportsBouquetsRoute
   '/admin/_dashboard/reports/cash': typeof AdminDashboardReportsCashRoute
+  '/admin/_dashboard/reports/deliveries': typeof AdminDashboardReportsDeliveriesRoute
   '/admin/_dashboard/reports/flowers': typeof AdminDashboardReportsFlowersRoute
   '/admin/_dashboard/reports/money': typeof AdminDashboardReportsMoneyRoute
   '/admin/_dashboard/reports/orders': typeof AdminDashboardReportsOrdersRoute
@@ -712,6 +732,7 @@ export interface FileRouteTypes {
     | '/uploads/$'
     | '/account/'
     | '/admin/custom'
+    | '/admin/delivery-dates'
     | '/admin/logs'
     | '/admin/order-log'
     | '/admin/password'
@@ -735,6 +756,7 @@ export interface FileRouteTypes {
     | '/admin/reports/battalions'
     | '/admin/reports/bouquets'
     | '/admin/reports/cash'
+    | '/admin/reports/deliveries'
     | '/admin/reports/flowers'
     | '/admin/reports/money'
     | '/admin/reports/orders'
@@ -783,6 +805,7 @@ export interface FileRouteTypes {
     | '/uploads/$'
     | '/account'
     | '/admin/custom'
+    | '/admin/delivery-dates'
     | '/admin/logs'
     | '/admin/order-log'
     | '/admin/password'
@@ -805,6 +828,7 @@ export interface FileRouteTypes {
     | '/admin/reports/battalions'
     | '/admin/reports/bouquets'
     | '/admin/reports/cash'
+    | '/admin/reports/deliveries'
     | '/admin/reports/flowers'
     | '/admin/reports/money'
     | '/admin/reports/orders'
@@ -855,6 +879,7 @@ export interface FileRouteTypes {
     | '/uploads/$'
     | '/account/'
     | '/admin/_dashboard/custom'
+    | '/admin/_dashboard/delivery-dates'
     | '/admin/_dashboard/logs'
     | '/admin/_dashboard/order-log'
     | '/admin/_dashboard/password'
@@ -878,6 +903,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/reports/battalions'
     | '/admin/_dashboard/reports/bouquets'
     | '/admin/_dashboard/reports/cash'
+    | '/admin/_dashboard/reports/deliveries'
     | '/admin/_dashboard/reports/flowers'
     | '/admin/_dashboard/reports/money'
     | '/admin/_dashboard/reports/orders'
@@ -1106,6 +1132,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AdminDashboardCustomRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
+    '/admin/_dashboard/delivery-dates': {
+      id: '/admin/_dashboard/delivery-dates'
+      path: '/delivery-dates'
+      fullPath: '/admin/delivery-dates'
+      preLoaderRoute: typeof AdminDashboardDeliveryDatesRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
     '/admin/_dashboard/logs': {
       id: '/admin/_dashboard/logs'
       path: '/logs'
@@ -1302,6 +1335,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AdminDashboardReportsCashRouteImport
       parentRoute: typeof AdminDashboardReportsRoute
     }
+    '/admin/_dashboard/reports/deliveries': {
+      id: '/admin/_dashboard/reports/deliveries'
+      path: '/deliveries'
+      fullPath: '/admin/reports/deliveries'
+      preLoaderRoute: typeof AdminDashboardReportsDeliveriesRouteImport
+      parentRoute: typeof AdminDashboardReportsRoute
+    }
     '/admin/_dashboard/reports/flowers': {
       id: '/admin/_dashboard/reports/flowers'
       path: '/flowers'
@@ -1459,6 +1499,7 @@ interface AdminDashboardReportsRouteChildren {
   AdminDashboardReportsBattalionsRoute: typeof AdminDashboardReportsBattalionsRoute
   AdminDashboardReportsBouquetsRoute: typeof AdminDashboardReportsBouquetsRoute
   AdminDashboardReportsCashRoute: typeof AdminDashboardReportsCashRoute
+  AdminDashboardReportsDeliveriesRoute: typeof AdminDashboardReportsDeliveriesRoute
   AdminDashboardReportsFlowersRoute: typeof AdminDashboardReportsFlowersRoute
   AdminDashboardReportsMoneyRoute: typeof AdminDashboardReportsMoneyRoute
   AdminDashboardReportsOrdersRoute: typeof AdminDashboardReportsOrdersRoute
@@ -1469,6 +1510,7 @@ const AdminDashboardReportsRouteChildren: AdminDashboardReportsRouteChildren = {
   AdminDashboardReportsBattalionsRoute: AdminDashboardReportsBattalionsRoute,
   AdminDashboardReportsBouquetsRoute: AdminDashboardReportsBouquetsRoute,
   AdminDashboardReportsCashRoute: AdminDashboardReportsCashRoute,
+  AdminDashboardReportsDeliveriesRoute: AdminDashboardReportsDeliveriesRoute,
   AdminDashboardReportsFlowersRoute: AdminDashboardReportsFlowersRoute,
   AdminDashboardReportsMoneyRoute: AdminDashboardReportsMoneyRoute,
   AdminDashboardReportsOrdersRoute: AdminDashboardReportsOrdersRoute,
@@ -1482,6 +1524,7 @@ const AdminDashboardReportsRouteWithChildren =
 
 interface AdminDashboardRouteChildren {
   AdminDashboardCustomRoute: typeof AdminDashboardCustomRoute
+  AdminDashboardDeliveryDatesRoute: typeof AdminDashboardDeliveryDatesRoute
   AdminDashboardLogsRoute: typeof AdminDashboardLogsRoute
   AdminDashboardOrderLogRoute: typeof AdminDashboardOrderLogRoute
   AdminDashboardPasswordRoute: typeof AdminDashboardPasswordRoute
@@ -1517,6 +1560,7 @@ interface AdminDashboardRouteChildren {
 
 const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardCustomRoute: AdminDashboardCustomRoute,
+  AdminDashboardDeliveryDatesRoute: AdminDashboardDeliveryDatesRoute,
   AdminDashboardLogsRoute: AdminDashboardLogsRoute,
   AdminDashboardOrderLogRoute: AdminDashboardOrderLogRoute,
   AdminDashboardPasswordRoute: AdminDashboardPasswordRoute,

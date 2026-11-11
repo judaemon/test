@@ -13,6 +13,7 @@ import {
 	serialDigits,
 	validateCheckoutDetails,
 } from "~/lib/checkout";
+import { deliveryDateError, upcomingDeliveryDates } from "~/lib/delivery-dates";
 import { ORDER_EDIT_LOCKED, orderEditState } from "~/lib/order-edit";
 import {
 	CARD_BRAND_LABELS,
@@ -46,6 +47,7 @@ import type { PaymentAccount } from "~/types/payment";
 import { listPublicProducts } from "./catalog-repo";
 import { getCustomSettings } from "./custom-repo";
 import { getSessionUser } from "./customer-auth";
+import { getDeliveryDates } from "./delivery-dates-repo";
 import { shopActor } from "./order-actor";
 import { promoForNextOrder, promoProgress } from "./order-promos-repo";
 import {
@@ -91,6 +93,8 @@ interface PlaceOrderInput {
 export const getCheckoutConfig = createServerFn({ method: "GET" }).handler(
 	async () => ({
 		paymentAccounts: listPaymentAccounts().filter((account) => account.enabled),
+		/** The event's delivery days still ahead; none means any day, optional. */
+		deliveryDates: upcomingDeliveryDates(getDeliveryDates()),
 	}),
 );
 
@@ -150,6 +154,11 @@ export const placeOrder = createServerFn({ method: "POST" })
 			};
 		}
 		const fieldErrors = validateCheckoutDetails(data.details);
+		const dateError = deliveryDateError(
+			data.details.deliveryDate,
+			upcomingDeliveryDates(getDeliveryDates()),
+		);
+		if (dateError) fieldErrors.deliveryDate = dateError;
 
 		const method =
 			isPaymentMethod(data.paymentMethod) &&

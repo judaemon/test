@@ -20,6 +20,7 @@ import {
 	validateCheckoutDetails,
 } from "~/lib/checkout";
 import { CUSTOM_IMAGE, CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import { isCalendarDate } from "~/lib/delivery-dates";
 import { validateOrdersSearch } from "~/lib/order-filters";
 import {
 	isMethodAllowedFor,
@@ -63,6 +64,7 @@ import {
 	getOrderById,
 	OrderRuleError,
 	reviewPayment,
+	setDeliveryDate,
 	setDeliveryPhoto,
 	setOrderStage,
 	setOrderTest,
@@ -321,6 +323,21 @@ export const updateWrapperStatus = createServerFn({ method: "POST" })
 		const user = await requireStaff();
 		return runAction(() =>
 			setWrapperStatus(data.id, data.line, data.status, staffActor(user)),
+		);
+	});
+
+export const updateDeliveryDate = createServerFn({ method: "POST" })
+	.validator((input: unknown) => {
+		const source = asRecord(input);
+		const date = typeof source.date === "string" ? source.date : "";
+		if (date && !isCalendarDate(date))
+			throw new InputError("That isn’t a real day.");
+		return { id: text(source, "id", { max: 64 }), date };
+	})
+	.handler(async ({ data }) => {
+		const user = await requireStaff();
+		return runAction(() =>
+			setDeliveryDate(data.id, data.date, staffActor(user)),
 		);
 	});
 

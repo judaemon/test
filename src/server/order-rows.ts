@@ -6,6 +6,7 @@ import {
 	COMPANIES,
 } from "~/lib/cadets";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
+import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { type FloristOption, floristOf } from "~/lib/florists";
 import {
 	CUSTOM_ARRANGEMENT,
@@ -29,6 +30,7 @@ import {
 } from "~/types/order";
 import { listArrangementTypes } from "./arrangement-types-repo";
 import { listAdminProducts } from "./catalog-repo";
+import { getDeliveryDates } from "./delivery-dates-repo";
 import { listFloristOptions } from "./florists-repo";
 import { countOrderNotes } from "./order-notes-repo";
 import { listOrders } from "./orders-repo";
@@ -65,6 +67,8 @@ export interface OrderRowsPage {
 	noteCounts: Record<string, number>;
 	/** Every florist, for the rows' florist pickers. */
 	florists: FloristOption[];
+	/** The event's delivery days, for the rows' date pickers. */
+	deliveryDates: string[];
 }
 
 /** One card above the orders table: an arrangement type and its bouquets. */
@@ -84,7 +88,8 @@ const FIELDS: Record<
 	FacetId,
 	{
 		keys: (row: OrderRow) => string[];
-		fixed?: readonly string[];
+		/** Choices shown even with no rows, first and in this order. */
+		fixed?: readonly string[] | (() => readonly string[]);
 		label?: (key: string, row?: OrderRow) => string;
 	}
 > = {
@@ -110,6 +115,13 @@ const FIELDS: Record<
 		keys: ({ order }) => [order.payment.method],
 		fixed: PAYMENT_METHODS,
 		label: (key) => PAYMENT_METHOD_LABELS[key as Order["payment"]["method"]],
+	},
+	delivery: {
+		keys: ({ order }) => [order.details.deliveryDate || NONE],
+		// The event's days first, then "no date", so staff can find the
+		// orders still to give a day.
+		fixed: () => [...getDeliveryDates(), NONE],
+		label: (key) => (key === NONE ? "No date yet" : shortDeliveryDate(key)),
 	},
 	battalion: {
 		keys: ({ order }) => [battalionOf(order.details.company) ?? NONE],
@@ -220,6 +232,12 @@ function arrangementOf(line: PricedLine) {
 	return line.arrangement ?? productTypes.get(line.productId) ?? NONE;
 }
 
+/** A filter's choices known up front. */
+function fixedKeys(id: FacetId): readonly string[] {
+	const { fixed } = FIELDS[id];
+	return typeof fixed === "function" ? fixed() : (fixed ?? []);
+}
+
 const FACET_IDS: FacetId[] = ["stage", ...FACETS.map((facet) => facet.id)];
 
 /** Shop-local (Asia/Manila, UTC+8 with no DST) day an order was placed. */
@@ -248,6 +266,7 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 		options,
 		summary,
 		florists,
+		deliveryDates: getDeliveryDates(),
 	};
 }
 
@@ -307,7 +326,7 @@ function filterOrderRows(search: OrdersSearch) {
 				counts.set(key, { count: (seen?.count ?? 0) + hit, row });
 			}
 		});
-		const fixed = (field.fixed ?? []).filter(
+		const fixed = fixedKeys(id).filter(
 			// "None" only shows once some row has it.
 			(key) => key !== NONE || counts.has(key) || id === "florist",
 		);
@@ -341,7 +360,7 @@ function filterOrderRows(search: OrdersSearch) {
 	// The cards above the table: every arrangement type, how many bouquets
 	// of it and how far they are, for the other filters but not type or stage.
 	const summaryCounts = new Map<string, ArrangementSummary>();
-	for (const key of FIELDS.arrangement.fixed ?? [])
+	for (const key of fixedKeys("arrangement"))
 		summaryCounts.set(key, {
 			key,
 			label: summaryLabel(key),

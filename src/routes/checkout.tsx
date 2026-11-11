@@ -7,6 +7,7 @@ import {
 	createMemo,
 	createResource,
 	createSignal,
+	createUniqueId,
 	For,
 	Match,
 	on,
@@ -15,7 +16,6 @@ import {
 	Switch,
 } from "solid-js";
 import { createStore } from "solid-js/store";
-
 import { pillPrimary } from "~/components/cart/cart-sheet";
 import {
 	type BagBouquet,
@@ -86,6 +86,7 @@ import {
 	readCheckoutDraft,
 	writeCheckoutDraft,
 } from "~/lib/checkout-draft";
+import { deliveryDateError, shortDeliveryDate } from "~/lib/delivery-dates";
 import { ORDER_EDIT_HOURS } from "~/lib/order-edit";
 import { promoSubtotal } from "~/lib/order-promo";
 import {
@@ -205,6 +206,7 @@ function CheckoutPage() {
 					<Match when={cart().lines.length > 0}>
 						<CheckoutForm
 							paymentAccounts={config().paymentAccounts}
+							deliveryDates={config().deliveryDates}
 							name={user()?.isStaff ? undefined : user()?.name}
 							email={user()?.isStaff ? undefined : user()?.email}
 							onPlaced={() => setPlaced(true)}
@@ -219,6 +221,8 @@ function CheckoutPage() {
 
 function CheckoutForm(props: {
 	paymentAccounts: PaymentAccount[];
+	/** The event's delivery days; one must be picked. None: any day, optional. */
+	deliveryDates: string[];
 	/** Signed-in shopper's name, used to prefill the name field. */
 	name?: string;
 	/** And their email, for the email field. */
@@ -567,6 +571,10 @@ function CheckoutForm(props: {
 		const details = readCheckoutForm(formData);
 		const fieldErrors = withoutEmpty({
 			...validateCheckoutDetails(details),
+			deliveryDate: deliveryDateError(
+				details.deliveryDate,
+				props.deliveryDates,
+			),
 			...validatePayment(formData),
 		});
 		const messageErrors = validateMessages();
@@ -823,17 +831,32 @@ function CheckoutForm(props: {
 							error={errors().email}
 							onInput={() => clearError("email")}
 						/>
-						<Field
-							name="deliveryDate"
-							label="Delivery date (optional)"
-							type="date"
-							min={deliveryDateRange().min}
-							max={deliveryDateRange().max}
-							description="When you’d like it delivered. Leave it empty if any day is fine."
-							defaultValue={draft?.deliveryDate ?? ""}
-							error={errors().deliveryDate}
-							onInput={() => clearError("deliveryDate")}
-						/>
+						<Show
+							when={props.deliveryDates.length}
+							fallback={
+								<Field
+									name="deliveryDate"
+									label="Delivery date (optional)"
+									type="date"
+									min={deliveryDateRange().min}
+									max={deliveryDateRange().max}
+									description="When you’d like it delivered. Leave it empty if any day is fine."
+									defaultValue={draft?.deliveryDate ?? ""}
+									error={errors().deliveryDate}
+									onInput={() => clearError("deliveryDate")}
+								/>
+							}
+						>
+							<DeliveryDateChoice
+								dates={props.deliveryDates}
+								defaultValue={draft?.deliveryDate ?? ""}
+								error={errors().deliveryDate}
+								onChange={() => {
+									clearError("deliveryDate");
+									saveDraft();
+								}}
+							/>
+						</Show>
 					</div>
 				</Section>
 
@@ -1503,6 +1526,64 @@ function Section(props: {
 			</h2>
 			{props.children}
 		</section>
+	);
+}
+
+/**
+ * The event's delivery days, one of which must be picked. Native radios, so
+ * the form reads the choice like any other field.
+ */
+function DeliveryDateChoice(props: {
+	dates: string[];
+	defaultValue: string;
+	error?: string;
+	onChange: () => void;
+}) {
+	const errorId = createUniqueId();
+	return (
+		<fieldset
+			class="flex flex-col gap-2"
+			aria-invalid={props.error ? true : undefined}
+			aria-describedby={props.error ? errorId : undefined}
+		>
+			<legend class="mb-2 text-sm font-medium text-petal-900">
+				Delivery date
+			</legend>
+			<div class="grid grid-cols-2 gap-2">
+				<For each={props.dates}>
+					{(date) => (
+						<label
+							class={cn(
+								"flex min-h-12 cursor-pointer items-center gap-2.5 rounded-xl border bg-white px-3 py-2 text-sm transition-colors has-[:checked]:border-petal-700 has-[:checked]:bg-petal-50 has-[:checked]:font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-petal-500",
+								props.error ? "border-error-foreground/60" : "border-petal-200",
+							)}
+						>
+							<input
+								type="radio"
+								name="deliveryDate"
+								value={date}
+								checked={props.defaultValue === date}
+								onChange={props.onChange}
+								class="size-4 shrink-0 accent-petal-700"
+							/>
+							<span class="leading-tight">{shortDeliveryDate(date)}</span>
+						</label>
+					)}
+				</For>
+			</div>
+			<Show
+				when={props.error}
+				fallback={
+					<p class="text-xs text-petal-900/55">
+						Pick the day you’d like it delivered.
+					</p>
+				}
+			>
+				<p id={errorId} class="text-sm text-error-foreground">
+					{props.error}
+				</p>
+			</Show>
+		</fieldset>
 	);
 }
 
