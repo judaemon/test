@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 
+import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { orderFlowers } from "~/lib/flower-tally";
 import { photoSrc } from "~/lib/photos";
@@ -14,7 +15,27 @@ import type {
 } from "~/server/florist-work";
 import type { RecipeItem } from "~/types/product";
 
-type SortBy = "order" | "style";
+type SortBy = "order" | "style" | "company";
+
+const SORTS: { key: SortBy; label: string }[] = [
+	{ key: "order", label: "Order number" },
+	{ key: "style", label: "Same style together" },
+	{ key: "company", label: "Company" },
+];
+
+/** Stands in for bouquets whose customer gave no company. */
+const NO_COMPANY = "";
+
+/** Companies in their usual order (Alfa to Hawk), then any others, then none. */
+const companyRank = (name: string) => {
+	if (!name) return COMPANIES.length + 1;
+	const index = COMPANIES.findIndex((company) => company.name === name);
+	return index === -1 ? COMPANIES.length : index;
+};
+const classRank = (name: string) => {
+	const index = (CLASS_OPTIONS as readonly string[]).indexOf(name);
+	return index === -1 ? CLASS_OPTIONS.length : index;
+};
 
 /** How many bouquets go on each A4 page. */
 const PER_PAGE = [1, 2, 4, 6] as const;
@@ -153,8 +174,41 @@ export function FloristSheet(props: {
 	const [withSummary, setWithSummary] = createSignal(true);
 	const [printing, setPrinting] = createSignal(false);
 
+	/** The companies picked; none picked shows every company. */
+	const [companies, setCompanies] = createSignal<string[]>([]);
+	const companyOptions = createMemo(() => {
+		const counts = new Map<string, number>();
+		for (const b of props.work.bouquets)
+			counts.set(b.customer.company, (counts.get(b.customer.company) ?? 0) + 1);
+		return [...counts.entries()]
+			.sort(([a], [b]) => companyRank(a) - companyRank(b) || a.localeCompare(b))
+			.map(([name, count]) => ({ name, count }));
+	});
+	const toggleCompany = (name: string) =>
+		setCompanies((list) =>
+			list.includes(name) ? list.filter((c) => c !== name) : [...list, name],
+		);
+	const companyLabel = (name: string) =>
+		name === NO_COMPANY ? "No company" : name;
+	/** The bouquets for the picked companies: on screen and on paper alike. */
+	const shown = createMemo(() =>
+		companies().length
+			? props.work.bouquets.filter((b) =>
+					companies().includes(b.customer.company),
+				)
+			: props.work.bouquets,
+	);
+
 	const bouquets = createMemo(() => {
-		const list = [...props.work.bouquets];
+		const list = [...shown()];
+		if (sortBy() === "company")
+			list.sort(
+				(a, b) =>
+					companyRank(a.customer.company) - companyRank(b.customer.company) ||
+					a.customer.company.localeCompare(b.customer.company) ||
+					classRank(a.customer.className) - classRank(b.customer.className) ||
+					Number(a.orderNumber) - Number(b.orderNumber),
+			);
 		if (sortBy() === "style")
 			list.sort(
 				(a, b) =>
@@ -164,11 +218,10 @@ export function FloristSheet(props: {
 			);
 		return list;
 	});
-	const toMake = () =>
-		props.work.bouquets.filter((b) => b.stage !== "done").length;
+	const toMake = () => shown().filter((b) => b.stage !== "done").length;
 	const flowers = createMemo(() => {
 		const { flowers, missing } = orderFlowers(
-			props.work.bouquets
+			shown()
 				.filter((b) => b.stage !== "done")
 				.map((b) => ({ quantity: 1, recipe: b.recipe })),
 		);
@@ -198,7 +251,9 @@ export function FloristSheet(props: {
 			props.work.florist.name,
 			`${ORIENTATIONS[orientation()]} ${perPage()} per page`,
 			FILE_LAYOUT[layout()],
+			companies().length > 0 && companies().map(companyLabel).join(", "),
 			sortBy() === "style" && "By style",
+			sortBy() === "company" && "By company",
 			props.includeDone && "With finished",
 		]),
 	);
@@ -278,23 +333,48 @@ export function FloristSheet(props: {
 				<div class="mb-6 flex flex-col gap-3 rounded-2xl border border-petal-100 bg-white p-4">
 					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">Order by</span>
-						<button
-							type="button"
-							aria-pressed={sortBy() === "order"}
-							onClick={() => setSortBy("order")}
-							class={pill(sortBy() === "order")}
-						>
-							Order number
-						</button>
-						<button
-							type="button"
-							aria-pressed={sortBy() === "style"}
-							onClick={() => setSortBy("style")}
-							class={pill(sortBy() === "style")}
-						>
-							Same style together
-						</button>
+						<For each={SORTS}>
+							{(sort) => (
+								<button
+									type="button"
+									aria-pressed={sortBy() === sort.key}
+									onClick={() => setSortBy(sort.key)}
+									class={pill(sortBy() === sort.key)}
+								>
+									{sort.label}
+								</button>
+							)}
+						</For>
 					</div>
+					<Show when={companyOptions().length > 1}>
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="mr-1 text-sm font-medium">Company</span>
+							<button
+								type="button"
+								aria-pressed={!companies().length}
+								onClick={() => setCompanies([])}
+								class={pill(!companies().length)}
+							>
+								All
+							</button>
+							<For each={companyOptions()}>
+								{(option) => (
+									<button
+										type="button"
+										aria-pressed={companies().includes(option.name)}
+										onClick={() => toggleCompany(option.name)}
+										class={pill(companies().includes(option.name))}
+									>
+										{companyLabel(option.name)}
+										<span class="tabular-nums opacity-75">
+											{" "}
+											({option.count})
+										</span>
+									</button>
+								)}
+							</For>
+						</div>
+					</Show>
 					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">On each bouquet</span>
 						<For each={Object.keys(LAYOUTS) as Layout[]}>
@@ -402,7 +482,12 @@ export function FloristSheet(props: {
 						<p class="text-right text-[9pt]">
 							Printed {printedOn}
 							<br />
-							{toMake()} bouquets · {totalStems()} flowers
+							<Show when={companies().length}>
+								{companies().map(companyLabel).join(", ")} only
+								<br />
+							</Show>
+							{toMake()} {toMake() === 1 ? "bouquet" : "bouquets"} ·{" "}
+							{totalStems()} {totalStems() === 1 ? "flower" : "flowers"}
 						</p>
 					</header>
 					<div class="grid gap-6 lg:grid-cols-2 print:grid-cols-2 print:gap-5">
@@ -517,6 +602,16 @@ export function FloristSheet(props: {
 												</span>
 												<span class="block text-xs text-petal-900/60 print:text-[8pt]">
 													{bouquet.customer.name}
+													<Show
+														when={[
+															bouquet.customer.company,
+															bouquet.customer.className,
+														]
+															.filter(Boolean)
+															.join(" ")}
+													>
+														{(who) => <> · {who()}</>}
+													</Show>
 													<Show when={bouquet.deliveryDate}>
 														{(date) => <> · for {formatDeliveryDate(date())}</>}
 													</Show>
