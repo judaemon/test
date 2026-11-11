@@ -8,15 +8,51 @@ import { cn } from "~/lib/utils";
 import type {
 	FloristBouquet,
 	FloristCard,
+	FloristPayment,
 	FloristWork,
 } from "~/server/florist-work";
 import type { RecipeItem } from "~/types/product";
 
 type SortBy = "order" | "style";
 
-/** Two bouquets per A4 page, or one big one. */
-const PER_PAGE = { 2: "2 per page", 1: "1 per page" } as const;
-type PerPage = keyof typeof PER_PAGE;
+/** How many bouquets go on each A4 page. */
+const PER_PAGE = [1, 2, 4, 6] as const;
+type PerPage = (typeof PER_PAGE)[number];
+
+/**
+ * What each bouquet shows: everything the florist needs, or a shorter card
+ * that fits 4 or 6 to a page.
+ */
+const LAYOUTS = {
+	full: "Everything",
+	flowers: "Photo, flowers & wrapper",
+	basic: "Photo & who ordered",
+} as const;
+type Layout = keyof typeof LAYOUTS;
+
+/** The full card doesn't fit more than 2 to a page. */
+const fitsFull = (n: PerPage) => n <= 2;
+
+/** Each page's grid: columns and rows, so every card on it is the same size. */
+const PAGE_GRID: Record<PerPage, string> = {
+	1: "print:grid-cols-1 print:grid-rows-1",
+	2: "print:grid-cols-1 print:grid-rows-2",
+	4: "print:grid-cols-2 print:grid-rows-2",
+	6: "print:grid-cols-2 print:grid-rows-3",
+};
+
+const PAYMENT: Record<FloristPayment, { label: string; paid: boolean }> = {
+	paid: { label: "Paid", paid: true },
+	deposit: { label: "Deposit paid", paid: true },
+	verifying: { label: "Checking payment", paid: false },
+	unpaid: { label: "Not paid", paid: false },
+	rejected: { label: "Payment rejected", paid: false },
+};
+
+const chunk = <T,>(list: T[], size: number) =>
+	Array.from({ length: Math.ceil(list.length / size) }, (_, i) =>
+		list.slice(i * size, i * size + size),
+	);
 
 const pill = (on: boolean) =>
 	cn(
@@ -59,6 +95,15 @@ export function FloristSheet(props: {
 }) {
 	const [sortBy, setSortBy] = createSignal<SortBy>("order");
 	const [perPage, setPerPage] = createSignal<PerPage>(2);
+	const [layout, setLayout] = createSignal<Layout>("full");
+	const pickPerPage = (n: PerPage) => {
+		setPerPage(n);
+		if (!fitsFull(n) && layout() === "full") setLayout("flowers");
+	};
+	const pickLayout = (next: Layout) => {
+		setLayout(next);
+		if (next === "full" && !fitsFull(perPage())) setPerPage(2);
+	};
 	const [withSummary, setWithSummary] = createSignal(true);
 	const [printing, setPrinting] = createSignal(false);
 
@@ -190,19 +235,39 @@ export function FloristSheet(props: {
 						</button>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
+						<span class="mr-1 text-sm font-medium">On each bouquet</span>
+						<For each={Object.keys(LAYOUTS) as Layout[]}>
+							{(key) => (
+								<button
+									type="button"
+									aria-pressed={layout() === key}
+									onClick={() => pickLayout(key)}
+									class={pill(layout() === key)}
+								>
+									{LAYOUTS[key]}
+								</button>
+							)}
+						</For>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">On paper</span>
-						<For each={[2, 1] as PerPage[]}>
+						<For each={PER_PAGE}>
 							{(n) => (
 								<button
 									type="button"
 									aria-pressed={perPage() === n}
-									onClick={() => setPerPage(n)}
+									onClick={() => pickPerPage(n)}
 									class={pill(perPage() === n)}
 								>
-									{PER_PAGE[n]}
+									{n} per page
 								</button>
 							)}
 						</For>
+						<Show when={layout() === "full"}>
+							<span class="text-xs text-petal-900/55">
+								4 or 6 per page uses a shorter card
+							</span>
+						</Show>
 					</div>
 					<div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
 						<label class="flex min-h-10 cursor-pointer items-center gap-2">
@@ -400,21 +465,50 @@ export function FloristSheet(props: {
 						({bouquets().length})
 					</span>
 				</h2>
-				<div class="grid gap-5 xl:grid-cols-2 print:block">
-					<For each={bouquets()}>
-						{(bouquet, index) => (
-							<BouquetCard
-								bouquet={bouquet}
-								staff={props.staff}
-								photoFor={photoFor}
-								perPage={perPage()}
-								pageBreak={
-									(index() + 1) % perPage() === 0 &&
-									index() < bouquets().length - 1
-								}
-								printedOn={printedOn}
-								florist={props.work.florist.name}
-							/>
+				<div
+					class={cn(
+						"grid gap-5 print:block",
+						layout() === "full"
+							? "xl:grid-cols-2"
+							: "md:grid-cols-2 xl:grid-cols-3",
+					)}
+				>
+					{/* On screen the pages melt into one grid; on paper each is an A4 sheet. */}
+					<For each={chunk(bouquets(), perPage())}>
+						{(page, index) => (
+							<div
+								class={cn(
+									"contents print:grid print:h-[272mm] print:gap-[4mm]",
+									PAGE_GRID[perPage()],
+									index() < chunk(bouquets(), perPage()).length - 1 &&
+										"print:break-after-page",
+								)}
+							>
+								<For each={page}>
+									{(bouquet) => (
+										<Show
+											when={layout() !== "full"}
+											fallback={
+												<BouquetCard
+													bouquet={bouquet}
+													staff={props.staff}
+													photoFor={photoFor}
+													perPage={perPage()}
+													printedOn={printedOn}
+													florist={props.work.florist.name}
+												/>
+											}
+										>
+											<ShortBouquetCard
+												bouquet={bouquet}
+												staff={props.staff}
+												withFlowers={layout() === "flowers"}
+												perPage={perPage()}
+											/>
+										</Show>
+									)}
+								</For>
+							</div>
 						)}
 					</For>
 				</div>
@@ -432,7 +526,6 @@ function BouquetCard(props: {
 	staff?: boolean;
 	photoFor: (flower: string, color?: string) => string | undefined;
 	perPage: PerPage;
-	pageBreak: boolean;
 	printedOn: string;
 	florist: string;
 }) {
@@ -454,9 +547,7 @@ function BouquetCard(props: {
 	return (
 		<article
 			class={cn(
-				"flex flex-col overflow-hidden rounded-2xl border border-petal-100 bg-white print:mb-[5mm] print:rounded-[2mm] print:border-black/50 print:break-inside-avoid",
-				big() ? "print:h-[270mm]" : "print:h-[132mm]",
-				props.pageBreak && "print:break-after-page",
+				"flex flex-col overflow-hidden rounded-2xl border border-petal-100 bg-white print:h-full print:min-h-0 print:rounded-[2mm] print:border-black/50 print:break-inside-avoid",
 			)}
 		>
 			<header class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-petal-100 bg-petal-50 px-4 py-2.5 print:border-black/30 print:bg-black/5 print:px-[3mm] print:py-[1.5mm]">
@@ -708,6 +799,201 @@ function BouquetCard(props: {
 					<span>Printed {props.printedOn}</span>
 				</p>
 			</footer>
+		</article>
+	);
+}
+
+/**
+ * The shorter card, 4 or 6 to a page: order number, payment, the photo and
+ * who it's for, and (if asked) the flowers and wrapper.
+ */
+function ShortBouquetCard(props: {
+	bouquet: FloristBouquet;
+	staff?: boolean;
+	withFlowers: boolean;
+	perPage: PerPage;
+}) {
+	const b = () => props.bouquet;
+	const small = () => props.perPage >= 6;
+	const payment = () => PAYMENT[b().payment];
+	const photo = () => b().image ?? b().referenceImages[0];
+	const label = (text: string) => (
+		<span class="text-petal-900/60 print:text-black/60">{text} </span>
+	);
+
+	return (
+		<article class="flex flex-col overflow-hidden rounded-2xl border border-petal-100 bg-white print:h-full print:min-h-0 print:rounded-[2mm] print:border-black/50 print:break-inside-avoid">
+			<header
+				class={cn(
+					"flex items-center justify-between gap-2 border-b border-petal-100 bg-petal-50 px-3 py-2 print:border-black/30 print:bg-black/5",
+					small()
+						? "print:px-[2.5mm] print:py-[1mm]"
+						: "print:px-[3mm] print:py-[1.5mm]",
+				)}
+			>
+				<p class="flex min-w-0 flex-wrap items-center gap-1.5">
+					<Show
+						when={props.staff && b().orderId}
+						fallback={
+							<span
+								class={cn(
+									"text-lg font-bold tabular-nums",
+									small() ? "print:text-[12pt]" : "print:text-[14pt]",
+								)}
+							>
+								#{b().orderNumber}
+							</span>
+						}
+					>
+						{(orderId) => (
+							<Link
+								to="/admin/orders/$orderId"
+								params={{ orderId: orderId() }}
+								class={cn(
+									"text-lg font-bold tabular-nums text-petal-700 underline-offset-2 hover:underline print:text-inherit",
+									small() ? "print:text-[12pt]" : "print:text-[14pt]",
+								)}
+							>
+								#{b().orderNumber}
+							</Link>
+						)}
+					</Show>
+					<Show when={b().quantity > 1}>
+						<span class="text-xs font-semibold text-petal-900/70 print:text-[7.5pt]">
+							{b().unit + 1} of {b().quantity}
+						</span>
+					</Show>
+					<Show when={b().isTest}>
+						<span class="rounded-full bg-petal-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+							Test
+						</span>
+					</Show>
+				</p>
+				{/* Border and words, not just colour, so it reads on a black-and-white printer. */}
+				<span
+					class={cn(
+						"shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold print:text-[8pt]",
+						payment().paid
+							? "border-success bg-success text-success-foreground print:border-black print:bg-transparent print:text-black"
+							: "border-warning bg-warning text-warning-foreground print:border-2 print:border-black print:bg-black print:text-white",
+					)}
+				>
+					{payment().label}
+				</span>
+			</header>
+
+			<div
+				class={cn(
+					"grid min-h-0 flex-1 gap-3 p-3",
+					// With flowers: photo beside the list. Without: who it's for on
+					// top, and the photo fills the rest of the card.
+					props.withFlowers
+						? "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+						: "grid-rows-[auto_minmax(0,1fr)]",
+					small()
+						? "print:gap-[2.5mm] print:p-[2.5mm]"
+						: "print:gap-[3mm] print:p-[3mm]",
+				)}
+			>
+				<div
+					class={cn(
+						"relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:rounded-[1.5mm]",
+						!props.withFlowers && "row-start-2",
+					)}
+				>
+					<Show
+						when={photo()}
+						fallback={
+							<span class="absolute inset-0 flex items-center justify-center text-sm text-petal-900/40">
+								No photo
+							</span>
+						}
+					>
+						{(src) => (
+							<img
+								src={photoSrc(src())}
+								alt={`${b().title} · ${b().colorName}`}
+								loading="eager"
+								class="absolute inset-0 size-full object-cover"
+							/>
+						)}
+					</Show>
+				</div>
+
+				<div
+					class={cn(
+						"flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden text-sm leading-snug",
+						small()
+							? "print:gap-[1.2mm] print:text-[8pt]"
+							: "print:gap-[1.8mm] print:text-[9pt]",
+					)}
+				>
+					<div>
+						<p
+							class={cn(
+								"font-semibold wrap-anywhere",
+								small() ? "print:text-[9.5pt]" : "print:text-[11pt]",
+							)}
+						>
+							{b().customer.name}
+						</p>
+						<Show when={b().customer.company}>
+							<p class="wrap-anywhere">
+								{label("Company")}
+								{b().customer.company}
+							</p>
+						</Show>
+						<Show when={b().customer.className}>
+							<p class="wrap-anywhere">
+								{label("Class")}
+								{b().customer.className}
+							</p>
+						</Show>
+					</div>
+
+					<Show when={props.withFlowers}>
+						<Show when={b().wrapper}>
+							<p class="border-t border-petal-100 pt-1 print:border-black/25">
+								{label("Wrapper")}
+								<strong class="font-semibold">{b().wrapper}</strong>
+							</p>
+						</Show>
+						<div class="border-t border-petal-100 pt-1 print:border-black/25">
+							<Show
+								when={b().recipe.length}
+								fallback={
+									<p class="text-petal-900/55">
+										{b().custom
+											? "Custom: follow the photo."
+											: "No flowers on record."}
+									</p>
+								}
+							>
+								<ul class="flex flex-col">
+									<For each={b().recipe}>
+										{(item) => (
+											<li class="flex items-baseline gap-1.5">
+												<span class="min-w-0 flex-1">
+													{item.flower}
+													<Show when={item.color}>
+														<span class="text-petal-900/60 print:text-black/60">
+															{" "}
+															· {item.color}
+														</span>
+													</Show>
+												</span>
+												<span class="shrink-0 font-semibold tabular-nums">
+													{item.count ? `× ${item.count}` : "cluster"}
+												</span>
+											</li>
+										)}
+									</For>
+								</ul>
+							</Show>
+						</div>
+					</Show>
+				</div>
+			</div>
 		</article>
 	);
 }

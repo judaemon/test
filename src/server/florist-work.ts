@@ -1,7 +1,12 @@
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { floristOf } from "~/lib/florists";
 import { preorderNote } from "~/lib/product";
-import { canStartMaking, type OrderStage } from "~/types/order";
+import {
+	canStartMaking,
+	isPaymentSettled,
+	type OrderStage,
+	type PaymentStatus,
+} from "~/types/order";
 import type { RecipeItem } from "~/types/product";
 import { listArrangementTypes } from "./arrangement-types-repo";
 import { getDb } from "./db";
@@ -15,6 +20,24 @@ export interface FloristCard {
 	message: string;
 }
 
+/** Paid in full, a deposit in, being checked, not sent yet, or rejected. */
+export type FloristPayment =
+	| "paid"
+	| "deposit"
+	| "verifying"
+	| "unpaid"
+	| "rejected";
+
+function floristPayment(payment: {
+	status: PaymentStatus;
+	amountPaid?: number;
+}): FloristPayment {
+	if (isPaymentSettled(payment.status)) return "paid";
+	if ((payment.amountPaid ?? 0) > 0) return "deposit";
+	if (payment.status === "pending") return "verifying";
+	return payment.status === "rejected" ? "rejected" : "unpaid";
+}
+
 /** One bouquet a florist is to make, with what they need to make it. */
 export interface FloristBouquet {
 	/** Unique on the sheet: order, line and which of its kind. */
@@ -26,6 +49,8 @@ export interface FloristBouquet {
 	stage: OrderStage;
 	/** Not paid yet, so it might not go ahead. */
 	waitingForPayment: boolean;
+	/** Where the order's payment is, in words a florist reads at a glance. */
+	payment: FloristPayment;
 	isTest: boolean;
 	/** `YYYY-MM-DD`, when the customer chose one. */
 	deliveryDate?: string;
@@ -125,6 +150,7 @@ export function floristWork(
 					placedAt: order.createdAt,
 					stage: order.stage,
 					waitingForPayment: !canStartMaking(order.payment),
+					payment: floristPayment(order.payment),
 					isTest: order.isTest,
 					...(d.deliveryDate ? { deliveryDate: d.deliveryDate } : {}),
 					customer: {
