@@ -4,6 +4,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
 import { findArrangementType } from "~/lib/arrangements";
 import { photoSrc } from "~/lib/photos";
+import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { wrapperNames } from "~/lib/product";
 import { findSize } from "~/lib/sizes";
 import { useArrangementTypes, useSizes } from "~/lib/use-catalog";
@@ -30,6 +31,15 @@ const LAYOUTS = {
 } as const;
 type PerPage = keyof typeof LAYOUTS;
 
+/** What each card shows: the flowers to make it, or just the photo and name. */
+const CONTENTS = {
+	full: "Photo & flowers",
+	photo: "Photo & name only",
+} as const;
+type Contents = keyof typeof CONTENTS;
+
+type Orientation = "landscape" | "portrait";
+
 /** Paper, in millimetres; the sheet's own padding stands in for margins. */
 const A4 = { short: 210, long: 297, margin: 7, footer: 6, gap: 4 };
 
@@ -44,11 +54,18 @@ function FloristListPage() {
 	const types = useArrangementTypes();
 	const sizes = useSizes();
 	const [perPage, setPerPage] = createSignal<PerPage>(4);
+	const [contents, setContents] = createSignal<Contents>("full");
+	/** Only photo-and-name cards at 2 per page can turn the sheet. */
+	const [orientation, setOrientation] = createSignal<Orientation>("landscape");
+	const canTurn = () => contents() === "photo" && perPage() === 2;
 	const [chosenTypes, setChosenTypes] = createSignal<string[]>([]);
 	const [includeHidden, setIncludeHidden] = createSignal(false);
 	const [onlyNewer, setOnlyNewer] = createSignal(false);
 
-	const layout = () => LAYOUTS[perPage()];
+	const layout = () =>
+		canTurn() && orientation() === "portrait"
+			? { landscape: false, cols: 1, rows: 2 }
+			: LAYOUTS[perPage()];
 	const cards = createMemo((): Card[] =>
 		data()
 			.products.filter(
@@ -85,6 +102,15 @@ function FloristListPage() {
 		layout().landscape
 			? { width: A4.long, height: A4.short }
 			: { width: A4.short, height: A4.long };
+
+	// The saved PDF's name: "Florist list - Photo & name - Portrait 2 per page - Nov 11".
+	usePrintTitle(() =>
+		printFileName([
+			"Florist list",
+			contents() === "photo" ? "Photo & name" : "Photo & flowers",
+			`${layout().landscape ? "Landscape" : "Portrait"} ${perPage()} per page`,
+		]),
+	);
 
 	const [printing, setPrinting] = createSignal(false);
 	/** Waits for every photo, so none prints blank, then opens the print dialog. */
@@ -147,6 +173,21 @@ function FloristListPage() {
 				/>
 				<div class={cn(adminCard, "mb-6 flex flex-col gap-4 p-5")}>
 					<div class="flex flex-wrap items-center gap-2">
+						<span class="mr-1 text-sm font-medium">On each card</span>
+						<For each={Object.keys(CONTENTS) as Contents[]}>
+							{(key) => (
+								<button
+									type="button"
+									aria-pressed={contents() === key}
+									onClick={() => setContents(key)}
+									class={pill(contents() === key)}
+								>
+									{CONTENTS[key]}
+								</button>
+							)}
+						</For>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">On each A4 page</span>
 						<For each={Object.keys(LAYOUTS).map(Number) as PerPage[]}>
 							{(n) => (
@@ -157,13 +198,35 @@ function FloristListPage() {
 									class={pill(perPage() === n)}
 								>
 									{LAYOUTS[n].label}
-									<Show when={LAYOUTS[n].landscape}>
+									<Show when={LAYOUTS[n].landscape && !canTurn()}>
 										<span class="opacity-75"> (landscape)</span>
 									</Show>
 								</button>
 							)}
 						</For>
 					</div>
+					<Show when={canTurn()}>
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="mr-1 text-sm font-medium">A4 paper</span>
+							<For each={["landscape", "portrait"] as Orientation[]}>
+								{(key) => (
+									<button
+										type="button"
+										aria-pressed={orientation() === key}
+										onClick={() => setOrientation(key)}
+										class={pill(orientation() === key)}
+									>
+										{key === "landscape" ? "Landscape" : "Portrait"}
+									</button>
+								)}
+							</For>
+							<span class="text-xs text-petal-900/55">
+								{orientation() === "landscape"
+									? "Side by side"
+									: "One above the other"}
+							</span>
+						</div>
+					</Show>
 					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">Type</span>
 						<For each={types()}>
@@ -256,6 +319,7 @@ function FloristListPage() {
 											<FloristCard
 												card={card}
 												perPage={perPage()}
+												photoOnly={contents() === "photo"}
 												photos={data().flowerPhotos}
 												typeLabel={findArrangementType(
 													types(),
@@ -301,6 +365,8 @@ function flowerCount(recipe: RecipeItem[]) {
 function FloristCard(props: {
 	card: Card;
 	perPage: PerPage;
+	/** Just the photo and the name under it. */
+	photoOnly: boolean;
 	photos: Record<string, string>;
 	typeLabel?: { name: string; description: string };
 	size?: { name: string; description: string };
@@ -331,7 +397,7 @@ function FloristCard(props: {
 				"row-span-2 grid min-h-0 grid-rows-subgrid overflow-hidden break-inside-avoid",
 			)}
 		>
-			<div class="relative min-h-0 overflow-hidden rounded-[2mm] bg-black/5">
+			<div class="relative min-h-0 overflow-hidden rounded-[2mm]">
 				<Show
 					when={photo()}
 					fallback={
@@ -345,130 +411,158 @@ function FloristCard(props: {
 							src={photoSrc(src())}
 							alt={`${product().title} · ${variant().colorName}`}
 							loading="eager"
-							class="absolute inset-0 size-full object-cover"
+							// The whole photo, scaled to fit: never cropped. Sits on the
+							// name or flowers below it, any spare room above.
+							class="absolute inset-0 size-full object-contain object-bottom"
 						/>
 					)}
 				</Show>
 			</div>
 
-			<div
-				class={cn(
-					"flex min-w-0 flex-col pt-[2mm] pb-[4mm]",
-					big() ? "text-[10pt]" : small() ? "text-[7.5pt]" : "text-[8.5pt]",
-				)}
-			>
-				<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-[0.5mm]">
+			<Show when={props.photoOnly}>
+				<div class="min-w-0 pt-[2mm] pb-[4mm] text-center">
 					<h2
 						class={cn(
-							"min-w-0 font-display font-semibold leading-tight",
-							big() ? "text-[20pt]" : small() ? "text-[12pt]" : "text-[14pt]",
+							"font-display font-semibold leading-tight",
+							big() ? "text-[24pt]" : small() ? "text-[13pt]" : "text-[16pt]",
 						)}
 					>
 						{product().title}
-						<span class="font-sans text-[0.6em] font-normal text-black/60">
-							{" "}
-							· {variant().colorName}
-						</span>
 					</h2>
-					<span
-						class="shrink-0 rounded-full border border-black/30 px-[2mm] py-[0.3mm] text-[8pt] font-semibold tabular-nums"
-						title={
-							props.card.version
-								? `Flowers saved by ${props.card.version.createdBy}`
-								: undefined
+					<p
+						class={cn(
+							"text-black/65",
+							big() ? "text-[13pt]" : small() ? "text-[8.5pt]" : "text-[10pt]",
+						)}
+					>
+						{variant().colorName}
+					</p>
+				</div>
+			</Show>
+
+			<Show when={!props.photoOnly}>
+				<div
+					class={cn(
+						"flex min-w-0 flex-col pt-[2mm] pb-[4mm]",
+						big() ? "text-[10pt]" : small() ? "text-[7.5pt]" : "text-[8.5pt]",
+					)}
+				>
+					<div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-[0.5mm]">
+						<h2
+							class={cn(
+								"min-w-0 font-display font-semibold leading-tight",
+								big() ? "text-[20pt]" : small() ? "text-[12pt]" : "text-[14pt]",
+							)}
+						>
+							{product().title}
+							<span class="font-sans text-[0.6em] font-normal text-black/60">
+								{" "}
+								· {variant().colorName}
+							</span>
+						</h2>
+						<span
+							class="shrink-0 rounded-full border border-black/30 px-[2mm] py-[0.3mm] text-[8pt] font-semibold tabular-nums"
+							title={
+								props.card.version
+									? `Flowers saved by ${props.card.version.createdBy}`
+									: undefined
+							}
+						>
+							v{props.card.version?.version ?? 1}
+							<Show when={versionDate()}>
+								<span class="font-normal text-black/60">
+									{" "}
+									· {versionDate()}
+								</span>
+							</Show>
+						</span>
+					</div>
+
+					<div class="mt-[1.5mm] flex items-baseline justify-between border-b border-black/15 pb-[0.8mm] font-semibold">
+						<span>
+							What’s in this{" "}
+							{product().arrangement === "bouquet"
+								? "bouquet"
+								: (props.typeLabel?.name.toLowerCase() ?? "arrangement")}
+						</span>
+						<span class="tabular-nums">{flowerCount(recipe())} flowers</span>
+					</div>
+					<Show
+						when={recipe().length}
+						fallback={
+							<p class="py-[1mm] text-black/55">No flowers on record yet.</p>
 						}
 					>
-						v{props.card.version?.version ?? 1}
-						<Show when={versionDate()}>
-							<span class="font-normal text-black/60"> · {versionDate()}</span>
-						</Show>
-					</span>
-				</div>
-
-				<div class="mt-[1.5mm] flex items-baseline justify-between border-b border-black/15 pb-[0.8mm] font-semibold">
-					<span>
-						What’s in this{" "}
-						{product().arrangement === "bouquet"
-							? "bouquet"
-							: (props.typeLabel?.name.toLowerCase() ?? "arrangement")}
-					</span>
-					<span class="tabular-nums">{flowerCount(recipe())} flowers</span>
-				</div>
-				<Show
-					when={recipe().length}
-					fallback={
-						<p class="py-[1mm] text-black/55">No flowers on record yet.</p>
-					}
-				>
-					<ul class="flex flex-col gap-[0.6mm] py-[1mm]">
-						<For each={recipe()}>
-							{(item) => (
-								<li class="flex items-center gap-[2mm]">
-									<span
-										class={cn(
-											"shrink-0 overflow-hidden rounded-[1mm] bg-black/5",
-											big()
-												? "size-[9mm]"
-												: small()
-													? "size-[5mm]"
-													: "size-[6mm]",
-										)}
-									>
-										<Show when={flowerPhoto(item)}>
-											{(src) => (
-												<img
-													src={photoSrc(src(), "thumb")}
-													alt=""
-													loading="eager"
-													class="size-full object-cover"
-												/>
+						<ul class="flex flex-col gap-[0.6mm] py-[1mm]">
+							<For each={recipe()}>
+								{(item) => (
+									<li class="flex items-center gap-[2mm]">
+										<span
+											class={cn(
+												"shrink-0 overflow-hidden rounded-[1mm] bg-black/5",
+												big()
+													? "size-[9mm]"
+													: small()
+														? "size-[5mm]"
+														: "size-[6mm]",
 											)}
-										</Show>
-									</span>
-									<span class="min-w-0 flex-1 leading-tight">
-										{item.flower}
-										<Show when={item.color}>
-											<span class="text-black/60"> · {item.color}</span>
-										</Show>
-										<Show when={item.filler}>
-											<span class="text-black/50"> (filler)</span>
-										</Show>
-									</span>
-									<span class="shrink-0 font-semibold tabular-nums">
-										× {item.count ?? 1}
-									</span>
-								</li>
-							)}
-						</For>
-					</ul>
-				</Show>
+										>
+											<Show when={flowerPhoto(item)}>
+												{(src) => (
+													<img
+														src={photoSrc(src(), "thumb")}
+														alt=""
+														loading="eager"
+														class="size-full object-cover"
+													/>
+												)}
+											</Show>
+										</span>
+										<span class="min-w-0 flex-1 leading-tight">
+											{item.flower}
+											<Show when={item.color}>
+												<span class="text-black/60"> · {item.color}</span>
+											</Show>
+											<Show when={item.filler}>
+												<span class="text-black/50"> (filler)</span>
+											</Show>
+										</span>
+										<span class="shrink-0 font-semibold tabular-nums">
+											× {item.count ?? 1}
+										</span>
+									</li>
+								)}
+							</For>
+						</ul>
+					</Show>
 
-				<dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-[3mm] gap-y-[0.3mm] border-t border-black/15 pt-[1mm]">
-					<dt class="text-black/55">Type</dt>
-					<dd>
-						<strong class="font-semibold">
-							{props.typeLabel?.name ?? product().arrangement}
-						</strong>
-						<Show when={big() && props.typeLabel?.description}>
-							<span class="text-black/60">
-								{" "}
-								· {props.typeLabel?.description}
-							</span>
-						</Show>
-					</dd>
-					<dt class="text-black/55">Wrapper</dt>
-					<dd>{wrappers() || "None"}</dd>
-					<dt class="text-black/55">Size</dt>
-					<dd>
-						<strong class="font-semibold">
-							{props.size?.name ?? "Not set"}
-						</strong>
-						<Show when={props.size?.description}>
-							<span class="text-black/60"> · {props.size?.description}</span>
-						</Show>
-					</dd>
-				</dl>
-			</div>
+					<dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-[3mm] gap-y-[0.3mm] border-t border-black/15 pt-[1mm]">
+						<dt class="text-black/55">Type</dt>
+						<dd>
+							<strong class="font-semibold">
+								{props.typeLabel?.name ?? product().arrangement}
+							</strong>
+							<Show when={big() && props.typeLabel?.description}>
+								<span class="text-black/60">
+									{" "}
+									· {props.typeLabel?.description}
+								</span>
+							</Show>
+						</dd>
+						<dt class="text-black/55">Wrapper</dt>
+						<dd>{wrappers() || "None"}</dd>
+						<dt class="text-black/55">Size</dt>
+						<dd>
+							<strong class="font-semibold">
+								{props.size?.name ?? "Not set"}
+							</strong>
+							<Show when={props.size?.description}>
+								<span class="text-black/60"> · {props.size?.description}</span>
+							</Show>
+						</dd>
+					</dl>
+				</div>
+			</Show>
 		</article>
 	);
 }
