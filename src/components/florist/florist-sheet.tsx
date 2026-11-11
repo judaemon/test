@@ -39,39 +39,42 @@ type Orientation = keyof typeof ORIENTATIONS;
 
 /**
  * Each page's grid: columns and rows, so every card on it is the same size,
- * and its height: A4 less the 10mm margins, with a little room to spare so
- * rounding never pushes a card onto a page of its own.
+ * and its height: a whole A4 sheet (the page has no margin, see `@page`),
+ * less a hair so rounding never pushes a card onto a page of its own.
  */
 const PAGE_GRID: Record<Orientation, Record<PerPage, string>> = {
 	portrait: {
-		1: "print:h-[272mm] print:grid-cols-1 print:grid-rows-1",
-		2: "print:h-[272mm] print:grid-cols-1 print:grid-rows-2",
-		4: "print:h-[272mm] print:grid-cols-2 print:grid-rows-2",
-		6: "print:h-[272mm] print:grid-cols-2 print:grid-rows-3",
+		1: "print:h-[296mm] print:grid-cols-1 print:grid-rows-1",
+		2: "print:h-[296mm] print:grid-cols-1 print:grid-rows-2",
+		4: "print:h-[296mm] print:grid-cols-2 print:grid-rows-2",
+		6: "print:h-[296mm] print:grid-cols-2 print:grid-rows-3",
 	},
 	landscape: {
-		1: "print:h-[185mm] print:grid-cols-1 print:grid-rows-1",
-		2: "print:h-[185mm] print:grid-cols-2 print:grid-rows-1",
-		4: "print:h-[185mm] print:grid-cols-2 print:grid-rows-2",
-		6: "print:h-[185mm] print:grid-cols-3 print:grid-rows-2",
+		1: "print:h-[209mm] print:grid-cols-1 print:grid-rows-1",
+		2: "print:h-[209mm] print:grid-cols-2 print:grid-rows-1",
+		4: "print:h-[209mm] print:grid-cols-2 print:grid-rows-2",
+		6: "print:h-[209mm] print:grid-cols-3 print:grid-rows-2",
 	},
 };
 
-/** Whether each card comes out wider than it is tall. */
-const WIDE_CARD: Record<Orientation, Record<PerPage, boolean>> = {
-	portrait: { 1: false, 2: true, 4: false, 6: false },
-	landscape: { 1: true, 2: false, 4: true, 6: false },
+/**
+ * Cards where the photo gets most room below the details: tall ones, and the
+ * small 6-to-a-page ones. Wide cards put the photo beside the details.
+ */
+const TALL_CARD: Record<Orientation, Record<PerPage, boolean>> = {
+	portrait: { 1: true, 2: false, 4: true, 6: true },
+	landscape: { 1: false, 2: true, 4: false, 6: true },
 };
 
 /** The full card's photo and details: side by side, or photo on top. */
 const FULL_CARD_GRID: Record<Orientation, Record<1 | 2, string>> = {
 	portrait: {
 		1: "print:grid-cols-1 print:grid-rows-[minmax(0,1fr)_auto]",
-		2: "print:grid-cols-[62mm_minmax(0,1fr)]",
+		2: "print:grid-cols-[95mm_minmax(0,1fr)]",
 	},
 	landscape: {
-		1: "print:grid-cols-[125mm_minmax(0,1fr)]",
-		2: "print:grid-cols-[62mm_minmax(0,1fr)]",
+		1: "print:grid-cols-[150mm_minmax(0,1fr)]",
+		2: "print:grid-cols-1 print:grid-rows-[minmax(0,1fr)_auto]",
 	},
 };
 
@@ -208,7 +211,11 @@ export function FloristSheet(props: {
 
 	return (
 		<div data-florist-sheet class="text-petal-900">
-			<style>{`@page { size: A4 ${orientation()}; margin: 10mm; }`}</style>
+			{/*
+			 * No page margin: that's where browsers print the date, title and web
+			 * address. Each page pads itself instead, so nothing runs to the edge.
+			 */}
+			<style>{`@page { size: A4 ${orientation()}; margin: 0; }`}</style>
 
 			<div class="print:hidden">
 				{props.top}
@@ -359,7 +366,7 @@ export function FloristSheet(props: {
 				{/* The flowers to get, and a checklist: on screen, and the first printed page. */}
 				<section
 					class={cn(
-						"mb-8 print:mb-0 print:break-after-page",
+						"mb-8 print:mb-0 print:break-after-page print:p-[8mm] print:[-webkit-box-decoration-break:clone] print:[box-decoration-break:clone]",
 						!withSummary() && "print:hidden",
 					)}
 					aria-labelledby="flowers-to-get"
@@ -528,7 +535,7 @@ export function FloristSheet(props: {
 						{(page, index) => (
 							<div
 								class={cn(
-									"contents print:grid print:gap-[4mm]",
+									"contents print:box-border print:grid print:gap-[3mm] print:p-[6mm]",
 									PAGE_GRID[orientation()][perPage()],
 									index() < chunk(bouquets(), perPage()).length - 1 &&
 										"print:break-after-page",
@@ -555,7 +562,7 @@ export function FloristSheet(props: {
 												staff={props.staff}
 												withFlowers={layout() === "flowers"}
 												perPage={perPage()}
-												wide={WIDE_CARD[orientation()][perPage()]}
+												tall={TALL_CARD[orientation()][perPage()]}
 											/>
 										</Show>
 									)}
@@ -584,6 +591,9 @@ function BouquetCard(props: {
 }) {
 	const b = () => props.bouquet;
 	const big = () => props.perPage === 1;
+	/** Printed with the photo beside the details, not above them. */
+	const sideBySide = () =>
+		!FULL_CARD_GRID[props.orientation][big() ? 1 : 2].includes("grid-rows");
 	const count = () => stems(b().recipe);
 	const card = () => b().card ?? b().orderCard;
 	const customer = () =>
@@ -668,7 +678,7 @@ function BouquetCard(props: {
 				)}
 			>
 				<div class="flex min-h-0 flex-col gap-2">
-					<div class="relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:flex-1 print:rounded-[1.5mm]">
+					<div class="relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:flex-1 print:rounded-none print:bg-transparent">
 						<Show
 							when={b().image ?? b().referenceImages[0]}
 							fallback={
@@ -682,7 +692,11 @@ function BouquetCard(props: {
 									src={photoSrc(src())}
 									alt={`${b().title} · ${b().colorName}`}
 									loading="eager"
-									class="absolute inset-0 size-full object-cover"
+									class={cn(
+										// The whole photo, scaled to fit: never cropped.
+										"absolute inset-0 size-full object-contain",
+										sideBySide() && "print:object-top",
+									)}
 								/>
 							)}
 						</Show>
@@ -863,8 +877,8 @@ function ShortBouquetCard(props: {
 	staff?: boolean;
 	withFlowers: boolean;
 	perPage: PerPage;
-	/** Printed wider than tall: the photo goes beside the details. */
-	wide: boolean;
+	/** Printed taller than wide: details on top, the photo below. */
+	tall: boolean;
 }) {
 	const b = () => props.bouquet;
 	const small = () => props.perPage >= 6;
@@ -943,9 +957,10 @@ function ShortBouquetCard(props: {
 					props.withFlowers
 						? "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
 						: "grid-rows-[auto_minmax(0,1fr)]",
-					!props.withFlowers &&
-						props.wide &&
-						"print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:grid-rows-1",
+					// On paper the photo takes whatever room the details leave.
+					props.tall
+						? "print:grid-cols-1 print:grid-rows-[auto_minmax(0,1fr)]"
+						: "print:grid-cols-[minmax(0,1fr)_58mm] print:grid-rows-1",
 					small()
 						? "print:gap-[2.5mm] print:p-[2.5mm]"
 						: "print:gap-[3mm] print:p-[3mm]",
@@ -953,11 +968,11 @@ function ShortBouquetCard(props: {
 			>
 				<div
 					class={cn(
-						"relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:rounded-[1.5mm]",
+						"relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:rounded-none print:bg-transparent",
 						!props.withFlowers && "row-start-2",
-						!props.withFlowers &&
-							props.wide &&
-							"print:col-start-1 print:row-start-1",
+						props.tall
+							? "print:col-start-1 print:row-start-2"
+							: "print:col-start-1 print:row-start-1",
 					)}
 				>
 					<Show
@@ -973,7 +988,11 @@ function ShortBouquetCard(props: {
 								src={photoSrc(src())}
 								alt={`${b().title} · ${b().colorName}`}
 								loading="eager"
-								class="absolute inset-0 size-full object-cover"
+								class={cn(
+									// The whole photo, scaled to fit: never cropped.
+									"absolute inset-0 size-full object-contain",
+									!props.tall && "print:object-top",
+								)}
 							/>
 						)}
 					</Show>
@@ -982,9 +1001,9 @@ function ShortBouquetCard(props: {
 				<div
 					class={cn(
 						"flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden text-sm leading-snug",
-						!props.withFlowers &&
-							props.wide &&
-							"print:col-start-2 print:row-start-1",
+						props.tall
+							? "print:col-start-1 print:row-start-1"
+							: "print:col-start-2 print:row-start-1",
 						small()
 							? "print:gap-[1.2mm] print:text-[8pt]"
 							: "print:gap-[1.8mm] print:text-[9pt]",
