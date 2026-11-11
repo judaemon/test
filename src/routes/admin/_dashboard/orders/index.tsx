@@ -303,7 +303,11 @@ function OrdersPage() {
 				label: "All",
 				count: stages.reduce((sum, option) => sum + option.count, 0),
 			},
-			...stages,
+			// The tabs count bouquets, not orders, so "New orders 310" under
+			// a card of 255 orders would read as a mistake: just "New".
+			...stages.map((option) =>
+				option.key === "new" ? { ...option, label: "New" } : option,
+			),
 		];
 	};
 	const facetOptions = (id: (typeof FACETS)[number]["id"]) => {
@@ -1630,20 +1634,15 @@ function ArrangementCards(props: {
 			aria-label="Orders and bouquets by arrangement type"
 			class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
 		>
+			{/* The total, set apart from the type cards: orders, then what's in them. */}
 			<button
 				type="button"
-				aria-pressed={allShown()}
-				title={
-					allShown()
-						? "Every order, whatever it holds"
-						: "Show every type again"
-				}
+				disabled={allShown()}
+				title={allShown() ? undefined : "Show every type again"}
 				onClick={() => props.onSelect(undefined)}
 				class={cn(
-					"flex flex-col items-start gap-1 rounded-2xl border bg-white p-3 text-left lg:p-4 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
-					allShown()
-						? "border-petal-700 shadow-[inset_0_0_0_1px] shadow-petal-700"
-						: "border-petal-100 hover:border-petal-300",
+					"flex flex-col items-start gap-1 rounded-2xl border border-petal-200 bg-petal-50 p-3 text-left lg:p-4 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+					!allShown() && "hover:border-petal-400",
 				)}
 			>
 				<span class="text-sm font-medium text-petal-900/70">Orders</span>
@@ -1651,13 +1650,29 @@ function ArrangementCards(props: {
 					{props.orders.orders.toLocaleString()}
 				</span>
 				<span class="text-xs text-petal-900/65">
-					holding{" "}
+					with{" "}
 					<span class="font-medium tabular-nums text-petal-900">
-						{props.orders.bouquets.toLocaleString()}
+						{props.orders.items.toLocaleString()}
 					</span>{" "}
-					{props.orders.bouquets === 1 ? "bouquet" : "bouquets"} in all
+					{props.orders.items === 1 ? "item" : "items"} in all
 				</span>
-				<SummaryStages stages={props.orders.stages} />
+				<span class="mt-1 flex w-full flex-col gap-0.5 border-t border-petal-200 pt-1.5 text-xs text-petal-900/65">
+					<For each={props.cards.filter((card) => card.bouquets > 0)}>
+						{(card) => (
+							<span class="flex items-baseline justify-between gap-2">
+								<span>{card.label}</span>
+								<span class="font-medium tabular-nums text-petal-900">
+									{card.bouquets.toLocaleString()}
+								</span>
+							</span>
+						)}
+					</For>
+				</span>
+				<Show when={!allShown()}>
+					<span class="mt-1 text-xs font-medium text-petal-700">
+						Show every type
+					</span>
+				</Show>
 			</button>
 			<For each={props.cards}>
 				{(card) => {

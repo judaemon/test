@@ -90,9 +90,8 @@ export interface ArrangementSummary {
 /** Orders, not bouquets: one order can hold several bouquets. */
 export interface OrderSummary {
 	orders: number;
-	/** Bouquets of every type in those orders. */
-	bouquets: number;
-	stages: Record<Order["stage"], number>;
+	/** Everything in those orders, of every type: a bouquet ordered twice is two. */
+	items: number;
 }
 
 /** What a row can be filtered by, with the choices known up front in order. */
@@ -384,8 +383,7 @@ function filterOrderRows(search: OrdersSearch) {
 		});
 	const orderSummary: OrderSummary = {
 		orders: 0,
-		bouquets: 0,
-		stages: { new: 0, making: 0, done: 0, cancelled: 0 },
+		items: 0,
 	};
 	const ordersSeen = new Set<string>();
 	const typeOrdersSeen = new Set<string>();
@@ -402,7 +400,7 @@ function filterOrderRows(search: OrdersSearch) {
 		};
 		// Each row is one bouquet.
 		entry.bouquets += 1;
-		orderSummary.bouquets += 1;
+		orderSummary.items += 1;
 		if (!typeOrdersSeen.has(`${key}\n${row.order.id}`)) {
 			typeOrdersSeen.add(`${key}\n${row.order.id}`);
 			entry.orders += 1;
@@ -410,7 +408,6 @@ function filterOrderRows(search: OrdersSearch) {
 		if (!ordersSeen.has(row.order.id)) {
 			ordersSeen.add(row.order.id);
 			orderSummary.orders += 1;
-			orderSummary.stages[row.order.stage] += 1;
 		}
 		entry.stages[row.order.stage] += 1;
 		if (row.order.stage !== "cancelled") {
