@@ -55,9 +55,11 @@ function FloristListPage() {
 	const sizes = useSizes();
 	const [perPage, setPerPage] = createSignal<PerPage>(4);
 	const [contents, setContents] = createSignal<Contents>("full");
-	/** Only photo-and-name cards at 2 per page can turn the sheet. */
 	const [orientation, setOrientation] = createSignal<Orientation>("landscape");
-	const canTurn = () => contents() === "photo" && perPage() === 2;
+	/** 2 per page is always the photo and name; 4 and 6 can have the flowers. */
+	const photoOnly = () => perPage() === 2 || contents() === "photo";
+	/** Only 2 per page can turn the sheet. */
+	const canTurn = () => perPage() === 2;
 	const [chosenTypes, setChosenTypes] = createSignal<string[]>([]);
 	const [includeHidden, setIncludeHidden] = createSignal(false);
 	const [onlyNewer, setOnlyNewer] = createSignal(false);
@@ -107,7 +109,7 @@ function FloristListPage() {
 	usePrintTitle(() =>
 		printFileName([
 			"Florist list",
-			contents() === "photo" ? "Photo & name" : "Photo & flowers",
+			photoOnly() ? "Photo & name" : "Photo & flowers",
 			`${layout().landscape ? "Landscape" : "Portrait"} ${perPage()} per page`,
 		]),
 	);
@@ -173,21 +175,6 @@ function FloristListPage() {
 				/>
 				<div class={cn(adminCard, "mb-6 flex flex-col gap-4 p-5")}>
 					<div class="flex flex-wrap items-center gap-2">
-						<span class="mr-1 text-sm font-medium">On each card</span>
-						<For each={Object.keys(CONTENTS) as Contents[]}>
-							{(key) => (
-								<button
-									type="button"
-									aria-pressed={contents() === key}
-									onClick={() => setContents(key)}
-									class={pill(contents() === key)}
-								>
-									{CONTENTS[key]}
-								</button>
-							)}
-						</For>
-					</div>
-					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">On each A4 page</span>
 						<For each={Object.keys(LAYOUTS).map(Number) as PerPage[]}>
 							{(n) => (
@@ -198,13 +185,34 @@ function FloristListPage() {
 									class={pill(perPage() === n)}
 								>
 									{LAYOUTS[n].label}
-									<Show when={LAYOUTS[n].landscape && !canTurn()}>
-										<span class="opacity-75"> (landscape)</span>
-									</Show>
 								</button>
 							)}
 						</For>
 					</div>
+					<Show
+						when={!canTurn()}
+						fallback={
+							<p class="-mt-2 text-xs text-petal-900/55">
+								2 per page shows each bouquet’s photo and name only.
+							</p>
+						}
+					>
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="mr-1 text-sm font-medium">On each card</span>
+							<For each={Object.keys(CONTENTS) as Contents[]}>
+								{(key) => (
+									<button
+										type="button"
+										aria-pressed={contents() === key}
+										onClick={() => setContents(key)}
+										class={pill(contents() === key)}
+									>
+										{CONTENTS[key]}
+									</button>
+								)}
+							</For>
+						</div>
+					</Show>
 					<Show when={canTurn()}>
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="mr-1 text-sm font-medium">A4 paper</span>
@@ -319,7 +327,7 @@ function FloristListPage() {
 											<FloristCard
 												card={card}
 												perPage={perPage()}
-												photoOnly={contents() === "photo"}
+												photoOnly={photoOnly()}
 												photos={data().flowerPhotos}
 												typeLabel={findArrangementType(
 													types(),
