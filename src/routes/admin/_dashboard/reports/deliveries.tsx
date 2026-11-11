@@ -11,6 +11,7 @@ import { adminCard } from "~/components/admin/ui";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { shortDeliveryDate, upcomingDeliveryDates } from "~/lib/delivery-dates";
+import { photoSrc } from "~/lib/photos";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { cn } from "~/lib/utils";
 import type { ReportOrder } from "~/server/admin/reports";
@@ -304,7 +305,7 @@ function Deliveries() {
 													<td class="py-2 pr-3 print:py-1">
 														{order.className || "—"}
 													</td>
-													<td class="py-2 pr-3 tabular-nums print:py-1">
+													<td class="whitespace-nowrap py-2 pr-3 tabular-nums print:py-1">
 														{order.serialNumber
 															? formatSerialNumber(order.serialNumber)
 															: "—"}
@@ -312,16 +313,30 @@ function Deliveries() {
 													<td class="py-2 pr-3 print:py-1">
 														<For each={order.lines}>
 															{(line) => (
-																<span class="block leading-snug">
-																	<Show when={line.quantity > 1}>
-																		<strong class="font-semibold tabular-nums">
-																			{line.quantity} ×{" "}
-																		</strong>
-																	</Show>
-																	{line.title}
-																	<span class="text-petal-900/60 print:text-black/60">
-																		{" "}
-																		· {line.colorName}
+																<span class="flex items-center gap-2 leading-snug [&+&]:mt-1">
+																	{/* Small, and never cropped, so the bouquet is easy to spot by its colors. */}
+																	<span class="flex size-12 shrink-0 items-center justify-center print:size-[12mm]">
+																		<Show when={line.image}>
+																			{(src) => (
+																				<img
+																					src={photoSrc(src(), "thumb")}
+																					alt=""
+																					class="max-h-full max-w-full rounded object-contain"
+																				/>
+																			)}
+																		</Show>
+																	</span>
+																	<span>
+																		<Show when={line.quantity > 1}>
+																			<strong class="font-semibold tabular-nums">
+																				{line.quantity} ×{" "}
+																			</strong>
+																		</Show>
+																		{line.title}
+																		<span class="text-petal-900/60 print:text-black/60">
+																			{" "}
+																			· {line.colorName}
+																		</span>
 																	</span>
 																</span>
 															)}
