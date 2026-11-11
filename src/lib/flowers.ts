@@ -53,6 +53,28 @@ export function stemCount(recipe: RecipeItem[] = []) {
 }
 
 /** "18 × Roses · Red"; items from before everything was counted read "Aster · Violet (cluster)". */
+const byName = (a = "", b = "") =>
+	a.localeCompare(b, "en", { sensitivity: "base", numeric: true });
+
+/**
+ * How every printed flower list is ordered: A to Z by flower, then color,
+ * with fillers after the main flowers (also A to Z).
+ */
+export function compareFlowers(
+	a: { flower: string; color?: string; filler?: boolean },
+	b: { flower: string; color?: string; filler?: boolean },
+) {
+	return (
+		Number(!!a.filler) - Number(!!b.filler) ||
+		byName(a.flower, b.flower) ||
+		byName(a.color, b.color)
+	);
+}
+
+/** A recipe's flowers in print order, leaving the recipe itself as it is. */
+export const sortedRecipe = (recipe: readonly RecipeItem[]) =>
+	[...recipe].sort(compareFlowers);
+
 export function formatRecipeItem(item: RecipeItem) {
 	const name = item.color ? `${item.flower} · ${item.color}` : item.flower;
 	if (!item.count) return `${name} (cluster)`;

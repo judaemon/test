@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
 import { findArrangementType } from "~/lib/arrangements";
+import { sortedRecipe } from "~/lib/flowers";
 import { photoSrc } from "~/lib/photos";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { wrapperNames } from "~/lib/product";
@@ -502,7 +503,7 @@ function FloristCard(props: {
 						}
 					>
 						<ul class="flex flex-col gap-[0.6mm] py-[1mm]">
-							<For each={recipe()}>
+							<For each={sortedRecipe(recipe())}>
 								{(item) => (
 									<li class="flex items-center gap-[2mm]">
 										<span

@@ -1,3 +1,4 @@
+import { compareFlowers } from "~/lib/flowers";
 import type { RecipeItem } from "~/types/product";
 
 /** One flower an order needs, its bouquets' quantities counted in. */
@@ -109,15 +110,10 @@ export function tallyFlowers(
 		}
 	}
 	const tally = [...byFlower.values()];
+	// A to Z, fillers last, as every printed flower list is.
 	for (const flower of tally)
-		flower.colors.sort(
-			(a, b) => b.stems - a.stems || a.color.localeCompare(b.color),
+		flower.colors.sort((a, b) =>
+			compareFlowers({ ...a, filler: false }, { ...b, filler: false }),
 		);
-	return tally.sort(
-		(a, b) =>
-			Number(a.filler) - Number(b.filler) ||
-			b.stems - a.stems ||
-			b.clusters - a.clusters ||
-			a.flower.localeCompare(b.flower),
-	);
+	return tally.sort(compareFlowers);
 }

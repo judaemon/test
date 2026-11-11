@@ -4,6 +4,7 @@ import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { orderFlowers } from "~/lib/flower-tally";
+import { compareFlowers, sortedRecipe } from "~/lib/flowers";
 import { photoSrc } from "~/lib/photos";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { cn } from "~/lib/utils";
@@ -227,13 +228,7 @@ export function FloristSheet(props: {
 		);
 		return {
 			missing,
-			rows: flowers.sort(
-				(a, b) =>
-					Number(a.filler) - Number(b.filler) ||
-					b.stems - a.stems ||
-					a.flower.localeCompare(b.flower) ||
-					a.color.localeCompare(b.color),
-			),
+			rows: flowers.sort(compareFlowers),
 		};
 	});
 	const totalStems = () =>
@@ -877,7 +872,7 @@ function BouquetCard(props: {
 							}
 						>
 							<ul class="flex flex-col gap-1 py-1.5 print:gap-[0.6mm] print:py-[1mm]">
-								<For each={b().recipe}>
+								<For each={sortedRecipe(b().recipe)}>
 									{(item) => (
 										<li class="flex items-center gap-2 text-sm print:text-[9pt]">
 											<span class="size-7 shrink-0 overflow-hidden rounded-md bg-petal-50 print:size-[6mm]">
@@ -1165,7 +1160,7 @@ function ShortBouquetCard(props: {
 								}
 							>
 								<ul class="flex flex-col">
-									<For each={b().recipe}>
+									<For each={sortedRecipe(b().recipe)}>
 										{(item) => (
 											<li class="flex items-baseline gap-1.5">
 												<span class="min-w-0 flex-1">

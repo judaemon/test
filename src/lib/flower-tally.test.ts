@@ -76,11 +76,12 @@ describe("tallyFlowers", () => {
 		]);
 		const roses = tally[0];
 		expect(roses?.orderIds).toEqual(["a", "b"]);
+		// Colors A to Z too, not by how many.
 		expect(
 			roses?.colors.map((row) => [row.color, row.stems, row.orderIds]),
 		).toEqual([
-			["Red", 23, ["a", "b"]],
 			["Pink", 20, ["b"]],
+			["Red", 23, ["a", "b"]],
 		]);
 	});
 });
