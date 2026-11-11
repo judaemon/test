@@ -33,12 +33,46 @@ type Layout = keyof typeof LAYOUTS;
 /** The full card doesn't fit more than 2 to a page. */
 const fitsFull = (n: PerPage) => n <= 2;
 
-/** Each page's grid: columns and rows, so every card on it is the same size. */
-const PAGE_GRID: Record<PerPage, string> = {
-	1: "print:grid-cols-1 print:grid-rows-1",
-	2: "print:grid-cols-1 print:grid-rows-2",
-	4: "print:grid-cols-2 print:grid-rows-2",
-	6: "print:grid-cols-2 print:grid-rows-3",
+/** Which way the A4 sheet is turned. */
+const ORIENTATIONS = { portrait: "Portrait", landscape: "Landscape" } as const;
+type Orientation = keyof typeof ORIENTATIONS;
+
+/**
+ * Each page's grid: columns and rows, so every card on it is the same size,
+ * and its height: A4 less the 10mm margins, with a little room to spare so
+ * rounding never pushes a card onto a page of its own.
+ */
+const PAGE_GRID: Record<Orientation, Record<PerPage, string>> = {
+	portrait: {
+		1: "print:h-[272mm] print:grid-cols-1 print:grid-rows-1",
+		2: "print:h-[272mm] print:grid-cols-1 print:grid-rows-2",
+		4: "print:h-[272mm] print:grid-cols-2 print:grid-rows-2",
+		6: "print:h-[272mm] print:grid-cols-2 print:grid-rows-3",
+	},
+	landscape: {
+		1: "print:h-[185mm] print:grid-cols-1 print:grid-rows-1",
+		2: "print:h-[185mm] print:grid-cols-2 print:grid-rows-1",
+		4: "print:h-[185mm] print:grid-cols-2 print:grid-rows-2",
+		6: "print:h-[185mm] print:grid-cols-3 print:grid-rows-2",
+	},
+};
+
+/** Whether each card comes out wider than it is tall. */
+const WIDE_CARD: Record<Orientation, Record<PerPage, boolean>> = {
+	portrait: { 1: false, 2: true, 4: false, 6: false },
+	landscape: { 1: true, 2: false, 4: true, 6: false },
+};
+
+/** The full card's photo and details: side by side, or photo on top. */
+const FULL_CARD_GRID: Record<Orientation, Record<1 | 2, string>> = {
+	portrait: {
+		1: "print:grid-cols-1 print:grid-rows-[minmax(0,1fr)_auto]",
+		2: "print:grid-cols-[62mm_minmax(0,1fr)]",
+	},
+	landscape: {
+		1: "print:grid-cols-[125mm_minmax(0,1fr)]",
+		2: "print:grid-cols-[62mm_minmax(0,1fr)]",
+	},
 };
 
 const PAYMENT: Record<FloristPayment, { label: string; paid: boolean }> = {
@@ -96,6 +130,7 @@ export function FloristSheet(props: {
 	const [sortBy, setSortBy] = createSignal<SortBy>("order");
 	const [perPage, setPerPage] = createSignal<PerPage>(2);
 	const [layout, setLayout] = createSignal<Layout>("full");
+	const [orientation, setOrientation] = createSignal<Orientation>("portrait");
 	const pickPerPage = (n: PerPage) => {
 		setPerPage(n);
 		if (!fitsFull(n) && layout() === "full") setLayout("flowers");
@@ -173,7 +208,7 @@ export function FloristSheet(props: {
 
 	return (
 		<div data-florist-sheet class="text-petal-900">
-			<style>{"@page { size: A4 portrait; margin: 10mm; }"}</style>
+			<style>{`@page { size: A4 ${orientation()}; margin: 10mm; }`}</style>
 
 			<div class="print:hidden">
 				{props.top}
@@ -245,6 +280,21 @@ export function FloristSheet(props: {
 									class={pill(layout() === key)}
 								>
 									{LAYOUTS[key]}
+								</button>
+							)}
+						</For>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
+						<span class="mr-1 text-sm font-medium">A4 paper</span>
+						<For each={Object.keys(ORIENTATIONS) as Orientation[]}>
+							{(key) => (
+								<button
+									type="button"
+									aria-pressed={orientation() === key}
+									onClick={() => setOrientation(key)}
+									class={pill(orientation() === key)}
+								>
+									{ORIENTATIONS[key]}
 								</button>
 							)}
 						</For>
@@ -478,8 +528,8 @@ export function FloristSheet(props: {
 						{(page, index) => (
 							<div
 								class={cn(
-									"contents print:grid print:h-[272mm] print:gap-[4mm]",
-									PAGE_GRID[perPage()],
+									"contents print:grid print:gap-[4mm]",
+									PAGE_GRID[orientation()][perPage()],
 									index() < chunk(bouquets(), perPage()).length - 1 &&
 										"print:break-after-page",
 								)}
@@ -494,6 +544,7 @@ export function FloristSheet(props: {
 													staff={props.staff}
 													photoFor={photoFor}
 													perPage={perPage()}
+													orientation={orientation()}
 													printedOn={printedOn}
 													florist={props.work.florist.name}
 												/>
@@ -504,6 +555,7 @@ export function FloristSheet(props: {
 												staff={props.staff}
 												withFlowers={layout() === "flowers"}
 												perPage={perPage()}
+												wide={WIDE_CARD[orientation()][perPage()]}
 											/>
 										</Show>
 									)}
@@ -526,6 +578,7 @@ function BouquetCard(props: {
 	staff?: boolean;
 	photoFor: (flower: string, color?: string) => string | undefined;
 	perPage: PerPage;
+	orientation: Orientation;
 	printedOn: string;
 	florist: string;
 }) {
@@ -611,9 +664,7 @@ function BouquetCard(props: {
 			<div
 				class={cn(
 					"grid min-h-0 flex-1 gap-4 p-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] print:gap-[4mm] print:p-[3mm]",
-					big()
-						? "print:grid-cols-1 print:grid-rows-[minmax(0,1fr)_auto]"
-						: "print:grid-cols-[62mm_minmax(0,1fr)]",
+					FULL_CARD_GRID[props.orientation][big() ? 1 : 2],
 				)}
 			>
 				<div class="flex min-h-0 flex-col gap-2">
@@ -812,6 +863,8 @@ function ShortBouquetCard(props: {
 	staff?: boolean;
 	withFlowers: boolean;
 	perPage: PerPage;
+	/** Printed wider than tall: the photo goes beside the details. */
+	wide: boolean;
 }) {
 	const b = () => props.bouquet;
 	const small = () => props.perPage >= 6;
@@ -890,6 +943,9 @@ function ShortBouquetCard(props: {
 					props.withFlowers
 						? "grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
 						: "grid-rows-[auto_minmax(0,1fr)]",
+					!props.withFlowers &&
+						props.wide &&
+						"print:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] print:grid-rows-1",
 					small()
 						? "print:gap-[2.5mm] print:p-[2.5mm]"
 						: "print:gap-[3mm] print:p-[3mm]",
@@ -899,6 +955,9 @@ function ShortBouquetCard(props: {
 					class={cn(
 						"relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:rounded-[1.5mm]",
 						!props.withFlowers && "row-start-2",
+						!props.withFlowers &&
+							props.wide &&
+							"print:col-start-1 print:row-start-1",
 					)}
 				>
 					<Show
@@ -923,6 +982,9 @@ function ShortBouquetCard(props: {
 				<div
 					class={cn(
 						"flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden text-sm leading-snug",
+						!props.withFlowers &&
+							props.wide &&
+							"print:col-start-2 print:row-start-1",
 						small()
 							? "print:gap-[1.2mm] print:text-[8pt]"
 							: "print:gap-[1.8mm] print:text-[9pt]",
