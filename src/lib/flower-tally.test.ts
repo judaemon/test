@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-
 import { orderFlowers, tallyFlowers } from "./flower-tally";
+import { compareFlowers } from "./flowers";
 
 describe("orderFlowers", () => {
 	test("multiplies each recipe by the bouquets ordered", () => {
@@ -69,12 +69,13 @@ describe("tallyFlowers", () => {
 			{ id: "a", flowers: a },
 			{ id: "b", flowers: b },
 		]);
+		// One A to Z list: the filler Gypsophila isn't sent to the end.
 		expect(tally.map((row) => [row.flower, row.stems])).toEqual([
+			["Gypsophila", 1],
 			["Roses", 43],
 			["Sunflower", 3],
-			["Gypsophila", 1],
 		]);
-		const roses = tally[0];
+		const roses = tally[1];
 		expect(roses?.orderIds).toEqual(["a", "b"]);
 		// Colors A to Z too, not by how many.
 		expect(
@@ -82,6 +83,35 @@ describe("tallyFlowers", () => {
 		).toEqual([
 			["Pink", 20, ["b"]],
 			["Red", 23, ["a", "b"]],
+		]);
+	});
+});
+
+describe("compareFlowers", () => {
+	test("one A to Z list, a filler right after the same flower and color", () => {
+		const list = [
+			{ flower: "Sunflower" },
+			{ flower: "Aster", color: "White", filler: true },
+			{ flower: "Alstroemeria", color: "Pink", filler: true },
+			{ flower: "Roses", color: "Peach" },
+			{ flower: "Aster", color: "White" },
+			{ flower: "Alstroemeria", color: "White" },
+			{ flower: "Goldenrod", filler: true },
+			{ flower: "Goldenrod" },
+		].sort(compareFlowers);
+		expect(
+			list.map((f) =>
+				[f.flower, f.color, f.filler ? "filler" : ""].filter(Boolean).join(" "),
+			),
+		).toEqual([
+			"Alstroemeria Pink filler",
+			"Alstroemeria White",
+			"Aster White",
+			"Aster White filler",
+			"Goldenrod",
+			"Goldenrod filler",
+			"Roses Peach",
+			"Sunflower",
 		]);
 	});
 });

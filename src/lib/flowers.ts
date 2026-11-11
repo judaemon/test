@@ -57,17 +57,18 @@ const byName = (a = "", b = "") =>
 	a.localeCompare(b, "en", { sensitivity: "base", numeric: true });
 
 /**
- * How every printed flower list is ordered: A to Z by flower, then color,
- * with fillers after the main flowers (also A to Z).
+ * How every printed flower list is ordered: one A to Z list by flower, then
+ * color. Fillers sit in it with the rest; the same flower and color as a
+ * filler comes right after the main one.
  */
 export function compareFlowers(
 	a: { flower: string; color?: string; filler?: boolean },
 	b: { flower: string; color?: string; filler?: boolean },
 ) {
 	return (
-		Number(!!a.filler) - Number(!!b.filler) ||
 		byName(a.flower, b.flower) ||
-		byName(a.color, b.color)
+		byName(a.color, b.color) ||
+		Number(!!a.filler) - Number(!!b.filler)
 	);
 }
 

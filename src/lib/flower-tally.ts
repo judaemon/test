@@ -110,7 +110,7 @@ export function tallyFlowers(
 		}
 	}
 	const tally = [...byFlower.values()];
-	// A to Z, fillers last, as every printed flower list is.
+	// A to Z, fillers in with the rest, as every printed flower list is.
 	for (const flower of tally)
 		flower.colors.sort((a, b) =>
 			compareFlowers({ ...a, filler: false }, { ...b, filler: false }),
