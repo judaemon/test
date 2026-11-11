@@ -63,6 +63,8 @@ export interface OrderRowsPage {
 	pageCount: number;
 	options: Record<FacetId, FilterOption[]>;
 	summary: ArrangementSummary[];
+	/** The card before the type cards: every order, whatever it holds. */
+	orderSummary: OrderSummary;
 	/** Staff notes per order on this page; orders without any are left out. */
 	noteCounts: Record<string, number>;
 	/** Every florist, for the rows' florist pickers. */
@@ -81,6 +83,16 @@ export interface ArrangementSummary {
 	stages: Record<Order["stage"], number>;
 	/** Bouquets that need a wrapper (not cancelled), and how many are made. */
 	wrappers: { needed: number; made: number };
+	/** Orders holding at least one of these bouquets. */
+	orders: number;
+}
+
+/** Orders, not bouquets: one order can hold several bouquets. */
+export interface OrderSummary {
+	orders: number;
+	/** Bouquets of every type in those orders. */
+	bouquets: number;
+	stages: Record<Order["stage"], number>;
 }
 
 /** What a row can be filtered by, with the choices known up front in order. */
@@ -249,7 +261,7 @@ const placedDay = (createdAt: string) =>
  * page here, so the page only ever holds what's on screen.
  */
 export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
-	const { matching, options, summary } = filterOrderRows(search);
+	const { matching, options, summary, orderSummary } = filterOrderRows(search);
 	const pageSize = search.perPage ?? DEFAULT_PAGE_SIZE;
 	const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
 	const page = Math.min(search.page ?? 1, pageCount);
@@ -265,6 +277,7 @@ export function queryOrderRows(search: OrdersSearch): OrderRowsPage {
 		pageCount,
 		options,
 		summary,
+		orderSummary,
 		florists,
 		deliveryDates: getDeliveryDates(),
 	};
@@ -367,7 +380,15 @@ function filterOrderRows(search: OrdersSearch) {
 			bouquets: 0,
 			stages: { new: 0, making: 0, done: 0, cancelled: 0 },
 			wrappers: { needed: 0, made: 0 },
+			orders: 0,
 		});
+	const orderSummary: OrderSummary = {
+		orders: 0,
+		bouquets: 0,
+		stages: { new: 0, making: 0, done: 0, cancelled: 0 },
+	};
+	const ordersSeen = new Set<string>();
+	const typeOrdersSeen = new Set<string>();
 	rows.forEach((row, i) => {
 		if (!passes(i, "arrangement", "stage")) return;
 		const key = arrangementOf(row.line);
@@ -377,9 +398,20 @@ function filterOrderRows(search: OrdersSearch) {
 			bouquets: 0,
 			stages: { new: 0, making: 0, done: 0, cancelled: 0 },
 			wrappers: { needed: 0, made: 0 },
+			orders: 0,
 		};
 		// Each row is one bouquet.
 		entry.bouquets += 1;
+		orderSummary.bouquets += 1;
+		if (!typeOrdersSeen.has(`${key}\n${row.order.id}`)) {
+			typeOrdersSeen.add(`${key}\n${row.order.id}`);
+			entry.orders += 1;
+		}
+		if (!ordersSeen.has(row.order.id)) {
+			ordersSeen.add(row.order.id);
+			orderSummary.orders += 1;
+			orderSummary.stages[row.order.stage] += 1;
+		}
 		entry.stages[row.order.stage] += 1;
 		if (row.order.stage !== "cancelled") {
 			entry.wrappers.needed += 1;
@@ -394,5 +426,5 @@ function filterOrderRows(search: OrdersSearch) {
 			(entry.key !== CUSTOM_ARRANGEMENT && entry.key !== NONE),
 	);
 
-	return { matching, options, summary };
+	return { matching, options, summary, orderSummary };
 }

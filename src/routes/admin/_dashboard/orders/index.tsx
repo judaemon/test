@@ -78,7 +78,11 @@ import {
 	updateDeliveryDate,
 	updateWrapperStatus,
 } from "~/server/admin/orders";
-import type { ArrangementSummary, OrderRow } from "~/server/order-rows";
+import type {
+	ArrangementSummary,
+	OrderRow,
+	OrderSummary,
+} from "~/server/order-rows";
 import {
 	BOARD_STAGES,
 	canStartMaking,
@@ -486,6 +490,7 @@ function OrdersPage() {
 
 						<ArrangementCards
 							cards={data().summary}
+							orders={data().orderSummary}
 							selected={parseList(search().arrangement)}
 							onSelect={(key) => setSearch({ arrangement: key })}
 						/>
@@ -1615,14 +1620,45 @@ const SUMMARY_STAGES = [
  */
 function ArrangementCards(props: {
 	cards: ArrangementSummary[];
+	orders: OrderSummary;
 	selected: string[];
 	onSelect: (key: string | undefined) => void;
 }) {
+	const allShown = () => props.selected.length === 0;
 	return (
 		<section
-			aria-label="Bouquets by arrangement type"
-			class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4"
+			aria-label="Orders and bouquets by arrangement type"
+			class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
 		>
+			<button
+				type="button"
+				aria-pressed={allShown()}
+				title={
+					allShown()
+						? "Every order, whatever it holds"
+						: "Show every type again"
+				}
+				onClick={() => props.onSelect(undefined)}
+				class={cn(
+					"flex flex-col items-start gap-1 rounded-2xl border bg-white p-3 text-left lg:p-4 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+					allShown()
+						? "border-petal-700 shadow-[inset_0_0_0_1px] shadow-petal-700"
+						: "border-petal-100 hover:border-petal-300",
+				)}
+			>
+				<span class="text-sm font-medium text-petal-900/70">Orders</span>
+				<span class="font-display text-2xl font-semibold tabular-nums lg:text-3xl">
+					{props.orders.orders.toLocaleString()}
+				</span>
+				<span class="text-xs text-petal-900/65">
+					holding{" "}
+					<span class="font-medium tabular-nums text-petal-900">
+						{props.orders.bouquets.toLocaleString()}
+					</span>{" "}
+					{props.orders.bouquets === 1 ? "bouquet" : "bouquets"} in all
+				</span>
+				<SummaryStages stages={props.orders.stages} />
+			</button>
 			<For each={props.cards}>
 				{(card) => {
 					const active = () =>
@@ -1652,27 +1688,14 @@ function ArrangementCards(props: {
 							<span class="font-display text-2xl font-semibold tabular-nums lg:text-3xl">
 								{card.bouquets.toLocaleString()}
 							</span>
-							<span class="mt-1 flex flex-wrap gap-1.5">
-								<For each={SUMMARY_STAGES}>
-									{(stage) => (
-										<span
-											class={cn(
-												"rounded-full px-2 py-0.5 text-xs tabular-nums",
-												card.stages[stage.key]
-													? stage.class
-													: "bg-petal-50 text-petal-900/40",
-											)}
-										>
-											{stage.label} {card.stages[stage.key]}
-										</span>
-									)}
-								</For>
-								<Show when={card.stages.cancelled > 0}>
-									<span class="rounded-full bg-petal-50 px-2 py-0.5 text-xs tabular-nums text-petal-900/50">
-										Cancelled {card.stages.cancelled}
-									</span>
-								</Show>
+							<span class="text-xs text-petal-900/65">
+								in{" "}
+								<span class="font-medium tabular-nums text-petal-900">
+									{card.orders.toLocaleString()}
+								</span>{" "}
+								{card.orders === 1 ? "order" : "orders"}
 							</span>
+							<SummaryStages stages={card.stages} />
 							<Show when={card.wrappers.needed > 0}>
 								<span class="mt-2 flex w-full flex-col gap-1">
 									<span class="flex items-baseline justify-between gap-2 text-xs text-petal-900/65">
@@ -1708,6 +1731,33 @@ function ArrangementCards(props: {
 				}}
 			</For>
 		</section>
+	);
+}
+
+/** How many are at each stage, as pills; cancelled only once there are some. */
+function SummaryStages(props: { stages: Record<Order["stage"], number> }) {
+	return (
+		<span class="mt-1 flex flex-wrap gap-1.5">
+			<For each={SUMMARY_STAGES}>
+				{(stage) => (
+					<span
+						class={cn(
+							"rounded-full px-2 py-0.5 text-xs tabular-nums",
+							props.stages[stage.key]
+								? stage.class
+								: "bg-petal-50 text-petal-900/40",
+						)}
+					>
+						{stage.label} {props.stages[stage.key]}
+					</span>
+				)}
+			</For>
+			<Show when={props.stages.cancelled > 0}>
+				<span class="rounded-full bg-petal-50 px-2 py-0.5 text-xs tabular-nums text-petal-900/50">
+					Cancelled {props.stages.cancelled}
+				</span>
+			</Show>
+		</span>
 	);
 }
 
