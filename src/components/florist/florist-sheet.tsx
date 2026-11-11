@@ -4,6 +4,7 @@ import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { orderFlowers } from "~/lib/flower-tally";
 import { photoSrc } from "~/lib/photos";
+import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { cn } from "~/lib/utils";
 import type {
 	FloristBouquet,
@@ -29,6 +30,13 @@ const LAYOUTS = {
 	basic: "Photo & who ordered",
 } as const;
 type Layout = keyof typeof LAYOUTS;
+
+/** Each layout in a file name: short, as the name is long already. */
+const FILE_LAYOUT: Record<Layout, string> = {
+	full: "Full",
+	flowers: "Flowers",
+	basic: "Photo",
+};
 
 /** The full card doesn't fit more than 2 to a page. */
 const fitsFull = (n: PerPage) => n <= 2;
@@ -184,6 +192,17 @@ export function FloristSheet(props: {
 		props.work.flowerPhotos[`${flower}|`];
 
 	/** Waits for the photos, so none prints blank, then opens the print dialog. */
+	// The saved PDF's name: "Rosana - Portrait 4 per page - Flowers - Nov 11".
+	usePrintTitle(() =>
+		printFileName([
+			props.work.florist.name,
+			`${ORIENTATIONS[orientation()]} ${perPage()} per page`,
+			FILE_LAYOUT[layout()],
+			sortBy() === "style" && "By style",
+			props.includeDone && "With finished",
+		]),
+	);
+
 	const print = async () => {
 		setPrinting(true);
 		const images = [
