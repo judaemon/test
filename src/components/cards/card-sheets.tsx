@@ -203,7 +203,10 @@ export function CardFront(props: {
 				</Show>
 				<p
 					data-fit-text
-					class="m-0 whitespace-pre-line break-words font-display italic"
+					class={cn(
+						"m-0 whitespace-pre-line break-words font-display italic",
+						centered() ? "[text-wrap:balance]" : "[text-wrap:pretty]",
+					)}
 					style={{ "line-height": "1.42", "font-size": `${MAX_PT}pt` }}
 				>
 					{props.message}

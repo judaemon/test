@@ -15,8 +15,14 @@ import { type CardFit, shrinkToFit } from "./card-sheets";
 export const FOLD_SHEET = { width: 297, height: 209 } as const;
 
 /** A message smaller than this on the right-hand page flows over both inside pages. */
-const SPREAD_BELOW_PT = 10;
-const MAX_PT = 16;
+/**
+ * Sizes, in points. A small card reads best at a gentle size, so a short
+ * message stops growing at 13pt rather than filling the page edge to edge.
+ * Below 10.5pt on one page, a message is easier to read over both.
+ */
+const SPREAD_BELOW_PT = 10.5;
+const MAX_PT = 13;
+const SPREAD_MAX_PT = 11.5;
 const MIN_PT = 7.5;
 
 /**
@@ -41,16 +47,8 @@ export function fitFolded(root: ParentNode = document) {
 			continue;
 		}
 		card.dataset.mode = "spread";
-		// Overflow in two columns of fixed height runs off to the side.
-		const both = shrinkToFit(
-			spread,
-			spreadText,
-			MIN_PT,
-			MAX_PT,
-			() =>
-				spread.scrollWidth <= spread.clientWidth + 0.5 &&
-				spread.scrollHeight <= spread.clientHeight + 0.5,
-		);
+		// Balanced columns: half the message on each page, centered as a block.
+		const both = shrinkToFit(spread, spreadText, MIN_PT, SPREAD_MAX_PT);
 		fits.set(key, { pt: both.pt, overflow: !both.fits, spread: true });
 	}
 	return fits;
@@ -278,6 +276,9 @@ export function FoldedInside(props: {
 }) {
 	const centered = () => centerMessage(props.message);
 	const text = "m-0 whitespace-pre-line break-words font-display italic";
+	// No lone word on a last line; short centered notes get even lines.
+	const wrap = () =>
+		centered() ? "[text-wrap:balance]" : "[text-wrap:pretty]";
 	return (
 		<div data-fold-inside={props.fitKey} class="group relative min-h-0 min-w-0">
 			{/* To on the left page, message on the right. */}
@@ -298,7 +299,7 @@ export function FoldedInside(props: {
 						<ToLine to={props.to} centered />
 					</Show>
 				</Page>
-				<Page class="px-[8mm] py-[9mm]">
+				<Page class="px-[10mm] py-[11mm]">
 					<div
 						data-single-box
 						class={cn(
@@ -306,32 +307,43 @@ export function FoldedInside(props: {
 							centered() ? "text-center" : "text-left",
 						)}
 					>
-						<p data-single-text class={text} style={{ "line-height": "1.42" }}>
+						<p
+							data-single-text
+							class={cn(text, wrap())}
+							style={{ "line-height": "1.45" }}
+						>
 							{props.message}
 						</p>
 					</div>
 				</Page>
 			</div>
 
-			{/* Long: the message runs down the left page and on to the right. */}
+			{/* Long: the message is shared evenly by both pages, centered top to bottom. */}
 			<div
 				data-spread-box
-				class="hidden size-full overflow-hidden text-left group-data-[mode=spread]:block"
-				style={{
-					padding: "9mm 9mm 10mm",
-					"column-count": 2,
-					"column-gap": "18mm",
-					"column-fill": "auto",
-				}}
+				class="hidden size-full flex-col justify-center overflow-hidden text-left group-data-[mode=spread]:flex"
+				style={{ padding: "15mm 10mm 15mm" }}
 			>
-				<Show when={props.to}>
-					<div style={{ "margin-bottom": "4mm", "break-inside": "avoid" }}>
-						<ToLine to={props.to} />
-					</div>
-				</Show>
-				<p data-spread-text class={text} style={{ "line-height": "1.4" }}>
-					{props.message}
-				</p>
+				<div
+					style={{
+						"column-count": 2,
+						"column-gap": "20mm",
+						"column-fill": "balance",
+					}}
+				>
+					<Show when={props.to}>
+						<div style={{ "margin-bottom": "4mm", "break-inside": "avoid" }}>
+							<ToLine to={props.to} />
+						</div>
+					</Show>
+					<p
+						data-spread-text
+						class={cn(text, "[text-wrap:pretty]")}
+						style={{ "line-height": "1.45", orphans: 2, widows: 2 }}
+					>
+						{props.message}
+					</p>
+				</div>
 			</div>
 
 			<Show when={props.reference}>
