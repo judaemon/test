@@ -691,10 +691,18 @@ export function FloristSheet(props: {
 						</div>
 						<div>
 							<h2 class="mb-2 font-semibold print:text-[11pt]">Checklist</h2>
-							<div class="overflow-hidden rounded-2xl border border-petal-100 bg-white text-sm print:rounded-none print:border-black/40 print:text-[9pt]">
+							<div class="overflow-hidden rounded-2xl border border-petal-100 bg-white text-sm print:rounded-none print:border-black/40 print:overflow-visible print:text-[9pt] print:[-webkit-box-decoration-break:clone] print:[box-decoration-break:clone]">
 								<For each={checklist()}>
 									{(group) => (
-										<section class="border-t border-petal-100 first:border-t-0 print:border-black/40">
+										<section
+											class={cn(
+												"border-t border-petal-100 first:border-t-0 print:border-black/40",
+												// A short company stays on one page; a long one would
+												// leave most of a page blank, so it carries on over.
+												group.bouquets.length <= 10 &&
+													"print:break-inside-avoid",
+											)}
+										>
 											<h3 class="flex items-baseline justify-between bg-petal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide print:break-after-avoid print:bg-black/5 print:px-2 print:text-[8pt]">
 												{companyLabel(group.company)}
 												<span class="font-normal tabular-nums text-petal-900/60 print:text-black/60">
