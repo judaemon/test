@@ -1085,6 +1085,7 @@ function OrdersPage() {
 													order={order}
 													line={line}
 													index={index}
+													wrapper={row.wrapper}
 												/>
 											</td>
 											<td
@@ -1727,7 +1728,10 @@ function ArrangementCards(props: {
 							<SummaryStages stages={card.stages} />
 							<Show when={card.wrappers.needed > 0}>
 								<span class="mt-2 flex w-full flex-col gap-1">
-									<span class="flex items-baseline justify-between gap-2 text-xs text-petal-900/65">
+									<span
+										class="flex items-baseline justify-between gap-2 text-xs text-petal-900/65"
+										title="Cancelled bouquets don’t need a wrapper, so they aren’t counted"
+									>
 										<span>Wrappers made</span>
 										<span class="font-medium tabular-nums text-petal-900">
 											{card.wrappers.made} of {card.wrappers.needed}
@@ -1943,28 +1947,42 @@ function WrapperStatusSelect(props: {
 	order: Order;
 	line: PricedLine;
 	index: number;
+	/** False for corsages and boutonnières: they're never wrapped. */
+	wrapper: boolean;
 }) {
 	const status = () => props.line.wrapperStatus ?? "todo";
 	return (
 		<Show
-			when={props.order.stage !== "cancelled"}
-			fallback={WRAPPER_STATUS_LABELS[status()]}
+			when={props.wrapper}
+			fallback={
+				<span
+					class="text-petal-900/45"
+					title="Corsages and boutonnières have no wrapper"
+				>
+					—
+				</span>
+			}
 		>
-			<RowSelect
-				label={`Wrapper status for ${props.line.sku}, order ${props.order.number}`}
-				value={status()}
-				options={WRAPPER_STATUSES.map((value) => ({
-					value,
-					label: WRAPPER_STATUS_LABELS[value],
-				}))}
-				class={WRAPPER_CLASS[status()]}
-				onSave={(value) =>
-					updateWrapperStatus({
-						data: { id: props.order.id, line: props.index, status: value },
-					})
-				}
-				saved={(label) => `${props.line.sku} wrapper: ${label}.`}
-			/>
+			<Show
+				when={props.order.stage !== "cancelled"}
+				fallback={WRAPPER_STATUS_LABELS[status()]}
+			>
+				<RowSelect
+					label={`Wrapper status for ${props.line.sku}, order ${props.order.number}`}
+					value={status()}
+					options={WRAPPER_STATUSES.map((value) => ({
+						value,
+						label: WRAPPER_STATUS_LABELS[value],
+					}))}
+					class={WRAPPER_CLASS[status()]}
+					onSave={(value) =>
+						updateWrapperStatus({
+							data: { id: props.order.id, line: props.index, status: value },
+						})
+					}
+					saved={(label) => `${props.line.sku} wrapper: ${label}.`}
+				/>
+			</Show>
 		</Show>
 	);
 }

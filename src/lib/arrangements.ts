@@ -11,6 +11,13 @@ export interface ArrangementTypeInfo {
 	description: string;
 }
 
+/** Arrangement types that are never wrapped: worn pieces. */
+export const WRAPPERLESS_TYPES: readonly string[] = ["corsage", "boutonniere"];
+
+/** Whether an arrangement of this type has a wrapper to make. */
+export const usesWrapper = (type: string | undefined) =>
+	!WRAPPERLESS_TYPES.includes(type ?? "");
+
 /** Given to arrangements and sizes when nothing says otherwise. */
 export const DEFAULT_ARRANGEMENT = "bouquet";
 

@@ -1,3 +1,4 @@
+import { usesWrapper } from "~/lib/arrangements";
 import { hasCard } from "~/lib/bouquet-messages";
 import {
 	BATTALIONS,
@@ -45,6 +46,8 @@ export interface OrderRow {
 	line: PricedLine;
 	index: number;
 	unit: number;
+	/** Has a wrapper to make; corsages and boutonnières don't. */
+	wrapper: boolean;
 }
 
 export interface FilterOption {
@@ -171,9 +174,10 @@ const FIELDS: Record<
 		label: (key) => (key === NONE ? "No wrapper" : key),
 	},
 	wrapperStatus: {
-		// Every bouquet has one, corsages and boutonnières too: staff track
-		// each item's making with it, wrapper or not.
-		keys: ({ line }) => [line.wrapperStatus ?? "todo"],
+		// Every bouquet has one, ordered with a wrapper or not; corsages and
+		// boutonnières are never wrapped, so they have none.
+		keys: ({ line, wrapper }) =>
+			wrapper ? [line.wrapperStatus ?? "todo"] : [],
 		fixed: WRAPPER_STATUSES,
 		label: (key) =>
 			WRAPPER_STATUS_LABELS[key as keyof typeof WRAPPER_STATUS_LABELS],
@@ -302,6 +306,7 @@ function filterOrderRows(search: OrdersSearch) {
 					line,
 					index,
 					unit,
+					wrapper: usesWrapper(arrangementOf(line)),
 				})),
 			),
 		);
@@ -410,7 +415,8 @@ function filterOrderRows(search: OrdersSearch) {
 			orderSummary.orders += 1;
 		}
 		entry.stages[row.order.stage] += 1;
-		if (row.order.stage !== "cancelled") {
+		// Cancelled bouquets, corsages and boutonnières need no wrapper.
+		if (row.order.stage !== "cancelled" && row.wrapper) {
 			entry.wrappers.needed += 1;
 			if (row.line.wrapperStatus === "made") entry.wrappers.made += 1;
 		}
