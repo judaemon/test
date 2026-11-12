@@ -54,145 +54,171 @@ export function ShopClosed(props: {
 	return (
 		<div
 			class={cn(
-				"relative overflow-hidden bg-cream text-petal-900",
+				// Lays out by its own width, so the admin preview shows it as a phone would.
+				"@container relative overflow-hidden bg-cream text-petal-900",
 				props.preview ? "rounded-2xl" : "min-h-screen",
 			)}
 		>
 			<div
 				aria-hidden="true"
-				class="pointer-events-none absolute inset-x-0 top-0 h-[26rem] bg-linear-to-b from-petal-100/70 via-petal-50/40 to-transparent"
+				class="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-linear-to-b from-petal-100/70 via-petal-50/40 to-transparent"
 			/>
 			<main
 				class={cn(
-					"relative mx-auto flex w-full max-w-lg flex-col items-center px-5 text-center",
-					props.preview ? "py-10" : "pb-14 pt-12 sm:pt-20",
+					"relative mx-auto w-full max-w-lg px-5 @4xl:max-w-6xl @4xl:px-10",
+					props.preview
+						? "py-10"
+						: "pb-14 pt-10 @sm:pt-14 @4xl:flex @4xl:min-h-screen @4xl:items-center @4xl:py-16",
 				)}
 			>
-				<FlowerMark class="block size-16" />
-				<Wordmark class="mt-4 block text-2xl" />
-				<p class="mt-1.5 font-display text-sm italic text-petal-700">
-					{TAGLINE}
-				</p>
-
-				<div
-					aria-hidden="true"
-					class="my-7 flex items-center justify-center gap-2.5"
-				>
-					<span class="h-px w-10 bg-petal-200" />
-					<Sparkle class="size-3 text-petal-500" />
-					<span class="h-px w-10 bg-petal-200" />
-				</div>
-
-				<h1 class="font-display type-soft text-3xl font-semibold leading-tight text-balance sm:text-4xl">
-					{props.heading}
-				</h1>
-				<div class="mt-4 flex flex-col gap-3 text-[15px] leading-relaxed text-petal-900/75 text-pretty sm:text-base">
-					<For each={paragraphs()}>
-						{(part) => <p class="whitespace-pre-line">{part}</p>}
-					</For>
-				</div>
-
-				{/* ----- For those who wish ----- */}
-				<section
-					aria-labelledby="wish-heading"
-					class="mt-9 w-full rounded-3xl border border-petal-100 bg-white px-5 py-6 text-left shadow-[0_8px_30px_rgb(92_31_49/0.06)] sm:px-7"
-				>
-					<Show
-						when={!thanked()}
-						fallback={
-							<div aria-live="polite" class="py-2 text-center">
-								<Sparkle class="mx-auto size-4 text-petal-500" />
-								<p class="mt-3 font-display text-2xl font-semibold">
-									Thank you, {thanked()}!
-								</p>
-								<p class="mt-2 text-petal-900/70">
-									We’ll prepare a bouquet with you in mind. See you at the event
-									♡
+				<div class="w-full @4xl:grid @4xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] @4xl:items-center @4xl:gap-16">
+					{/* ----- The thank-you ----- */}
+					<div class="text-center @4xl:text-left">
+						<div class="flex flex-col items-center gap-3 @4xl:flex-row @4xl:gap-4">
+							<FlowerMark class="block size-12 @4xl:size-14" />
+							<div class="flex flex-col items-center @4xl:items-start">
+								<Wordmark class="block text-xl @4xl:text-2xl" />
+								<p class="mt-0.5 font-display text-sm italic text-petal-700">
+									{TAGLINE}
 								</p>
 							</div>
-						}
-					>
-						<p class="text-xs font-medium uppercase tracking-[0.2em] text-petal-700">
-							For those who wish
-						</p>
-						<h2
-							id="wish-heading"
-							class="mt-1.5 font-display text-xl font-semibold leading-snug"
+						</div>
+
+						<div
+							aria-hidden="true"
+							class="my-6 flex items-center justify-center gap-2.5 @4xl:my-8 @4xl:justify-start"
 						>
-							Want a bouquet waiting for you?
-						</h2>
-						<p class="mt-1.5 text-sm text-petal-900/65">
-							Leave your name and we’ll bring one with you in mind. No payment,
-							just your name.
-						</p>
-						<form
-							class="mt-4 flex flex-col gap-2.5 sm:flex-row"
-							onSubmit={send}
-						>
-							<label class="sr-only" for="wish-name">
-								Your name
-							</label>
-							<input
-								id="wish-name"
-								name="name"
-								autocomplete="name"
-								maxLength={WISH_NAME_MAX}
-								required
-								placeholder="Your name"
-								value={name()}
-								onInput={(e) => setName(e.currentTarget.value)}
-								aria-invalid={!!error()}
-								aria-describedby={error() ? "wish-error" : undefined}
-								class="h-12 w-full min-w-0 shrink-0 rounded-full sm:w-auto sm:flex-1 border border-petal-200 bg-white px-5 text-base text-petal-900 outline-none transition-colors placeholder:text-petal-900/35 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30"
-							/>
-							{/* People never see this; bots fill it in. */}
-							<div
-								aria-hidden="true"
-								class="absolute -left-[9999px] size-px overflow-hidden opacity-0"
+							<span class="h-px w-10 bg-petal-200" />
+							<Sparkle class="size-3 text-petal-500" />
+							<span class="h-px w-10 bg-petal-200" />
+						</div>
+
+						<h1 class="font-display type-soft text-[32px] font-semibold leading-[1.1] text-balance @lg:text-4xl @4xl:text-[52px] @4xl:leading-[1.05]">
+							{props.heading}
+						</h1>
+						<div class="mx-auto mt-5 flex max-w-[34rem] flex-col gap-3.5 text-[15px] leading-relaxed text-petal-900/75 text-pretty @lg:text-base @4xl:mx-0 @4xl:mt-6 @4xl:text-[17px]">
+							<For each={paragraphs()}>
+								{(part) => <p class="whitespace-pre-line">{part}</p>}
+							</For>
+						</div>
+						{/* On narrow screens the form is further down: a way straight to it. */}
+						<Show when={!thanked()}>
+							<a
+								href="#wish-heading"
+								class="mt-6 inline-flex h-11 items-center gap-1.5 rounded-full border border-petal-200 bg-white/80 px-5 text-sm font-medium text-petal-700 outline-none transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-petal-500 @4xl:hidden"
 							>
-								<input name="website" tabindex="-1" autocomplete="off" />
-							</div>
-							<button
-								type="submit"
-								disabled={sending()}
-								class="inline-flex h-12 shrink-0 items-center justify-center rounded-full bg-petal-700 px-6 font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 disabled:opacity-60"
-							>
-								{sending() ? "Saving…" : "Count me in"}
-							</button>
-						</form>
-						<Show when={error()}>
-							<p
-								id="wish-error"
-								role="alert"
-								class="mt-2 text-sm text-error-foreground"
-							>
-								{error()}
-							</p>
+								Want one at the event? Leave your name ↓
+							</a>
 						</Show>
-					</Show>
-				</section>
+						<MoreLinks class="mt-9 hidden @4xl:flex" />
+					</div>
 
-				<nav
-					aria-label="More"
-					class="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm"
-				>
-					<Link
-						to="/active-orders"
-						class="font-medium text-petal-700 underline-offset-4 hover:underline"
+					{/* ----- For those who wish ----- */}
+					<section
+						aria-labelledby="wish-heading"
+						class="mt-10 w-full scroll-mt-6 rounded-[28px] border border-petal-100 bg-white p-6 text-left shadow-[0_18px_50px_-12px_rgb(92_31_49/0.18)] @sm:p-8 @4xl:mt-0"
 					>
-						Already ordered? Track your order
-					</Link>
-					<span aria-hidden="true" class="hidden text-petal-200 sm:inline">
-						·
-					</span>
-					<Link
-						to="/hello"
-						class="font-medium text-petal-700 underline-offset-4 hover:underline"
-					>
-						Follow us for what’s next
-					</Link>
-				</nav>
+						<Show
+							when={!thanked()}
+							fallback={
+								<div aria-live="polite" class="py-6 text-center">
+									<FlowerMark class="mx-auto block size-12" />
+									<p class="mt-4 font-display text-2xl font-semibold text-balance">
+										Thank you, {thanked()}!
+									</p>
+									<p class="mt-2 text-petal-900/70">
+										We’ll prepare a bouquet with you in mind. See you at the
+										event ♡
+									</p>
+								</div>
+							}
+						>
+							<span class="inline-flex items-center gap-1.5 rounded-full bg-petal-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-petal-700">
+								<Sparkle class="size-2.5" />
+								For those who wish
+							</span>
+							<h2
+								id="wish-heading"
+								class="mt-4 font-display text-2xl font-semibold leading-snug text-balance @4xl:text-[28px]"
+							>
+								Want a bouquet waiting for you?
+							</h2>
+							<p class="mt-2 text-petal-900/65">
+								Leave your name and we’ll bring one to the event with you in
+								mind.
+							</p>
+							<form class="mt-6 flex flex-col gap-3" onSubmit={send}>
+								<label class="text-sm font-medium" for="wish-name">
+									Your name
+								</label>
+								<input
+									id="wish-name"
+									name="name"
+									autocomplete="name"
+									maxLength={WISH_NAME_MAX}
+									required
+									placeholder="e.g. Ana Cruz"
+									value={name()}
+									onInput={(e) => setName(e.currentTarget.value)}
+									aria-invalid={!!error()}
+									aria-describedby={error() ? "wish-error" : "wish-note"}
+									class="-mt-1 h-12 w-full rounded-2xl border border-petal-200 bg-white px-4 text-base text-petal-900 outline-none transition-colors placeholder:text-petal-900/35 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30"
+								/>
+								{/* People never see this; bots fill it in. */}
+								<div
+									aria-hidden="true"
+									class="absolute -left-[9999px] size-px overflow-hidden opacity-0"
+								>
+									<input name="website" tabindex="-1" autocomplete="off" />
+								</div>
+								<Show when={error()}>
+									<p
+										id="wish-error"
+										role="alert"
+										class="-mt-1 text-sm text-error-foreground"
+									>
+										{error()}
+									</p>
+								</Show>
+								<button
+									type="submit"
+									disabled={sending()}
+									class="inline-flex h-12 w-full items-center justify-center rounded-full bg-petal-700 px-6 font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 disabled:opacity-60"
+								>
+									{sending() ? "Saving…" : "Count me in"}
+								</button>
+								<p id="wish-note" class="text-center text-xs text-petal-900/50">
+									No payment, no sign-up. Just your name.
+								</p>
+							</form>
+						</Show>
+					</section>
+
+					<MoreLinks class="mt-8 flex @4xl:hidden" />
+				</div>
 			</main>
 		</div>
+	);
+}
+
+/** For people who already ordered, and for what comes next. */
+function MoreLinks(props: { class?: string }) {
+	const link =
+		"inline-flex min-h-10 items-center gap-1 rounded-full font-medium text-petal-700 underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-petal-500";
+	return (
+		<nav
+			aria-label="More"
+			class={cn(
+				"flex-wrap items-center justify-center gap-x-6 gap-y-1 text-sm @4xl:justify-start",
+				props.class,
+			)}
+		>
+			<Link to="/active-orders" class={link}>
+				Already ordered? Track your order →
+			</Link>
+			<Link to="/hello" class={link}>
+				Follow us for what’s next →
+			</Link>
+		</nav>
 	);
 }
