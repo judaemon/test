@@ -5,7 +5,7 @@ import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import { photoSrc } from "~/lib/photos";
 import { centerMessage } from "~/lib/print-cards";
 import { cn } from "~/lib/utils";
-import { type BouquetView, getBouquetPageFn } from "~/server/bouquet-page";
+import { getBouquetPageFn } from "~/server/bouquet-page";
 
 /**
  * What the QR code on a dedication card opens: the bouquet and the card's
@@ -51,7 +51,7 @@ function BouquetPage() {
 			>
 				{(card) => (
 					<>
-						<header class="text-center">
+						<header class="text-center motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-700">
 							<p class="text-xs font-medium uppercase tracking-[0.28em] text-petal-700">
 								A bouquet for
 							</p>
@@ -64,7 +64,7 @@ function BouquetPage() {
 							{(bouquet) => (
 								<Show when={bouquet.image}>
 									{(src) => (
-										<figure class="mt-7 overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgb(92_31_49/0.08)]">
+										<figure class="mt-7 overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgb(92_31_49/0.08)] motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:fill-mode-both motion-safe:delay-150 motion-safe:duration-700">
 											<img
 												src={photoSrc(src(), "full")}
 												alt={`${bouquet.title}, ${bouquet.colorName}`}
@@ -79,7 +79,7 @@ function BouquetPage() {
 						{/* ----- The card's words ----- */}
 						<section
 							aria-label="The message"
-							class="relative mt-7 rounded-3xl border border-petal-100 bg-white px-6 pb-8 pt-9"
+							class="relative mt-7 rounded-3xl border border-petal-100 bg-white px-6 pb-8 pt-9 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:fill-mode-both motion-safe:delay-300 motion-safe:duration-700"
 						>
 							<Sparkle class="absolute inset-x-0 top-4 mx-auto size-3.5 text-petal-500" />
 							<p
@@ -93,11 +93,6 @@ function BouquetPage() {
 								{card().message}
 							</p>
 						</section>
-
-						{/* ----- What's in it ----- */}
-						<For each={card().bouquets}>
-							{(bouquet) => <Contents bouquet={bouquet} />}
-						</For>
 
 						<section class="mt-10 flex flex-col items-center text-center">
 							<FlowerMark class="size-10" />
@@ -123,62 +118,6 @@ function BouquetPage() {
 				)}
 			</Show>
 		</Shell>
-	);
-}
-
-/** The bouquet's name and the flowers in it, as a short list. */
-function Contents(props: { bouquet: BouquetView }) {
-	const stems = () =>
-		props.bouquet.flowers.filter((item) => !item.filler && item.count);
-	const fillers = () => props.bouquet.flowers.filter((item) => item.filler);
-	const total = () => stems().reduce((sum, item) => sum + (item.count ?? 0), 0);
-	return (
-		<section class="mt-7 rounded-3xl border border-petal-100 bg-white p-6">
-			<p class="text-xs font-medium uppercase tracking-[0.2em] text-petal-900/55">
-				In your bouquet
-			</p>
-			<h2 class="mt-2 font-display type-soft text-2xl font-semibold">
-				{props.bouquet.title}
-			</h2>
-			<p class="text-sm text-petal-900/65">
-				{[props.bouquet.colorName, props.bouquet.sizeName]
-					.filter(Boolean)
-					.join(" · ")}
-				<Show when={total()}>{(n) => <> · {n()} flowers</>}</Show>
-			</p>
-			<Show when={props.bouquet.flowers.length}>
-				<ul class="mt-4 divide-y divide-petal-100 border-t border-petal-100">
-					<For each={props.bouquet.flowers.filter((item) => !item.filler)}>
-						{(item) => (
-							<li class="flex items-baseline justify-between gap-3 py-2.5">
-								<span>
-									{item.flower}
-									<Show when={item.color}>
-										<span class="text-petal-900/55"> · {item.color}</span>
-									</Show>
-								</span>
-								<Show when={item.count}>
-									<span class="shrink-0 tabular-nums text-sm text-petal-900/60">
-										{item.count}
-									</span>
-								</Show>
-							</li>
-						)}
-					</For>
-				</ul>
-			</Show>
-			<Show when={fillers().length}>
-				<p class="mt-3 text-sm text-petal-900/65">
-					With{" "}
-					{fillers()
-						.map((item) =>
-							item.color ? `${item.flower} (${item.color})` : item.flower,
-						)
-						.join(" and ")}
-					.
-				</p>
-			</Show>
-		</section>
 	);
 }
 

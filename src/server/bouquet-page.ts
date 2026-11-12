@@ -6,18 +6,11 @@ import { cardSlot } from "~/lib/print-cards";
 import { findCardLink, isCardToken } from "./card-links-repo";
 import { getOrderById } from "./orders-repo";
 
-/** One bouquet as its receiver sees it: no prices, no buyer details. */
+/** One bouquet as its receiver sees it: its photo and name, nothing more. */
 export interface BouquetView {
 	title: string;
 	colorName: string;
 	image?: string;
-	sizeName?: string;
-	flowers: {
-		flower: string;
-		color?: string;
-		count?: number;
-		filler?: boolean;
-	}[];
 }
 
 /**
@@ -33,13 +26,6 @@ const view = (line: PricedLine): BouquetView => ({
 	title: line.title,
 	colorName: line.colorName,
 	...(line.image ? { image: line.image } : {}),
-	...(line.sizeName ? { sizeName: line.sizeName } : {}),
-	flowers: (line.recipe ?? []).map(({ flower, color, count, filler }) => ({
-		flower,
-		...(color ? { color } : {}),
-		...(count ? { count } : {}),
-		...(filler ? { filler } : {}),
-	})),
 });
 
 /** Public, by the card's link code; undefined for a code that never existed. */

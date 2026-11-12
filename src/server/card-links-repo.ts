@@ -63,3 +63,21 @@ export function findCardLink(token: string) {
 		.get({ token }) as { order_id: string; slot: string } | null;
 	return row ? { orderId: row.order_id, slot: row.slot } : undefined;
 }
+
+/**
+ * Moves an order's card links and print records to their cards' new places
+ * (see `planCardMoves`). In two steps, so cards trading places don't collide.
+ */
+export function moveCardSlots(orderId: string, moves: Map<string, string>) {
+	if (!moves.size) return;
+	const db = getDb();
+	for (const table of ["card_links", "card_prints"]) {
+		const move = db.query(
+			`UPDATE ${table} SET slot = $to WHERE order_id = $orderId AND slot = $from`,
+		);
+		for (const [from, to] of moves)
+			move.run({ orderId, from, to: `moving:${to}` });
+		for (const to of moves.values())
+			move.run({ orderId, from: `moving:${to}`, to });
+	}
+}

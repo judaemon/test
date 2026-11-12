@@ -160,3 +160,54 @@ export function cardMatches(card: PrintCard, query: string) {
 	};
 	return alternatives.some((words) => words.every(matchesWord));
 }
+
+/** A card's place and words, enough to find it again after an order changes. */
+export interface PlacedCard {
+	slot: string;
+	to: string;
+	message: string;
+}
+
+/**
+ * Where each card went when an order's bouquets changed (a bouquet cancelled,
+ * the order edited), so a printed QR code keeps showing the same card. A card
+ * is found again by its exact words. Returns old slot → new slot; a card that
+ * was removed, whose place another card now takes, goes to `gone:<slot>` so
+ * its code never shows someone else's message. A card edited where it is
+ * stays put, so the code shows the new words.
+ */
+export function planCardMoves(before: PlacedCard[], after: PlacedCard[]) {
+	const words = (card: PlacedCard) => `${card.to}\n${card.message}`;
+	const afterAt = new Map(after.map((card) => [card.slot, card]));
+	const moves = new Map<string, string>();
+	const claimed = new Set<string>();
+	// Cards still where they were, unchanged, keep their place first.
+	for (const card of before) {
+		const now = afterAt.get(card.slot);
+		if (now && words(now) === words(card)) claimed.add(card.slot);
+	}
+	for (const card of before) {
+		if (
+			claimed.has(card.slot) &&
+			words(afterAt.get(card.slot) as PlacedCard) === words(card)
+		)
+			continue;
+		const found = after.find(
+			(candidate) =>
+				!claimed.has(candidate.slot) && words(candidate) === words(card),
+		);
+		if (found) {
+			claimed.add(found.slot);
+			moves.set(card.slot, found.slot);
+		}
+	}
+	// A card that didn't move and whose place now holds a card that moved in.
+	const takenOver = new Set(moves.values());
+	for (const card of before) {
+		if (moves.has(card.slot)) continue;
+		const now = afterAt.get(card.slot);
+		if (takenOver.has(card.slot) && (!now || words(now) !== words(card)))
+			moves.set(card.slot, `gone:${card.slot}`);
+	}
+	return moves;
+}

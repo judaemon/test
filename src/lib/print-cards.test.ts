@@ -7,6 +7,7 @@ import {
 	compareCards,
 	mirrorSheet,
 	type PrintCard,
+	planCardMoves,
 	printStatus,
 	toSheets,
 } from "./print-cards";
@@ -154,5 +155,53 @@ describe("mirrorSheet", () => {
 	test("a part-filled sheet leaves the backs of empty spots blank", () => {
 		expect(mirrorSheet(["a", "b", "c"])).toEqual(["b", "a", undefined, "c"]);
 		expect(mirrorSheet(["a"])).toEqual([undefined, "a", undefined, undefined]);
+	});
+});
+
+describe("planCardMoves", () => {
+	const c = (slot: string, message: string, to = "") => ({ slot, to, message });
+	test("nothing changed: nothing moves", () => {
+		const cards = [c("0:0", "A"), c("0:1", "B")];
+		expect(planCardMoves(cards, cards).size).toBe(0);
+	});
+	test("first of two bouquets cancelled: the second's code follows it", () => {
+		const moves = planCardMoves(
+			[c("0:0", "A"), c("0:1", "B")],
+			[c("0:0", "B")],
+		);
+		expect(moves.get("0:1")).toBe("0:0");
+		// A's code must not show B's message.
+		expect(moves.get("0:0")).toBe("gone:0:0");
+	});
+	test("a whole line removed: later lines' codes follow", () => {
+		const moves = planCardMoves(
+			[c("0:0", "A"), c("1:0", "B"), c("2:0", "C")],
+			[c("0:0", "A"), c("1:0", "C")],
+		);
+		expect(moves.get("2:0")).toBe("1:0");
+		expect(moves.get("1:0")).toBe("gone:1:0");
+		expect(moves.has("0:0")).toBe(false);
+	});
+	test("a card edited where it is keeps its code", () => {
+		const moves = planCardMoves(
+			[c("0:0", "Hi"), c("0:1", "B")],
+			[c("0:0", "Hello"), c("0:1", "B")],
+		);
+		expect(moves.size).toBe(0);
+	});
+	test("same words twice: each keeps its own place", () => {
+		const moves = planCardMoves(
+			[c("0:0", "Love you"), c("0:1", "Love you")],
+			[c("0:0", "Love you"), c("0:1", "Love you")],
+		);
+		expect(moves.size).toBe(0);
+	});
+	test("the receiver's name counts too", () => {
+		const moves = planCardMoves(
+			[c("0:0", "Congrats", "Mia"), c("0:1", "Congrats", "Ana")],
+			[c("0:0", "Congrats", "Ana")],
+		);
+		expect(moves.get("0:1")).toBe("0:0");
+		expect(moves.get("0:0")).toBe("gone:0:0");
 	});
 });

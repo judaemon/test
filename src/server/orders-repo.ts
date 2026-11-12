@@ -1,4 +1,4 @@
-import { hasContent, lineKey } from "~/lib/bouquet-messages";
+import { hasContent, lineKey, orderCards } from "~/lib/bouquet-messages";
 import type { CheckoutDetails } from "~/lib/checkout";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { keepFlorists, withFlorist } from "~/lib/florists";
@@ -20,6 +20,7 @@ import {
 	type PaymentMethod,
 } from "~/lib/payment";
 import type { PricedCart, PricedLine } from "~/lib/pricing";
+import { cardSlot, planCardMoves } from "~/lib/print-cards";
 import { formatPrice, lineName } from "~/lib/product";
 import {
 	type BoardStage,
@@ -37,6 +38,7 @@ import {
 	type WrapperStatus,
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
+import { moveCardSlots } from "./card-links-repo";
 import { adjustStyleStock } from "./catalog-repo";
 import { fromCents, getDb, nowIso, toCents } from "./db";
 import { floristNames } from "./florists-repo";
@@ -361,6 +363,8 @@ function tracked(
 		change();
 		const after = getOrderById(id);
 		if (!after) return;
+		// Printed QR codes keep showing their own card when bouquets move.
+		if (before) followCards(id, before, after);
 		const names = floristNames();
 		const changes = diffOrders(
 			before,
@@ -370,6 +374,17 @@ function tracked(
 		if (changes.length) writeOrderLog(id, actor, action, changes, reason);
 	})();
 	return getOrderById(id) as Order;
+}
+
+/** Moves card links and print records when an order's cards change places. */
+function followCards(id: string, before: Order, after: Order) {
+	const placed = (order: Order) =>
+		orderCards(order).map((card) => ({
+			slot: cardSlot(card),
+			to: card.to,
+			message: card.message,
+		}));
+	moveCardSlots(id, planCardMoves(placed(before), placed(after)));
 }
 
 export function getOrderById(id: string): Order | undefined {
