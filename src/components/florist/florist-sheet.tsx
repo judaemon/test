@@ -139,6 +139,17 @@ const dateTime = (iso: string) =>
 const stems = (recipe: RecipeItem[]) =>
 	recipe.reduce((sum, item) => sum + (item.filler ? 0 : (item.count ?? 0)), 0);
 
+/** What makes two bouquets look the same on the table. */
+const lookKey = (b: FloristBouquet) =>
+	[b.typeName, b.code, b.colorName, b.sizeName, b.wrapper, b.image ?? ""].join(
+		"|",
+	);
+
+const recipeKey = (recipe: RecipeItem[]) =>
+	sortedRecipe(recipe)
+		.map((i) => `${i.flower}|${i.color ?? ""}|${i.count ?? 0}|${!!i.filler}`)
+		.join(",");
+
 const cardText = (card: FloristCard) =>
 	[card.to ? `To ${card.to}` : "", card.message ? `“${card.message}”` : ""]
 		.filter(Boolean)
@@ -191,13 +202,29 @@ export function FloristSheet(props: {
 		);
 	const companyLabel = (name: string) =>
 		name === NO_COMPANY ? "No company" : name;
-	/** The bouquets for the picked companies: on screen and on paper alike. */
+	/** The arrangement types picked (Bouquet, Corsage…); none picked shows all. */
+	const [types, setTypes] = createSignal<string[]>([]);
+	const typeOptions = createMemo(() => {
+		const counts = new Map<string, number>();
+		for (const b of props.work.bouquets)
+			counts.set(b.typeName, (counts.get(b.typeName) ?? 0) + 1);
+		return [...counts.entries()]
+			.sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
+			.map(([name, count]) => ({ name, count }));
+	});
+	const toggleType = (name: string) =>
+		setTypes((list) =>
+			list.includes(name) ? list.filter((t) => t !== name) : [...list, name],
+		);
+	const typeLabel = (name: string) => name || "Other";
+
+	/** The bouquets for the picked companies and types: on screen and on paper alike. */
 	const shown = createMemo(() =>
-		companies().length
-			? props.work.bouquets.filter((b) =>
-					companies().includes(b.customer.company),
-				)
-			: props.work.bouquets,
+		props.work.bouquets.filter(
+			(b) =>
+				(!companies().length || companies().includes(b.customer.company)) &&
+				(!types().length || types().includes(b.typeName)),
+		),
 	);
 
 	const bouquets = createMemo(() => {
@@ -218,6 +245,32 @@ export function FloristSheet(props: {
 					Number(a.orderNumber) - Number(b.orderNumber),
 			);
 		return list;
+	});
+
+	/**
+	 * Repeated arrangements (same style, color, size, wrapper and photo) on one
+	 * card with every name, so the photo prints once. Custom bouquets are each
+	 * their own, so they never merge.
+	 */
+	const [merge, setMerge] = createSignal(true);
+	const grouped = createMemo(() => {
+		const byLook = new Map<string, FloristBouquet[]>();
+		for (const b of bouquets()) {
+			const key = b.custom ? b.key : lookKey(b);
+			const list = byLook.get(key);
+			if (list) list.push(b);
+			else byLook.set(key, [b]);
+		}
+		const groups: FloristBouquet[][] = [];
+		const singles: FloristBouquet[] = [];
+		for (const list of byLook.values()) {
+			if (merge() && list.length > 1) groups.push(list);
+			else singles.push(...list);
+		}
+		// Singles keep the order picked above; split groups lose their place.
+		const order = new Map(bouquets().map((b, i) => [b.key, i]));
+		singles.sort((a, b) => (order.get(a.key) ?? 0) - (order.get(b.key) ?? 0));
+		return { groups, singles };
 	});
 	const toMake = () => shown().filter((b) => b.stage !== "done").length;
 	const flowers = createMemo(() => {
@@ -247,6 +300,7 @@ export function FloristSheet(props: {
 			`${ORIENTATIONS[orientation()]} ${perPage()} per page`,
 			FILE_LAYOUT[layout()],
 			companies().length > 0 && companies().map(companyLabel).join(", "),
+			types().length > 0 && types().map(typeLabel).join(", "),
 			sortBy() === "style" && "By style",
 			sortBy() === "company" && "By company",
 			props.includeDone && "With finished",
@@ -341,6 +395,35 @@ export function FloristSheet(props: {
 							)}
 						</For>
 					</div>
+					<Show when={typeOptions().length > 1}>
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="mr-1 text-sm font-medium">Arrangement</span>
+							<button
+								type="button"
+								aria-pressed={!types().length}
+								onClick={() => setTypes([])}
+								class={pill(!types().length)}
+							>
+								All
+							</button>
+							<For each={typeOptions()}>
+								{(option) => (
+									<button
+										type="button"
+										aria-pressed={types().includes(option.name)}
+										onClick={() => toggleType(option.name)}
+										class={pill(types().includes(option.name))}
+									>
+										{typeLabel(option.name)}
+										<span class="tabular-nums opacity-75">
+											{" "}
+											({option.count})
+										</span>
+									</button>
+								)}
+							</For>
+						</div>
+					</Show>
 					<Show when={companyOptions().length > 1}>
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="mr-1 text-sm font-medium">Company</span>
@@ -430,6 +513,15 @@ export function FloristSheet(props: {
 							/>
 							Print the flower list and checklist first
 						</label>
+						<label class="flex min-h-10 cursor-pointer items-center gap-2">
+							<input
+								type="checkbox"
+								checked={merge()}
+								onChange={(e) => setMerge(e.currentTarget.checked)}
+								class="size-5 accent-petal-700"
+							/>
+							Same arrangement on one card, with every name
+						</label>
 						<Show when={props.work.doneCount}>
 							<label class="flex min-h-10 cursor-pointer items-center gap-2">
 								<input
@@ -477,6 +569,10 @@ export function FloristSheet(props: {
 						<p class="text-right text-[9pt]">
 							Printed {printedOn}
 							<br />
+							<Show when={types().length}>
+								{types().map(typeLabel).join(", ")} only
+								<br />
+							</Show>
 							<Show when={companies().length}>
 								{companies().map(companyLabel).join(", ")} only
 								<br />
@@ -625,12 +721,39 @@ export function FloristSheet(props: {
 					</div>
 				</section>
 
-				<h2 class="mb-3 font-semibold print:hidden">
-					Each bouquet{" "}
-					<span class="font-normal text-petal-900/60">
-						({bouquets().length})
-					</span>
-				</h2>
+				<Show when={grouped().groups.length}>
+					<h2 class="mb-3 font-semibold print:hidden">
+						Same arrangement, several people{" "}
+						<span class="font-normal text-petal-900/60">
+							({grouped().groups.length})
+						</span>
+					</h2>
+					<div
+						class={cn(
+							"mb-8 flex flex-col gap-5 print:mb-0 print:gap-[4mm] print:p-[6mm]",
+							grouped().singles.length && "print:break-after-page",
+						)}
+					>
+						<For each={grouped().groups}>
+							{(group) => (
+								<GroupCard
+									bouquets={group}
+									staff={props.staff}
+									withNotes={layout() === "full"}
+								/>
+							)}
+						</For>
+					</div>
+				</Show>
+
+				<Show when={grouped().singles.length}>
+					<h2 class="mb-3 font-semibold print:hidden">
+						{grouped().groups.length ? "One of a kind" : "Each bouquet"}{" "}
+						<span class="font-normal text-petal-900/60">
+							({grouped().singles.length})
+						</span>
+					</h2>
+				</Show>
 				<div
 					class={cn(
 						"grid gap-5 print:block",
@@ -640,13 +763,13 @@ export function FloristSheet(props: {
 					)}
 				>
 					{/* On screen the pages melt into one grid; on paper each is an A4 sheet. */}
-					<For each={chunk(bouquets(), perPage())}>
+					<For each={chunk(grouped().singles, perPage())}>
 						{(page, index) => (
 							<div
 								class={cn(
 									"contents print:box-border print:grid print:gap-[3mm] print:p-[6mm]",
 									PAGE_GRID[orientation()][perPage()],
-									index() < chunk(bouquets(), perPage()).length - 1 &&
+									index() < chunk(grouped().singles, perPage()).length - 1 &&
 										"print:break-after-page",
 								)}
 							>
@@ -973,6 +1096,205 @@ function BouquetCard(props: {
 					<span>Printed {props.printedOn}</span>
 				</p>
 			</footer>
+		</article>
+	);
+}
+
+/**
+ * One arrangement several people ordered: the photo and flowers once, then
+ * every name to tick off. Saves printing the same photo over and over.
+ */
+function GroupCard(props: {
+	bouquets: FloristBouquet[];
+	staff?: boolean;
+	/** Each person's card message and note too. */
+	withNotes: boolean;
+}) {
+	const first = () => props.bouquets[0];
+	const photo = () => first().image ?? first().referenceImages[0];
+	/** The flower lists, with whose bouquets each is for when they differ. */
+	const recipes = createMemo(() => {
+		const byRecipe = new Map<
+			string,
+			{ recipe: RecipeItem[]; orders: string[] }
+		>();
+		for (const b of props.bouquets) {
+			const key = recipeKey(b.recipe);
+			const entry = byRecipe.get(key) ?? { recipe: b.recipe, orders: [] };
+			if (!entry.orders.includes(b.orderNumber))
+				entry.orders.push(b.orderNumber);
+			byRecipe.set(key, entry);
+		}
+		return [...byRecipe.values()];
+	});
+
+	return (
+		<article class="overflow-hidden rounded-2xl border border-petal-100 bg-white print:rounded-[2mm] print:border-black/50">
+			<div class="print:break-inside-avoid">
+				<header class="flex items-center justify-between gap-3 border-b border-petal-100 bg-petal-50 px-4 py-2.5 print:border-black/30 print:bg-black/5 print:px-[3mm] print:py-[1.5mm]">
+					<div class="min-w-0">
+						<h3 class="font-display text-xl font-semibold leading-tight print:text-[14pt]">
+							{first().title}
+							<span class="font-sans text-base font-normal text-petal-900/65 print:text-[10pt]">
+								{" "}
+								· {first().colorName}
+							</span>
+						</h3>
+						<p class="text-sm text-petal-900/65 print:text-[8.5pt]">
+							{[
+								first().typeName,
+								first().sizeName,
+								first().wrapper && `Wrapper ${first().wrapper}`,
+							]
+								.filter(Boolean)
+								.join(" · ")}
+						</p>
+					</div>
+					<span class="shrink-0 rounded-full border-2 border-petal-900 px-3 py-0.5 text-lg font-bold tabular-nums print:border-black print:text-[14pt]">
+						× {props.bouquets.length}
+					</span>
+				</header>
+
+				<div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[11rem_minmax(0,1fr)] print:grid-cols-[42mm_minmax(0,1fr)] print:gap-[4mm] print:p-[3mm]">
+					<div class="relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:rounded-none print:bg-transparent">
+						<Show
+							when={photo()}
+							fallback={
+								<span class="absolute inset-0 flex items-center justify-center text-sm text-petal-900/40">
+									No photo
+								</span>
+							}
+						>
+							{(src) => (
+								<img
+									src={photoSrc(src())}
+									alt={`${first().title} · ${first().colorName}`}
+									loading="eager"
+									class="absolute inset-0 size-full object-contain"
+								/>
+							)}
+						</Show>
+					</div>
+					<div class="flex min-w-0 flex-col gap-2 text-sm print:gap-[1.5mm] print:text-[9pt]">
+						<For each={recipes()}>
+							{(entry) => (
+								<div>
+									<p class="border-b border-petal-100 pb-0.5 font-semibold print:border-black/25">
+										Flowers
+										<Show when={recipes().length > 1}>
+											<span class="font-normal text-petal-900/60 print:text-black/60">
+												{" "}
+												for #{entry.orders.join(", #")}
+											</span>
+										</Show>
+									</p>
+									<Show
+										when={entry.recipe.length}
+										fallback={
+											<p class="py-1 text-petal-900/55">
+												No flowers on record.
+											</p>
+										}
+									>
+										<ul class="flex flex-col py-1">
+											<For each={sortedRecipe(entry.recipe)}>
+												{(item) => (
+													<li class="flex items-baseline gap-1.5">
+														<span class="min-w-0 flex-1">
+															{item.flower}
+															<Show when={item.color}>
+																<span class="text-petal-900/60 print:text-black/60">
+																	{" "}
+																	· {item.color}
+																</span>
+															</Show>
+														</span>
+														<span class="shrink-0 font-semibold tabular-nums">
+															{item.count ? `× ${item.count}` : "cluster"}
+														</span>
+													</li>
+												)}
+											</For>
+										</ul>
+									</Show>
+								</div>
+							)}
+						</For>
+					</div>
+				</div>
+			</div>
+
+			<ol class="grid gap-x-4 border-t border-petal-100 px-4 py-2 text-sm sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 print:gap-x-[4mm] print:border-black/30 print:px-[3mm] print:py-[2mm] print:text-[8.5pt]">
+				<For each={props.bouquets}>
+					{(b) => {
+						const payment = () => PAYMENT[b.payment];
+						const card = () => b.card ?? b.orderCard;
+						return (
+							<li class="flex items-start gap-2 border-b border-petal-50 py-1.5 print:break-inside-avoid print:border-black/15 print:py-[1mm]">
+								<span class="mt-0.5 inline-block size-4 shrink-0 rounded-sm border-2 border-petal-900/40 print:size-[3.5mm] print:border-black" />
+								<span class="min-w-0 flex-1 leading-tight">
+									<span class="flex flex-wrap items-baseline gap-x-1.5">
+										<Show
+											when={props.staff && b.orderId}
+											fallback={
+												<span class="font-bold tabular-nums">
+													#{b.orderNumber}
+												</span>
+											}
+										>
+											{(orderId) => (
+												<Link
+													to="/admin/orders/$orderId"
+													params={{ orderId: orderId() }}
+													class="font-bold tabular-nums text-petal-700 underline-offset-2 hover:underline print:text-inherit"
+												>
+													#{b.orderNumber}
+												</Link>
+											)}
+										</Show>
+										<Show when={b.quantity > 1}>
+											<span class="text-xs text-petal-900/60 print:text-[7pt] print:text-black/60">
+												{b.unit + 1} of {b.quantity}
+											</span>
+										</Show>
+										<span class="font-semibold wrap-anywhere">
+											{b.customer.name}
+										</span>
+									</span>
+									<span class="block text-xs text-petal-900/65 print:text-[7.5pt] print:text-black/65">
+										{[b.customer.company, b.customer.className]
+											.filter(Boolean)
+											.join(" · ")}
+										<span
+											class={cn(
+												"ml-1.5 whitespace-nowrap font-semibold",
+												!payment().paid &&
+													"rounded-sm bg-warning px-1 text-warning-foreground print:bg-black print:text-white",
+											)}
+										>
+											{payment().label}
+										</span>
+										<Show when={b.stage === "done"}> · Done</Show>
+										<Show when={b.isTest}> · Test</Show>
+									</span>
+									<Show when={props.withNotes && card()}>
+										{(c) => (
+											<span class="block whitespace-pre-line text-xs wrap-anywhere print:text-[7.5pt]">
+												Card: {cardText(c())}
+											</span>
+										)}
+									</Show>
+									<Show when={props.withNotes && (b.note || b.orderNote)}>
+										<span class="block whitespace-pre-line text-xs font-medium wrap-anywhere print:text-[7.5pt]">
+											Note: {[b.note, b.orderNote].filter(Boolean).join(" / ")}
+										</span>
+									</Show>
+								</span>
+							</li>
+						);
+					}}
+				</For>
+			</ol>
 		</article>
 	);
 }
