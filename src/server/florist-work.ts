@@ -1,3 +1,4 @@
+import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { floristOf } from "~/lib/florists";
 import { preorderNote } from "~/lib/product";
@@ -68,6 +69,9 @@ export interface FloristBouquet {
 	referenceImages: string[];
 	custom: boolean;
 	typeName: string;
+	/** The arrangement's section on the sheet ("Custom bouquets", "Corsages"…), and its place: custom first, then as in Admin → Arrangement types. */
+	typeGroup: string;
+	typeRank: number;
 	sizeName: string;
 	wrapper: string;
 	preorder: string;
@@ -124,7 +128,11 @@ export function floristWork(
 	florist: Florist,
 	options: { includeDone: boolean; forStaff: boolean },
 ): FloristWork {
-	const types = new Map(listArrangementTypes().map((t) => [t.id, t.name]));
+	const typeList = listArrangementTypes();
+	const types = new Map(typeList.map((t) => [t.id, t.name]));
+	const groups = new Map(
+		typeList.map((t, rank) => [t.id, { name: t.pluralName || t.name, rank }]),
+	);
 	const bouquets: FloristBouquet[] = [];
 	let doneCount = 0;
 	const orders = listOrders({
@@ -143,6 +151,14 @@ export function floristWork(
 				}
 				const message = line.messages?.[unit];
 				const custom = line.productId === CUSTOM_PRODUCT_ID;
+				// Orders from before arrangement types are bouquets, as in the catalog.
+				const arrangement = line.arrangement || DEFAULT_ARRANGEMENT;
+				const group = custom
+					? { name: "Custom bouquets", rank: -1 }
+					: (groups.get(arrangement) ?? {
+							name: "Other",
+							rank: typeList.length,
+						});
 				bouquets.push({
 					key: `${order.id}|${index}|${unit}`,
 					orderNumber: order.number,
@@ -165,9 +181,9 @@ export function floristWork(
 					...(line.image ? { image: currentPhotoUrl(line.image) } : {}),
 					referenceImages: line.custom?.referenceImages ?? [],
 					custom,
-					typeName: custom
-						? "Custom bouquet"
-						: ((line.arrangement && types.get(line.arrangement)) ?? ""),
+					typeName: custom ? "Custom bouquet" : (types.get(arrangement) ?? ""),
+					typeGroup: group.name,
+					typeRank: group.rank,
 					sizeName: line.sizeName ?? "",
 					wrapper: line.wrapperColor ?? "",
 					preorder: preorderNote(line),

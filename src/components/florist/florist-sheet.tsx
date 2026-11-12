@@ -16,10 +16,11 @@ import type {
 } from "~/server/florist-work";
 import type { RecipeItem } from "~/types/product";
 
-type SortBy = "order" | "style" | "company";
+type SortBy = "order" | "arrangement" | "style" | "company";
 
 const SORTS: { key: SortBy; label: string }[] = [
 	{ key: "order", label: "Order number" },
+	{ key: "arrangement", label: "Arrangement" },
 	{ key: "style", label: "Same style together" },
 	{ key: "company", label: "Company" },
 ];
@@ -75,22 +76,26 @@ const ORIENTATIONS = { portrait: "Portrait", landscape: "Landscape" } as const;
 type Orientation = keyof typeof ORIENTATIONS;
 
 /**
- * Each page's grid: columns and rows, so every card on it is the same size,
- * and its height: a whole A4 sheet (the page has no margin, see `@page`),
- * less a hair so rounding never pushes a card onto a page of its own.
+ * Each page's height: a whole A4 sheet (the page has no margin, see
+ * `@page`), less a hair so rounding never pushes a card onto a page of its
+ * own. Then its grid: columns and rows, so every card on it is the same size.
  */
+const PAGE_HEIGHT: Record<Orientation, string> = {
+	portrait: "print:h-[296mm]",
+	landscape: "print:h-[209mm]",
+};
 const PAGE_GRID: Record<Orientation, Record<PerPage, string>> = {
 	portrait: {
-		1: "print:h-[296mm] print:grid-cols-1 print:grid-rows-1",
-		2: "print:h-[296mm] print:grid-cols-1 print:grid-rows-2",
-		4: "print:h-[296mm] print:grid-cols-2 print:grid-rows-2",
-		6: "print:h-[296mm] print:grid-cols-2 print:grid-rows-3",
+		1: "print:grid-cols-1 print:grid-rows-1",
+		2: "print:grid-cols-1 print:grid-rows-2",
+		4: "print:grid-cols-2 print:grid-rows-2",
+		6: "print:grid-cols-2 print:grid-rows-3",
 	},
 	landscape: {
-		1: "print:h-[209mm] print:grid-cols-1 print:grid-rows-1",
-		2: "print:h-[209mm] print:grid-cols-2 print:grid-rows-1",
-		4: "print:h-[209mm] print:grid-cols-2 print:grid-rows-2",
-		6: "print:h-[209mm] print:grid-cols-3 print:grid-rows-2",
+		1: "print:grid-cols-1 print:grid-rows-1",
+		2: "print:grid-cols-2 print:grid-rows-1",
+		4: "print:grid-cols-2 print:grid-rows-2",
+		6: "print:grid-cols-3 print:grid-rows-2",
 	},
 };
 
@@ -237,6 +242,15 @@ export function FloristSheet(props: {
 	const bouquets = createMemo(() => {
 		const list = [...shown()];
 		if (sortBy() === "company") list.sort(byCompany);
+		if (sortBy() === "arrangement")
+			list.sort(
+				(a, b) =>
+					a.typeRank - b.typeRank ||
+					a.code.localeCompare(b.code) ||
+					a.colorName.localeCompare(b.colorName) ||
+					a.sizeName.localeCompare(b.sizeName) ||
+					Number(a.orderNumber) - Number(b.orderNumber),
+			);
 		if (sortBy() === "style")
 			list.sort(
 				(a, b) =>
@@ -267,24 +281,47 @@ export function FloristSheet(props: {
 	 * their own, so they never merge.
 	 */
 	const [merge, setMerge] = createSignal(true);
-	const grouped = createMemo(() => {
+	const split = (list: FloristBouquet[]) => {
 		const byLook = new Map<string, FloristBouquet[]>();
-		for (const b of bouquets()) {
+		for (const b of list) {
 			const key = b.custom ? b.key : lookKey(b);
-			const list = byLook.get(key);
-			if (list) list.push(b);
+			const same = byLook.get(key);
+			if (same) same.push(b);
 			else byLook.set(key, [b]);
 		}
 		const groups: FloristBouquet[][] = [];
 		const singles: FloristBouquet[] = [];
-		for (const list of byLook.values()) {
-			if (merge() && list.length > 1) groups.push(list);
-			else singles.push(...list);
+		for (const same of byLook.values()) {
+			if (merge() && same.length > 1) groups.push(same);
+			else singles.push(...same);
 		}
 		// Singles keep the order picked above; split groups lose their place.
-		const order = new Map(bouquets().map((b, i) => [b.key, i]));
+		const order = new Map(list.map((b, i) => [b.key, i]));
 		singles.sort((a, b) => (order.get(a.key) ?? 0) - (order.get(b.key) ?? 0));
 		return { groups, singles };
+	};
+
+	/**
+	 * The bouquets in sections: one per arrangement (custom bouquets, then
+	 * bouquets, corsages…) when ordered by arrangement, each starting a new
+	 * page with its name on top; otherwise one section with no name.
+	 */
+	const sections = createMemo(() => {
+		const lists: { name?: string; bouquets: FloristBouquet[] }[] = [];
+		if (sortBy() !== "arrangement") lists.push({ bouquets: bouquets() });
+		else
+			for (const b of bouquets()) {
+				const last = lists.at(-1);
+				if (last?.name === b.typeGroup) last.bouquets.push(b);
+				else lists.push({ name: b.typeGroup, bouquets: [b] });
+			}
+		return lists.map((section) => ({
+			...section,
+			flowers: section.bouquets
+				.filter((b) => b.stage !== "done")
+				.reduce((sum, b) => sum + stems(b.recipe), 0),
+			...split(section.bouquets),
+		}));
 	});
 	const toMake = () => shown().filter((b) => b.stage !== "done").length;
 	const flowers = createMemo(() => {
@@ -315,6 +352,7 @@ export function FloristSheet(props: {
 			FILE_LAYOUT[layout()],
 			companies().length > 0 && companies().map(companyLabel).join(", "),
 			types().length > 0 && types().map(typeLabel).join(", "),
+			sortBy() === "arrangement" && "By arrangement",
 			sortBy() === "style" && "By style",
 			sortBy() === "company" && "By company",
 			props.includeDone && "With finished",
@@ -761,88 +799,138 @@ export function FloristSheet(props: {
 					</div>
 				</section>
 
-				<Show when={grouped().groups.length}>
-					<h2 class="mb-3 font-semibold print:hidden">
-						Same arrangement, several people{" "}
-						<span class="font-normal text-petal-900/60">
-							({grouped().groups.length})
-						</span>
-					</h2>
-					<div
-						class={cn(
-							"mb-8 flex flex-col gap-5 print:mb-0 print:block print:p-[6mm]",
-							grouped().singles.length && "print:break-after-page",
-						)}
-					>
-						<For each={grouped().groups}>
-							{(group) => (
-								<GroupCard
-									bouquets={group}
-									staff={props.staff}
-									withNotes={layout() === "full"}
-								/>
-							)}
-						</For>
-					</div>
-				</Show>
-
-				<Show when={grouped().singles.length}>
-					<h2 class="mb-3 font-semibold print:hidden">
-						{grouped().groups.length ? "One of a kind" : "Each bouquet"}{" "}
-						<span class="font-normal text-petal-900/60">
-							({grouped().singles.length})
-						</span>
-					</h2>
-				</Show>
-				<div
-					class={cn(
-						"grid gap-5 print:block",
-						layout() === "full"
-							? "xl:grid-cols-2"
-							: "md:grid-cols-2 xl:grid-cols-3",
-					)}
-				>
-					{/* On screen the pages melt into one grid; on paper each is an A4 sheet. */}
-					<For each={chunk(grouped().singles, perPage())}>
-						{(page, index) => (
-							<div
+				<For each={sections()}>
+					{(section, sectionIndex) => {
+						const pages = () => chunk(section.singles, perPage());
+						const isLast = () => sectionIndex() === sections().length - 1;
+						/** The section's name, on screen and on top of each of its printed pages. */
+						const title = (printOnly: boolean) => (
+							<Show when={section.name}>
+								<div
+									class={cn(
+										"flex items-baseline justify-between gap-3 border-b-2 border-petal-900/80 pb-1.5 print:border-black print:pb-[1.5mm]",
+										printOnly ? "hidden print:flex" : "mb-4 print:hidden",
+									)}
+								>
+									<h2 class="font-display text-2xl font-semibold leading-tight print:text-[14pt]">
+										{section.name}
+									</h2>
+									<p class="text-sm tabular-nums text-petal-900/65 print:text-[9pt] print:text-black/70">
+										{section.bouquets.length}{" "}
+										{section.bouquets.length === 1 ? "piece" : "pieces"}
+										<Show when={section.flowers}>
+											{" · "}
+											{section.flowers}{" "}
+											{section.flowers === 1 ? "flower" : "flowers"}
+										</Show>
+									</p>
+								</div>
+							</Show>
+						);
+						return (
+							<section
 								class={cn(
-									"contents print:box-border print:grid print:gap-[3mm] print:p-[6mm]",
-									PAGE_GRID[orientation()][perPage()],
-									index() < chunk(grouped().singles, perPage()).length - 1 &&
-										"print:break-after-page",
+									section.name && "mb-10 print:mb-0",
+									!isLast() && "print:break-after-page",
 								)}
 							>
-								<For each={page}>
-									{(bouquet) => (
-										<Show
-											when={layout() !== "full"}
-											fallback={
-												<BouquetCard
-													bouquet={bouquet}
+								{title(false)}
+
+								<Show when={section.groups.length}>
+									<h3 class="mb-3 font-semibold print:hidden">
+										Same arrangement, several people{" "}
+										<span class="font-normal text-petal-900/60">
+											({section.groups.length})
+										</span>
+									</h3>
+									<div
+										class={cn(
+											"mb-8 flex flex-col gap-5 print:mb-0 print:block print:p-[6mm]",
+											section.singles.length && "print:break-after-page",
+										)}
+									>
+										<div class="print:mb-[4mm]">{title(true)}</div>
+										<For each={section.groups}>
+											{(group) => (
+												<GroupCard
+													bouquets={group}
 													staff={props.staff}
-													photoFor={photoFor}
-													perPage={perPage()}
-													orientation={orientation()}
-													printedOn={printedOn}
-													florist={props.work.florist.name}
+													withNotes={layout() === "full"}
 												/>
-											}
-										>
-											<ShortBouquetCard
-												bouquet={bouquet}
-												staff={props.staff}
-												withFlowers={layout() === "flowers"}
-												perPage={perPage()}
-												tall={TALL_CARD[orientation()][perPage()]}
-											/>
-										</Show>
+											)}
+										</For>
+									</div>
+								</Show>
+
+								<Show when={section.singles.length}>
+									<h3 class="mb-3 font-semibold print:hidden">
+										{section.groups.length ? "One of a kind" : "Each bouquet"}{" "}
+										<span class="font-normal text-petal-900/60">
+											({section.singles.length})
+										</span>
+									</h3>
+								</Show>
+								<div
+									class={cn(
+										"grid gap-5 print:block",
+										layout() === "full"
+											? "xl:grid-cols-2"
+											: "md:grid-cols-2 xl:grid-cols-3",
 									)}
-								</For>
-							</div>
-						)}
-					</For>
-				</div>
+								>
+									{/* On screen the pages melt into one grid; on paper each is an A4 sheet. */}
+									<For each={pages()}>
+										{(page, index) => (
+											<div
+												class={cn(
+													"contents print:box-border print:flex print:flex-col print:gap-[3mm] print:p-[6mm]",
+													PAGE_HEIGHT[orientation()],
+													index() < pages().length - 1 &&
+														"print:break-after-page",
+												)}
+											>
+												{title(true)}
+												<div
+													class={cn(
+														"contents print:grid print:min-h-0 print:flex-1 print:gap-[3mm]",
+														PAGE_GRID[orientation()][perPage()],
+													)}
+												>
+													<For each={page}>
+														{(bouquet) => (
+															<Show
+																when={layout() !== "full"}
+																fallback={
+																	<BouquetCard
+																		bouquet={bouquet}
+																		staff={props.staff}
+																		photoFor={photoFor}
+																		perPage={perPage()}
+																		orientation={orientation()}
+																		printedOn={printedOn}
+																		florist={props.work.florist.name}
+																	/>
+																}
+															>
+																<ShortBouquetCard
+																	bouquet={bouquet}
+																	staff={props.staff}
+																	withFlowers={layout() === "flowers"}
+																	perPage={perPage()}
+																	tall={TALL_CARD[orientation()][perPage()]}
+																/>
+															</Show>
+														)}
+													</For>
+												</div>
+											</div>
+										)}
+									</For>
+								</div>
+							</section>
+						);
+					}}
+				</For>
 				<p class="mt-6 text-xs text-petal-900/50 print:hidden">
 					Up to date as of {dateTime(props.work.generatedAt)}. Reload the page
 					for the latest.
