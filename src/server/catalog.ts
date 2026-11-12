@@ -12,6 +12,7 @@ import { getCustomSettings } from "./custom-repo";
 import { getDb } from "./db";
 import { listLiveOrderPromos } from "./order-promos-repo";
 import { listLiveSales } from "./sales-repo";
+import { getShopStatus } from "./shop-status-repo";
 import { listSizes } from "./sizes-repo";
 
 /** Everything the shop shows; loaded once per navigation by the root route. */
@@ -43,6 +44,8 @@ export const getCatalog = createServerFn({ method: "GET" }).handler(
 			// Order promos live today (e.g. ₱500 off every 10th order), for the
 			// Promos page and banner; checkout applies them on the server.
 			orderPromos: listLiveOrderPromos(),
+			// Closed when orders are full: shopping pages show its notice instead.
+			shop: getShopStatus(),
 		};
 	},
 );

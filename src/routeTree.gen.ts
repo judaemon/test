@@ -43,6 +43,7 @@ import { Route as AdminDashboardPasswordRouteImport } from './routes/admin/_dash
 import { Route as AdminDashboardPaymentsRouteImport } from './routes/admin/_dashboard/payments'
 import { Route as AdminDashboardReportsRouteImport } from './routes/admin/_dashboard/reports'
 import { Route as AdminDashboardSalesRouteImport } from './routes/admin/_dashboard/sales'
+import { Route as AdminDashboardShopRouteImport } from './routes/admin/_dashboard/shop'
 import { Route as AdminDashboardStaffRouteImport } from './routes/admin/_dashboard/staff'
 import { Route as AdminCardOrderIdRouteImport } from './routes/admin/card.$orderId'
 import { Route as ApiAdminDataExportRouteImport } from './routes/api/admin/data-export'
@@ -255,6 +256,11 @@ const AdminDashboardReportsRoute = AdminDashboardReportsRouteImport.update({
 const AdminDashboardSalesRoute = AdminDashboardSalesRouteImport.update({
   id: '/sales',
   path: '/sales',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardShopRoute = AdminDashboardShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
 const AdminDashboardStaffRoute = AdminDashboardStaffRouteImport.update({
@@ -535,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/admin/payments': typeof AdminDashboardPaymentsRoute
   '/admin/reports': typeof AdminDashboardReportsRouteWithChildren
   '/admin/sales': typeof AdminDashboardSalesRoute
+  '/admin/shop': typeof AdminDashboardShopRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
   '/admin/card/$orderId': typeof AdminCardOrderIdRoute
   '/api/admin/data-export': typeof ApiAdminDataExportRoute
@@ -610,6 +617,7 @@ export interface FileRoutesByTo {
   '/admin/password': typeof AdminDashboardPasswordRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
   '/admin/sales': typeof AdminDashboardSalesRoute
+  '/admin/shop': typeof AdminDashboardShopRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
   '/admin/card/$orderId': typeof AdminCardOrderIdRoute
   '/api/admin/data-export': typeof ApiAdminDataExportRoute
@@ -689,6 +697,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/payments': typeof AdminDashboardPaymentsRoute
   '/admin/_dashboard/reports': typeof AdminDashboardReportsRouteWithChildren
   '/admin/_dashboard/sales': typeof AdminDashboardSalesRoute
+  '/admin/_dashboard/shop': typeof AdminDashboardShopRoute
   '/admin/_dashboard/staff': typeof AdminDashboardStaffRoute
   '/admin/card/$orderId': typeof AdminCardOrderIdRoute
   '/api/admin/data-export': typeof ApiAdminDataExportRoute
@@ -769,6 +778,7 @@ export interface FileRouteTypes {
     | '/admin/payments'
     | '/admin/reports'
     | '/admin/sales'
+    | '/admin/shop'
     | '/admin/staff'
     | '/admin/card/$orderId'
     | '/api/admin/data-export'
@@ -844,6 +854,7 @@ export interface FileRouteTypes {
     | '/admin/password'
     | '/admin/payments'
     | '/admin/sales'
+    | '/admin/shop'
     | '/admin/staff'
     | '/admin/card/$orderId'
     | '/api/admin/data-export'
@@ -922,6 +933,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/payments'
     | '/admin/_dashboard/reports'
     | '/admin/_dashboard/sales'
+    | '/admin/_dashboard/shop'
     | '/admin/_dashboard/staff'
     | '/admin/card/$orderId'
     | '/api/admin/data-export'
@@ -1238,6 +1250,13 @@ declare module '@tanstack/solid-router' {
       path: '/sales'
       fullPath: '/admin/sales'
       preLoaderRoute: typeof AdminDashboardSalesRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/shop': {
+      id: '/admin/_dashboard/shop'
+      path: '/shop'
+      fullPath: '/admin/shop'
+      preLoaderRoute: typeof AdminDashboardShopRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
     '/admin/_dashboard/staff': {
@@ -1591,6 +1610,7 @@ interface AdminDashboardRouteChildren {
   AdminDashboardPaymentsRoute: typeof AdminDashboardPaymentsRoute
   AdminDashboardReportsRoute: typeof AdminDashboardReportsRouteWithChildren
   AdminDashboardSalesRoute: typeof AdminDashboardSalesRoute
+  AdminDashboardShopRoute: typeof AdminDashboardShopRoute
   AdminDashboardStaffRoute: typeof AdminDashboardStaffRoute
   AdminDashboardIndexRoute: typeof AdminDashboardIndexRoute
   AdminDashboardArrangementTypesTypeIdRoute: typeof AdminDashboardArrangementTypesTypeIdRoute
@@ -1628,6 +1648,7 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardPaymentsRoute: AdminDashboardPaymentsRoute,
   AdminDashboardReportsRoute: AdminDashboardReportsRouteWithChildren,
   AdminDashboardSalesRoute: AdminDashboardSalesRoute,
+  AdminDashboardShopRoute: AdminDashboardShopRoute,
   AdminDashboardStaffRoute: AdminDashboardStaffRoute,
   AdminDashboardIndexRoute: AdminDashboardIndexRoute,
   AdminDashboardArrangementTypesTypeIdRoute:

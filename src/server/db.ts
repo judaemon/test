@@ -866,6 +866,16 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		UNIQUE (order_id, slot)
 	);
 	`,
+	// v61: while the shop is closed, people can leave their name "for those
+	// who wish" a bouquet at the event; staff see the list in Admin → Shop.
+	`
+	CREATE TABLE shop_wishes (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		created_at TEXT NOT NULL
+	);
+	CREATE INDEX shop_wishes_by_time ON shop_wishes (created_at);
+	`,
 ];
 
 declare global {

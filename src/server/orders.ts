@@ -63,6 +63,7 @@ import {
 } from "./orders-repo";
 import { getPaymentAccount, listPaymentAccounts } from "./payments-repo";
 import { listLiveSales } from "./sales-repo";
+import { getShopStatus } from "./shop-status-repo";
 import { deleteUpload, saveImage, UploadError } from "./uploads";
 
 export type PlaceOrderResult =
@@ -147,6 +148,13 @@ export const placeOrder = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<PlaceOrderResult> => {
+		// Closed while orders are full, even for a checkout page left open.
+		if (getShopStatus().closed)
+			return {
+				ok: false,
+				message:
+					"Sorry, we’ve just closed online orders: we’re fully booked. We’ll have extra bouquets at the event!",
+			};
 		if (!data.noCancellationAccepted) {
 			return {
 				ok: false,
