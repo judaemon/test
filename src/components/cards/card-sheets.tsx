@@ -3,7 +3,9 @@ import { For, Show } from "solid-js";
 
 import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import { CONTACT, TAGLINE } from "~/lib/contact";
-import { CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
+import { bouquetPath, CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
+import { qrPath } from "~/lib/qr";
+import { absoluteUrl } from "~/lib/site";
 import { cn } from "~/lib/utils";
 
 /**
@@ -268,8 +270,100 @@ export function HelloQr(props: { size: number; class?: string }) {
 	);
 }
 
+/** A QR code drawn as it renders, sized in millimetres, with a mark in the middle. */
+function Qr(props: {
+	value: string;
+	size: number;
+	mark: JSX.Element;
+	label: string;
+}) {
+	const code = () => qrPath(props.value);
+	return (
+		<span
+			class="relative block shrink-0"
+			style={{ width: `${props.size}mm`, height: `${props.size}mm` }}
+		>
+			<svg
+				role="img"
+				aria-label={props.label}
+				viewBox={`0 0 ${code().size} ${code().size}`}
+				shape-rendering="crispEdges"
+				class="block size-full"
+			>
+				<title>{props.label}</title>
+				<path d={code().path} fill="#2b1a20" />
+			</svg>
+			<span
+				aria-hidden="true"
+				class="absolute inset-0 m-auto flex items-center justify-center rounded-[0.8mm] bg-white"
+				style={{ width: "24%", height: "24%" }}
+			>
+				{props.mark}
+			</span>
+		</span>
+	);
+}
+
+/** One code with its small caption underneath. */
+function CaptionedQr(props: {
+	children: JSX.Element;
+	caption: string;
+	pt: number;
+}) {
+	return (
+		<span class="flex flex-col items-center">
+			{props.children}
+			<span
+				class="font-sans font-medium uppercase text-petal-900"
+				style={{
+					"font-size": `${props.pt}pt`,
+					"letter-spacing": "0.2em",
+					"margin-top": "2mm",
+					"margin-right": "-0.2em",
+				}}
+			>
+				{props.caption}
+			</span>
+		</span>
+	);
+}
+
+/**
+ * The QR codes on a card's back: with `link`, the card's own bouquet page
+ * (its bouquet and message) beside ORAIA's page; without, ORAIA's alone.
+ * Different marks in the middle, a sparkle and the flower, tell them apart.
+ */
+export function CardQrs(props: { link?: string; size: number; pt: number }) {
+	return (
+		<Show
+			when={props.link}
+			fallback={
+				<CaptionedQr caption="Scan to say hello" pt={props.pt}>
+					<HelloQr size={props.size} />
+				</CaptionedQr>
+			}
+		>
+			{(link) => (
+				<span class="flex items-start" style={{ gap: `${props.size * 0.4}mm` }}>
+					<CaptionedQr caption="Your bouquet" pt={props.pt}>
+						<Qr
+							value={absoluteUrl(bouquetPath(link()))}
+							size={props.size}
+							label="QR code to this bouquet and its message"
+							mark={<Sparkle class="size-[70%] text-petal-500" />}
+						/>
+					</CaptionedQr>
+					<CaptionedQr caption="Say hello" pt={props.pt}>
+						<HelloQr size={props.size} />
+					</CaptionedQr>
+				</span>
+			)}
+		</Show>
+	);
+}
+
 /** The back of every card: ORAIA, its line, and how to find the shop. */
-export function CardBack() {
+export function CardBack(props: { link?: string }) {
 	return (
 		<article
 			class="box-border flex min-h-0 flex-col items-center justify-between text-center"
@@ -302,20 +396,10 @@ export function CardBack() {
 			</div>
 
 			<div class="flex flex-col items-center font-sans">
-				<HelloQr size={19} />
-				<p
-					class="font-medium uppercase text-petal-900"
-					style={{
-						"font-size": "6pt",
-						"letter-spacing": "0.24em",
-						"margin-top": "2.2mm",
-					}}
-				>
-					Scan to say hello
-				</p>
+				<CardQrs link={props.link} size={18} pt={5.5} />
 				<p
 					class="tabular-nums text-[#4a3a40]"
-					style={{ "font-size": "7.5pt", "margin-top": "2.2mm" }}
+					style={{ "font-size": "7.5pt", "margin-top": "3mm" }}
 				>
 					{CONTACT.phone}
 					<span class="px-[1.5mm] text-petal-300">·</span>
@@ -332,12 +416,15 @@ export function CardBack() {
 	);
 }
 
-/** A sheet of four backs; they're all the same, so no mirroring is needed. */
-export function BackSheet() {
+/**
+ * A sheet of four backs. `links` are each spot's bouquet link, already
+ * mirrored (see `mirrorSheet`) so each back lands behind its own front.
+ */
+export function BackSheet(props: { links?: (string | undefined)[] }) {
 	return (
 		<Sheet>
 			<For each={Array.from({ length: CARDS_PER_SHEET })}>
-				{() => <CardBack />}
+				{(_, spot) => <CardBack link={props.links?.[spot()]} />}
 			</For>
 		</Sheet>
 	);

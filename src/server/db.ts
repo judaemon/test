@@ -854,6 +854,18 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 		PRIMARY KEY (order_id, slot)
 	);
 	`,
+	// v60: the private link printed as a QR code on each dedication card,
+	// opening a page with that bouquet and its message (/b/<token>). Made once
+	// per card, so a reprint keeps the same code.
+	`
+	CREATE TABLE card_links (
+		token TEXT PRIMARY KEY,
+		order_id TEXT NOT NULL,
+		slot TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		UNIQUE (order_id, slot)
+	);
+	`,
 ];
 
 declare global {

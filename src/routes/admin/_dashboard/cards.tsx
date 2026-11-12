@@ -39,9 +39,11 @@ import {
 import { HelloNoteEditor } from "~/components/cards/hello-note-editor";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import {
+	bouquetPath,
 	CARDS_PER_SHEET,
 	type CardPrintStatus,
 	cardMatches,
+	mirrorSheet,
 	type PrintCard,
 	toSheets,
 } from "~/lib/print-cards";
@@ -193,6 +195,12 @@ function CardsPage() {
 	const [sides, setSides] = createSignal<Sides>("both");
 	const [withReference, setWithReference] = createSignal(true);
 	const [guides, setGuides] = createSignal(true);
+	const [withBouquetQr, setWithBouquetQr] = createSignal(true);
+	/** Each back's bouquet link, swapped left and right to sit behind its front. */
+	const backLinks = (cards: PrintCard[]) =>
+		withBouquetQr() && cards.length
+			? mirrorSheet(cards.map((card) => card.link || undefined))
+			: undefined;
 	const [backSheets, setBackSheets] = createSignal<number | undefined>();
 
 	const [fits, setFits] = createSignal<ReadonlyMap<string, CardFit>>(new Map());
@@ -873,6 +881,9 @@ function CardsPage() {
 								<Check checked={guides()} onChange={setGuides}>
 									{folded() ? "Cut and fold guides" : "Cut guides"}
 								</Check>
+								<Check checked={withBouquetQr()} onChange={setWithBouquetQr}>
+									QR code to each bouquet’s page
+								</Check>
 							</Show>
 						</div>
 
@@ -950,7 +961,10 @@ function CardsPage() {
 														<Show
 															when={page.side === "front"}
 															fallback={
-																<FoldedOutsideSheet guides={guides()} />
+																<FoldedOutsideSheet
+																	guides={guides()}
+																	links={backLinks(page.cards)}
+																/>
 															}
 														>
 															<FoldedSheet
@@ -982,7 +996,9 @@ function CardsPage() {
 												>
 													<Show
 														when={page.side === "front"}
-														fallback={<BackSheet />}
+														fallback={
+															<BackSheet links={backLinks(page.cards)} />
+														}
 													>
 														<Sheet guides={guides()}>
 															<For
@@ -1203,6 +1219,19 @@ function CardRow(props: {
 							>
 								Not printed
 							</button>
+						</Show>
+						<Show when={props.card.link}>
+							{(link) => (
+								<a
+									href={bouquetPath(link())}
+									target="_blank"
+									rel="noreferrer"
+									class={cn(adminButton.ghost, "text-xs")}
+									title="What the QR code on this card's back opens: the bouquet and its message"
+								>
+									Bouquet page
+								</a>
+							)}
 						</Show>
 						<Link
 							to="/admin/orders/$orderId/edit"

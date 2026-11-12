@@ -9,6 +9,7 @@ import {
 	printStatus,
 } from "~/lib/print-cards";
 import { requireStaff } from "../admin-auth";
+import { ensureCardLinks } from "../card-links-repo";
 import {
 	clearCardPrints,
 	listCardPrints,
@@ -62,6 +63,7 @@ export const listPrintCardsFn = createServerFn({ method: "GET" }).handler(
 					to: card.to,
 					message: card.message,
 					status: printStatus(card, print),
+					link: "",
 					...(print
 						? {
 								printed: {
@@ -75,6 +77,11 @@ export const listPrintCardsFn = createServerFn({ method: "GET" }).handler(
 				});
 			}
 		}
+		// Each card's private link, for the QR code on its back.
+		const links = ensureCardLinks(
+			cards.map(({ orderId, slot }) => ({ orderId, slot })),
+		);
+		for (const card of cards) card.link = links.get(card.key) ?? "";
 		return {
 			cards: cards.sort(compareCards),
 			loadedAt: new Date().toISOString(),

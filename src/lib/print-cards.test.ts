@@ -5,6 +5,7 @@ import {
 	cardSlot,
 	centerMessage,
 	compareCards,
+	mirrorSheet,
 	type PrintCard,
 	printStatus,
 	toSheets,
@@ -25,6 +26,7 @@ const card = (over: Partial<PrintCard>): PrintCard => ({
 	to: "Mia",
 	message: "Happy graduation!",
 	status: "new",
+	link: "abcdefghij",
 	...over,
 });
 
@@ -142,5 +144,15 @@ describe("cardMatches", () => {
 		expect(cardMatches(ana, "102, 95, 213")).toBe(true);
 		expect(cardMatches(ana, "102, 213")).toBe(false);
 		expect(cardMatches(ana, "#102, ana cruz")).toBe(true);
+	});
+});
+
+describe("mirrorSheet", () => {
+	test("each row's two spots swap, so a back lands behind its front", () => {
+		expect(mirrorSheet(["a", "b", "c", "d"])).toEqual(["b", "a", "d", "c"]);
+	});
+	test("a part-filled sheet leaves the backs of empty spots blank", () => {
+		expect(mirrorSheet(["a", "b", "c"])).toEqual(["b", "a", undefined, "c"]);
+		expect(mirrorSheet(["a"])).toEqual([undefined, "a", undefined, undefined]);
 	});
 });

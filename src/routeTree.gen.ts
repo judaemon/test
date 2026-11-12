@@ -27,6 +27,7 @@ import { Route as AccountOrdersRouteImport } from './routes/account/orders'
 import { Route as AdminDashboardRouteImport } from './routes/admin/_dashboard'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AssetsSplatRouteImport } from './routes/assets/$'
+import { Route as BTokenRouteImport } from './routes/b.$token'
 import { Route as FloristTokenRouteImport } from './routes/florist.$token'
 import { Route as OrderOrderIdRouteImport } from './routes/order/$orderId'
 import { Route as PayOrderNumberRouteImport } from './routes/pay.$orderNumber'
@@ -173,6 +174,11 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
 const AssetsSplatRoute = AssetsSplatRouteImport.update({
   id: '/assets/$',
   path: '/assets/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BTokenRoute = BTokenRouteImport.update({
+  id: '/b/$token',
+  path: '/b/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FloristTokenRoute = FloristTokenRouteImport.update({
@@ -513,6 +519,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/assets/$': typeof AssetsSplatRoute
+  '/b/$token': typeof BTokenRoute
   '/florist/$token': typeof FloristTokenRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/pay/$orderNumber': typeof PayOrderNumberRoute
@@ -588,6 +595,7 @@ export interface FileRoutesByTo {
   '/account/orders': typeof AccountOrdersRoute
   '/admin/login': typeof AdminLoginRoute
   '/assets/$': typeof AssetsSplatRoute
+  '/b/$token': typeof BTokenRoute
   '/florist/$token': typeof FloristTokenRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/pay/$orderNumber': typeof PayOrderNumberRoute
@@ -665,6 +673,7 @@ export interface FileRoutesById {
   '/admin/_dashboard': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/assets/$': typeof AssetsSplatRoute
+  '/b/$token': typeof BTokenRoute
   '/florist/$token': typeof FloristTokenRoute
   '/order/$orderId': typeof OrderOrderIdRoute
   '/pay/$orderNumber': typeof PayOrderNumberRoute
@@ -744,6 +753,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin/login'
     | '/assets/$'
+    | '/b/$token'
     | '/florist/$token'
     | '/order/$orderId'
     | '/pay/$orderNumber'
@@ -819,6 +829,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/login'
     | '/assets/$'
+    | '/b/$token'
     | '/florist/$token'
     | '/order/$orderId'
     | '/pay/$orderNumber'
@@ -895,6 +906,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard'
     | '/admin/login'
     | '/assets/$'
+    | '/b/$token'
     | '/florist/$token'
     | '/order/$orderId'
     | '/pay/$orderNumber'
@@ -970,6 +982,7 @@ export interface RootRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
   AssetsSplatRoute: typeof AssetsSplatRoute
+  BTokenRoute: typeof BTokenRoute
   FloristTokenRoute: typeof FloristTokenRoute
   OrderOrderIdRoute: typeof OrderOrderIdRoute
   PayOrderNumberRoute: typeof PayOrderNumberRoute
@@ -1113,6 +1126,13 @@ declare module '@tanstack/solid-router' {
       path: '/assets/$'
       fullPath: '/assets/$'
       preLoaderRoute: typeof AssetsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/b/$token': {
+      id: '/b/$token'
+      path: '/b/$token'
+      fullPath: '/b/$token'
+      preLoaderRoute: typeof BTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/florist/$token': {
@@ -1662,6 +1682,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminDashboardRoute: AdminDashboardRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
   AssetsSplatRoute: AssetsSplatRoute,
+  BTokenRoute: BTokenRoute,
   FloristTokenRoute: FloristTokenRoute,
   OrderOrderIdRoute: OrderOrderIdRoute,
   PayOrderNumberRoute: PayOrderNumberRoute,

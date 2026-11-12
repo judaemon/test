@@ -31,6 +31,8 @@ export interface PrintCard {
 	to: string;
 	message: string;
 	status: CardPrintStatus;
+	/** Code for the card's private page, `/b/<link>`: its bouquet and message. */
+	link: string;
 	/** The words that were printed last time, and by whom. */
 	printed?: { to: string; message: string; at: string; by: string };
 }
@@ -72,6 +74,26 @@ export function compareCards(a: PrintCard, b: PrintCard) {
 		a.number.localeCompare(b.number, undefined, { numeric: true }) ||
 		a.slot.localeCompare(b.slot, undefined, { numeric: true })
 	);
+}
+
+/** The private page a card's QR code opens: its bouquet and its message. */
+export const bouquetPath = (link: string) => `/b/${link}`;
+
+/**
+ * Where each card's back goes on the other side of its sheet. Turned over
+ * (short edge, or long edge with the inside upside down), left and right
+ * swap, so each row's two spots trade places; rows stay put.
+ */
+export function mirrorSheet<T>(
+	cards: (T | undefined)[],
+	perRow = 2,
+): (T | undefined)[] {
+	const spots = Math.ceil(CARDS_PER_SHEET / perRow) * perRow;
+	return Array.from({ length: spots }, (_, spot) => {
+		const row = Math.floor(spot / perRow);
+		const col = spot % perRow;
+		return cards[row * perRow + (perRow - 1 - col)];
+	});
 }
 
 /** Splits cards into A4 sheets of four; the last may have fewer. */

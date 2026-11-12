@@ -5,7 +5,7 @@ import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
 import { cn } from "~/lib/utils";
-import { type CardFit, HelloQr, shrinkToFit } from "./card-sheets";
+import { type CardFit, CardQrs, shrinkToFit } from "./card-sheets";
 
 /**
  * A4 landscape, drawn 1 mm short so rounding never spills onto a blank page.
@@ -156,25 +156,21 @@ function Page(props: { children: JSX.Element; class?: string }) {
  * The outside of a card, laid flat: the back cover (how to find ORAIA) on the
  * left, the front cover on the right. Every card's outside is the same.
  */
-export function FoldedOutside() {
+export function FoldedOutside(props: { link?: string }) {
 	return (
 		<div class="grid min-h-0 grid-cols-2">
-			<Page class="px-[8mm] py-[10mm] font-sans">
+			<Page class="px-[6mm] py-[10mm] font-sans">
 				<Sparkle
 					class="text-petal-500"
 					style={{ width: "2.4mm", height: "2.4mm" }}
 				/>
-				<HelloQr size={20} class="mt-[5mm]" />
-				<p
-					class="font-medium uppercase text-petal-900"
-					style={{
-						"font-size": "5.5pt",
-						"letter-spacing": "0.24em",
-						"margin-top": "2.5mm",
-					}}
-				>
-					Scan to say hello
-				</p>
+				<span class="mt-[5mm]">
+					<CardQrs
+						link={props.link}
+						size={props.link ? 17 : 20}
+						pt={props.link ? 4.8 : 5.5}
+					/>
+				</span>
 				<span
 					class="block bg-petal-300"
 					style={{ width: "8mm", height: "0.25mm", "margin-block": "3.5mm" }}
@@ -370,12 +366,16 @@ export function EmptyFolded() {
 	);
 }
 
-/** A sheet of four outsides; they're all the same, so they line up either way. */
-export function FoldedOutsideSheet(props: { guides?: boolean }) {
+/** A sheet of four outsides. */
+export function FoldedOutsideSheet(props: {
+	guides?: boolean;
+	/** Each spot's bouquet link, already mirrored (see `mirrorSheet`). */
+	links?: (string | undefined)[];
+}) {
 	return (
 		<FoldedSheet guides={props.guides}>
 			<For each={Array.from({ length: CARDS_PER_SHEET })}>
-				{() => <FoldedOutside />}
+				{(_, spot) => <FoldedOutside link={props.links?.[spot()]} />}
 			</For>
 		</FoldedSheet>
 	);
