@@ -911,42 +911,11 @@ function BouquetCard(props: {
 			>
 				<div class="flex min-h-0 flex-col gap-2">
 					<div class="relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:aspect-auto print:min-h-0 print:flex-1 print:rounded-none print:bg-transparent">
-						<Show
-							when={b().image ?? b().referenceImages[0]}
-							fallback={
-								<span class="absolute inset-0 flex items-center justify-center text-sm text-petal-900/40">
-									No photo
-								</span>
-							}
-						>
-							{(src) => (
-								<img
-									src={photoSrc(src())}
-									alt={`${b().title} · ${b().colorName}`}
-									loading="eager"
-									class={cn(
-										// The whole photo, scaled to fit: never cropped.
-										"absolute inset-0 size-full object-contain",
-										sideBySide() && "print:object-top",
-									)}
-								/>
-							)}
-						</Show>
+						<Photos
+							bouquet={b()}
+							imgClass={cn(sideBySide() && "print:object-top")}
+						/>
 					</div>
-					<Show when={b().referenceImages.length > (b().image ? 0 : 1)}>
-						<div class="flex gap-1.5">
-							<For each={b().referenceImages.slice(b().image ? 0 : 1, 4)}>
-								{(src, i) => (
-									<img
-										src={src}
-										alt={`The look they want, ${i() + 1}`}
-										loading="eager"
-										class="size-14 rounded-lg object-cover print:size-[12mm]"
-									/>
-								)}
-							</For>
-						</div>
-					</Show>
 				</div>
 
 				<div class="flex min-w-0 flex-col gap-3 print:gap-[2mm] print:text-[9pt]">
@@ -1097,6 +1066,59 @@ function BouquetCard(props: {
 				</p>
 			</footer>
 		</article>
+	);
+}
+
+/** A bouquet's photos, each once: its own photo, then the looks they sent. */
+const bouquetPhotos = (b: FloristBouquet) =>
+	[
+		...new Set([b.image, ...b.referenceImages].filter(Boolean) as string[]),
+	].slice(0, 4);
+
+/**
+ * Fills its box with the bouquet's photos, all the same size: one fills it,
+ * two side by side, three or four in a 2 × 2 grid. Never cropped.
+ */
+function Photos(props: { bouquet: FloristBouquet; imgClass?: string }) {
+	const photos = () => bouquetPhotos(props.bouquet);
+	return (
+		<Show
+			when={photos().length}
+			fallback={
+				<span class="absolute inset-0 flex items-center justify-center text-sm text-petal-900/40">
+					No photo
+				</span>
+			}
+		>
+			<div
+				class={cn(
+					"absolute inset-0 grid gap-1 print:gap-[1.5mm]",
+					photos().length === 1 && "grid-cols-1",
+					photos().length === 2 && "grid-cols-2",
+					photos().length > 2 && "grid-cols-2 grid-rows-2",
+				)}
+			>
+				<For each={photos()}>
+					{(src, i) => (
+						<div class="relative min-h-0">
+							<img
+								src={photoSrc(src)}
+								alt={
+									i() === 0
+										? `${props.bouquet.title} · ${props.bouquet.colorName}`
+										: `The look they want, ${i() + 1}`
+								}
+								loading="eager"
+								class={cn(
+									"absolute inset-0 size-full object-contain",
+									props.imgClass,
+								)}
+							/>
+						</div>
+					)}
+				</For>
+			</div>
+		</Show>
 	);
 }
 
@@ -1314,7 +1336,6 @@ function ShortBouquetCard(props: {
 	const b = () => props.bouquet;
 	const small = () => props.perPage >= 6;
 	const payment = () => PAYMENT[b().payment];
-	const photo = () => b().image ?? b().referenceImages[0];
 	const label = (text: string) => (
 		<span class="text-petal-900/60 print:text-black/60">{text} </span>
 	);
@@ -1406,27 +1427,10 @@ function ShortBouquetCard(props: {
 							: "print:col-start-1 print:row-start-1",
 					)}
 				>
-					<Show
-						when={photo()}
-						fallback={
-							<span class="absolute inset-0 flex items-center justify-center text-sm text-petal-900/40">
-								No photo
-							</span>
-						}
-					>
-						{(src) => (
-							<img
-								src={photoSrc(src())}
-								alt={`${b().title} · ${b().colorName}`}
-								loading="eager"
-								class={cn(
-									// The whole photo, scaled to fit: never cropped.
-									"absolute inset-0 size-full object-contain",
-									!props.tall && "print:object-top",
-								)}
-							/>
-						)}
-					</Show>
+					<Photos
+						bouquet={b()}
+						imgClass={cn(!props.tall && "print:object-top")}
+					/>
 				</div>
 
 				<div
