@@ -1645,16 +1645,17 @@ function ArrangementCards(props: {
 					!allShown() && "hover:border-petal-400",
 				)}
 			>
-				<span class="text-sm font-medium text-petal-900/70">Orders</span>
+				{/* Items, not orders, as the headline: the type cards add up to it. */}
+				<span class="text-sm font-medium text-petal-900/70">Total ordered</span>
 				<span class="font-display text-2xl font-semibold tabular-nums lg:text-3xl">
-					{props.orders.orders.toLocaleString()}
+					{props.orders.items.toLocaleString()}
 				</span>
 				<span class="text-xs text-petal-900/65">
-					with{" "}
+					from{" "}
 					<span class="font-medium tabular-nums text-petal-900">
-						{props.orders.items.toLocaleString()}
+						{props.orders.orders.toLocaleString()}
 					</span>{" "}
-					{props.orders.items === 1 ? "item" : "items"} in all
+					{props.orders.orders === 1 ? "order" : "orders"}
 				</span>
 				<span class="mt-1 flex w-full flex-col gap-0.5 border-t border-petal-200 pt-1.5 text-xs text-petal-900/65">
 					<For each={props.cards.filter((card) => card.bouquets > 0)}>
