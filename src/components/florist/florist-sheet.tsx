@@ -38,6 +38,13 @@ const classRank = (name: string) => {
 	return index === -1 ? CLASS_OPTIONS.length : index;
 };
 
+/** Company (Alfa to Hawk), then class, then order number. */
+const byCompany = (a: FloristBouquet, b: FloristBouquet) =>
+	companyRank(a.customer.company) - companyRank(b.customer.company) ||
+	a.customer.company.localeCompare(b.customer.company) ||
+	classRank(a.customer.className) - classRank(b.customer.className) ||
+	Number(a.orderNumber) - Number(b.orderNumber);
+
 /** How many bouquets go on each A4 page. */
 const PER_PAGE = [1, 2, 4, 6] as const;
 type PerPage = (typeof PER_PAGE)[number];
@@ -229,14 +236,7 @@ export function FloristSheet(props: {
 
 	const bouquets = createMemo(() => {
 		const list = [...shown()];
-		if (sortBy() === "company")
-			list.sort(
-				(a, b) =>
-					companyRank(a.customer.company) - companyRank(b.customer.company) ||
-					a.customer.company.localeCompare(b.customer.company) ||
-					classRank(a.customer.className) - classRank(b.customer.className) ||
-					Number(a.orderNumber) - Number(b.orderNumber),
-			);
+		if (sortBy() === "company") list.sort(byCompany);
 		if (sortBy() === "style")
 			list.sort(
 				(a, b) =>
@@ -245,6 +245,20 @@ export function FloristSheet(props: {
 					Number(a.orderNumber) - Number(b.orderNumber),
 			);
 		return list;
+	});
+
+	/** The checklist: always by company, then class, under each company's name. */
+	const checklist = createMemo(() => {
+		const byName = new Map<string, FloristBouquet[]>();
+		for (const b of [...shown()].sort(byCompany)) {
+			const list = byName.get(b.customer.company);
+			if (list) list.push(b);
+			else byName.set(b.customer.company, [b]);
+		}
+		return [...byName.entries()].map(([company, list]) => ({
+			company,
+			bouquets: list,
+		}));
 	});
 
 	/**
@@ -677,46 +691,62 @@ export function FloristSheet(props: {
 						</div>
 						<div>
 							<h2 class="mb-2 font-semibold print:text-[11pt]">Checklist</h2>
-							<ol class="overflow-hidden rounded-2xl border border-petal-100 bg-white text-sm print:rounded-none print:border-black/40 print:text-[9pt]">
-								<For each={bouquets()}>
-									{(bouquet) => (
-										<li class="flex items-start gap-2.5 border-t border-petal-50 px-3 py-1.5 first:border-t-0 print:break-inside-avoid print:border-black/20 print:px-2 print:py-1">
-											<span class="mt-0.5 inline-block size-4 shrink-0 rounded-sm border-2 border-petal-900/40 print:border-black" />
-											<span class="min-w-0 flex-1 leading-tight">
-												<span class="font-semibold tabular-nums">
-													#{bouquet.orderNumber}
-												</span>{" "}
-												{bouquet.title}
-												<span class="text-petal-900/60">
-													{" "}
-													· {bouquet.colorName}
+							<div class="overflow-hidden rounded-2xl border border-petal-100 bg-white text-sm print:rounded-none print:border-black/40 print:text-[9pt]">
+								<For each={checklist()}>
+									{(group) => (
+										<section class="border-t border-petal-100 first:border-t-0 print:border-black/40">
+											<h3 class="flex items-baseline justify-between bg-petal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide print:break-after-avoid print:bg-black/5 print:px-2 print:text-[8pt]">
+												{companyLabel(group.company)}
+												<span class="font-normal tabular-nums text-petal-900/60 print:text-black/60">
+													{group.bouquets.length}
 												</span>
-												<span class="block text-xs text-petal-900/60 print:text-[8pt]">
-													{bouquet.customer.name}
-													<Show
-														when={[
-															bouquet.customer.company,
-															bouquet.customer.className,
-														]
-															.filter(Boolean)
-															.join(" ")}
-													>
-														{(who) => <> · {who()}</>}
-													</Show>
-													<Show when={bouquet.deliveryDate}>
-														{(date) => <> · for {formatDeliveryDate(date())}</>}
-													</Show>
-												</span>
-											</span>
-											<Show when={bouquet.stage === "done"}>
-												<span class="shrink-0 rounded-full bg-success px-2 py-0.5 text-xs font-medium text-success-foreground">
-													Done
-												</span>
-											</Show>
-										</li>
+											</h3>
+											<ol>
+												<For each={group.bouquets}>
+													{(bouquet) => (
+														<li class="flex items-start gap-2.5 border-t border-petal-50 px-3 py-1.5 first:border-t-0 print:break-inside-avoid print:border-black/20 print:px-2 print:py-1">
+															<span class="mt-0.5 inline-block size-4 shrink-0 rounded-sm border-2 border-petal-900/40 print:border-black" />
+															<span class="min-w-0 flex-1 leading-tight">
+																<span class="font-semibold tabular-nums">
+																	#{bouquet.orderNumber}
+																</span>{" "}
+																{bouquet.title}
+																<span class="text-petal-900/60">
+																	{" "}
+																	· {bouquet.colorName}
+																</span>
+																<span class="block text-xs text-petal-900/60 print:text-[8pt]">
+																	{bouquet.customer.name}
+																	<Show
+																		when={[
+																			bouquet.customer.company,
+																			bouquet.customer.className,
+																		]
+																			.filter(Boolean)
+																			.join(" ")}
+																	>
+																		{(who) => <> · {who()}</>}
+																	</Show>
+																	<Show when={bouquet.deliveryDate}>
+																		{(date) => (
+																			<> · for {formatDeliveryDate(date())}</>
+																		)}
+																	</Show>
+																</span>
+															</span>
+															<Show when={bouquet.stage === "done"}>
+																<span class="shrink-0 rounded-full bg-success px-2 py-0.5 text-xs font-medium text-success-foreground">
+																	Done
+																</span>
+															</Show>
+														</li>
+													)}
+												</For>
+											</ol>
+										</section>
 									)}
 								</For>
-							</ol>
+							</div>
 						</div>
 					</div>
 				</section>
