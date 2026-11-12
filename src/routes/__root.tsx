@@ -9,6 +9,7 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/solid-router-devtools";
 
 import "@fontsource/inter/400.css";
+import "@fontsource/inter/600.css";
 import "@fontsource-variable/fraunces/full.css";
 import "@fontsource-variable/fraunces/full-italic.css";
 

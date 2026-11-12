@@ -18,7 +18,8 @@ const svg = await QRCode.toString(url, {
 	type: "svg",
 	errorCorrectionLevel: "H",
 	margin: 0,
-	color: { dark: "#2b1a20", light: "#ffffff00" },
+	// Pure black on paper: the crispest print, and the easiest scan.
+	color: { dark: "#000000", light: "#ffffff00" },
 });
 writeFileSync(`public${CONTACT.helloQr}`, svg);
 console.log(`QR code for ${url} saved to public${CONTACT.helloQr}`);

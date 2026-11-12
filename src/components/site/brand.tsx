@@ -12,10 +12,18 @@ type SvgProps = ComponentProps<"svg">;
  * as a hairline beside the flower. Decorative wherever it sits next to the
  * name, so it's hidden from screen readers.
  */
-export function FlowerMark(props: { class?: string }) {
+export function FlowerMark(props: {
+	class?: string;
+	/** On printed cards: a deeper gradient, as the pale tip prints faint. */
+	print?: boolean;
+}) {
 	return (
 		<img
-			src="/images/brand/logo-rose.svg"
+			src={
+				props.print
+					? "/images/brand/logo-rose-print.svg"
+					: "/images/brand/logo-rose.svg"
+			}
 			alt=""
 			aria-hidden="true"
 			draggable={false}

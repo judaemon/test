@@ -68,7 +68,7 @@ export function FoldedSheet(props: {
 }) {
 	return (
 		<div
-			class="card-sheet relative box-border grid grid-cols-2 grid-rows-2 overflow-hidden bg-white text-[#2b1a20]"
+			class="card-sheet relative box-border grid grid-cols-2 grid-rows-2 overflow-hidden bg-white text-[#1f1216]"
 			style={{
 				width: `${FOLD_SHEET.width}mm`,
 				height: `${FOLD_SHEET.height}mm`,
@@ -87,13 +87,13 @@ export function FoldedSheet(props: {
 }
 
 function FoldGuides() {
-	const cut = "absolute bg-[#b8aeb1]";
+	const cut = "absolute bg-[#8a7f84]";
 	const hair = "0.2mm";
 	const len = "5mm";
 	const inset = "3mm";
 	const fold = (left: string, edge: "top" | "bottom") => (
 		<span
-			class="absolute border-l border-dashed border-[#b8aeb1]"
+			class="absolute border-l border-dashed border-[#8a7f84]"
 			style={{ left, [edge]: inset, height: len, "border-left-width": hair }}
 		/>
 	);
@@ -164,7 +164,7 @@ export function FoldedOutside(props: { link?: string }) {
 		<div class="grid min-h-0 grid-cols-2">
 			<Page class="px-[6mm] py-[10mm] font-sans">
 				<Sparkle
-					class="text-petal-500"
+					class="text-petal-700"
 					style={{ width: "2.4mm", height: "2.4mm" }}
 				/>
 				<span class="mt-[5mm]">
@@ -175,20 +175,20 @@ export function FoldedOutside(props: { link?: string }) {
 					/>
 				</span>
 				<span
-					class="block bg-petal-300"
-					style={{ width: "8mm", height: "0.25mm", "margin-block": "3.5mm" }}
+					class="block bg-petal-500"
+					style={{ width: "8mm", height: "0.35mm", "margin-block": "3.5mm" }}
 				/>
-				<p class="tabular-nums text-[#4a3a40]" style={{ "font-size": "7pt" }}>
+				<p class="tabular-nums text-[#2b1a20]" style={{ "font-size": "7pt" }}>
 					{CONTACT.phone}
 				</p>
 				<p
-					class="text-[#4a3a40]"
+					class="text-[#2b1a20]"
 					style={{ "font-size": "7pt", "margin-top": "0.8mm" }}
 				>
 					{CONTACT.instagram}
 				</p>
 				<p
-					class="text-[#8a7c81]"
+					class="text-[#5c4f54]"
 					style={{ "font-size": "6pt", "margin-top": "0.8mm" }}
 				>
 					{CONTACT.location}
@@ -198,26 +198,26 @@ export function FoldedOutside(props: { link?: string }) {
 				</span>
 			</Page>
 			<Page class="px-[7mm] py-[10mm]">
-				<FlowerMark class="block size-[21mm]" />
+				<FlowerMark print class="block size-[21mm]" />
 				<Wordmark class="mt-[4.5mm] block text-[15pt] leading-none" />
 				<p
-					class="font-display italic text-petal-700"
+					class="font-display italic text-[#7a2a43]"
 					style={{ "font-size": "7.5pt", "margin-top": "2.5mm" }}
 				>
 					{TAGLINE}
 				</p>
 				<div
-					class="mt-[5mm] flex items-center gap-[2mm] text-petal-500"
+					class="mt-[5mm] flex items-center gap-[2mm] text-petal-700"
 					aria-hidden="true"
 				>
 					<span
-						class="block bg-petal-300"
-						style={{ width: "7mm", height: "0.25mm" }}
+						class="block bg-petal-500"
+						style={{ width: "7mm", height: "0.35mm" }}
 					/>
 					<Sparkle style={{ width: "2.2mm", height: "2.2mm" }} />
 					<span
-						class="block bg-petal-300"
-						style={{ width: "7mm", height: "0.25mm" }}
+						class="block bg-petal-500"
+						style={{ width: "7mm", height: "0.35mm" }}
 					/>
 				</div>
 			</Page>
@@ -235,13 +235,13 @@ function ToLine(props: { to: string; centered?: boolean }) {
 			)}
 		>
 			<p
-				class="font-sans font-medium uppercase text-petal-700"
+				class="font-sans font-semibold uppercase text-[#7a2a43]"
 				style={{ "font-size": "6pt", "letter-spacing": "0.28em" }}
 			>
 				To
 			</p>
 			<p
-				class="font-display font-medium leading-tight break-words"
+				class="font-display font-semibold leading-tight break-words"
 				style={{
 					"font-size": "13pt",
 					"margin-top": "1mm",
@@ -251,8 +251,8 @@ function ToLine(props: { to: string; centered?: boolean }) {
 				{props.to}
 			</p>
 			<span
-				class="block bg-petal-300"
-				style={{ width: "8mm", height: "0.25mm", "margin-top": "2.5mm" }}
+				class="block bg-petal-500"
+				style={{ width: "8mm", height: "0.35mm", "margin-top": "2.5mm" }}
 			/>
 		</div>
 	);
@@ -272,7 +272,9 @@ export function FoldedInside(props: {
 	reference?: string;
 }) {
 	const centered = () => centerMessage(props.message);
-	const text = "m-0 whitespace-pre-line break-words font-display italic";
+	// A touch heavier than on screen: thin italic strokes print faint.
+	const text =
+		"m-0 whitespace-pre-line break-words font-display font-medium italic text-[#1f1216]";
 	// No lone word on a last line; short centered notes get even lines.
 	const wrap = () =>
 		centered() ? "[text-wrap:balance]" : "[text-wrap:pretty]";
@@ -287,10 +289,10 @@ export function FoldedInside(props: {
 				<Page class="px-[8mm] py-[12mm]">
 					<Show
 						when={props.to}
-						fallback={<FlowerMark class="block size-[9mm] opacity-80" />}
+						fallback={<FlowerMark print class="block size-[9mm] opacity-80" />}
 					>
 						<Sparkle
-							class="text-petal-500"
+							class="text-petal-700"
 							style={{
 								width: "2.6mm",
 								height: "2.6mm",
@@ -349,7 +351,7 @@ export function FoldedInside(props: {
 
 			<Show when={props.reference}>
 				<p
-					class="absolute truncate font-sans tabular-nums text-[#9d9195]"
+					class="absolute truncate font-sans tabular-nums text-[#6b5e63]"
 					style={{
 						left: "6mm",
 						bottom: "4mm",

@@ -91,7 +91,7 @@ export function Sheet(props: {
 	return (
 		<div
 			class={cn(
-				"card-sheet relative box-border grid grid-cols-2 grid-rows-2 overflow-hidden bg-white text-[#2b1a20]",
+				"card-sheet relative box-border grid grid-cols-2 grid-rows-2 overflow-hidden bg-white text-[#1f1216]",
 				props.class,
 			)}
 			style={{
@@ -119,7 +119,7 @@ export function SheetLabel(props: { label?: string }) {
 	return (
 		<Show when={props.label}>
 			<span
-				class="pointer-events-none absolute whitespace-nowrap font-sans text-[#b8aeb1]"
+				class="pointer-events-none absolute whitespace-nowrap font-sans text-[#8a7f84]"
 				style={{ left: "calc(50% + 2.5mm)", top: "3.4mm", "font-size": "5pt" }}
 			>
 				{props.label}
@@ -130,7 +130,7 @@ export function SheetLabel(props: { label?: string }) {
 
 /** Hairline ticks where to cut: the middle of each edge, and a cross at the center. */
 function CutGuides() {
-	const mark = "absolute bg-[#b8aeb1]";
+	const mark = "absolute bg-[#8a7f84]";
 	const len = "5mm";
 	const inset = "3mm";
 	const hair = "0.2mm";
@@ -196,7 +196,7 @@ export function CardFront(props: {
 			style={{ padding: "13mm 13mm 10mm" }}
 		>
 			<Sparkle
-				class="mx-auto shrink-0 text-petal-500"
+				class="mx-auto shrink-0 text-petal-700"
 				style={{ width: "3mm", height: "3mm" }}
 			/>
 			<div
@@ -212,27 +212,27 @@ export function CardFront(props: {
 						class={cn("mb-[4.5mm]", centered() && "flex flex-col items-center")}
 					>
 						<p
-							class="font-sans font-medium uppercase text-petal-700"
+							class="font-sans font-semibold uppercase text-[#7a2a43]"
 							style={{ "font-size": "6.5pt", "letter-spacing": "0.28em" }}
 						>
 							To
 						</p>
 						<p
-							class="font-display font-medium leading-tight break-words"
+							class="font-display font-semibold leading-tight break-words"
 							style={{ "font-size": "13pt", "margin-top": "1mm" }}
 						>
 							{props.to}
 						</p>
 						<span
-							class="block bg-petal-300"
-							style={{ width: "9mm", height: "0.25mm", "margin-top": "2.5mm" }}
+							class="block bg-petal-500"
+							style={{ width: "9mm", height: "0.35mm", "margin-top": "2.5mm" }}
 						/>
 					</div>
 				</Show>
 				<p
 					data-fit-text
 					class={cn(
-						"m-0 whitespace-pre-line break-words font-display italic",
+						"m-0 whitespace-pre-line break-words font-display font-medium italic",
 						centered() ? "[text-wrap:balance]" : "[text-wrap:pretty]",
 					)}
 					style={{ "line-height": "1.42", "font-size": `${MAX_PT}pt` }}
@@ -240,10 +240,10 @@ export function CardFront(props: {
 					{props.message}
 				</p>
 			</div>
-			<FlowerMark class="mx-auto size-[6mm] shrink-0" />
+			<FlowerMark print class="mx-auto size-[6mm] shrink-0" />
 			<Show when={props.reference}>
 				<p
-					class="absolute truncate font-sans tabular-nums text-[#9d9195]"
+					class="absolute truncate font-sans tabular-nums text-[#6b5e63]"
 					style={{
 						left: "9mm",
 						right: "9mm",
@@ -290,7 +290,7 @@ export function HelloQr(props: { size: number; class?: string }) {
 				class="absolute inset-0 m-auto flex items-center justify-center rounded-[0.8mm] bg-white"
 				style={{ width: "24%", height: "24%" }}
 			>
-				<FlowerMark class="size-[80%]" />
+				<FlowerMark print class="size-[80%]" />
 			</span>
 		</span>
 	);
@@ -317,7 +317,7 @@ function Qr(props: {
 				class="block size-full"
 			>
 				<title>{props.label}</title>
-				<path d={code().path} fill="#2b1a20" />
+				<path d={code().path} fill="#000000" />
 			</svg>
 			<span
 				aria-hidden="true"
@@ -354,7 +354,7 @@ function CaptionedQr(props: {
 				{props.caption}
 			</span>
 			<span
-				class="font-display italic text-petal-700"
+				class="font-display italic text-[#7a2a43]"
 				style={{ "font-size": `${props.pt + 1.6}pt`, "margin-top": "0.6mm" }}
 			>
 				{props.lure}
@@ -389,7 +389,7 @@ export function CardQrs(props: { link?: string; size: number; pt: number }) {
 							value={absoluteUrl(bouquetPath(link()))}
 							size={props.size}
 							label="QR code to this bouquet and its message"
-							mark={<Sparkle class="size-[70%] text-petal-500" />}
+							mark={<Sparkle class="size-[70%] text-petal-700" />}
 						/>
 					</CaptionedQr>
 					<CaptionedQr caption="Follow us" lure="promos & more" pt={props.pt}>
@@ -409,10 +409,10 @@ export function CardBack(props: { link?: string }) {
 			style={{ padding: "15mm 12mm 12mm" }}
 		>
 			<div class="flex flex-col items-center">
-				<FlowerMark class="block size-[24mm]" />
+				<FlowerMark print class="block size-[24mm]" />
 				<Wordmark class="mt-[5mm] block text-[19pt] leading-none" />
 				<p
-					class="font-display italic text-petal-700"
+					class="font-display italic text-[#7a2a43]"
 					style={{ "font-size": "9.5pt", "margin-top": "3mm" }}
 				>
 					{TAGLINE}
@@ -420,32 +420,32 @@ export function CardBack(props: { link?: string }) {
 			</div>
 
 			<div
-				class="flex items-center gap-[2.5mm] text-petal-500"
+				class="flex items-center gap-[2.5mm] text-petal-700"
 				aria-hidden="true"
 			>
 				<span
-					class="block bg-petal-300"
-					style={{ width: "14mm", height: "0.25mm" }}
+					class="block bg-petal-500"
+					style={{ width: "14mm", height: "0.35mm" }}
 				/>
 				<Sparkle style={{ width: "2.6mm", height: "2.6mm" }} />
 				<span
-					class="block bg-petal-300"
-					style={{ width: "14mm", height: "0.25mm" }}
+					class="block bg-petal-500"
+					style={{ width: "14mm", height: "0.35mm" }}
 				/>
 			</div>
 
 			<div class="flex flex-col items-center font-sans">
 				<CardQrs link={props.link} size={18} pt={5.5} />
 				<p
-					class="tabular-nums text-[#4a3a40]"
+					class="tabular-nums text-[#2b1a20]"
 					style={{ "font-size": "7.5pt", "margin-top": "3mm" }}
 				>
 					{CONTACT.phone}
-					<span class="px-[1.5mm] text-petal-300">·</span>
+					<span class="px-[1.5mm] text-petal-500">·</span>
 					{CONTACT.instagram}
 				</p>
 				<p
-					class="text-[#8a7c81]"
+					class="text-[#5c4f54]"
 					style={{ "font-size": "6.5pt", "margin-top": "0.8mm" }}
 				>
 					{CONTACT.location}
