@@ -730,7 +730,7 @@ export function FloristSheet(props: {
 					</h2>
 					<div
 						class={cn(
-							"mb-8 flex flex-col gap-5 print:mb-0 print:gap-[4mm] print:p-[6mm]",
+							"mb-8 flex flex-col gap-5 print:mb-0 print:block print:p-[6mm]",
 							grouped().singles.length && "print:break-after-page",
 						)}
 					>
@@ -1129,7 +1129,7 @@ function GroupCard(props: {
 	});
 
 	return (
-		<article class="overflow-hidden rounded-2xl border border-petal-100 bg-white print:rounded-[2mm] print:border-black/50">
+		<article class="overflow-hidden rounded-2xl border border-petal-100 bg-white print:rounded-[2mm] print:mb-[4mm] print:break-inside-avoid print:border-black/50">
 			<div class="print:break-inside-avoid">
 				<header class="flex items-center justify-between gap-3 border-b border-petal-100 bg-petal-50 px-4 py-2.5 print:border-black/30 print:bg-black/5 print:px-[3mm] print:py-[1.5mm]">
 					<div class="min-w-0">
