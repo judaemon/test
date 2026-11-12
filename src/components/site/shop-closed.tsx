@@ -86,11 +86,12 @@ export function ShopClosed(props: {
 
 						<div
 							aria-hidden="true"
-							class="my-6 flex items-center justify-center gap-2.5 @4xl:my-8 @4xl:justify-start"
+							class="mx-auto my-6 flex w-full max-w-xs items-center gap-3 @4xl:mx-0 @4xl:my-8 @4xl:max-w-[34rem]"
 						>
-							<span class="h-px w-10 bg-petal-200" />
-							<Sparkle class="size-3 text-petal-500" />
-							<span class="h-px w-10 bg-petal-200" />
+							{/* Even on both sides when centered; a short lead-in, then a rule across the text when wide. */}
+							<span class="h-px flex-1 bg-linear-to-l from-petal-200 to-transparent @4xl:w-8 @4xl:flex-none @4xl:bg-petal-200" />
+							<Sparkle class="size-3 shrink-0 text-petal-500" />
+							<span class="h-px flex-1 bg-linear-to-r from-petal-200 to-transparent" />
 						</div>
 
 						<h1 class="font-display type-soft text-[32px] font-semibold leading-[1.1] text-balance @lg:text-4xl @4xl:text-[52px] @4xl:leading-[1.05]">
