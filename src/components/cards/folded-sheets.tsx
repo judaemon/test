@@ -5,7 +5,7 @@ import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
 import { cn } from "~/lib/utils";
-import { type CardFit, shrinkToFit } from "./card-sheets";
+import { type CardFit, HelloQr, shrinkToFit } from "./card-sheets";
 
 /**
  * A4 landscape, drawn 1 mm short so rounding never spills onto a blank page.
@@ -164,11 +164,7 @@ export function FoldedOutside() {
 					class="text-petal-500"
 					style={{ width: "2.4mm", height: "2.4mm" }}
 				/>
-				<img
-					src={CONTACT.facebookQr}
-					alt="QR code to ORAIA on Facebook"
-					style={{ width: "19mm", height: "19mm", "margin-top": "5mm" }}
-				/>
+				<HelloQr size={20} class="mt-[5mm]" />
 				<p
 					class="font-medium uppercase text-petal-900"
 					style={{
@@ -177,7 +173,7 @@ export function FoldedOutside() {
 						"margin-top": "2.5mm",
 					}}
 				>
-					Find us on Facebook
+					Scan to say hello
 				</p>
 				<span
 					class="block bg-petal-300"

@@ -36,6 +36,7 @@ import {
 	FoldedSheet,
 	fitFolded,
 } from "~/components/cards/folded-sheets";
+import { HelloNoteEditor } from "~/components/cards/hello-note-editor";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import {
 	CARDS_PER_SHEET,
@@ -479,6 +480,7 @@ function CardsPage() {
 					class="flex min-w-0 flex-col gap-4 print:hidden"
 					aria-label="Cards to print"
 				>
+					<HelloNoteEditor />
 					<div class={cn(adminCard, "flex flex-col gap-4 p-4")}>
 						<FilterRow label="Delivery day">
 							<button

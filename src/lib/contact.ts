@@ -14,6 +14,11 @@ export const CONTACT = {
 	signalUrl:
 		"https://signal.me/#eu/7ZItRenZ6nCBbabIuVMwLFIVgl8Ao2r_pDVpEJ1dDeg1loJMRGpIiayiP02aqhYO",
 	facebookQr: "/images/contact/facebook-qr.svg",
+	instagramUrl: "https://www.instagram.com/or.aia",
+	/** The page the QR code on dedication cards opens: links, promos and a note. */
+	helloPath: "/hello",
+	/** That QR code; made by `bun scripts/make-qr.ts`, so run it if the path changes. */
+	helloQr: "/images/contact/hello-qr.svg",
 } as const;
 
 export const TAGLINE = "Finding Beauty in Everything";

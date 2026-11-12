@@ -242,6 +242,32 @@ export function EmptyFront() {
 	);
 }
 
+/**
+ * The QR code to oraiashop.com/hello (links, promos and a note), with the
+ * ORAIA flower in its middle; the code's high error correction covers it.
+ */
+export function HelloQr(props: { size: number; class?: string }) {
+	return (
+		<span
+			class={cn("relative block shrink-0", props.class)}
+			style={{ width: `${props.size}mm`, height: `${props.size}mm` }}
+		>
+			<img
+				src={CONTACT.helloQr}
+				alt="QR code to ORAIA's page: our links, promos and a note"
+				class="block size-full"
+			/>
+			<span
+				aria-hidden="true"
+				class="absolute inset-0 m-auto flex items-center justify-center rounded-[0.8mm] bg-white"
+				style={{ width: "24%", height: "24%" }}
+			>
+				<FlowerMark class="size-[80%]" />
+			</span>
+		</span>
+	);
+}
+
 /** The back of every card: ORAIA, its line, and how to find the shop. */
 export function CardBack() {
 	return (
@@ -276,11 +302,7 @@ export function CardBack() {
 			</div>
 
 			<div class="flex flex-col items-center font-sans">
-				<img
-					src={CONTACT.facebookQr}
-					alt="QR code to ORAIA on Facebook"
-					style={{ width: "19mm", height: "19mm" }}
-				/>
+				<HelloQr size={19} />
 				<p
 					class="font-medium uppercase text-petal-900"
 					style={{
@@ -289,7 +311,7 @@ export function CardBack() {
 						"margin-top": "2.2mm",
 					}}
 				>
-					Find us on Facebook
+					Scan to say hello
 				</p>
 				<p
 					class="tabular-nums text-[#4a3a40]"
