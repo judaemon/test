@@ -107,7 +107,7 @@ function ShopPage() {
 		<div class="pb-16">
 			<PageHeader
 				title="Shop"
-				description="Close online ordering when orders are full. Shopping pages then thank everyone and let people leave their name for a bouquet at the event. Orders, payments and tracking keep working."
+				description="Close online ordering when orders are full. Shopping pages then thank everyone and let people signify interest in buying a bouquet at the event. Orders, payments and tracking keep working."
 			/>
 
 			<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
@@ -252,7 +252,8 @@ function ShopPage() {
 									</span>
 								</h2>
 								<p class="text-sm text-petal-900/60">
-									People who’d like a bouquet at the event, newest first.
+									People who signified interest in buying a bouquet at the
+									event, newest first. These aren’t orders.
 								</p>
 							</div>
 							<button

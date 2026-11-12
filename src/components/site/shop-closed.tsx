@@ -108,7 +108,7 @@ export function ShopClosed(props: {
 								href="#wish-heading"
 								class="mt-6 inline-flex h-11 items-center gap-1.5 rounded-full border border-petal-200 bg-white/80 px-5 text-sm font-medium text-petal-700 outline-none transition-colors hover:bg-white focus-visible:ring-2 focus-visible:ring-petal-500 @4xl:hidden"
 							>
-								Want one at the event? Leave your name ↓
+								Buying at the event? Signify your interest ↓
 							</a>
 						</Show>
 						<MoreLinks class="mt-9 hidden @4xl:flex" />
@@ -128,8 +128,8 @@ export function ShopClosed(props: {
 										Thank you, {thanked()}!
 									</p>
 									<p class="mt-2 text-petal-900/70">
-										We’ll prepare a bouquet with you in mind. See you at the
-										event ♡
+										Your interest is noted. See you at the event, where you can
+										choose and buy your bouquet ♡
 									</p>
 								</div>
 							}
@@ -142,13 +142,37 @@ export function ShopClosed(props: {
 								id="wish-heading"
 								class="mt-4 font-display text-2xl font-semibold leading-snug text-balance @4xl:text-[28px]"
 							>
-								Want a bouquet waiting for you?
+								Want to buy a bouquet at the event?
 							</h2>
-							<p class="mt-2 text-petal-900/65">
-								Leave your name and we’ll bring one to the event with you in
-								mind.
+							<p class="mt-2 text-petal-900/70">
+								We’re bringing extra bouquets to the event, and you can buy one
+								there. Signify your interest by entering your name, so we know
+								how many to bring.
 							</p>
-							<form class="mt-6 flex flex-col gap-3" onSubmit={send}>
+							{/* Said plainly, so nobody thinks they've ordered or reserved. */}
+							<ul
+								id="wish-note"
+								class="mt-4 flex flex-col gap-2 rounded-2xl bg-petal-50/70 px-4 py-3 text-sm"
+							>
+								<li class="flex gap-2.5">
+									<CheckIcon />
+									<span>
+										This is{" "}
+										<strong class="font-semibold">
+											not an order or a reservation
+										</strong>
+										.
+									</span>
+								</li>
+								<li class="flex gap-2.5">
+									<CheckIcon />
+									<span>
+										<strong class="font-semibold">No payment now.</strong>{" "}
+										Choose and pay at the event.
+									</span>
+								</li>
+							</ul>
+							<form class="mt-5 flex flex-col gap-3" onSubmit={send}>
 								<label class="text-sm font-medium" for="wish-name">
 									Your name
 								</label>
@@ -186,11 +210,8 @@ export function ShopClosed(props: {
 									disabled={sending()}
 									class="inline-flex h-12 w-full items-center justify-center rounded-full bg-petal-700 px-6 font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 disabled:opacity-60"
 								>
-									{sending() ? "Saving…" : "Count me in"}
+									{sending() ? "Saving…" : "Signify my interest"}
 								</button>
-								<p id="wish-note" class="text-center text-xs text-petal-900/50">
-									No payment, no sign-up. Just your name.
-								</p>
 							</form>
 						</Show>
 					</section>
@@ -221,5 +242,22 @@ function MoreLinks(props: { class?: string }) {
 				Follow us for what’s next →
 			</Link>
 		</nav>
+	);
+}
+
+function CheckIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2.2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class="mt-0.5 size-4 shrink-0 text-petal-700"
+		>
+			<path d="m5 12.5 4.5 4.5L19 7.5" />
+		</svg>
 	);
 }

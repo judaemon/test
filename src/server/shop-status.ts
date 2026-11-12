@@ -57,8 +57,8 @@ export type WishResult =
 	| { ok: false; message: string };
 
 /**
- * Public, while the shop is closed: someone leaves their name for a bouquet
- * at the event. `website` is a field people never see; bots fill it in.
+ * Public, while the shop is closed: someone signifies interest in buying a
+ * bouquet at the event (not an order or a reservation). `website` is a field people never see; bots fill it in.
  */
 export const addShopWishFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
