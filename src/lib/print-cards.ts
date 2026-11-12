@@ -21,6 +21,9 @@ export interface PrintCard {
 	buyer: string;
 	company: string;
 	className: string;
+	/** A cadet's serial number, digits only; "" for civilians. */
+	serialNumber: string;
+	email: string;
 	/** `YYYY-MM-DD`, or "" when no day was chosen. */
 	deliveryDate: string;
 	/** The bouquet it goes with: "Odette · Cream (2 of 3)"; "" order-wide. */
@@ -86,4 +89,52 @@ export function toSheets<T>(cards: T[], perSheet = CARDS_PER_SHEET): T[][] {
 export function centerMessage(message: string) {
 	const lines = message.split("\n").filter((line) => line.trim()).length;
 	return message.length <= 180 && lines <= 4;
+}
+
+/** Lowercase, without accents, so "José" is found by "jose". */
+const fold = (value: string) =>
+	value
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "")
+		.toLowerCase();
+
+/**
+ * Whether a card matches what was typed in the search. Commas separate
+ * alternatives ("95, 102, 213" finds those three orders); within one, every
+ * word must be found somewhere on the card, in any order ("ana cruz" finds
+ * "Cruz, Ana"). A number is an order number, matched exactly so a list
+ * finds just those orders; five digits or more also finds serial numbers.
+ */
+export function cardMatches(card: PrintCard, query: string) {
+	const alternatives = query
+		.split(",")
+		.map((part) => fold(part).split(/\s+/).filter(Boolean))
+		.filter((words) => words.length);
+	if (!alternatives.length) return true;
+	const text = fold(
+		[
+			card.buyer,
+			card.to,
+			card.message,
+			card.label,
+			card.company,
+			card.className,
+			card.email,
+			card.serialNumber && `c-${card.serialNumber}`,
+		].join("\n"),
+	);
+	const matchesWord = (word: string) => {
+		const digits = word.replace(/^(#|no\.?|c-)/, "");
+		if (/^\d+$/.test(digits)) {
+			if (word.startsWith("c-")) return card.serialNumber.includes(digits);
+			if (card.number === digits) return true;
+			return (
+				!word.startsWith("#") &&
+				digits.length >= 5 &&
+				card.serialNumber.includes(digits)
+			);
+		}
+		return text.includes(word);
+	};
+	return alternatives.some((words) => words.every(matchesWord));
 }

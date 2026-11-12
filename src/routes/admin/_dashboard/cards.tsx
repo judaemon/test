@@ -32,6 +32,7 @@ import { shortDeliveryDate } from "~/lib/delivery-dates";
 import {
 	CARDS_PER_SHEET,
 	type CardPrintStatus,
+	cardMatches,
 	type PrintCard,
 	toSheets,
 } from "~/lib/print-cards";
@@ -178,21 +179,8 @@ function CardsPage() {
 	const statusMatches = (card: PrintCard, filter: StatusFilter) =>
 		filter === ALL ||
 		(filter === "todo" ? card.status !== "printed" : card.status === filter);
-	const searchMatches = (card: PrintCard) => {
-		const q = query().trim().toLowerCase();
-		if (!q) return true;
-		return [
-			card.number,
-			`#${card.number}`,
-			card.buyer,
-			card.to,
-			card.message,
-			card.label,
-		]
-			.join("\n")
-			.toLowerCase()
-			.includes(q);
-	};
+	const searchMatches = (card: PrintCard) => cardMatches(card, query());
+	const searching = () => query().trim().length > 0;
 
 	const days = createMemo(() => {
 		const list = [...new Set(cards().map(dayOf))].sort();
@@ -225,8 +213,11 @@ function CardsPage() {
 	);
 	const sheets = createMemo(() => toSheets(selected()));
 
+	/** Per status tab, within the day, company and search. */
 	const countFor = (filter: StatusFilter) =>
-		ofCompany().filter((card) => statusMatches(card, filter)).length;
+		ofCompany().filter(
+			(card) => statusMatches(card, filter) && searchMatches(card),
+		).length;
 
 	const toggle = (key: string, on: boolean) =>
 		setSkipped((prev) => {
@@ -441,35 +432,23 @@ function CardsPage() {
 							</For>
 						</FilterRow>
 
-						<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-							<label class="flex flex-col gap-1.5 text-sm font-medium">
-								Company
-								<select
-									class={adminInput}
-									value={company()}
-									onChange={(e) => setCompany(e.currentTarget.value)}
-								>
-									<option value={ALL}>All companies</option>
-									<For each={companies()}>
-										{(name) => (
-											<option value={name}>
-												{name === NONE ? "No company" : name}
-											</option>
-										)}
-									</For>
-								</select>
-							</label>
-							<label class="flex flex-col gap-1.5 text-sm font-medium">
-								Search
-								<input
-									type="search"
-									class={adminInput}
-									placeholder="Order #, name, words…"
-									value={query()}
-									onInput={(e) => setQuery(e.currentTarget.value)}
-								/>
-							</label>
-						</div>
+						<label class="flex flex-col gap-1.5 text-sm font-medium">
+							Company
+							<select
+								class={adminInput}
+								value={company()}
+								onChange={(e) => setCompany(e.currentTarget.value)}
+							>
+								<option value={ALL}>All companies</option>
+								<For each={companies()}>
+									{(name) => (
+										<option value={name}>
+											{name === NONE ? "No company" : name}
+										</option>
+									)}
+								</For>
+							</select>
+						</label>
 
 						<FilterRow label="Show">
 							<For
@@ -507,6 +486,81 @@ function CardsPage() {
 					</div>
 
 					<div class={cn(adminCard, "overflow-hidden")}>
+						<div class="border-b border-petal-100 px-4 pt-4 pb-3">
+							<label for="card-search" class="sr-only">
+								Search cards
+							</label>
+							<div class="relative">
+								<SearchIcon />
+								<input
+									id="card-search"
+									type="search"
+									enterkeyhint="search"
+									autocomplete="off"
+									class={cn(
+										adminInput,
+										"ps-10 pe-10 [&::-webkit-search-cancel-button]:hidden",
+									)}
+									placeholder="Order #, name, serial no., words…"
+									value={query()}
+									onInput={(e) => setQuery(e.currentTarget.value)}
+									onKeyDown={(e) => {
+										if (e.key === "Escape") setQuery("");
+									}}
+									aria-describedby="card-search-hint"
+								/>
+								<Show when={query()}>
+									<button
+										type="button"
+										onClick={() => {
+											setQuery("");
+											document.getElementById("card-search")?.focus();
+										}}
+										class="absolute inset-y-0 end-1 my-auto flex size-9 items-center justify-center rounded-full text-petal-900/50 outline-none hover:bg-petal-50 hover:text-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500"
+										aria-label="Clear search"
+									>
+										<svg
+											aria-hidden="true"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											class="size-4"
+										>
+											<path d="M6 6l12 12M18 6 6 18" />
+										</svg>
+									</button>
+								</Show>
+							</div>
+							<p id="card-search-hint" class="mt-1.5 text-xs text-petal-900/55">
+								<Show
+									when={searching()}
+									fallback={
+										<>
+											Order number, buyer, receiver, words on the card, bouquet,
+											company, class, serial no. or email. Separate orders with
+											commas:{" "}
+											<span class="font-medium text-petal-900/75">
+												95, 102, 213
+											</span>
+										</>
+									}
+								>
+									{plural(shown().length, "card matches", "cards match")}
+									<Show when={countFor(ALL) > shown().length}>
+										{" · "}
+										<button
+											type="button"
+											class="font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900"
+											onClick={() => setStatus(ALL)}
+										>
+											{countFor(ALL) - shown().length} more in other tabs
+										</button>
+									</Show>
+								</Show>
+							</p>
+						</div>
 						<div class="flex flex-wrap items-center justify-between gap-2 border-b border-petal-100 px-4 py-3">
 							<p class="text-sm">
 								<strong class="font-semibold tabular-nums">
@@ -542,9 +596,11 @@ function CardsPage() {
 								<p class="px-4 py-10 text-center text-sm text-petal-900/60">
 									{cards().length === 0
 										? "No orders have a dedication card yet."
-										: status() === "todo" && countFor(ALL) > 0
-											? "Every card here is printed. Pick Printed or All to print one again."
-											: "No cards match these filters."}
+										: searching()
+											? `Nothing matches “${query().trim()}”${countFor(ALL) ? " here: see the other tabs" : ""}.`
+											: status() === "todo" && countFor(ALL) > 0
+												? "Every card here is printed. Pick Printed or All to print one again."
+												: "No cards match these filters."}
 								</p>
 							}
 						>
@@ -956,6 +1012,23 @@ function CardRow(props: {
 				</div>
 			</div>
 		</li>
+	);
+}
+
+function SearchIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			class="pointer-events-none absolute inset-y-0 start-3 my-auto size-4.5 text-petal-900/45"
+		>
+			<circle cx="11" cy="11" r="6.5" />
+			<path d="m20 20-4.2-4.2" />
+		</svg>
 	);
 }
 

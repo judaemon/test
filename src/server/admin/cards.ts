@@ -55,6 +55,8 @@ export const listPrintCardsFn = createServerFn({ method: "GET" }).handler(
 					buyer,
 					company: details.company,
 					className: details.className,
+					serialNumber: details.serialNumber,
+					email: details.email,
 					deliveryDate: details.deliveryDate ?? "",
 					label: card.label ?? "",
 					to: card.to,

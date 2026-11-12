@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+	cardMatches,
 	cardSlot,
 	centerMessage,
 	compareCards,
@@ -17,6 +18,8 @@ const card = (over: Partial<PrintCard>): PrintCard => ({
 	buyer: "Cruz, Ana",
 	company: "Alfa",
 	className: "",
+	serialNumber: "",
+	email: "",
 	deliveryDate: "2026-11-14",
 	label: "",
 	to: "Mia",
@@ -93,5 +96,51 @@ describe("centerMessage", () => {
 		expect(centerMessage("Happy graduation, Mia!")).toBe(true);
 		expect(centerMessage("a".repeat(400))).toBe(false);
 		expect(centerMessage("1\n2\n3\n4\n5")).toBe(false);
+	});
+});
+
+describe("cardMatches", () => {
+	const ana = card({
+		number: "95",
+		buyer: "Cruz, Ana",
+		to: "José",
+		message: "Proud of you!",
+		label: "Sophia · Pink and White",
+		company: "Bravo",
+		className: "1CL",
+		serialNumber: "20231234",
+		email: "ana@example.com",
+	});
+	test("empty search matches everything", () => {
+		expect(cardMatches(ana, "")).toBe(true);
+		expect(cardMatches(ana, " , ")).toBe(true);
+	});
+	test("order number with or without #, exactly", () => {
+		expect(cardMatches(ana, "95")).toBe(true);
+		expect(cardMatches(ana, "#95")).toBe(true);
+		expect(cardMatches(ana, "#9")).toBe(false);
+		expect(cardMatches(ana, "9")).toBe(false);
+		expect(cardMatches(ana, "#195")).toBe(false);
+		expect(cardMatches(ana, "#5")).toBe(false);
+	});
+	test("every word, any order, any field, accents and case ignored", () => {
+		expect(cardMatches(ana, "ana cruz")).toBe(true);
+		expect(cardMatches(ana, "jose")).toBe(true);
+		expect(cardMatches(ana, "bravo sophia")).toBe(true);
+		expect(cardMatches(ana, "1cl PROUD")).toBe(true);
+		expect(cardMatches(ana, "ana@example")).toBe(true);
+		expect(cardMatches(ana, "ana alfa")).toBe(false);
+	});
+	test("serial numbers, with or without C-", () => {
+		expect(cardMatches(ana, "C-2023")).toBe(true);
+		expect(cardMatches(ana, "31234")).toBe(true);
+		// Short numbers are order numbers, not bits of a serial.
+		expect(cardMatches(ana, "1234")).toBe(false);
+		expect(cardMatches(ana, "c-9999")).toBe(false);
+	});
+	test("commas list several orders", () => {
+		expect(cardMatches(ana, "102, 95, 213")).toBe(true);
+		expect(cardMatches(ana, "102, 213")).toBe(false);
+		expect(cardMatches(ana, "#102, ana cruz")).toBe(true);
 	});
 });
