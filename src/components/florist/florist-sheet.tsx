@@ -595,11 +595,11 @@ export function FloristSheet(props: {
 							{totalStems()} {totalStems() === 1 ? "flower" : "flowers"}
 						</p>
 					</header>
-					<div class="grid gap-6 lg:grid-cols-2 print:grid-cols-2 print:gap-5">
+					<div class="grid gap-6 lg:grid-cols-2 print:block print:columns-2 print:gap-[5mm]">
 						<div>
 							<h2
 								id="flowers-to-get"
-								class="mb-2 font-semibold print:text-[11pt]"
+								class="mb-2 font-semibold print:break-after-avoid print:text-[11pt]"
 							>
 								Flowers to get
 							</h2>
@@ -628,7 +628,7 @@ export function FloristSheet(props: {
 										<tbody>
 											<For each={flowers().rows}>
 												{(row) => (
-													<tr class="border-t border-petal-50 print:border-black/20">
+													<tr class="border-t border-petal-50 print:break-inside-avoid print:border-black/20">
 														<td class="px-3 py-1.5 print:px-2">
 															<span class="inline-block size-4 rounded-sm border-2 border-petal-900/40 print:border-black" />
 														</td>
@@ -689,8 +689,10 @@ export function FloristSheet(props: {
 								</Show>
 							</Show>
 						</div>
-						<div>
-							<h2 class="mb-2 font-semibold print:text-[11pt]">Checklist</h2>
+						<div class="print:mt-[5mm]">
+							<h2 class="mb-2 font-semibold print:break-after-avoid print:text-[11pt]">
+								Checklist
+							</h2>
 							<div class="overflow-hidden rounded-2xl border border-petal-100 bg-white text-sm print:rounded-none print:border-black/40 print:overflow-visible print:text-[9pt] print:[-webkit-box-decoration-break:clone] print:[box-decoration-break:clone]">
 								<For each={checklist()}>
 									{(group) => (
@@ -1055,7 +1057,8 @@ function BouquetCard(props: {
 					</Show>
 				</div>
 				<div class="flex flex-col gap-1.5">
-					<div>
+					{/* Cards print on their own sheets, so not on the florist's. */}
+					<div class="print:hidden">
 						<p class="text-xs font-medium uppercase tracking-wide text-petal-900/55 print:text-[7pt]">
 							Card
 						</p>
@@ -1349,7 +1352,7 @@ function GroupCard(props: {
 									</span>
 									<Show when={props.withNotes && card()}>
 										{(c) => (
-											<span class="block whitespace-pre-line text-xs wrap-anywhere print:text-[7.5pt]">
+											<span class="block whitespace-pre-line text-xs wrap-anywhere print:hidden">
 												Card: {cardText(c())}
 											</span>
 										)}
