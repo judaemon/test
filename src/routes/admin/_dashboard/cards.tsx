@@ -28,6 +28,14 @@ import {
 	Sheet,
 	SMALL_PT,
 } from "~/components/cards/card-sheets";
+import {
+	EmptyFolded,
+	FOLD_SHEET,
+	FoldedInside,
+	FoldedOutsideSheet,
+	FoldedSheet,
+	fitFolded,
+} from "~/components/cards/folded-sheets";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import {
 	CARDS_PER_SHEET,
@@ -61,28 +69,68 @@ const ALL = "all";
 const NONE = "none";
 
 type StatusFilter = "todo" | CardPrintStatus | typeof ALL;
+/** "front" is the side with the message; "back" is ORAIA's side. */
 type Sides = "both" | "front" | "back";
+/** Folded: opens like a book. Flat: one card, message on one side. */
+type CardStyle = "folded" | "flat";
+/** Which edge the printer turns the sheet over for two-sided printing. */
+type Flip = "short" | "long";
 
-const SIDES: { key: Sides; label: string; hint: string }[] = [
+const STYLES: { key: CardStyle; label: string; hint: string }[] = [
 	{
-		key: "both",
-		label: "Front & back",
-		hint: "Turn on two-sided printing and flip on the long edge.",
+		key: "folded",
+		label: "Folded card",
+		hint: "Folds down the middle into a 74 × 105 mm card: ORAIA on the cover, contact details on the back, the message inside.",
 	},
 	{
-		key: "front",
-		label: "Messages only",
-		hint: "For card stock that already has ORAIA on the back.",
-	},
-	{
-		key: "back",
-		label: "Branding only",
-		hint: "Print the ORAIA side ahead of time, then feed the sheets back in for messages.",
+		key: "flat",
+		label: "Flat card",
+		hint: "One 105 × 148 mm card: the message on the front, ORAIA and contact details on the back.",
 	},
 ];
 
-/** A4 at 96 dpi, for scaling the preview. */
-const SHEET_PX = (SHEET.width / 25.4) * 96;
+const SIDES: Record<CardStyle, { key: Sides; label: string; hint: string }[]> =
+	{
+		flat: [
+			{
+				key: "both",
+				label: "Front & back",
+				hint: "Turn on two-sided printing and flip on the long edge.",
+			},
+			{
+				key: "front",
+				label: "Messages only",
+				hint: "For card stock that already has ORAIA on the back.",
+			},
+			{
+				key: "back",
+				label: "Branding only",
+				hint: "Print the ORAIA side ahead of time, then feed the sheets back in for messages.",
+			},
+		],
+		folded: [
+			{
+				key: "both",
+				label: "Both sides",
+				hint: "Turn on two-sided printing, flipping on the edge picked below.",
+			},
+			{
+				key: "front",
+				label: "Inside only",
+				hint: "For sheets that already have the outside printed: feed them back in blank side up.",
+			},
+			{
+				key: "back",
+				label: "Outside only",
+				hint: "Print the covers ahead of time, then feed the sheets back in for messages.",
+			},
+		],
+	};
+
+const STYLE_KEY = "oraia:card-style";
+
+/** Millimetres to CSS pixels, for scaling the preview. */
+const mmToPx = (mm: number) => (mm / 25.4) * 96;
 
 const pill = (on: boolean) =>
 	cn(
@@ -122,6 +170,25 @@ function CardsPage() {
 	/** Cards unticked by hand; everything else that's shown is printed. */
 	const [skipped, setSkipped] = createSignal<ReadonlySet<string>>(new Set());
 
+	const [style, setStyleSignal] = createSignal<CardStyle>("folded");
+	// Remember the card style on this computer.
+	onMount(() => {
+		try {
+			const saved = localStorage.getItem(STYLE_KEY);
+			if (saved === "flat" || saved === "folded") setStyleSignal(saved);
+		} catch {}
+	});
+	const setStyle = (next: CardStyle) => {
+		setStyleSignal(next);
+		try {
+			localStorage.setItem(STYLE_KEY, next);
+		} catch {}
+	};
+	const folded = () => style() === "folded";
+	const [flip, setFlip] = createSignal<Flip>("short");
+	const sideOptions = () => SIDES[style()];
+	const sideLabel = (key: Sides) =>
+		sideOptions().find((option) => option.key === key)?.label ?? "";
 	const [sides, setSides] = createSignal<Sides>("both");
 	const [withReference, setWithReference] = createSignal(true);
 	const [guides, setGuides] = createSignal(true);
@@ -246,12 +313,13 @@ function CardsPage() {
 				sheet: i,
 				cards: [] as PrintCard[],
 			}));
-		return sheets().flatMap((sheetCards, sheet) => [
-			{ side: "front" as const, sheet, cards: sheetCards },
-			...(sides() === "both"
-				? [{ side: "back" as const, sheet, cards: sheetCards }]
-				: []),
-		]);
+		return sheets().flatMap((sheetCards, sheet) => {
+			const front = { side: "front" as const, sheet, cards: sheetCards };
+			const back = { side: "back" as const, sheet, cards: sheetCards };
+			if (sides() === "front") return [front];
+			// A folded card's outside prints first, like its cover.
+			return folded() ? [back, front] : [front, back];
+		});
 	});
 	const sheetCount = () => (sides() === "back" ? backCount() : sheets().length);
 	const canPrint = () => (sides() === "back" ? true : selected().length > 0);
@@ -270,7 +338,8 @@ function CardsPage() {
 			"Cards",
 			day() !== ALL && dayLabel(day()),
 			company() !== ALL && (company() === NONE ? "No company" : company()),
-			SIDES.find((s) => s.key === sides())?.label,
+			STYLES.find((option) => option.key === style())?.label,
+			sideLabel(sides()),
 			sides() === "back"
 				? plural(backCount(), "sheet")
 				: plural(selected().length, "card"),
@@ -290,19 +359,28 @@ function CardsPage() {
 		onCleanup(() => observer.disconnect());
 	});
 	/** Two across when printing both sides and there's room, so each back sits by its front. */
-	const twoUp = () => sides() === "both" && previewWidth() >= 520;
+	const paper = () => (folded() ? FOLD_SHEET : SHEET);
+	const twoUp = () =>
+		sides() === "both" && previewWidth() >= (folded() ? 760 : 520);
 	const scale = () => {
 		const width = previewWidth();
 		if (!width) return 0.4;
 		const across = twoUp() ? 2 : 1;
-		return Math.min(0.62, (width - (across - 1) * 16) / across / SHEET_PX);
+		return Math.min(
+			0.62,
+			(width - (across - 1) * 16) / across / mmToPx(paper().width),
+		);
 	};
+	/** For printers that only flip on the long edge, the inside goes upside down. */
+	const insideUpsideDown = () => folded() && flip() === "long";
 
 	const refit = async () => {
 		await document.fonts.ready;
-		requestAnimationFrame(() => setFits(fitMessages(previewBox)));
+		requestAnimationFrame(() =>
+			setFits(folded() ? fitFolded(previewBox) : fitMessages(previewBox)),
+		);
 	};
-	createEffect(on([pages, withReference], () => void refit()));
+	createEffect(on([pages, withReference, style], () => void refit()));
 
 	const fitOf = (card: PrintCard) => fits().get(card.key);
 	const tooLong = createMemo(() =>
@@ -370,7 +448,7 @@ function CardsPage() {
 	return (
 		<div class="pb-24 lg:pb-10 print:p-0">
 			<style>{`
-				@page { size: A4 portrait; margin: 0; }
+				@page { size: A4 ${folded() ? "landscape" : "portrait"}; margin: 0; }
 				@media print {
 					html, body { background: #fff !important; }
 					.card-page { break-before: page; }
@@ -380,7 +458,7 @@ function CardsPage() {
 			<div class="print:hidden">
 				<PageHeader
 					title="Dedication cards"
-					description="Four cards to an A4 sheet: the message on the front, ORAIA on the back. Each card is read again just before printing, so edits to an order always make it onto paper."
+					description="Four cards to an A4 sheet, folded or flat, with ORAIA on the outside and the message inside. Each card is read again just before printing, so edits to an order always make it onto paper."
 					actions={
 						<button
 							type="button"
@@ -660,6 +738,38 @@ function CardsPage() {
 						</Show>
 
 						<div class="flex flex-col gap-2">
+							<span class="text-sm font-medium" id="style-label">
+								Card
+							</span>
+							<fieldset
+								aria-labelledby="style-label"
+								class="m-0 grid grid-cols-2 gap-2 border-0 p-0"
+							>
+								<For each={STYLES}>
+									{(option) => (
+										<button
+											type="button"
+											aria-pressed={style() === option.key}
+											onClick={() => setStyle(option.key)}
+											class={cn(
+												"flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
+												style() === option.key
+													? "border-petal-700 bg-petal-50 ring-1 ring-petal-700"
+													: "border-petal-200 bg-white hover:bg-petal-50",
+											)}
+										>
+											<StyleIcon style={option.key} />
+											<span class="font-medium">{option.label}</span>
+										</button>
+									)}
+								</For>
+							</fieldset>
+							<p class="text-sm text-petal-900/60">
+								{STYLES.find((option) => option.key === style())?.hint}
+							</p>
+						</div>
+
+						<div class="flex flex-col gap-2">
 							<span class="text-sm font-medium" id="sides-label">
 								Print
 							</span>
@@ -667,7 +777,7 @@ function CardsPage() {
 								aria-labelledby="sides-label"
 								class="m-0 grid grid-cols-3 rounded-full border border-petal-200 bg-white p-1 text-sm"
 							>
-								<For each={SIDES}>
+								<For each={sideOptions()}>
 									{(option) => (
 										<button
 											type="button"
@@ -686,10 +796,50 @@ function CardsPage() {
 								</For>
 							</fieldset>
 							<p class="text-sm text-petal-900/60">
-								{SIDES.find((s) => s.key === sides())?.hint} Set margins to{" "}
-								<strong>None</strong> and scale to <strong>100%</strong>.
+								{sideOptions().find((option) => option.key === sides())?.hint}{" "}
+								Set margins to <strong>None</strong> and scale to{" "}
+								<strong>100%</strong>. Try one sheet first.
 							</p>
 						</div>
+
+						<Show when={folded() && sides() !== "back"}>
+							<div class="flex flex-col gap-2">
+								<span class="text-sm font-medium" id="flip-label">
+									Printer flips the sheet on the
+								</span>
+								<fieldset
+									aria-labelledby="flip-label"
+									class="m-0 flex flex-wrap gap-2 border-0 p-0"
+								>
+									<button
+										type="button"
+										aria-pressed={flip() === "short"}
+										class={pill(flip() === "short")}
+										onClick={() => setFlip("short")}
+									>
+										Short edge (best)
+									</button>
+									<button
+										type="button"
+										aria-pressed={flip() === "long"}
+										class={pill(flip() === "long")}
+										onClick={() => setFlip("long")}
+									>
+										Long edge
+									</button>
+								</fieldset>
+								<p class="text-sm text-petal-900/60">
+									<Show
+										when={flip() === "long"}
+										fallback="Pick “Flip on short edge” in the print dialog’s two-sided setting."
+									>
+										For printers that only flip on the long edge: the inside is
+										printed upside down on purpose so it comes out the right
+										way.
+									</Show>
+								</p>
+							</div>
+						</Show>
 
 						<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
 							<Show
@@ -719,7 +869,7 @@ function CardsPage() {
 									Order number on each card
 								</Check>
 								<Check checked={guides()} onChange={setGuides}>
-									Cut guides
+									{folded() ? "Cut and fold guides" : "Cut guides"}
 								</Check>
 							</Show>
 						</div>
@@ -776,33 +926,84 @@ function CardsPage() {
 										<figcaption class="self-start text-xs font-medium text-petal-900/60 print:hidden">
 											Sheet {page.sheet + 1}
 											{sides() === "back" ? "" : ` of ${sheets().length}`} ·{" "}
-											{page.side === "front" ? "Messages" : "Back"}
+											{folded()
+												? page.side === "front"
+													? `Inside${insideUpsideDown() ? " (upside down on purpose)" : ""}`
+													: "Outside"
+												: page.side === "front"
+													? "Messages"
+													: "Back"}
 										</figcaption>
-										<div class="w-[calc(210mm*var(--s))] h-[calc(296mm*var(--s))] overflow-hidden rounded-sm shadow-[0_1px_8px_rgb(92_31_49/0.14)] print:h-auto print:w-auto print:overflow-visible print:rounded-none print:shadow-none">
+										<div
+											style={{
+												width: `calc(${paper().width}mm * var(--s))`,
+												height: `calc(${paper().height}mm * var(--s))`,
+											}}
+											class="overflow-hidden rounded-sm shadow-[0_1px_8px_rgb(92_31_49/0.14)] print:h-auto print:w-auto print:overflow-visible print:rounded-none print:shadow-none"
+										>
 											<div class="origin-top-left [transform:scale(var(--s))] print:[transform:none]">
 												<Show
-													when={page.side === "front"}
-													fallback={<BackSheet />}
-												>
-													<Sheet guides={guides()}>
-														<For each={Array.from({ length: CARDS_PER_SHEET })}>
-															{(_, spot) => (
-																<Show
-																	when={page.cards[spot()]}
-																	fallback={<EmptyFront />}
+													when={!folded()}
+													fallback={
+														<Show
+															when={page.side === "front"}
+															fallback={
+																<FoldedOutsideSheet guides={guides()} />
+															}
+														>
+															<FoldedSheet
+																guides={guides()}
+																upsideDown={insideUpsideDown()}
+															>
+																<For
+																	each={Array.from({ length: CARDS_PER_SHEET })}
 																>
-																	{(card) => (
-																		<CardFront
-																			fitKey={card().key}
-																			to={card().to}
-																			message={card().message}
-																			reference={reference(card())}
-																		/>
+																	{(_, spot) => (
+																		<Show
+																			when={page.cards[spot()]}
+																			fallback={<EmptyFolded />}
+																		>
+																			{(card) => (
+																				<FoldedInside
+																					fitKey={card().key}
+																					to={card().to}
+																					message={card().message}
+																					reference={reference(card())}
+																				/>
+																			)}
+																		</Show>
 																	)}
-																</Show>
-															)}
-														</For>
-													</Sheet>
+																</For>
+															</FoldedSheet>
+														</Show>
+													}
+												>
+													<Show
+														when={page.side === "front"}
+														fallback={<BackSheet />}
+													>
+														<Sheet guides={guides()}>
+															<For
+																each={Array.from({ length: CARDS_PER_SHEET })}
+															>
+																{(_, spot) => (
+																	<Show
+																		when={page.cards[spot()]}
+																		fallback={<EmptyFront />}
+																	>
+																		{(card) => (
+																			<CardFront
+																				fitKey={card().key}
+																				to={card().to}
+																				message={card().message}
+																				reference={reference(card())}
+																			/>
+																		)}
+																	</Show>
+																)}
+															</For>
+														</Sheet>
+													</Show>
 												</Show>
 											</div>
 										</div>
@@ -934,7 +1135,7 @@ function CardRow(props: {
 						{props.card.buyer}
 						{props.card.label ? ` · ${props.card.label}` : ""}
 					</span>
-					<span class="mt-1.5 line-clamp-3 block whitespace-pre-line font-display text-sm italic text-petal-900/85">
+					<span class="mt-1.5 line-clamp-3 whitespace-pre-line font-display text-sm italic text-petal-900/85">
 						“{props.card.message}”
 					</span>
 				</label>
@@ -972,7 +1173,9 @@ function CardRow(props: {
 					</span>
 					<Show when={props.checked && props.fit}>
 						{(fit) => (
-							<Show when={fit().overflow || fit().pt < SMALL_PT}>
+							<Show
+								when={fit().overflow || fit().spread || fit().pt < SMALL_PT}
+							>
 								<span
 									class={cn(
 										"rounded-full px-2 py-0.5 text-xs font-medium",
@@ -983,7 +1186,7 @@ function CardRow(props: {
 								>
 									{fit().overflow
 										? "Too long to fit"
-										: `Long · prints at ${fit().pt.toFixed(1).replace(/\.0$/, "")}pt`}
+										: `Long · ${fit().spread ? "fills both inside pages at " : "prints at "}${fit().pt.toFixed(1).replace(/\.0$/, "")}pt`}
 								</span>
 							</Show>
 						)}
@@ -1012,6 +1215,29 @@ function CardRow(props: {
 				</div>
 			</div>
 		</li>
+	);
+}
+
+/** A little drawing of each card style. */
+function StyleIcon(props: { style: CardStyle }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 32 32"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.5"
+			stroke-linejoin="round"
+			class="size-8 shrink-0 text-petal-700"
+		>
+			<Show
+				when={props.style === "folded"}
+				fallback={<rect x="9" y="4" width="14" height="24" rx="1" />}
+			>
+				<path d="M8 6 16 3v26l-8 3Z" fill="currentColor" fill-opacity="0.12" />
+				<path d="M16 3h9v26h-9" />
+			</Show>
+		</svg>
 	);
 }
 

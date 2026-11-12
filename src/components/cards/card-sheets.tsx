@@ -23,6 +23,36 @@ export interface CardFit {
 	pt: number;
 	/** Still too long at the smallest size: the end is cut off. */
 	overflow: boolean;
+	/** Folded cards: the message runs over both inside pages. */
+	spread?: boolean;
+}
+
+/**
+ * Sets `text` to the biggest size, from `max` down to `min` points, at which
+ * `box` holds it (by default: nothing below its bottom edge).
+ */
+export function shrinkToFit(
+	box: HTMLElement,
+	text: HTMLElement,
+	min: number,
+	max: number,
+	holds = () => box.scrollHeight <= box.clientHeight + 0.5,
+) {
+	const fitsAt = (pt: number) => {
+		text.style.fontSize = `${pt}pt`;
+		return holds();
+	};
+	if (fitsAt(max)) return { pt: max, fits: true };
+	// Halve the range until it's within a quarter point.
+	let lo = min;
+	let hi = max;
+	while (hi - lo > 0.25) {
+		const mid = (lo + hi) / 2;
+		if (fitsAt(mid)) lo = mid;
+		else hi = mid;
+	}
+	const pt = Math.floor(lo * 4) / 4;
+	return { pt, fits: fitsAt(pt) };
 }
 
 /**
@@ -33,26 +63,10 @@ export function fitMessages(root: ParentNode = document) {
 	const fits = new Map<string, CardFit>();
 	for (const box of root.querySelectorAll<HTMLElement>("[data-fit-box]")) {
 		const message = box.querySelector<HTMLElement>("[data-fit-text]");
-		if (!message) continue;
-		const fitsAt = (pt: number) => {
-			message.style.fontSize = `${pt}pt`;
-			return box.scrollHeight <= box.clientHeight + 0.5;
-		};
-		let pt = MAX_PT;
-		if (!fitsAt(pt)) {
-			// Halve the range until it's within a quarter point.
-			let lo = MIN_PT;
-			let hi = MAX_PT;
-			while (hi - lo > 0.25) {
-				const mid = (lo + hi) / 2;
-				if (fitsAt(mid)) lo = mid;
-				else hi = mid;
-			}
-			pt = Math.floor(lo * 4) / 4;
-			fitsAt(pt);
-		}
 		const key = box.dataset.fitBox;
-		if (key) fits.set(key, { pt, overflow: !fitsAt(pt) });
+		if (!message || !key) continue;
+		const { pt, fits: fit } = shrinkToFit(box, message, MIN_PT, MAX_PT);
+		fits.set(key, { pt, overflow: !fit });
 	}
 	return fits;
 }
