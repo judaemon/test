@@ -1106,11 +1106,21 @@ const bouquetPhotos = (b: FloristBouquet) =>
 	].slice(0, 4);
 
 /**
- * Fills its box with the bouquet's photos, all the same size: one fills it,
- * two side by side, three or four in a 2 × 2 grid. Never cropped.
+ * Fills its box with the bouquet's photos, never cropped: the main photo
+ * large, and the others in a strip under it (beside it, when the box is
+ * wider than tall) at half its size for one, a third for two or three.
  */
 function Photos(props: { bouquet: FloristBouquet; imgClass?: string }) {
 	const photos = () => bouquetPhotos(props.bouquet);
+	const extras = () => photos().slice(1);
+	const photo = (src: string, alt: string) => (
+		<img
+			src={photoSrc(src)}
+			alt={alt}
+			loading="eager"
+			class={cn("absolute inset-0 size-full object-contain", props.imgClass)}
+		/>
+	);
 	return (
 		<Show
 			when={photos().length}
@@ -1120,33 +1130,33 @@ function Photos(props: { bouquet: FloristBouquet; imgClass?: string }) {
 				</span>
 			}
 		>
-			<div
-				class={cn(
-					"absolute inset-0 grid gap-1 print:gap-[1.5mm]",
-					photos().length === 1 && "grid-cols-1",
-					photos().length === 2 && "grid-cols-2",
-					photos().length > 2 && "grid-cols-2 grid-rows-2",
-				)}
-			>
-				<For each={photos()}>
-					{(src, i) => (
-						<div class="relative min-h-0">
-							<img
-								src={photoSrc(src)}
-								alt={
-									i() === 0
-										? `${props.bouquet.title} · ${props.bouquet.colorName}`
-										: `The look they want, ${i() + 1}`
-								}
-								loading="eager"
-								class={cn(
-									"absolute inset-0 size-full object-contain",
-									props.imgClass,
+			<div class="absolute inset-0 [container-type:size]">
+				<div class="flex size-full flex-col gap-1 print:gap-[1.5mm] [@container(orientation:landscape)]:flex-row">
+					<div
+						class={cn(
+							"relative min-h-0 min-w-0",
+							extras().length === 0 && "flex-1",
+							extras().length === 1 && "flex-[2]",
+							extras().length > 1 && "flex-[3]",
+						)}
+					>
+						{photo(
+							photos()[0],
+							`${props.bouquet.title} · ${props.bouquet.colorName}`,
+						)}
+					</div>
+					<Show when={extras().length}>
+						<div class="grid min-h-0 min-w-0 flex-1 auto-cols-fr grid-flow-col gap-1 print:gap-[1.5mm] [@container(orientation:landscape)]:auto-rows-fr [@container(orientation:landscape)]:grid-flow-row">
+							<For each={extras()}>
+								{(src, i) => (
+									<div class="relative min-h-0 min-w-0">
+										{photo(src, `The look they want, ${i() + 2}`)}
+									</div>
 								)}
-							/>
+							</For>
 						</div>
-					)}
-				</For>
+					</Show>
+				</div>
 			</div>
 		</Show>
 	);
