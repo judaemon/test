@@ -37,6 +37,7 @@ import {
 	fitFolded,
 } from "~/components/cards/folded-sheets";
 import { HelloNoteEditor } from "~/components/cards/hello-note-editor";
+import { TestSheet } from "~/components/cards/test-sheets";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import {
 	bouquetPath,
@@ -72,12 +73,31 @@ const ALL = "all";
 const NONE = "none";
 
 type StatusFilter = "todo" | CardPrintStatus | typeof ALL;
-/** "front" is the side with the message; "back" is ORAIA's side. */
-type Sides = "both" | "front" | "back";
 /** Folded: opens like a book. Flat: one card, message on one side. */
 type CardStyle = "folded" | "flat";
 /** Which edge the printer turns the sheet over for two-sided printing. */
 type Flip = "short" | "long";
+/**
+ * How the sheets are printed: messages first and then the ORAIA side on the
+ * same sheets, fed back in by hand; both at once on a two-sided printer; or
+ * ORAIA sides alone, without bouquet codes, to keep in stock.
+ */
+type Mode = "manual" | "duplex" | "plain";
+/** One side of a sheet. */
+type Side = "message" | "oraia";
+
+/** What's being printed: real cards, or the numbered test. */
+type Batch = { kind: "cards"; cards: PrintCard[] } | { kind: "test" };
+
+/** A page to print: one side of one sheet. */
+interface PrintPage {
+	side: Side;
+	sheet: number;
+	sheets: number;
+	cards: PrintCard[];
+	/** Test pages: each spot's card number. */
+	numbers?: (number | undefined)[];
+}
 
 const STYLES: { key: CardStyle; label: string; hint: string }[] = [
 	{
@@ -92,45 +112,45 @@ const STYLES: { key: CardStyle; label: string; hint: string }[] = [
 	},
 ];
 
-const SIDES: Record<CardStyle, { key: Sides; label: string; hint: string }[]> =
+const MODES: { key: Mode; label: string; hint: string }[] = [
 	{
-		flat: [
-			{
-				key: "both",
-				label: "Front & back",
-				hint: "Turn on two-sided printing and flip on the long edge.",
-			},
-			{
-				key: "front",
-				label: "Messages only",
-				hint: "For card stock that already has ORAIA on the back.",
-			},
-			{
-				key: "back",
-				label: "Branding only",
-				hint: "Print the ORAIA side ahead of time, then feed the sheets back in for messages.",
-			},
-		],
-		folded: [
-			{
-				key: "both",
-				label: "Both sides",
-				hint: "Turn on two-sided printing, flipping on the edge picked below.",
-			},
-			{
-				key: "front",
-				label: "Inside only",
-				hint: "For sheets that already have the outside printed: feed them back in blank side up.",
-			},
-			{
-				key: "back",
-				label: "Outside only",
-				hint: "Print the covers ahead of time, then feed the sheets back in for messages.",
-			},
-		],
-	};
+		key: "manual",
+		label: "Fronts, then backs",
+		hint: "Print every message first, then put the same sheets back in for the ORAIA side. The cards stay locked in between, so each back lands on its own card.",
+	},
+	{
+		key: "duplex",
+		label: "Two-sided printer",
+		hint: "The printer prints both sides itself, in one go.",
+	},
+	{
+		key: "plain",
+		label: "Plain backs",
+		hint: "ORAIA sides without bouquet codes, to keep in stock.",
+	},
+];
 
 const STYLE_KEY = "oraia:card-style";
+/** The numbered test: two sheets, cards 1 to 8. */
+const TEST_SHEETS = 2;
+
+/** This computer's printer: how it takes back a printed stack. */
+const PRINTER_KEY = "oraia:card-printer";
+
+/** Reads a saved setting; storage can be missing or blocked. */
+function loadSetting<T>(key: string, fallback: T): T {
+	try {
+		const raw = localStorage.getItem(key);
+		return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+	} catch {
+		return fallback;
+	}
+}
+function saveSetting(key: string, value: unknown) {
+	try {
+		localStorage.setItem(key, JSON.stringify(value));
+	} catch {}
+}
 
 /** Millimetres to CSS pixels, for scaling the preview. */
 const mmToPx = (mm: number) => (mm / 25.4) * 96;
@@ -188,11 +208,26 @@ function CardsPage() {
 		} catch {}
 	};
 	const folded = () => style() === "folded";
-	const [flip, setFlip] = createSignal<Flip>("short");
-	const sideOptions = () => SIDES[style()];
-	const sideLabel = (key: Sides) =>
-		sideOptions().find((option) => option.key === key)?.label ?? "";
-	const [sides, setSides] = createSignal<Sides>("both");
+	const [mode, setMode] = createSignal<Mode>("manual");
+	/** Two-sided printers: which edge they flip on; each card style has a best one. */
+	const [flip, setFlip] = createSignal<Flip | undefined>();
+	const bestFlip = (): Flip => (folded() ? "short" : "long");
+	const shownFlip = () => flip() ?? bestFlip();
+	/** Printing by hand: how this printer takes back the printed stack. */
+	const [printer, setPrinterSignal] = createSignal({
+		turnBacks: false,
+		reverseBacks: false,
+	});
+	onMount(() => setPrinterSignal(loadSetting(PRINTER_KEY, printer())));
+	const setPrinter = (change: Partial<ReturnType<typeof printer>>) => {
+		const next = { ...printer(), ...change };
+		setPrinterSignal(next);
+		saveSetting(PRINTER_KEY, next);
+	};
+	/** The ORAIA side is printed turned around, to land the right way up. */
+	const turnOraia = () =>
+		mode() === "duplex" ? shownFlip() !== bestFlip() : printer().turnBacks;
+
 	const [withReference, setWithReference] = createSignal(true);
 	const [guides, setGuides] = createSignal(true);
 	const [withBouquetQr, setWithBouquetQr] = createSignal(true);
@@ -201,7 +236,21 @@ function CardsPage() {
 		withBouquetQr() && cards.length
 			? mirrorSheet(cards.map((card) => card.link || undefined))
 			: undefined;
-	const [backSheets, setBackSheets] = createSignal<number | undefined>();
+	const [plainSheets, setPlainSheets] = createSignal<number | undefined>();
+
+	/** Printing by hand: the cards locked in while their two sides print. */
+	const [batch, setBatch] = createSignal<Batch>();
+	/** Which sides of the batch have gone to the printer. */
+	const [done, setDone] = createSignal<Record<Side, boolean>>({
+		message: false,
+		oraia: false,
+	});
+	/** While printing, only these pages are on the page. */
+	const [printing, setPrinting] = createSignal<Side | "both">();
+	const startOver = () => {
+		setBatch(undefined);
+		setDone({ message: false, oraia: false });
+	};
 
 	const [fits, setFits] = createSignal<ReadonlyMap<string, CardFit>>(new Map());
 	const [busy, setBusy] = createSignal(false);
@@ -312,26 +361,79 @@ function CardsPage() {
 
 	// ----- What prints -----
 
-	const backCount = () =>
-		Math.max(1, Math.min(200, backSheets() ?? Math.max(1, sheets().length)));
-	/** Every page in print order: for two-sided, each front then its back. */
-	const pages = createMemo(() => {
-		if (sides() === "back")
-			return Array.from({ length: backCount() }, (_, i) => ({
-				side: "back" as const,
-				sheet: i,
-				cards: [] as PrintCard[],
+	/** The cards being printed: the locked batch, else what's ticked. */
+	const printCards = () => {
+		const locked = batch();
+		if (locked?.kind === "cards") return locked.cards;
+		if (locked?.kind === "test") return [];
+		return selected();
+	};
+	const plainCount = () =>
+		Math.max(1, Math.min(200, plainSheets() ?? Math.max(1, sheets().length)));
+	const sheetCount = () =>
+		batch()?.kind === "test"
+			? TEST_SHEETS
+			: mode() === "plain"
+				? plainCount()
+				: toSheets(printCards()).length;
+	/**
+	 * Every page, each sheet's message side then its ORAIA side. While
+	 * printing one side by hand, only that side, in the order it goes in.
+	 */
+	const pages = createMemo((): PrintPage[] => {
+		const locked = batch();
+		if (mode() === "plain" && !locked)
+			return Array.from({ length: plainCount() }, (_, sheet) => ({
+				side: "oraia" as const,
+				sheet,
+				sheets: plainCount(),
+				cards: [],
 			}));
-		return sheets().flatMap((sheetCards, sheet) => {
-			const front = { side: "front" as const, sheet, cards: sheetCards };
-			const back = { side: "back" as const, sheet, cards: sheetCards };
-			if (sides() === "front") return [front];
-			// A folded card's outside prints first, like its cover.
-			return folded() ? [back, front] : [front, back];
-		});
+		const list: PrintPage[] =
+			locked?.kind === "test"
+				? Array.from({ length: TEST_SHEETS }, (_, sheet) => {
+						const numbers = Array.from(
+							{ length: CARDS_PER_SHEET },
+							(_, spot) => sheet * CARDS_PER_SHEET + spot + 1,
+						);
+						return [
+							{
+								side: "message" as const,
+								sheet,
+								sheets: TEST_SHEETS,
+								cards: [],
+								numbers,
+							},
+							{
+								side: "oraia" as const,
+								sheet,
+								sheets: TEST_SHEETS,
+								cards: [],
+								numbers: mirrorSheet(numbers),
+							},
+						];
+					}).flat()
+				: toSheets(printCards()).flatMap((sheetCards, sheet, all) => [
+						{
+							side: "message" as const,
+							sheet,
+							sheets: all.length,
+							cards: sheetCards,
+						},
+						{
+							side: "oraia" as const,
+							sheet,
+							sheets: all.length,
+							cards: sheetCards,
+						},
+					]);
+		const side = printing();
+		if (!side || side === "both") return list;
+		const one = list.filter((page) => page.side === side);
+		return side === "oraia" && printer().reverseBacks ? one.reverse() : one;
 	});
-	const sheetCount = () => (sides() === "back" ? backCount() : sheets().length);
-	const canPrint = () => (sides() === "back" ? true : selected().length > 0);
+	const canPrint = () =>
+		mode() === "plain" || !!batch() || selected().length > 0;
 
 	const reference = (card: PrintCard) =>
 		withReference()
@@ -348,10 +450,16 @@ function CardsPage() {
 			day() !== ALL && dayLabel(day()),
 			company() !== ALL && (company() === NONE ? "No company" : company()),
 			STYLES.find((option) => option.key === style())?.label,
-			sideLabel(sides()),
-			sides() === "back"
-				? plural(backCount(), "sheet")
-				: plural(selected().length, "card"),
+			batch()?.kind === "test"
+				? "Test"
+				: printing() === "message"
+					? "Messages"
+					: printing() === "oraia"
+						? "ORAIA side"
+						: undefined,
+			mode() === "plain"
+				? plural(plainCount(), "sheet")
+				: plural(printCards().length, "card"),
 		]),
 	);
 
@@ -370,7 +478,9 @@ function CardsPage() {
 	/** Two across when printing both sides and there's room, so each back sits by its front. */
 	const paper = () => (folded() ? FOLD_SHEET : SHEET);
 	const twoUp = () =>
-		sides() === "both" && previewWidth() >= (folded() ? 760 : 520);
+		mode() !== "plain" &&
+		!printing() &&
+		previewWidth() >= (folded() ? 760 : 520);
 	const scale = () => {
 		const width = previewWidth();
 		if (!width) return 0.4;
@@ -380,9 +490,6 @@ function CardsPage() {
 			(width - (across - 1) * 16) / across / mmToPx(paper().width),
 		);
 	};
-	/** For printers that only flip on the long edge, the inside goes upside down. */
-	const insideUpsideDown = () => folded() && flip() === "long";
-
 	const refit = async () => {
 		await document.fonts.ready;
 		requestAnimationFrame(() =>
@@ -393,39 +500,91 @@ function CardsPage() {
 
 	const fitOf = (card: PrintCard) => fits().get(card.key);
 	const tooLong = createMemo(() =>
-		selected().filter((card) => fitOf(card)?.overflow),
+		printCards().filter((card) => fitOf(card)?.overflow),
 	);
 
 	// ----- Printing -----
 
-	const print = async () => {
-		setBusy(true);
-		setJustPrinted(undefined);
+	/** Puts just `side` on the page, waits for it to be laid out, and prints. */
+	const printSide = async (side: Side | "both") => {
+		setPrinting(side);
 		try {
-			// Whatever was edited since the page opened prints with its new words.
-			await refresh(true);
 			await refit();
-			await new Promise((done) => requestAnimationFrame(done));
+			await new Promise((ready) => requestAnimationFrame(ready));
 			await Promise.all(
 				[...(previewBox?.querySelectorAll("img") ?? [])].map((img) =>
 					img.decode().catch(() => {}),
 				),
 			);
-			const printing = sides() === "back" ? [] : selected().slice();
 			window.print();
-			if (printing.length) setJustPrinted(printing);
+		} finally {
+			setPrinting(undefined);
+		}
+	};
+
+	/** Step 1 by hand: reads the latest words, locks the cards in, prints messages. */
+	const printMessages = async () => {
+		setBusy(true);
+		setJustPrinted(undefined);
+		try {
+			if (!batch()) {
+				await refresh(true);
+				if (!selected().length) return;
+				setBatch({ kind: "cards", cards: selected().slice() });
+			}
+			await printSide("message");
+			setDone((prev) => ({ ...prev, message: true }));
 		} finally {
 			setBusy(false);
 		}
 	};
 
+	/** Step 2 by hand: the ORAIA side of the same sheets. */
+	const printOraia = async () => {
+		setBusy(true);
+		try {
+			await printSide("oraia");
+			setDone((prev) => ({ ...prev, oraia: true }));
+			const locked = batch();
+			if (locked?.kind === "cards") setJustPrinted(locked.cards);
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	/** Two-sided printers, and plain backs: everything in one go. */
+	const printAll = async () => {
+		setBusy(true);
+		setJustPrinted(undefined);
+		try {
+			if (mode() === "plain") {
+				await printSide("oraia");
+				return;
+			}
+			// Whatever was edited since the page opened prints with its new words.
+			await refresh(true);
+			const cards = selected().slice();
+			if (!cards.length) return;
+			await printSide("both");
+			setJustPrinted(cards);
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const startTest = () => {
+		setJustPrinted(undefined);
+		setDone({ message: false, oraia: false });
+		setBatch({ kind: "test" });
+	};
+
 	const markPrinted = async () => {
-		const printing = justPrinted();
-		if (!printing?.length) return;
+		const cardsDone = justPrinted();
+		if (!cardsDone?.length) return;
 		try {
 			await markCardsPrintedFn({
 				data: {
-					cards: printing.map(({ orderId, slot, to, message }) => ({
+					cards: cardsDone.map(({ orderId, slot, to, message }) => ({
 						orderId,
 						slot,
 						to,
@@ -435,7 +594,8 @@ function CardsPage() {
 			});
 			setJustPrinted(undefined);
 			setSkipped(new Set<string>());
-			toastSuccess(`${plural(printing.length, "card")} marked as printed.`);
+			startOver();
+			toastSuccess(`${plural(cardsDone.length, "card")} marked as printed.`);
 			await refresh(true);
 		} catch (error) {
 			toastError(error);
@@ -573,6 +733,16 @@ function CardsPage() {
 						</FilterRow>
 					</div>
 
+					<Show when={batch()?.kind === "cards"}>
+						<p class="flex items-start gap-2 rounded-xl border border-petal-200 bg-petal-50 px-3 py-2.5 text-sm">
+							<LockIcon />
+							<span>
+								{plural(printCards().length, "card is", "cards are")} locked in
+								while their two sides print. Ticking or unticking here is for
+								the next batch.
+							</span>
+						</p>
+					</Show>
 					<div class={cn(adminCard, "overflow-hidden")}>
 						<div class="border-b border-petal-100 px-4 pt-4 pb-3">
 							<label for="card-search" class="sr-only">
@@ -780,24 +950,25 @@ function CardsPage() {
 						</div>
 
 						<div class="flex flex-col gap-2">
-							<span class="text-sm font-medium" id="sides-label">
-								Print
+							<span class="text-sm font-medium" id="mode-label">
+								How you print
 							</span>
 							<fieldset
-								aria-labelledby="sides-label"
+								aria-labelledby="mode-label"
 								class="m-0 grid grid-cols-3 rounded-full border border-petal-200 bg-white p-1 text-sm"
 							>
-								<For each={sideOptions()}>
+								<For each={MODES}>
 									{(option) => (
 										<button
 											type="button"
-											aria-pressed={sides() === option.key}
-											onClick={() => setSides(option.key)}
+											aria-pressed={mode() === option.key}
+											disabled={!!batch()}
+											onClick={() => setMode(option.key)}
 											class={cn(
-												"rounded-full px-2 py-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500",
-												sides() === option.key
+												"rounded-full px-2 py-1.5 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:cursor-not-allowed",
+												mode() === option.key
 													? "bg-petal-700 font-medium text-white"
-													: "hover:bg-petal-50",
+													: "hover:bg-petal-50 disabled:opacity-50",
 											)}
 										>
 											{option.label}
@@ -806,54 +977,15 @@ function CardsPage() {
 								</For>
 							</fieldset>
 							<p class="text-sm text-petal-900/60">
-								{sideOptions().find((option) => option.key === sides())?.hint}{" "}
-								Set margins to <strong>None</strong> and scale to{" "}
-								<strong>100%</strong>. Try one sheet first.
+								{MODES.find((option) => option.key === mode())?.hint} Set
+								margins to <strong>None</strong> and scale to{" "}
+								<strong>100%</strong>.
 							</p>
 						</div>
 
-						<Show when={folded() && sides() !== "back"}>
-							<div class="flex flex-col gap-2">
-								<span class="text-sm font-medium" id="flip-label">
-									Printer flips the sheet on the
-								</span>
-								<fieldset
-									aria-labelledby="flip-label"
-									class="m-0 flex flex-wrap gap-2 border-0 p-0"
-								>
-									<button
-										type="button"
-										aria-pressed={flip() === "short"}
-										class={pill(flip() === "short")}
-										onClick={() => setFlip("short")}
-									>
-										Short edge (best)
-									</button>
-									<button
-										type="button"
-										aria-pressed={flip() === "long"}
-										class={pill(flip() === "long")}
-										onClick={() => setFlip("long")}
-									>
-										Long edge
-									</button>
-								</fieldset>
-								<p class="text-sm text-petal-900/60">
-									<Show
-										when={flip() === "long"}
-										fallback="Pick “Flip on short edge” in the print dialog’s two-sided setting."
-									>
-										For printers that only flip on the long edge: the inside is
-										printed upside down on purpose so it comes out the right
-										way.
-									</Show>
-								</p>
-							</div>
-						</Show>
-
 						<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
 							<Show
-								when={sides() !== "back"}
+								when={mode() !== "plain"}
 								fallback={
 									<label class="flex items-center gap-2 text-sm">
 										Sheets
@@ -863,14 +995,14 @@ function CardsPage() {
 											max="200"
 											inputmode="numeric"
 											class={cn(adminInput, "w-24")}
-											value={backCount()}
+											value={plainCount()}
 											onInput={(e) => {
 												const n = Number.parseInt(e.currentTarget.value, 10);
-												setBackSheets(Number.isFinite(n) ? n : undefined);
+												setPlainSheets(Number.isFinite(n) ? n : undefined);
 											}}
 										/>
 										<span class="text-petal-900/60">
-											= {backCount() * CARDS_PER_SHEET} cards
+											= {plainCount() * CARDS_PER_SHEET} cards
 										</span>
 									</label>
 								}
@@ -878,16 +1010,17 @@ function CardsPage() {
 								<Check checked={withReference()} onChange={setWithReference}>
 									Order number on each card
 								</Check>
-								<Check checked={guides()} onChange={setGuides}>
-									{folded() ? "Cut and fold guides" : "Cut guides"}
-								</Check>
 								<Check checked={withBouquetQr()} onChange={setWithBouquetQr}>
 									QR code to each bouquet’s page
 								</Check>
 							</Show>
+							<Check checked={guides()} onChange={setGuides}>
+								{folded() ? "Cut and fold guides" : "Cut guides"}, with sheet
+								numbers
+							</Check>
 						</div>
 
-						<Show when={sides() !== "back" && tooLong().length}>
+						<Show when={mode() !== "plain" && !batch() && tooLong().length}>
 							<p class="rounded-xl bg-error px-3 py-2 text-sm text-error-foreground">
 								{plural(tooLong().length, "message is", "messages are")} too
 								long to fit even at the smallest size, so the end would be cut
@@ -896,24 +1029,53 @@ function CardsPage() {
 							</p>
 						</Show>
 
-						<div class="hidden items-center justify-between gap-3 lg:flex">
-							<p class="text-sm text-petal-900/70">
-								<PrintSummary
-									sides={sides()}
-									cards={selected().length}
-									sheets={sheetCount()}
-								/>
-							</p>
-							<button
-								type="button"
-								class={adminButton.primary}
-								disabled={!canPrint() || busy()}
-								onClick={() => void print()}
-							>
-								<PrinterIcon />
-								{busy() ? "Getting the latest…" : "Print"}
-							</button>
-						</div>
+						<Show
+							when={mode() === "manual"}
+							fallback={
+								<>
+									<Show when={mode() === "duplex"}>
+										<FlipChoice
+											best={bestFlip()}
+											value={shownFlip()}
+											onChange={setFlip}
+										/>
+									</Show>
+									<div class="hidden items-center justify-between gap-3 lg:flex">
+										<p class="text-sm text-petal-900/70">
+											<PrintSummary
+												mode={mode()}
+												cards={printCards().length}
+												sheets={sheetCount()}
+											/>
+										</p>
+										<button
+											type="button"
+											class={adminButton.primary}
+											disabled={!canPrint() || busy()}
+											onClick={() => void printAll()}
+										>
+											<PrinterIcon />
+											{busy() ? "Getting the latest…" : "Print"}
+										</button>
+									</div>
+								</>
+							}
+						>
+							<ManualSteps
+								batch={batch()}
+								cards={printCards().length}
+								sheets={sheetCount()}
+								done={done()}
+								busy={busy()}
+								canStart={selected().length > 0}
+								printer={printer()}
+								onPrinter={setPrinter}
+								onMessages={() => void printMessages()}
+								onOraia={() => void printOraia()}
+								onTest={startTest}
+								onStartOver={startOver}
+							/>
+						</Show>
 					</div>
 
 					<div
@@ -937,15 +1099,11 @@ function CardsPage() {
 								{(page) => (
 									<figure class="card-page m-0 flex flex-col items-center gap-1.5 print:block">
 										<figcaption class="self-start text-xs font-medium text-petal-900/60 print:hidden">
-											Sheet {page.sheet + 1}
-											{sides() === "back" ? "" : ` of ${sheets().length}`} ·{" "}
-											{folded()
-												? page.side === "front"
-													? `Inside${insideUpsideDown() ? " (upside down on purpose)" : ""}`
-													: "Outside"
-												: page.side === "front"
-													? "Messages"
-													: "Back"}
+											Sheet {page.sheet + 1} of {page.sheets} ·{" "}
+											{page.side === "message" ? "Messages" : "ORAIA side"}
+											{page.side === "oraia" && turnOraia()
+												? " (turned around on purpose)"
+												: ""}
 										</figcaption>
 										<div
 											style={{
@@ -955,74 +1113,18 @@ function CardsPage() {
 											class="overflow-hidden rounded-sm shadow-[0_1px_8px_rgb(92_31_49/0.14)] print:h-auto print:w-auto print:overflow-visible print:rounded-none print:shadow-none"
 										>
 											<div class="origin-top-left [transform:scale(var(--s))] print:[transform:none]">
-												<Show
-													when={!folded()}
-													fallback={
-														<Show
-															when={page.side === "front"}
-															fallback={
-																<FoldedOutsideSheet
-																	guides={guides()}
-																	links={backLinks(page.cards)}
-																/>
-															}
-														>
-															<FoldedSheet
-																guides={guides()}
-																upsideDown={insideUpsideDown()}
-															>
-																<For
-																	each={Array.from({ length: CARDS_PER_SHEET })}
-																>
-																	{(_, spot) => (
-																		<Show
-																			when={page.cards[spot()]}
-																			fallback={<EmptyFolded />}
-																		>
-																			{(card) => (
-																				<FoldedInside
-																					fitKey={card().key}
-																					to={card().to}
-																					message={card().message}
-																					reference={reference(card())}
-																				/>
-																			)}
-																		</Show>
-																	)}
-																</For>
-															</FoldedSheet>
-														</Show>
+												<SheetPage
+													page={page}
+													folded={folded()}
+													guides={guides()}
+													turnOraia={turnOraia()}
+													links={
+														mode() === "plain"
+															? undefined
+															: backLinks(page.cards)
 													}
-												>
-													<Show
-														when={page.side === "front"}
-														fallback={
-															<BackSheet links={backLinks(page.cards)} />
-														}
-													>
-														<Sheet guides={guides()}>
-															<For
-																each={Array.from({ length: CARDS_PER_SHEET })}
-															>
-																{(_, spot) => (
-																	<Show
-																		when={page.cards[spot()]}
-																		fallback={<EmptyFront />}
-																	>
-																		{(card) => (
-																			<CardFront
-																				fitKey={card().key}
-																				to={card().to}
-																				message={card().message}
-																				reference={reference(card())}
-																			/>
-																		)}
-																	</Show>
-																)}
-															</For>
-														</Sheet>
-													</Show>
-												</Show>
+													reference={reference}
+												/>
 											</div>
 										</div>
 									</figure>
@@ -1038,36 +1140,53 @@ function CardsPage() {
 				<div class="mx-auto flex max-w-3xl items-center justify-between gap-3">
 					<p class="min-w-0 text-sm text-petal-900/70">
 						<PrintSummary
-							sides={sides()}
-							cards={selected().length}
+							mode={mode()}
+							cards={printCards().length}
 							sheets={sheetCount()}
 						/>
 					</p>
-					<button
-						type="button"
-						class={adminButton.primary}
-						disabled={!canPrint() || busy()}
-						onClick={() => void print()}
+					<Show
+						when={mode() === "manual"}
+						fallback={
+							<button
+								type="button"
+								class={adminButton.primary}
+								disabled={!canPrint() || busy()}
+								onClick={() => void printAll()}
+							>
+								<PrinterIcon />
+								{busy() ? "Getting the latest…" : "Print"}
+							</button>
+						}
 					>
-						<PrinterIcon />
-						{busy() ? "Getting the latest…" : "Print"}
-					</button>
+						<button
+							type="button"
+							class={adminButton.primary}
+							disabled={busy() || (!batch() && !selected().length)}
+							onClick={() =>
+								void (done().message ? printOraia() : printMessages())
+							}
+						>
+							<PrinterIcon />
+							{done().message ? "2. ORAIA side" : "1. Messages"}
+						</button>
+					</Show>
 				</div>
 			</div>
 		</div>
 	);
 }
 
-function PrintSummary(props: { sides: Sides; cards: number; sheets: number }) {
+function PrintSummary(props: { mode: Mode; cards: number; sheets: number }) {
 	return (
 		<Show
-			when={props.sides !== "back"}
+			when={props.mode !== "plain"}
 			fallback={
 				<>
 					<strong class="font-semibold text-petal-900 tabular-nums">
 						{plural(props.sheets, "sheet")}
 					</strong>{" "}
-					of backs
+					of plain backs
 				</>
 			}
 		>
@@ -1075,11 +1194,363 @@ function PrintSummary(props: { sides: Sides; cards: number; sheets: number }) {
 				{plural(props.cards, "card")}
 			</strong>{" "}
 			on {plural(props.sheets, "sheet")}
-			<Show when={props.sides === "both" && props.sheets}>
-				{" "}
-				· {plural(props.sheets * 2, "page")}
+		</Show>
+	);
+}
+
+/** One page: a sheet's message side or ORAIA side, real cards or the test. */
+function SheetPage(props: {
+	page: PrintPage;
+	folded: boolean;
+	guides: boolean;
+	turnOraia: boolean;
+	links?: (string | undefined)[];
+	reference: (card: PrintCard) => string | undefined;
+}) {
+	const label = () =>
+		`Sheet ${props.page.sheet + 1} of ${props.page.sheets} · ${
+			props.page.side === "message" ? "messages" : "ORAIA side"
+		}`;
+	const upsideDown = () => props.page.side === "oraia" && props.turnOraia;
+	const spots = Array.from({ length: CARDS_PER_SHEET });
+	return (
+		<Show
+			when={!props.page.numbers}
+			fallback={
+				<TestSheet
+					folded={props.folded}
+					side={props.page.side}
+					numbers={props.page.numbers ?? []}
+					guides={props.guides}
+					label={label()}
+					upsideDown={upsideDown()}
+				/>
+			}
+		>
+			<Show
+				when={props.page.side === "message"}
+				fallback={
+					<Show
+						when={props.folded}
+						fallback={
+							<BackSheet
+								links={props.links}
+								guides={props.guides}
+								label={label()}
+								upsideDown={upsideDown()}
+							/>
+						}
+					>
+						<FoldedOutsideSheet
+							links={props.links}
+							guides={props.guides}
+							label={label()}
+							upsideDown={upsideDown()}
+						/>
+					</Show>
+				}
+			>
+				<Show
+					when={props.folded}
+					fallback={
+						<Sheet guides={props.guides} label={label()}>
+							<For each={spots}>
+								{(_, spot) => (
+									<Show
+										when={props.page.cards[spot()]}
+										fallback={<EmptyFront />}
+									>
+										{(card) => (
+											<CardFront
+												fitKey={card().key}
+												link={card().link}
+												to={card().to}
+												message={card().message}
+												reference={props.reference(card())}
+											/>
+										)}
+									</Show>
+								)}
+							</For>
+						</Sheet>
+					}
+				>
+					<FoldedSheet guides={props.guides} label={label()}>
+						<For each={spots}>
+							{(_, spot) => (
+								<Show
+									when={props.page.cards[spot()]}
+									fallback={<EmptyFolded />}
+								>
+									{(card) => (
+										<FoldedInside
+											fitKey={card().key}
+											link={card().link}
+											to={card().to}
+											message={card().message}
+											reference={props.reference(card())}
+										/>
+									)}
+								</Show>
+							)}
+						</For>
+					</FoldedSheet>
+				</Show>
 			</Show>
 		</Show>
+	);
+}
+
+/** Two-sided printers: the edge they flip on. */
+function FlipChoice(props: {
+	best: Flip;
+	value: Flip;
+	onChange: (flip: Flip) => void;
+}) {
+	const option = (flip: Flip, label: string) => (
+		<button
+			type="button"
+			aria-pressed={props.value === flip}
+			class={pill(props.value === flip)}
+			onClick={() => props.onChange(flip)}
+		>
+			{label}
+			{props.best === flip ? " (best)" : ""}
+		</button>
+	);
+	return (
+		<div class="flex flex-col gap-2">
+			<span class="text-sm font-medium" id="flip-label">
+				Printer flips the sheet on the
+			</span>
+			<fieldset
+				aria-labelledby="flip-label"
+				class="m-0 flex flex-wrap gap-2 border-0 p-0"
+			>
+				{option("long", "Long edge")}
+				{option("short", "Short edge")}
+			</fieldset>
+			<p class="text-sm text-petal-900/60">
+				<Show
+					when={props.value !== props.best}
+					fallback={`Pick “Flip on ${props.best} edge” in the print dialog’s two-sided setting.`}
+				>
+					The ORAIA side is printed turned around on purpose, so it comes out
+					the right way up.
+				</Show>
+			</p>
+		</div>
+	);
+}
+
+/**
+ * Printing by hand, in two steps: every message, then the ORAIA side on the
+ * same sheets. The cards are locked in between, so each back is its card's.
+ */
+function ManualSteps(props: {
+	batch?: Batch;
+	cards: number;
+	sheets: number;
+	done: Record<Side, boolean>;
+	busy: boolean;
+	canStart: boolean;
+	printer: { turnBacks: boolean; reverseBacks: boolean };
+	onPrinter: (change: { turnBacks?: boolean; reverseBacks?: boolean }) => void;
+	onMessages: () => void;
+	onOraia: () => void;
+	onTest: () => void;
+	onStartOver: () => void;
+}) {
+	const test = () => props.batch?.kind === "test";
+	const what = () =>
+		test()
+			? `Test: cards 1 to ${props.sheets * CARDS_PER_SHEET} on ${plural(props.sheets, "sheet")}`
+			: `${plural(props.cards, "card")} on ${plural(props.sheets, "sheet")}`;
+	return (
+		<div class="flex flex-col gap-3">
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				<p class="text-sm">
+					<Show
+						when={props.batch}
+						fallback={
+							<span class="text-petal-900/70">
+								<strong class="font-semibold text-petal-900">{what()}</strong>
+							</span>
+						}
+					>
+						<span class="inline-flex items-center gap-1.5 font-medium">
+							<LockIcon />
+							{what()}, locked in
+						</span>
+					</Show>
+				</p>
+				<Show when={props.batch}>
+					<button
+						type="button"
+						class={adminButton.ghost}
+						onClick={props.onStartOver}
+						disabled={props.busy}
+					>
+						{test() ? "End the test" : "Start over"}
+					</button>
+				</Show>
+			</div>
+
+			<ol class="flex flex-col gap-2">
+				<Step
+					n={1}
+					title="Print the messages"
+					done={props.done.message}
+					detail={
+						props.batch
+							? "Printed on fresh sheets. Keep them in the order they came out."
+							: "Reads the latest words, then locks these cards in until both sides are printed."
+					}
+					action={props.done.message ? "Print again" : "Print messages"}
+					primary={!props.done.message}
+					disabled={props.busy || (!props.batch && !props.canStart)}
+					onClick={props.onMessages}
+				/>
+				<Step
+					n={2}
+					title="Print the ORAIA side"
+					done={props.done.oraia}
+					detail="Put the printed stack back in the tray, blank side to be printed, in the same order. Then print."
+					action={props.done.oraia ? "Print again" : "Print ORAIA side"}
+					primary={props.done.message && !props.done.oraia}
+					disabled={props.busy || !props.done.message}
+					onClick={props.onOraia}
+				/>
+			</ol>
+
+			<Show when={test() && props.done.oraia}>
+				<div class="rounded-xl border border-petal-200 bg-petal-50 px-4 py-3 text-sm">
+					<p class="font-medium">
+						Hold each sheet up to the light: is the back of card 1 behind card
+						1, the right way up?
+					</p>
+					<ul class="mt-1.5 list-disc pl-5 text-petal-900/75">
+						<li>
+							Yes, every one: you’re set. End the test and print for real.
+						</li>
+						<li>
+							Upside down: tick <em>Turn the ORAIA side around</em> below.
+						</li>
+						<li>
+							Behind the wrong sheet (5–8 behind 1–4): tick{" "}
+							<em>Print it in reverse order</em>.
+						</li>
+					</ul>
+					<p class="mt-1.5 text-petal-900/75">
+						Then print the test again to check.
+					</p>
+				</div>
+			</Show>
+
+			<details
+				class="rounded-xl border border-petal-100 px-3 py-2 text-sm"
+				open={test() || props.printer.turnBacks || props.printer.reverseBacks}
+			>
+				<summary class="cursor-pointer py-1 font-medium">
+					If the backs don’t line up
+				</summary>
+				<div class="flex flex-col gap-1 pb-1">
+					<Check
+						checked={props.printer.turnBacks}
+						onChange={(on) => props.onPrinter({ turnBacks: on })}
+					>
+						Turn the ORAIA side around (it came out upside down)
+					</Check>
+					<Check
+						checked={props.printer.reverseBacks}
+						onChange={(on) => props.onPrinter({ reverseBacks: on })}
+					>
+						Print it in reverse order (backs landed on the wrong sheets)
+					</Check>
+					<p class="text-xs text-petal-900/55">
+						Saved for this computer’s printer.
+					</p>
+				</div>
+			</details>
+
+			<Show when={!props.batch}>
+				<button
+					type="button"
+					class={cn(adminButton.ghost, "self-start")}
+					onClick={props.onTest}
+				>
+					New printer or paper? Print a 2-sheet test first
+				</button>
+			</Show>
+		</div>
+	);
+}
+
+function Step(props: {
+	n: number;
+	title: string;
+	detail: string;
+	done: boolean;
+	action: string;
+	primary: boolean;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<li
+			class={cn(
+				"flex items-start gap-3 rounded-xl border px-3 py-3",
+				props.primary ? "border-petal-300 bg-white" : "border-petal-100",
+			)}
+		>
+			<span
+				class={cn(
+					"flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+					props.done
+						? "bg-success text-success-foreground"
+						: props.primary
+							? "bg-petal-700 text-white"
+							: "bg-petal-100 text-petal-700",
+				)}
+				aria-hidden="true"
+			>
+				{props.done ? "✓" : props.n}
+			</span>
+			<div class="min-w-0 flex-1">
+				<p class="font-medium">
+					{props.title}
+					<Show when={props.done}>
+						<span class="sr-only"> (done)</span>
+					</Show>
+				</p>
+				<p class="text-sm text-petal-900/60">{props.detail}</p>
+			</div>
+			<button
+				type="button"
+				class={props.primary ? adminButton.primary : adminButton.secondary}
+				disabled={props.disabled}
+				onClick={props.onClick}
+			>
+				{props.action}
+			</button>
+		</li>
+	);
+}
+
+function LockIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			class="size-4 text-petal-700"
+		>
+			<rect x="5" y="11" width="14" height="10" rx="2" />
+			<path d="M8 11V8a4 4 0 0 1 8 0v3" />
+		</svg>
 	);
 }
 

@@ -82,6 +82,10 @@ export function Sheet(props: {
 	children: JSX.Element;
 	/** Fine marks at the cut lines, outside the cards' content. */
 	guides?: boolean;
+	/** Tiny words by the top cut mark, "Sheet 2 of 5 · messages", with the guides. */
+	label?: string;
+	/** Turned around, for how the stack goes back into the printer. */
+	upsideDown?: boolean;
 	class?: string;
 }) {
 	return (
@@ -93,6 +97,7 @@ export function Sheet(props: {
 			style={{
 				width: `${SHEET.width}mm`,
 				height: `${SHEET.height}mm`,
+				transform: props.upsideDown ? "rotate(180deg)" : undefined,
 				"print-color-adjust": "exact",
 				"-webkit-print-color-adjust": "exact",
 			}}
@@ -100,8 +105,26 @@ export function Sheet(props: {
 			{props.children}
 			<Show when={props.guides}>
 				<CutGuides />
+				<SheetLabel label={props.label} />
 			</Show>
 		</div>
+	);
+}
+
+/**
+ * Which sheet and side this is, in tiny type just right of the top cut mark,
+ * inside the margin no card's words reach: for matching sides by hand.
+ */
+export function SheetLabel(props: { label?: string }) {
+	return (
+		<Show when={props.label}>
+			<span
+				class="pointer-events-none absolute whitespace-nowrap font-sans text-[#b8aeb1]"
+				style={{ left: "calc(50% + 2.5mm)", top: "3.4mm", "font-size": "5pt" }}
+			>
+				{props.label}
+			</span>
+		</Show>
 	);
 }
 
@@ -158,6 +181,8 @@ function CutGuides() {
 export function CardFront(props: {
 	/** Keys the fit result; see `fitMessages`. */
 	fitKey: string;
+	/** The card's bouquet link, so its back can be checked against it. */
+	link?: string;
 	to: string;
 	message: string;
 	/** Tiny order number and bouquet, to match the card to its bouquet. */
@@ -166,6 +191,7 @@ export function CardFront(props: {
 	const centered = () => centerMessage(props.message);
 	return (
 		<article
+			data-link={props.link}
 			class="relative box-border flex min-h-0 flex-col overflow-hidden"
 			style={{ padding: "13mm 13mm 10mm" }}
 		>
@@ -307,22 +333,31 @@ function Qr(props: {
 /** One code with its small caption underneath. */
 function CaptionedQr(props: {
 	children: JSX.Element;
+	/** A short call to action, in small capitals. */
 	caption: string;
+	/** Why to scan, in the display italic: what's waiting there. */
+	lure: string;
 	pt: number;
 }) {
 	return (
-		<span class="flex flex-col items-center">
+		<span class="flex flex-col items-center whitespace-nowrap">
 			{props.children}
 			<span
-				class="font-sans font-medium uppercase text-petal-900"
+				class="font-sans font-semibold uppercase text-petal-900"
 				style={{
 					"font-size": `${props.pt}pt`,
-					"letter-spacing": "0.2em",
+					"letter-spacing": "0.22em",
 					"margin-top": "2mm",
-					"margin-right": "-0.2em",
+					"margin-right": "-0.22em",
 				}}
 			>
 				{props.caption}
+			</span>
+			<span
+				class="font-display italic text-petal-700"
+				style={{ "font-size": `${props.pt + 1.6}pt`, "margin-top": "0.6mm" }}
+			>
+				{props.lure}
 			</span>
 		</span>
 	);
@@ -338,14 +373,18 @@ export function CardQrs(props: { link?: string; size: number; pt: number }) {
 		<Show
 			when={props.link}
 			fallback={
-				<CaptionedQr caption="Scan to say hello" pt={props.pt}>
+				<CaptionedQr caption="Say hello" lure="promos & more" pt={props.pt}>
 					<HelloQr size={props.size} />
 				</CaptionedQr>
 			}
 		>
 			{(link) => (
 				<span class="flex items-start" style={{ gap: `${props.size * 0.4}mm` }}>
-					<CaptionedQr caption="Your bouquet" pt={props.pt}>
+					<CaptionedQr
+						caption="Scan me"
+						lure="a little surprise ♡"
+						pt={props.pt}
+					>
 						<Qr
 							value={absoluteUrl(bouquetPath(link()))}
 							size={props.size}
@@ -353,7 +392,7 @@ export function CardQrs(props: { link?: string; size: number; pt: number }) {
 							mark={<Sparkle class="size-[70%] text-petal-500" />}
 						/>
 					</CaptionedQr>
-					<CaptionedQr caption="Say hello" pt={props.pt}>
+					<CaptionedQr caption="Follow us" lure="promos & more" pt={props.pt}>
 						<HelloQr size={props.size} />
 					</CaptionedQr>
 				</span>
@@ -420,9 +459,18 @@ export function CardBack(props: { link?: string }) {
  * A sheet of four backs. `links` are each spot's bouquet link, already
  * mirrored (see `mirrorSheet`) so each back lands behind its own front.
  */
-export function BackSheet(props: { links?: (string | undefined)[] }) {
+export function BackSheet(props: {
+	links?: (string | undefined)[];
+	guides?: boolean;
+	label?: string;
+	upsideDown?: boolean;
+}) {
 	return (
-		<Sheet>
+		<Sheet
+			guides={props.guides}
+			label={props.label}
+			upsideDown={props.upsideDown}
+		>
 			<For each={Array.from({ length: CARDS_PER_SHEET })}>
 				{(_, spot) => <CardBack link={props.links?.[spot()]} />}
 			</For>

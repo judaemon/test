@@ -5,7 +5,7 @@ import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
 import { cn } from "~/lib/utils";
-import { type CardFit, CardQrs, shrinkToFit } from "./card-sheets";
+import { type CardFit, CardQrs, SheetLabel, shrinkToFit } from "./card-sheets";
 
 /**
  * A4 landscape, drawn 1 mm short so rounding never spills onto a blank page.
@@ -61,7 +61,9 @@ export function fitFolded(root: ParentNode = document) {
 export function FoldedSheet(props: {
 	children: JSX.Element;
 	guides?: boolean;
-	/** Turned around for printers that only flip on the long edge. */
+	/** Tiny "Sheet 2 of 5 · messages" by the top cut mark, with the guides. */
+	label?: string;
+	/** Turned around, for how the stack goes back into the printer. */
 	upsideDown?: boolean;
 }) {
 	return (
@@ -78,6 +80,7 @@ export function FoldedSheet(props: {
 			{props.children}
 			<Show when={props.guides}>
 				<FoldGuides />
+				<SheetLabel label={props.label} />
 			</Show>
 		</div>
 	);
@@ -262,6 +265,8 @@ function ToLine(props: { to: string; centered?: boolean }) {
  */
 export function FoldedInside(props: {
 	fitKey: string;
+	/** The card's bouquet link, so its back can be checked against it. */
+	link?: string;
 	to: string;
 	message: string;
 	reference?: string;
@@ -272,7 +277,11 @@ export function FoldedInside(props: {
 	const wrap = () =>
 		centered() ? "[text-wrap:balance]" : "[text-wrap:pretty]";
 	return (
-		<div data-fold-inside={props.fitKey} class="group relative min-h-0 min-w-0">
+		<div
+			data-fold-inside={props.fitKey}
+			data-link={props.link}
+			class="group relative min-h-0 min-w-0"
+		>
 			{/* To on the left page, message on the right. */}
 			<div class="grid size-full grid-cols-2 group-data-[mode=spread]:hidden">
 				<Page class="px-[8mm] py-[12mm]">
@@ -369,11 +378,17 @@ export function EmptyFolded() {
 /** A sheet of four outsides. */
 export function FoldedOutsideSheet(props: {
 	guides?: boolean;
+	label?: string;
+	upsideDown?: boolean;
 	/** Each spot's bouquet link, already mirrored (see `mirrorSheet`). */
 	links?: (string | undefined)[];
 }) {
 	return (
-		<FoldedSheet guides={props.guides}>
+		<FoldedSheet
+			guides={props.guides}
+			label={props.label}
+			upsideDown={props.upsideDown}
+		>
 			<For each={Array.from({ length: CARDS_PER_SHEET })}>
 				{(_, spot) => <FoldedOutside link={props.links?.[spot()]} />}
 			</For>
