@@ -1,7 +1,7 @@
 /** ORAIA's contact details, printed on the bottom half of dedication cards. */
 export const CONTACT = {
 	phone: "0976 037 6638",
-	instagram: "@or.aia",
+	instagram: "@oraia_ph",
 	messenger: "ORAIA",
 	location: "Baguio City, Benguet",
 	/**
@@ -14,7 +14,7 @@ export const CONTACT = {
 	signalUrl:
 		"https://signal.me/#eu/7ZItRenZ6nCBbabIuVMwLFIVgl8Ao2r_pDVpEJ1dDeg1loJMRGpIiayiP02aqhYO",
 	facebookQr: "/images/contact/facebook-qr.svg",
-	instagramUrl: "https://www.instagram.com/or.aia",
+	instagramUrl: "https://www.instagram.com/oraia_ph",
 	/** The page the QR code on dedication cards opens: links, promos and a note. */
 	helloPath: "/hello",
 	/** That QR code; made by `bun scripts/make-qr.ts`, so run it if the path changes. */
