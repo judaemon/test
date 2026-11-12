@@ -32,6 +32,7 @@ import { Route as PayOrderNumberRouteImport } from './routes/pay.$orderNumber'
 import { Route as ProductsProductIdRouteImport } from './routes/products/$productId'
 import { Route as UploadsSplatRouteImport } from './routes/uploads/$'
 import { Route as AdminDashboardIndexRouteImport } from './routes/admin/_dashboard/index'
+import { Route as AdminDashboardCardsRouteImport } from './routes/admin/_dashboard/cards'
 import { Route as AdminDashboardCustomRouteImport } from './routes/admin/_dashboard/custom'
 import { Route as AdminDashboardDeliveryDatesRouteImport } from './routes/admin/_dashboard/delivery-dates'
 import { Route as AdminDashboardLogsRouteImport } from './routes/admin/_dashboard/logs'
@@ -196,6 +197,11 @@ const UploadsSplatRoute = UploadsSplatRouteImport.update({
 const AdminDashboardIndexRoute = AdminDashboardIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardCardsRoute = AdminDashboardCardsRouteImport.update({
+  id: '/cards',
+  path: '/cards',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
 const AdminDashboardCustomRoute = AdminDashboardCustomRouteImport.update({
@@ -506,6 +512,7 @@ export interface FileRoutesByFullPath {
   '/products/$productId': typeof ProductsProductIdRoute
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
+  '/admin/cards': typeof AdminDashboardCardsRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
   '/admin/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
   '/admin/logs': typeof AdminDashboardLogsRoute
@@ -579,6 +586,7 @@ export interface FileRoutesByTo {
   '/products/$productId': typeof ProductsProductIdRoute
   '/uploads/$': typeof UploadsSplatRoute
   '/account': typeof AccountIndexRoute
+  '/admin/cards': typeof AdminDashboardCardsRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
   '/admin/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
   '/admin/logs': typeof AdminDashboardLogsRoute
@@ -654,6 +662,7 @@ export interface FileRoutesById {
   '/products/$productId': typeof ProductsProductIdRoute
   '/uploads/$': typeof UploadsSplatRoute
   '/account/': typeof AccountIndexRoute
+  '/admin/_dashboard/cards': typeof AdminDashboardCardsRoute
   '/admin/_dashboard/custom': typeof AdminDashboardCustomRoute
   '/admin/_dashboard/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
   '/admin/_dashboard/logs': typeof AdminDashboardLogsRoute
@@ -731,6 +740,7 @@ export interface FileRouteTypes {
     | '/products/$productId'
     | '/uploads/$'
     | '/account/'
+    | '/admin/cards'
     | '/admin/custom'
     | '/admin/delivery-dates'
     | '/admin/logs'
@@ -804,6 +814,7 @@ export interface FileRouteTypes {
     | '/products/$productId'
     | '/uploads/$'
     | '/account'
+    | '/admin/cards'
     | '/admin/custom'
     | '/admin/delivery-dates'
     | '/admin/logs'
@@ -878,6 +889,7 @@ export interface FileRouteTypes {
     | '/products/$productId'
     | '/uploads/$'
     | '/account/'
+    | '/admin/_dashboard/cards'
     | '/admin/_dashboard/custom'
     | '/admin/_dashboard/delivery-dates'
     | '/admin/_dashboard/logs'
@@ -1123,6 +1135,13 @@ declare module '@tanstack/solid-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminDashboardIndexRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/cards': {
+      id: '/admin/_dashboard/cards'
+      path: '/cards'
+      fullPath: '/admin/cards'
+      preLoaderRoute: typeof AdminDashboardCardsRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
     '/admin/_dashboard/custom': {
@@ -1523,6 +1542,7 @@ const AdminDashboardReportsRouteWithChildren =
   )
 
 interface AdminDashboardRouteChildren {
+  AdminDashboardCardsRoute: typeof AdminDashboardCardsRoute
   AdminDashboardCustomRoute: typeof AdminDashboardCustomRoute
   AdminDashboardDeliveryDatesRoute: typeof AdminDashboardDeliveryDatesRoute
   AdminDashboardLogsRoute: typeof AdminDashboardLogsRoute
@@ -1559,6 +1579,7 @@ interface AdminDashboardRouteChildren {
 }
 
 const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
+  AdminDashboardCardsRoute: AdminDashboardCardsRoute,
   AdminDashboardCustomRoute: AdminDashboardCustomRoute,
   AdminDashboardDeliveryDatesRoute: AdminDashboardDeliveryDatesRoute,
   AdminDashboardLogsRoute: AdminDashboardLogsRoute,

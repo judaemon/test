@@ -248,6 +248,13 @@ export const AdminIcons = {
 			<path d="M9 7a3 3 0 0 0 6 0" />
 		</svg>
 	),
+	/** A folded card with a heart: dedication cards. */
+	cards: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<rect x="3" y="5" width="18" height="14" rx="2" />
+			<path d="M12 15.5s-3-1.8-3-3.8a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 2-3 3.8-3 3.8Z" />
+		</svg>
+	),
 	products: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<circle cx="12" cy="8" r="4" />

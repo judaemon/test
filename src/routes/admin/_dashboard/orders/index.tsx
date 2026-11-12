@@ -485,6 +485,19 @@ function OrdersPage() {
 									>
 										Print handover list
 									</Link>
+									{/* Every dedication card, 4 to an A4 sheet: the filtered day, if one. */}
+									<Link
+										to="/admin/cards"
+										search={{
+											day:
+												parseList(search().delivery).length === 1
+													? parseList(search().delivery)[0]
+													: undefined,
+										}}
+										class={adminButton.secondary}
+									>
+										Print cards
+									</Link>
 									<Link to="/admin/orders/new" class={adminButton.primary}>
 										+ Add custom order
 									</Link>

@@ -1,0 +1,89 @@
+import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
+
+/** How many cards share one A4 sheet: 2 × 2, each A6 (105 × 148.5 mm). */
+export const CARDS_PER_SHEET = 4;
+
+/**
+ * Whether a card went on paper with its words as they are now. "changed":
+ * printed, then edited (by staff or the customer), so the printed one is wrong.
+ */
+export type CardPrintStatus = "new" | "changed" | "printed";
+
+/** One dedication card on Admin → Cards, with its order and print history. */
+export interface PrintCard {
+	/** `${orderId}/${slot}`: unique across orders. */
+	key: string;
+	orderId: string;
+	/** "order" for an order-wide card, else "line:unit". */
+	slot: string;
+	number: string;
+	/** Who ordered: "Cruz, Ana". */
+	buyer: string;
+	company: string;
+	className: string;
+	/** `YYYY-MM-DD`, or "" when no day was chosen. */
+	deliveryDate: string;
+	/** The bouquet it goes with: "Odette · Cream (2 of 3)"; "" order-wide. */
+	label: string;
+	to: string;
+	message: string;
+	status: CardPrintStatus;
+	/** The words that were printed last time, and by whom. */
+	printed?: { to: string; message: string; at: string; by: string };
+}
+
+/** Where a card sits on its order, kept the same when its words change. */
+export const cardSlot = (card: { lineIndex?: number; unit?: number }) =>
+	card.lineIndex === undefined
+		? "order"
+		: `${card.lineIndex}:${card.unit ?? 0}`;
+
+/** Compares what was printed with the card's words now. */
+export function printStatus(
+	card: { to: string; message: string },
+	printed: { to: string; message: string } | undefined,
+): CardPrintStatus {
+	if (!printed) return "new";
+	return printed.to === card.to && printed.message === card.message
+		? "printed"
+		: "changed";
+}
+
+const rank = (list: readonly string[], value: string) => {
+	const index = list.indexOf(value);
+	return index === -1 ? list.length : index;
+};
+const companyNames = COMPANIES.map((company) => company.name);
+
+/**
+ * Cards in the order they're handed over: by delivery day (no day last), then
+ * company and class like the handover list, then buyer and order. Cut stacks
+ * then go straight onto the right bouquets.
+ */
+export function compareCards(a: PrintCard, b: PrintCard) {
+	return (
+		(a.deliveryDate || "9999").localeCompare(b.deliveryDate || "9999") ||
+		rank(companyNames, a.company) - rank(companyNames, b.company) ||
+		rank(CLASS_OPTIONS, a.className) - rank(CLASS_OPTIONS, b.className) ||
+		a.buyer.localeCompare(b.buyer) ||
+		a.number.localeCompare(b.number, undefined, { numeric: true }) ||
+		a.slot.localeCompare(b.slot, undefined, { numeric: true })
+	);
+}
+
+/** Splits cards into A4 sheets of four; the last may have fewer. */
+export function toSheets<T>(cards: T[], perSheet = CARDS_PER_SHEET): T[][] {
+	const sheets: T[][] = [];
+	for (let i = 0; i < cards.length; i += perSheet)
+		sheets.push(cards.slice(i, i + perSheet));
+	return sheets;
+}
+
+/**
+ * Short notes read best centered, like a printed card; longer ones and ones
+ * with paragraphs read best left-aligned.
+ */
+export function centerMessage(message: string) {
+	const lines = message.split("\n").filter((line) => line.trim()).length;
+	return message.length <= 180 && lines <= 4;
+}

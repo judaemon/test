@@ -840,6 +840,20 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	CREATE UNIQUE INDEX florists_by_name ON florists (lower(name));
 	CREATE UNIQUE INDEX florists_by_token ON florists (share_token);
 	`,
+	// v59: Admin → Cards: which dedication cards were printed, and the exact
+	// words that went on paper, so a card edited after printing shows up as
+	// changed. `slot` is "order" for an order-wide card, else "line:unit".
+	`
+	CREATE TABLE card_prints (
+		order_id TEXT NOT NULL,
+		slot TEXT NOT NULL,
+		printed_to TEXT NOT NULL,
+		printed_message TEXT NOT NULL,
+		printed_by TEXT NOT NULL,
+		printed_at TEXT NOT NULL,
+		PRIMARY KEY (order_id, slot)
+	);
+	`,
 ];
 
 declare global {
