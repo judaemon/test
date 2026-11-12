@@ -114,7 +114,7 @@ export function ShopClosed(props: {
 						<MoreLinks class="mt-9 hidden @4xl:flex" />
 					</div>
 
-					{/* ----- For those who wish ----- */}
+					{/* ----- Extra bouquets at the event ----- */}
 					<section
 						aria-labelledby="wish-heading"
 						class="mt-10 w-full scroll-mt-6 rounded-[28px] border border-petal-100 bg-white p-6 text-left shadow-[0_18px_50px_-12px_rgb(92_31_49/0.18)] @sm:p-8 @4xl:mt-0"
@@ -136,7 +136,7 @@ export function ShopClosed(props: {
 						>
 							<span class="inline-flex items-center gap-1.5 rounded-full bg-petal-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-petal-700">
 								<Sparkle class="size-2.5" />
-								For those who wish
+								Extra bouquets
 							</span>
 							<h2
 								id="wish-heading"

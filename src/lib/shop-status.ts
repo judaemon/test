@@ -34,7 +34,7 @@ export function isShoppingPath(pathname: string) {
 }
 
 /**
- * A name left on the "for those who wish" list, tidied: spaces collapsed,
+ * A name left on the extra bouquets list, tidied: spaces collapsed,
  * no control characters. Undefined when it isn't a usable name.
  */
 export function cleanWishName(raw: unknown) {

@@ -246,7 +246,7 @@ function ShopPage() {
 						<div class="flex flex-wrap items-center justify-between gap-2 border-b border-petal-100 px-5 py-4">
 							<div>
 								<h2 class="font-semibold">
-									For those who wish{" "}
+									Interested in extra bouquets{" "}
 									<span class="tabular-nums text-petal-900/55">
 										({wishes().length})
 									</span>
