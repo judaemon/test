@@ -1728,10 +1728,7 @@ function ArrangementCards(props: {
 							<SummaryStages stages={card.stages} />
 							<Show when={card.wrappers.needed > 0}>
 								<span class="mt-2 flex w-full flex-col gap-1">
-									<span
-										class="flex items-baseline justify-between gap-2 text-xs text-petal-900/65"
-										title="Cancelled bouquets don’t need a wrapper, so they aren’t counted"
-									>
+									<span class="flex items-baseline justify-between gap-2 text-xs text-petal-900/65">
 										<span>Wrappers made</span>
 										<span class="font-medium tabular-nums text-petal-900">
 											{card.wrappers.made} of {card.wrappers.needed}
@@ -1757,6 +1754,14 @@ function ArrangementCards(props: {
 											}}
 										/>
 									</span>
+									{/* Why this can be fewer than the count above. */}
+									<Show when={card.stages.cancelled}>
+										{(cancelled) => (
+											<span class="text-xs text-petal-900/55">
+												{cancelled()} cancelled: no wrapper needed
+											</span>
+										)}
+									</Show>
 								</span>
 							</Show>
 						</button>
