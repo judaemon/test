@@ -14,14 +14,16 @@ import { shortDeliveryDate, upcomingDeliveryDates } from "~/lib/delivery-dates";
 import { photoSrc } from "~/lib/photos";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { cn } from "~/lib/utils";
-import type { ReportOrder } from "~/server/admin/reports";
+import type { ReportLine, ReportOrder } from "~/server/admin/reports";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/deliveries")({
 	// The day to open on, e.g. from Orders' "Print handover list".
 	validateSearch: (search: Record<string, unknown>): { day?: string } => ({
 		day:
 			typeof search.day === "string" &&
-			(search.day === "none" || /^\d{4}-\d{2}-\d{2}$/.test(search.day))
+			(search.day === "none" ||
+				search.day === "all" ||
+				/^\d{4}-\d{2}-\d{2}$/.test(search.day))
 				? search.day
 				: undefined,
 	}),
@@ -41,6 +43,26 @@ const companyRank = (name: string) => {
 	return index === -1 ? COMPANIES.length : index;
 };
 
+/** What the list can be sorted by, in the order picked. */
+type SortKey = "order" | "bouquet" | "class" | "name";
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+	{ key: "order", label: "Order no." },
+	{ key: "bouquet", label: "Bouquet" },
+	{ key: "class", label: "Class" },
+	{ key: "name", label: "Name" },
+];
+
+/**
+ * One bouquet line of an order. An order with several bouquets gets a row for
+ * each, the customer repeated, with `part` of `parts` tying them together.
+ */
+interface Row {
+	order: ReportOrder;
+	line: ReportLine;
+	part: number;
+	parts: number;
+}
+
 /**
  * Who gets a bouquet on each delivery day, by company and class: a list to
  * print and tick off on the day. Cancelled orders are left out.
@@ -59,7 +81,7 @@ function Deliveries() {
 			if (order.deliveryDate) dates.add(order.deliveryDate);
 		const list: string[] = [...dates].sort();
 		if (active().some((order) => !order.deliveryDate)) list.push(NONE);
-		return list;
+		return list.length > 1 ? [ALL, ...list] : list;
 	});
 	const firstDay = () =>
 		upcomingDeliveryDates(report().deliveryDates)[0] ?? days()[0] ?? NONE;
@@ -69,10 +91,19 @@ function Deliveries() {
 	const [klass, setKlass] = createSignal<string>(ALL);
 	const [company, setCompany] = createSignal<string>(ALL);
 	const [pagePerCompany, setPagePerCompany] = createSignal(false);
+	const [sortBy, setSortBy] = createSignal<SortKey[]>(["order", "bouquet"]);
+	const toggleSort = (key: SortKey) =>
+		setSortBy((keys) =>
+			keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key],
+		);
 	const shownDay = () => day() ?? firstDay();
 
 	const onDay = (date: string, order: ReportOrder) =>
-		(order.deliveryDate || NONE) === date;
+		date === ALL || (order.deliveryDate || NONE) === date;
+	const dateOf = (order: ReportOrder) => order.deliveryDate || NONE;
+	/** Dates in order, "no date yet" last. */
+	const dateRank = (a: string, b: string) =>
+		a === b ? 0 : a === NONE ? 1 : b === NONE ? -1 : a.localeCompare(b);
 	const ofDay = createMemo(() =>
 		active().filter((order) => onDay(shownDay(), order)),
 	);
@@ -91,40 +122,80 @@ function Deliveries() {
 	);
 
 	const shown = createMemo(() =>
-		ofDay()
-			.filter(
-				(order) =>
-					(klass() === ALL || classOf(order) === klass()) &&
-					(company() === ALL || companyOf(order) === company()),
-			)
-			.sort(
-				(a, b) =>
-					classRank(a.className) - classRank(b.className) ||
-					a.name.localeCompare(b.name),
-			),
+		ofDay().filter(
+			(order) =>
+				(klass() === ALL || classOf(order) === klass()) &&
+				(company() === ALL || companyOf(order) === company()),
+		),
 	);
+
+	const byNumber = (a: ReportOrder, b: ReportOrder) =>
+		a.number.localeCompare(b.number, undefined, { numeric: true });
+	const compare: Record<SortKey, (a: Row, b: Row) => number> = {
+		order: (a, b) => byNumber(a.order, b.order),
+		bouquet: (a, b) =>
+			a.line.title.localeCompare(b.line.title) ||
+			a.line.colorName.localeCompare(b.line.colorName),
+		class: (a, b) =>
+			classRank(a.order.className) - classRank(b.order.className),
+		name: (a, b) => a.order.name.localeCompare(b.order.name),
+	};
+
+	/** By company, then (with all dates shown) by delivery day: "Alpha · Nov 14". */
 	const groups = createMemo(() => {
-		const byCompany = new Map<string, ReportOrder[]>();
-		for (const order of shown()) {
-			const key = companyOf(order);
-			byCompany.set(key, [...(byCompany.get(key) ?? []), order]);
+		const keys = [...sortBy(), "order", "bouquet"] as SortKey[];
+		const rows: Row[] = shown().flatMap((order) =>
+			order.lines.map((line, i) => ({
+				order,
+				line,
+				part: i + 1,
+				parts: order.lines.length,
+			})),
+		);
+		rows.sort((a, b) => {
+			for (const key of keys) {
+				const diff = compare[key](a, b);
+				if (diff) return diff;
+			}
+			return a.part - b.part;
+		});
+		const byGroup = new Map<
+			string,
+			{ company: string; date: string; rows: Row[] }
+		>();
+		for (const row of rows) {
+			const company = companyOf(row.order);
+			const date = shownDay() === ALL ? dateOf(row.order) : shownDay();
+			const key = `${company}\u0000${date}`;
+			const group = byGroup.get(key) ?? { company, date, rows: [] };
+			group.rows.push(row);
+			byGroup.set(key, group);
 		}
-		return [...byCompany.entries()].sort(
-			([a], [b]) => companyRank(a) - companyRank(b) || a.localeCompare(b),
+		return [...byGroup.values()].sort(
+			(a, b) =>
+				companyRank(a.company) - companyRank(b.company) ||
+				a.company.localeCompare(b.company) ||
+				dateRank(a.date, b.date),
 		);
 	});
+
+	/** Each order once, from its rows. */
+	const ordersOf = (rows: Row[]) => [...new Set(rows.map((row) => row.order))];
+	/** The row that carries an order's amount to collect: its first one listed. */
+	const isFirstListed = (rows: Row[], row: Row) =>
+		rows.find((r) => r.order === row.order) === row;
 
 	/** What's still owed on it, to collect at handover. */
 	const owed = (order: ReportOrder) =>
 		Math.max(0, order.total - order.received);
-	const bouquetCount = (orders: ReportOrder[]) =>
-		orders.reduce(
-			(sum, order) =>
-				sum + order.lines.reduce((n, line) => n + line.quantity, 0),
-			0,
-		);
+	const bouquetCount = (rows: Row[]) =>
+		rows.reduce((sum, row) => sum + row.line.quantity, 0);
 	const dayLabel = (date: string) =>
-		date === NONE ? "No date yet" : shortDeliveryDate(date);
+		date === ALL
+			? "All dates"
+			: date === NONE
+				? "No date yet"
+				: shortDeliveryDate(date);
 	const classLabel = (name: string) => (name === NONE ? "No class" : name);
 	const companyLabel = (name: string) => (name === NONE ? "No company" : name);
 
@@ -152,9 +223,11 @@ function Deliveries() {
 				<h2 class="mb-1 font-semibold">Deliveries</h2>
 				<p class="mb-4 text-sm text-petal-900/60">
 					The handover list: who gets a bouquet on each day, by company and
-					class, with what’s left to collect and room to sign. Pick a day and
-					narrow it down, then print. Give orders their day in Orders, in the
-					Delivery date column.
+					class, with what’s left to collect and room to sign. Pick a day (or
+					All dates) and narrow it down, then print. Each bouquet has its own
+					row, so an order with two bouquets is listed twice under the same
+					order number. Give orders their day in Orders, in the Delivery date
+					column.
 				</p>
 				<FilterTabs
 					label="Delivery day"
@@ -213,6 +286,37 @@ function Deliveries() {
 						/>
 						Print each company on its own page
 					</label>
+					<div class="mb-4 flex flex-wrap items-center gap-2">
+						<span class="mr-1 text-sm font-medium">Sort by</span>
+						<For each={SORT_OPTIONS}>
+							{(option) => {
+								const rank = () => sortBy().indexOf(option.key) + 1;
+								return (
+									<button
+										type="button"
+										aria-pressed={rank() > 0}
+										onClick={() => toggleSort(option.key)}
+										class={cn(
+											"inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+											rank()
+												? "border-petal-700 bg-petal-700 font-medium text-white"
+												: "border-petal-200 bg-white hover:bg-petal-50",
+										)}
+									>
+										<Show when={rank() && sortBy().length > 1}>
+											<span class="flex size-5 items-center justify-center rounded-full bg-white text-xs font-semibold tabular-nums text-petal-700">
+												{rank()}
+											</span>
+										</Show>
+										{option.label}
+									</button>
+								);
+							}}
+						</For>
+						<span class="text-xs text-petal-900/55">
+							Pick one or more; the first one picked sorts first.
+						</span>
+					</div>
 				</Show>
 			</div>
 
@@ -227,7 +331,7 @@ function Deliveries() {
 				}
 			>
 				<For each={groups()}>
-					{([name, orders], index) => (
+					{(group, index) => (
 						<div
 							class={cn(
 								"mb-6 print:mb-4",
@@ -241,20 +345,32 @@ function Deliveries() {
 								<div>
 									<p class="text-xs uppercase tracking-widest text-petal-900/60 print:text-[8pt] print:text-black/70">
 										Deliveries ·{" "}
-										{shownDay() === NONE
+										{group.date === NONE
 											? "No date yet"
-											: formatDeliveryDate(shownDay())}
+											: formatDeliveryDate(group.date)}
 										<Show when={klass() !== ALL}> · {classLabel(klass())}</Show>
 									</p>
 									<h3 class="font-display text-xl font-semibold leading-tight print:text-[16pt]">
-										{companyLabel(name)}
+										{companyLabel(group.company)}
+										<Show when={shownDay() === ALL}>
+											<span class="font-normal text-petal-900/60 print:text-black/60">
+												{" · "}
+												{dayLabel(group.date)}
+											</span>
+										</Show>
 									</h3>
 								</div>
 								<p class="text-sm tabular-nums text-petal-900/70 print:text-[9pt] print:text-black">
-									{orders.length} {orders.length === 1 ? "order" : "orders"} ·{" "}
-									{bouquetCount(orders)}{" "}
-									{bouquetCount(orders) === 1 ? "bouquet" : "bouquets"}
-									<Show when={orders.reduce((sum, o) => sum + owed(o), 0)}>
+									{ordersOf(group.rows).length}{" "}
+									{ordersOf(group.rows).length === 1 ? "order" : "orders"} ·{" "}
+									{bouquetCount(group.rows)}{" "}
+									{bouquetCount(group.rows) === 1 ? "bouquet" : "bouquets"}
+									<Show
+										when={ordersOf(group.rows).reduce(
+											(sum, o) => sum + owed(o),
+											0,
+										)}
+									>
 										{(total) => (
 											<>
 												{" · "}
@@ -266,13 +382,14 @@ function Deliveries() {
 								</p>
 							</header>
 							<div class="overflow-x-auto print:overflow-visible">
-								<table class="w-full min-w-[640px] text-left text-sm print:min-w-0 print:text-[9pt]">
+								<table class="w-full min-w-[720px] text-left text-sm print:min-w-0 print:text-[9pt]">
 									<thead class="text-xs uppercase tracking-wide text-petal-900/55 print:text-[7.5pt] print:text-black/70">
 										<tr>
 											<th class="w-8 pb-1.5 pr-2 font-medium">
 												<span class="sr-only">Handed over</span>✓
 											</th>
 											<th class="pb-1.5 pr-3 font-medium">Order</th>
+											<th class="pb-1.5 pr-3 font-medium">Delivery</th>
 											<th class="pb-1.5 pr-3 font-medium">Name</th>
 											<th class="pb-1.5 pr-3 font-medium">Class</th>
 											<th class="pb-1.5 pr-3 font-medium">Serial no.</th>
@@ -280,38 +397,52 @@ function Deliveries() {
 											<th class="pb-1.5 pr-3 text-right font-medium">
 												To collect
 											</th>
-											<th class="w-[22%] pb-1.5 font-medium">Signature</th>
+											<th class="w-[18%] pb-1.5 font-medium">Signature</th>
 										</tr>
 									</thead>
 									<tbody>
-										<For each={orders}>
-											{(order) => (
-												<tr class="border-t border-petal-100 align-top print:break-inside-avoid print:border-black/25">
+										<For each={group.rows}>
+											{(row) => (
+												<tr
+													class={cn(
+														"border-t border-petal-100 align-top print:break-inside-avoid print:border-black/25",
+														row.parts > 1 &&
+															"bg-petal-50/60 print:bg-transparent",
+													)}
+												>
 													<td class="py-2 pr-2 print:py-1">
 														<span class="inline-block size-4 rounded-sm border-2 border-petal-900/40 print:border-black" />
 													</td>
 													<td class="py-2 pr-3 font-semibold tabular-nums print:py-1">
 														<Link
 															to="/admin/orders/$orderId"
-															params={{ orderId: order.id }}
+															params={{ orderId: row.order.id }}
 															class="underline-offset-2 hover:underline print:no-underline"
 														>
-															#{order.number}
+															#{row.order.number}
 														</Link>
+														<Show when={row.parts > 1}>
+															<span class="block whitespace-nowrap text-xs font-normal text-petal-900/60 print:text-[7.5pt] print:text-black/70">
+																{row.part} of {row.parts} in this order
+															</span>
+														</Show>
+													</td>
+													<td class="whitespace-nowrap py-2 pr-3 print:py-1">
+														{dayLabel(dateOf(row.order))}
 													</td>
 													<td class="py-2 pr-3 font-medium print:py-1">
-														{order.name}
+														{row.order.name}
 													</td>
 													<td class="py-2 pr-3 print:py-1">
-														{order.className || "—"}
+														{row.order.className || "—"}
 													</td>
 													<td class="whitespace-nowrap py-2 pr-3 tabular-nums print:py-1">
-														{order.serialNumber
-															? formatSerialNumber(order.serialNumber)
+														{row.order.serialNumber
+															? formatSerialNumber(row.order.serialNumber)
 															: "—"}
 													</td>
 													<td class="py-2 pr-3 print:py-1">
-														<For each={order.lines}>
+														<Show when={row.line} keyed>
 															{(line) => (
 																<span class="flex items-center gap-2 leading-snug [&+&]:mt-1">
 																	{/* Small, and never cropped, so the bouquet is easy to spot by its colors. */}
@@ -340,20 +471,29 @@ function Deliveries() {
 																	</span>
 																</span>
 															)}
-														</For>
+														</Show>
 													</td>
 													<td class="py-2 pr-3 text-right print:py-1">
 														<Show
-															when={!isPaid(order)}
+															when={!isPaid(row.order)}
 															fallback={
 																<span class="whitespace-nowrap text-xs font-medium text-success-foreground print:text-[8pt] print:text-black">
 																	Paid
 																</span>
 															}
 														>
-															<span class="whitespace-nowrap rounded-full bg-error px-2 py-0.5 text-xs font-semibold tabular-nums text-error-foreground print:border print:border-black print:bg-transparent print:px-1.5 print:text-[9pt] print:text-black">
-																{money(owed(order))}
-															</span>
+															<Show
+																when={isFirstListed(group.rows, row)}
+																fallback={
+																	<span class="whitespace-nowrap text-xs text-petal-900/55 print:text-[8pt] print:text-black/60">
+																		With #{row.order.number} above
+																	</span>
+																}
+															>
+																<span class="whitespace-nowrap rounded-full bg-error px-2 py-0.5 text-xs font-semibold tabular-nums text-error-foreground print:border print:border-black print:bg-transparent print:px-1.5 print:text-[9pt] print:text-black">
+																	{money(owed(row.order))}
+																</span>
+															</Show>
 														</Show>
 													</td>
 													{/* Room for the customer to sign as they take their bouquet. */}
