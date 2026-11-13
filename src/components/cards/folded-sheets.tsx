@@ -4,8 +4,15 @@ import { For, Show } from "solid-js";
 import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import { CONTACT, TAGLINE } from "~/lib/contact";
 import { CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
+import { SITE_URL } from "~/lib/site";
 import { cn } from "~/lib/utils";
-import { type CardFit, CardQrs, SheetLabel, shrinkToFit } from "./card-sheets";
+import {
+	type CardFit,
+	HelloQr,
+	SheetLabel,
+	SurpriseQrRow,
+	shrinkToFit,
+} from "./card-sheets";
 
 /**
  * A4 landscape, drawn 1 mm short so rounding never spills onto a blank page.
@@ -90,7 +97,8 @@ function FoldGuides() {
 	const cut = "absolute bg-[#8a7f84]";
 	const hair = "0.2mm";
 	const len = "5mm";
-	const inset = "3mm";
+	// Clear of the 3 mm every printer leaves blank, e.g. the Epson L3210.
+	const inset = "5mm";
 	const fold = (left: string, edge: "top" | "bottom") => (
 		<span
 			class="absolute border-l border-dashed border-[#8a7f84]"
@@ -156,71 +164,142 @@ function Page(props: { children: JSX.Element; class?: string }) {
 }
 
 /**
- * The outside of a card, laid flat: the back cover (how to find ORAIA) on the
- * left, the front cover on the right. Every card's outside is the same.
+ * The back cover, inside a fine frame: a few kind words at the top, ORAIA's
+ * code with how to reach the shop in the open space, and "Thoughtfully
+ * arranged by ORAIA" at the foot. Fine lines on white, light on ink.
  */
-export function FoldedOutside(props: { link?: string }) {
+function BackCover() {
+	return (
+		<Page class="font-sans">
+			<div
+				class="absolute flex flex-col items-center border-petal-500"
+				style={{
+					inset: "6mm",
+					"border-width": "0.3mm",
+					"border-style": "solid",
+					padding: "6mm 4mm 6mm",
+				}}
+			>
+				<p
+					class="font-display italic text-[#2b1a20] [text-wrap:balance]"
+					style={{
+						"font-size": "7.6pt",
+						"line-height": "1.6",
+						"letter-spacing": "0.03em",
+					}}
+				>
+					{CARD_LINE}
+				</p>
+				<div style={{ "margin-top": "3mm" }}>
+					<SparkleRule width={7} />
+				</div>
+				{/* The code, one caption, then how to reach us: one line each, one style. */}
+				<div class="flex flex-1 flex-col items-center justify-center">
+					<HelloQr size={17} />
+					<p
+						class="font-semibold uppercase text-petal-900"
+						style={{
+							"font-size": "4.8pt",
+							"letter-spacing": "0.22em",
+							"margin-right": "-0.22em",
+							"margin-top": "2.2mm",
+						}}
+					>
+						Scan to say hello
+					</p>
+					<span
+						class="block bg-petal-500"
+						style={{ width: "6mm", height: "0.3mm", "margin-block": "3mm" }}
+					/>
+					<ul
+						class="flex flex-col items-center tabular-nums text-[#2b1a20]"
+						style={{ "font-size": "6.2pt", "line-height": "1.6" }}
+					>
+						<li>{CONTACT.phone}</li>
+						<li>{CONTACT.instagram}</li>
+						<li>{SITE_URL.replace(/^https?:\/\//, "")}</li>
+					</ul>
+				</div>
+
+				<div class="flex flex-col items-center">
+					<p
+						class="font-semibold uppercase text-[#2b1a20]"
+						style={{
+							"font-size": "4.8pt",
+							"letter-spacing": "0.3em",
+							"margin-right": "-0.3em",
+						}}
+					>
+						Thoughtfully arranged by
+					</p>
+					<div
+						class="flex items-center"
+						style={{ "margin-top": "2.4mm", gap: "1.4mm" }}
+					>
+						<FlowerMark print class="block size-[7mm]" />
+						<Wordmark class="text-[12pt] leading-none" />
+					</div>
+				</div>
+			</div>
+		</Page>
+	);
+}
+
+/** Every card's kind words, at the top of the back cover. */
+const CARD_LINE =
+	"May this gesture remind you how appreciated and deeply thought of you are";
+
+/** A short line, a sparkle, a short line. */
+function SparkleRule(props: { width: number }) {
+	// A function: one element can only be placed once.
+	const line = () => (
+		<span
+			class="block bg-petal-500"
+			style={{ width: `${props.width}mm`, height: "0.3mm" }}
+		/>
+	);
+	return (
+		<div
+			class="flex items-center gap-[1.6mm] text-petal-700"
+			aria-hidden="true"
+		>
+			{line()}
+			<Sparkle style={{ width: "2.2mm", height: "2.2mm" }} />
+			{line()}
+		</div>
+	);
+}
+
+/** The front cover: the flower, ORAIA and its tagline. Nothing else. */
+function FrontCover() {
+	return (
+		<Page class="px-[7mm] py-[10mm]">
+			<FlowerMark print class="block size-[21mm]" />
+			<Wordmark class="mt-[4.5mm] block text-[15pt] leading-none" />
+			<p
+				class="font-display italic text-[#7a2a43]"
+				style={{ "font-size": "7.5pt", "margin-top": "2.5mm" }}
+			>
+				{TAGLINE}
+			</p>
+			<div class="mt-[5mm]">
+				<SparkleRule width={7} />
+			</div>
+		</Page>
+	);
+}
+
+/**
+ * The outside of a card, laid flat: the back cover (how to find ORAIA) on the
+ * left, the front cover on the right. Every card's outside is the same, with
+ * nothing of its own (its bouquet code is inside), so outsides can be printed
+ * ahead in a stack and any one goes with any message.
+ */
+export function FoldedOutside() {
 	return (
 		<div class="grid min-h-0 grid-cols-2">
-			<Page class="px-[6mm] py-[10mm] font-sans">
-				<Sparkle
-					class="text-petal-700"
-					style={{ width: "2.4mm", height: "2.4mm" }}
-				/>
-				<span class="mt-[5mm]">
-					<CardQrs
-						link={props.link}
-						size={props.link ? 17 : 20}
-						pt={props.link ? 4.8 : 5.5}
-					/>
-				</span>
-				<span
-					class="block bg-petal-500"
-					style={{ width: "8mm", height: "0.35mm", "margin-block": "3.5mm" }}
-				/>
-				<p class="tabular-nums text-[#2b1a20]" style={{ "font-size": "7pt" }}>
-					{CONTACT.phone}
-				</p>
-				<p
-					class="text-[#2b1a20]"
-					style={{ "font-size": "7pt", "margin-top": "0.8mm" }}
-				>
-					{CONTACT.instagram}
-				</p>
-				<p
-					class="text-[#5c4f54]"
-					style={{ "font-size": "6pt", "margin-top": "0.8mm" }}
-				>
-					{CONTACT.location}
-				</p>
-				<span class="absolute inset-x-0 bottom-[8mm] flex justify-center">
-					<Wordmark class="text-[7pt] leading-none" />
-				</span>
-			</Page>
-			<Page class="px-[7mm] py-[10mm]">
-				<FlowerMark print class="block size-[21mm]" />
-				<Wordmark class="mt-[4.5mm] block text-[15pt] leading-none" />
-				<p
-					class="font-display italic text-[#7a2a43]"
-					style={{ "font-size": "7.5pt", "margin-top": "2.5mm" }}
-				>
-					{TAGLINE}
-				</p>
-				<div
-					class="mt-[5mm] flex items-center gap-[2mm] text-petal-700"
-					aria-hidden="true"
-				>
-					<span
-						class="block bg-petal-500"
-						style={{ width: "7mm", height: "0.35mm" }}
-					/>
-					<Sparkle style={{ width: "2.2mm", height: "2.2mm" }} />
-					<span
-						class="block bg-petal-500"
-						style={{ width: "7mm", height: "0.35mm" }}
-					/>
-				</div>
-			</Page>
+			<BackCover />
+			<FrontCover />
 		</div>
 	);
 }
@@ -258,15 +337,23 @@ function ToLine(props: { to: string; centered?: boolean }) {
 	);
 }
 
+/** How big the card's own QR code prints inside, in millimetres. */
+const INSIDE_QR_MM = 11;
+
 /**
  * The inside of a card, laid flat. Usually who it's to on the left page and
  * the message on the right; a long message flows over both pages instead.
- * `fitFolded` picks which, so both are drawn and one is hidden.
+ * `fitFolded` picks which, so both are drawn and one is hidden. With `qr`,
+ * the card's code to its bouquet page sits small at the foot of the left
+ * page, below who it's to, leaving the message its page; when the message
+ * takes both pages, it follows the message's last line instead.
  */
 export function FoldedInside(props: {
 	fitKey: string;
 	/** The card's bouquet link, so its back can be checked against it. */
 	link?: string;
+	/** The bouquet link to print as a QR code inside, if any. */
+	qr?: string;
 	to: string;
 	message: string;
 	reference?: string;
@@ -301,6 +388,13 @@ export function FoldedInside(props: {
 						/>
 						<ToLine to={props.to} centered />
 					</Show>
+					<Show when={props.qr}>
+						{(link) => (
+							<span class="absolute inset-x-0 bottom-[11mm] flex justify-center">
+								<SurpriseQrRow link={link()} size={INSIDE_QR_MM} />
+							</span>
+						)}
+					</Show>
 				</Page>
 				<Page class="px-[10mm] py-[11mm]">
 					<div
@@ -310,13 +404,13 @@ export function FoldedInside(props: {
 							centered() ? "text-center" : "text-left",
 						)}
 					>
-						<p
+						<div
 							data-single-text
-							class={cn(text, wrap())}
+							class="flow-root"
 							style={{ "line-height": "1.45" }}
 						>
-							{props.message}
-						</p>
+							<p class={cn(text, wrap())}>{props.message}</p>
+						</div>
 					</div>
 				</Page>
 			</div>
@@ -339,13 +433,23 @@ export function FoldedInside(props: {
 							<ToLine to={props.to} />
 						</div>
 					</Show>
-					<p
+					<div
 						data-spread-text
-						class={cn(text, "[text-wrap:pretty]")}
+						class="flow-root"
 						style={{ "line-height": "1.45", orphans: 2, widows: 2 }}
 					>
-						{props.message}
-					</p>
+						<p class={cn(text, "[text-wrap:pretty]")}>{props.message}</p>
+						<Show when={props.qr}>
+							{(link) => (
+								<span
+									class="block"
+									style={{ "margin-top": "4mm", "break-inside": "avoid" }}
+								>
+									<SurpriseQrRow link={link()} size={INSIDE_QR_MM} />
+								</span>
+							)}
+						</Show>
+					</div>
 				</div>
 			</div>
 
@@ -377,13 +481,11 @@ export function EmptyFolded() {
 	);
 }
 
-/** A sheet of four outsides. */
+/** A sheet of four outsides, all alike. */
 export function FoldedOutsideSheet(props: {
 	guides?: boolean;
 	label?: string;
 	upsideDown?: boolean;
-	/** Each spot's bouquet link, already mirrored (see `mirrorSheet`). */
-	links?: (string | undefined)[];
 }) {
 	return (
 		<FoldedSheet
@@ -392,7 +494,7 @@ export function FoldedOutsideSheet(props: {
 			upsideDown={props.upsideDown}
 		>
 			<For each={Array.from({ length: CARDS_PER_SHEET })}>
-				{(_, spot) => <FoldedOutside link={props.links?.[spot()]} />}
+				{() => <FoldedOutside />}
 			</For>
 		</FoldedSheet>
 	);

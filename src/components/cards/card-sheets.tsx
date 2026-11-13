@@ -120,7 +120,7 @@ export function SheetLabel(props: { label?: string }) {
 		<Show when={props.label}>
 			<span
 				class="pointer-events-none absolute whitespace-nowrap font-sans text-[#8a7f84]"
-				style={{ left: "calc(50% + 2.5mm)", top: "3.4mm", "font-size": "5pt" }}
+				style={{ left: "calc(50% + 2.5mm)", top: "5.4mm", "font-size": "5pt" }}
 			>
 				{props.label}
 			</span>
@@ -132,7 +132,8 @@ export function SheetLabel(props: { label?: string }) {
 function CutGuides() {
 	const mark = "absolute bg-[#8a7f84]";
 	const len = "5mm";
-	const inset = "3mm";
+	// Clear of the 3 mm every printer leaves blank, e.g. the Epson L3210.
+	const inset = "5mm";
 	const hair = "0.2mm";
 	return (
 		<div aria-hidden="true" class="pointer-events-none absolute inset-0">
@@ -363,6 +364,56 @@ function CaptionedQr(props: {
 	);
 }
 
+/** The card's own code, to its private bouquet page, with its "Scan me" caption. */
+export function SurpriseQr(props: { link: string; size: number; pt: number }) {
+	return (
+		<CaptionedQr caption="Scan me" lure="a little surprise ♡" pt={props.pt}>
+			<Qr
+				value={absoluteUrl(bouquetPath(props.link))}
+				size={props.size}
+				label="QR code to this bouquet and its message"
+				mark={<Sparkle class="size-[70%] text-petal-700" />}
+			/>
+		</CaptionedQr>
+	);
+}
+
+/**
+ * The card's own code, small, with its caption centered under it in grey:
+ * a quiet postscript that stays out of the message's way.
+ */
+export function SurpriseQrRow(props: { link: string; size: number }) {
+	return (
+		<span class="inline-flex flex-col items-center text-center">
+			<Qr
+				value={absoluteUrl(bouquetPath(props.link))}
+				size={props.size}
+				label="QR code to this bouquet and its message"
+				mark={<Sparkle class="size-[70%] text-petal-700" />}
+			/>
+			<span class="flex flex-col items-center whitespace-nowrap">
+				<span
+					class="font-sans font-semibold uppercase text-[#6b5e63]"
+					style={{
+						"font-size": "4.4pt",
+						"letter-spacing": "0.22em",
+						"margin-right": "-0.22em",
+						"margin-top": "1.6mm",
+					}}
+				>
+					Scan me
+				</span>
+				<span
+					class="font-display italic text-[#6b5e63]"
+					style={{ "font-size": "6pt", "margin-top": "0.4mm" }}
+				>
+					a little surprise ♡
+				</span>
+			</span>
+		</span>
+	);
+}
+
 /**
  * The QR codes on a card's back: with `link`, the card's own bouquet page
  * (its bouquet and message) beside ORAIA's page; without, ORAIA's alone.
@@ -380,18 +431,7 @@ export function CardQrs(props: { link?: string; size: number; pt: number }) {
 		>
 			{(link) => (
 				<span class="flex items-start" style={{ gap: `${props.size * 0.4}mm` }}>
-					<CaptionedQr
-						caption="Scan me"
-						lure="a little surprise ♡"
-						pt={props.pt}
-					>
-						<Qr
-							value={absoluteUrl(bouquetPath(link()))}
-							size={props.size}
-							label="QR code to this bouquet and its message"
-							mark={<Sparkle class="size-[70%] text-petal-700" />}
-						/>
-					</CaptionedQr>
+					<SurpriseQr link={link()} size={props.size} pt={props.pt} />
 					<CaptionedQr caption="Follow us" lure="promos & more" pt={props.pt}>
 						<HelloQr size={props.size} />
 					</CaptionedQr>

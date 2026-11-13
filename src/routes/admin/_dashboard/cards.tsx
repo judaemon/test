@@ -28,6 +28,7 @@ import {
 	Sheet,
 	SMALL_PT,
 } from "~/components/cards/card-sheets";
+import { CentringSheet } from "~/components/cards/centring-sheet";
 import {
 	EmptyFolded,
 	FOLD_SHEET,
@@ -79,12 +80,37 @@ type CardStyle = "folded" | "flat";
 type Flip = "short" | "long";
 /**
  * How the sheets are printed: messages first and then the ORAIA side on the
- * same sheets, fed back in by hand; both at once on a two-sided printer; or
- * ORAIA sides alone, without bouquet codes, to keep in stock.
+ * same sheets, fed back in by hand; both at once on a two-sided printer;
+ * ORAIA sides alone, without bouquet codes, to keep in stock; or (folded
+ * cards, whose outsides are all alike) messages alone, onto that stock.
  */
-type Mode = "manual" | "duplex" | "plain";
+type Mode = "manual" | "duplex" | "plain" | "stock";
 /** One side of a sheet. */
 type Side = "message" | "oraia";
+
+/** Which way round the A4 sheet prints: folded cards across, flat cards upright. */
+type Orientation = "landscape" | "portrait";
+
+/** A4, in mm. */
+const A4 = { long: 297, short: 210 } as const;
+
+/** This computer's printer. */
+interface PrinterSetup {
+	/** The ORAIA side comes out upside down unless turned around. */
+	turnBacks: boolean;
+	/** The stack comes back last sheet first. */
+	reverseBacks: boolean;
+	/**
+	 * How far to move every page, in mm, so it sits dead centre on the paper:
+	 * right and down are positive. Cards are cut with a guillotine against the
+	 * paper's edges, so a printer that puts the page a little off would cut
+	 * fronts and backs that don't match. Read off the centring test.
+	 */
+	offsets: Record<Orientation, { x: number; y: number }>;
+}
+
+/** The furthest a page can be moved, in mm. */
+const MAX_SHIFT = 15;
 
 /** What's being printed: real cards, or the numbered test. */
 type Batch = { kind: "cards"; cards: PrintCard[] } | { kind: "test" };
@@ -97,13 +123,15 @@ interface PrintPage {
 	cards: PrintCard[];
 	/** Test pages: each spot's card number. */
 	numbers?: (number | undefined)[];
+	/** The centring test for the cutter. */
+	centring?: boolean;
 }
 
 const STYLES: { key: CardStyle; label: string; hint: string }[] = [
 	{
 		key: "folded",
 		label: "Folded card",
-		hint: "Folds down the middle into a 74 × 105 mm card: ORAIA on the cover, contact details on the back, the message inside.",
+		hint: "Folds down the middle into a 74 × 105 mm card: ORAIA on the cover, contact details on the back, the message and its bouquet’s QR code inside. Every outside is the same, so they can be printed ahead.",
 	},
 	{
 		key: "flat",
@@ -112,7 +140,19 @@ const STYLES: { key: CardStyle; label: string; hint: string }[] = [
 	},
 ];
 
-const MODES: { key: Mode; label: string; hint: string }[] = [
+const MODES: {
+	key: Mode;
+	label: string;
+	hint: string;
+	/** Only for folded cards, whose outsides are all the same. */
+	foldedOnly?: boolean;
+}[] = [
+	{
+		key: "stock",
+		label: "Messages only",
+		hint: "Print a stack of ORAIA outsides first with Plain backs, then put it back in the tray the way backs go in and print just the messages. Every outside is the same, so any sheet goes with any message.",
+		foldedOnly: true,
+	},
 	{
 		key: "manual",
 		label: "Fronts, then backs",
@@ -194,6 +234,7 @@ function CardsPage() {
 	const [skipped, setSkipped] = createSignal<ReadonlySet<string>>(new Set());
 
 	const [style, setStyleSignal] = createSignal<CardStyle>("folded");
+	const [mode, setMode] = createSignal<Mode>("manual");
 	// Remember the card style on this computer.
 	onMount(() => {
 		try {
@@ -203,20 +244,21 @@ function CardsPage() {
 	});
 	const setStyle = (next: CardStyle) => {
 		setStyleSignal(next);
+		if (next === "flat" && mode() === "stock") setMode("manual");
 		try {
 			localStorage.setItem(STYLE_KEY, next);
 		} catch {}
 	};
 	const folded = () => style() === "folded";
-	const [mode, setMode] = createSignal<Mode>("manual");
 	/** Two-sided printers: which edge they flip on; each card style has a best one. */
 	const [flip, setFlip] = createSignal<Flip | undefined>();
 	const bestFlip = (): Flip => (folded() ? "short" : "long");
 	const shownFlip = () => flip() ?? bestFlip();
 	/** Printing by hand: how this printer takes back the printed stack. */
-	const [printer, setPrinterSignal] = createSignal({
+	const [printer, setPrinterSignal] = createSignal<PrinterSetup>({
 		turnBacks: false,
 		reverseBacks: false,
+		offsets: { landscape: { x: 0, y: 0 }, portrait: { x: 0, y: 0 } },
 	});
 	onMount(() => setPrinterSignal(loadSetting(PRINTER_KEY, printer())));
 	const setPrinter = (change: Partial<ReturnType<typeof printer>>) => {
@@ -227,13 +269,39 @@ function CardsPage() {
 	/** The ORAIA side is printed turned around, to land the right way up. */
 	const turnOraia = () =>
 		mode() === "duplex" ? shownFlip() !== bestFlip() : printer().turnBacks;
+	const orientation = (): Orientation => (folded() ? "landscape" : "portrait");
+	const offset = () => printer().offsets[orientation()];
+	const setOffset = (change: Partial<{ x: number; y: number }>) =>
+		setPrinter({
+			offsets: {
+				...printer().offsets,
+				[orientation()]: { ...offset(), ...change },
+			},
+		});
+	/** Printing the centring test instead of cards. */
+	const [centring, setCentring] = createSignal(false);
+	/**
+	 * Where a page goes on the paper, in mm. Each sheet is drawn 1 mm short so
+	 * it never spills onto a blank page; it's set in by half of that so its
+	 * middle is the paper's middle, whichever way round it prints. Then this
+	 * printer's correction, except on the centring test that measures it.
+	 */
+	const placeOf = (page: PrintPage) => {
+		const full = folded() ? A4.short : A4.long;
+		const inset = (full - paper().height) / 2;
+		const shift = page.centring ? { x: 0, y: 0 } : offset();
+		return { x: shift.x, y: shift.y + inset };
+	};
 
 	const [withReference, setWithReference] = createSignal(true);
 	const [guides, setGuides] = createSignal(true);
 	const [withBouquetQr, setWithBouquetQr] = createSignal(true);
-	/** Each back's bouquet link, swapped left and right to sit behind its front. */
+	/**
+	 * Flat cards: each back's bouquet link, swapped left and right to sit
+	 * behind its front. Folded cards carry theirs inside, with the message.
+	 */
 	const backLinks = (cards: PrintCard[]) =>
-		withBouquetQr() && cards.length
+		withBouquetQr() && !folded() && cards.length
 			? mirrorSheet(cards.map((card) => card.link || undefined))
 			: undefined;
 	const [plainSheets, setPlainSheets] = createSignal<number | undefined>();
@@ -381,6 +449,10 @@ function CardsPage() {
 	 * printing one side by hand, only that side, in the order it goes in.
 	 */
 	const pages = createMemo((): PrintPage[] => {
+		if (centring())
+			return [
+				{ side: "message", sheet: 0, sheets: 1, cards: [], centring: true },
+			];
 		const locked = batch();
 		if (mode() === "plain" && !locked)
 			return Array.from({ length: plainCount() }, (_, sheet) => ({
@@ -427,6 +499,8 @@ function CardsPage() {
 							cards: sheetCards,
 						},
 					]);
+		if (mode() === "stock" && locked?.kind !== "test")
+			return list.filter((page) => page.side === "message");
 		const side = printing();
 		if (!side || side === "both") return list;
 		const one = list.filter((page) => page.side === side);
@@ -479,6 +553,7 @@ function CardsPage() {
 	const paper = () => (folded() ? FOLD_SHEET : SHEET);
 	const twoUp = () =>
 		mode() !== "plain" &&
+		mode() !== "stock" &&
 		!printing() &&
 		previewWidth() >= (folded() ? 760 : 520);
 	const scale = () => {
@@ -565,9 +640,21 @@ function CardsPage() {
 			await refresh(true);
 			const cards = selected().slice();
 			if (!cards.length) return;
-			await printSide("both");
+			await printSide(mode() === "stock" ? "message" : "both");
 			setJustPrinted(cards);
 		} finally {
+			setBusy(false);
+		}
+	};
+
+	/** The centring test: one page, printed as is, to measure this printer. */
+	const printCentring = async () => {
+		setBusy(true);
+		setCentring(true);
+		try {
+			await printSide("message");
+		} finally {
+			setCentring(false);
 			setBusy(false);
 		}
 	};
@@ -955,9 +1042,16 @@ function CardsPage() {
 							</span>
 							<fieldset
 								aria-labelledby="mode-label"
-								class="m-0 grid grid-cols-3 rounded-full border border-petal-200 bg-white p-1 text-sm"
+								class={cn(
+									"m-0 grid rounded-3xl border border-petal-200 bg-white p-1 text-sm",
+									folded() ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3",
+								)}
 							>
-								<For each={MODES}>
+								<For
+									each={MODES.filter(
+										(option) => folded() || !option.foldedOnly,
+									)}
+								>
 									{(option) => (
 										<button
 											type="button"
@@ -1015,10 +1109,18 @@ function CardsPage() {
 								</Check>
 							</Show>
 							<Check checked={guides()} onChange={setGuides}>
-								{folded() ? "Cut and fold guides" : "Cut guides"}, with sheet
-								numbers
+								{folded()
+									? "Cut and fold guides"
+									: "Cut guides, with sheet numbers"}
 							</Check>
 						</div>
+
+						<CutterFields
+							offset={offset()}
+							onOffset={setOffset}
+							onTest={() => void printCentring()}
+							busy={busy()}
+						/>
 
 						<Show when={mode() !== "plain" && !batch() && tooLong().length}>
 							<p class="rounded-xl bg-error px-3 py-2 text-sm text-error-foreground">
@@ -1113,18 +1215,38 @@ function CardsPage() {
 											class="overflow-hidden rounded-sm shadow-[0_1px_8px_rgb(92_31_49/0.14)] print:h-auto print:w-auto print:overflow-visible print:rounded-none print:shadow-none"
 										>
 											<div class="origin-top-left [transform:scale(var(--s))] print:[transform:none]">
-												<SheetPage
-													page={page}
-													folded={folded()}
-													guides={guides()}
-													turnOraia={turnOraia()}
-													links={
-														mode() === "plain"
-															? undefined
-															: backLinks(page.cards)
-													}
-													reference={reference}
-												/>
+												<div
+													class="overflow-hidden"
+													style={{
+														width: `${paper().width}mm`,
+														height: `${paper().height}mm`,
+													}}
+												>
+													<div
+														style={{
+															transform: `translate(${placeOf(page).x}mm, ${placeOf(page).y}mm)`,
+														}}
+													>
+														<Show
+															when={!page.centring}
+															fallback={<CentringSheet landscape={folded()} />}
+														>
+															<SheetPage
+																page={page}
+																folded={folded()}
+																guides={guides()}
+																turnOraia={turnOraia()}
+																withQr={withBouquetQr()}
+																links={
+																	mode() === "plain"
+																		? undefined
+																		: backLinks(page.cards)
+																}
+																reference={reference}
+															/>
+														</Show>
+													</div>
+												</div>
 											</div>
 										</div>
 									</figure>
@@ -1204,13 +1326,18 @@ function SheetPage(props: {
 	folded: boolean;
 	guides: boolean;
 	turnOraia: boolean;
+	/** Folded cards: each card's bouquet QR code goes inside. */
+	withQr: boolean;
 	links?: (string | undefined)[];
 	reference: (card: PrintCard) => string | undefined;
 }) {
+	// Folded outsides are all alike, so their sheets needn't be matched up.
 	const label = () =>
-		`Sheet ${props.page.sheet + 1} of ${props.page.sheets} · ${
-			props.page.side === "message" ? "messages" : "ORAIA side"
-		}`;
+		props.folded
+			? undefined
+			: `Sheet ${props.page.sheet + 1} of ${props.page.sheets} · ${
+					props.page.side === "message" ? "messages" : "ORAIA side"
+				}`;
 	const upsideDown = () => props.page.side === "oraia" && props.turnOraia;
 	const spots = Array.from({ length: CARDS_PER_SHEET });
 	return (
@@ -1242,7 +1369,6 @@ function SheetPage(props: {
 						}
 					>
 						<FoldedOutsideSheet
-							links={props.links}
 							guides={props.guides}
 							label={label()}
 							upsideDown={upsideDown()}
@@ -1286,6 +1412,7 @@ function SheetPage(props: {
 										<FoldedInside
 											fitKey={card().key}
 											link={card().link}
+											qr={props.withQr ? card().link || undefined : undefined}
 											to={card().to}
 											message={card().message}
 											reference={props.reference(card())}
@@ -1354,8 +1481,8 @@ function ManualSteps(props: {
 	done: Record<Side, boolean>;
 	busy: boolean;
 	canStart: boolean;
-	printer: { turnBacks: boolean; reverseBacks: boolean };
-	onPrinter: (change: { turnBacks?: boolean; reverseBacks?: boolean }) => void;
+	printer: PrinterSetup;
+	onPrinter: (change: Partial<PrinterSetup>) => void;
 	onMessages: () => void;
 	onOraia: () => void;
 	onTest: () => void;
@@ -1483,6 +1610,79 @@ function ManualSteps(props: {
 				</button>
 			</Show>
 		</div>
+	);
+}
+
+/**
+ * Lining the print up with the paper's edges, for cutting with a guillotine:
+ * this printer's correction, read off the centring test.
+ */
+function CutterFields(props: {
+	offset: { x: number; y: number };
+	onOffset: (change: Partial<{ x: number; y: number }>) => void;
+	onTest: () => void;
+	busy: boolean;
+}) {
+	const field = (key: "x" | "y", label: string, hint: string) => (
+		<label class="flex flex-col gap-1 text-sm">
+			<span class="font-medium">{label}</span>
+			<span class="flex items-center gap-1.5">
+				<input
+					type="number"
+					step="0.5"
+					min={-MAX_SHIFT}
+					max={MAX_SHIFT}
+					inputmode="decimal"
+					class={cn(adminInput, "w-24 tabular-nums")}
+					value={props.offset[key]}
+					onChange={(e) => {
+						const n = Number.parseFloat(e.currentTarget.value);
+						const mm = Number.isFinite(n)
+							? Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, Math.round(n * 2) / 2))
+							: 0;
+						e.currentTarget.value = String(mm);
+						props.onOffset({ [key]: mm });
+					}}
+				/>
+				<span class="text-petal-900/60">mm</span>
+			</span>
+			<span class="text-xs text-petal-900/55">{hint}</span>
+		</label>
+	);
+	return (
+		<details
+			class="rounded-xl border border-petal-100 px-3 py-2 text-sm"
+			open={!!props.offset.x || !!props.offset.y}
+		>
+			<summary class="cursor-pointer py-1 font-medium">
+				Line up with the cutter
+			</summary>
+			<div class="flex flex-col gap-3 pt-1 pb-1">
+				<p class="text-petal-900/70">
+					Cutting a stack against the paper’s edges? Then every page has to sit
+					dead centre on the paper, front and back. Print the centring test,
+					fold it in half both ways, and enter the numbers where the creases
+					cross its scales. Every page moves by that much.
+				</p>
+				<div class="flex flex-wrap items-end gap-x-5 gap-y-2">
+					{field("x", "Move right", "Left: a minus number")}
+					{field("y", "Move down", "Up: a minus number")}
+				</div>
+				<button
+					type="button"
+					class={cn(adminButton.secondary, "self-start")}
+					disabled={props.busy}
+					onClick={props.onTest}
+				>
+					<PrinterIcon />
+					Print the centring test
+				</button>
+				<p class="text-xs text-petal-900/55">
+					Saved for this computer’s printer, for this card style’s paper
+					direction.
+				</p>
+			</div>
+		</details>
 	);
 }
 
