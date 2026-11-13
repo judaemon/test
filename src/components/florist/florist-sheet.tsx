@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
+import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { orderFlowers } from "~/lib/flower-tally";
 import { compareFlowers, sortedRecipe } from "~/lib/flowers";
 import { photoSrc } from "~/lib/photos";
@@ -229,13 +230,33 @@ export function FloristSheet(props: {
 			list.includes(name) ? list.filter((t) => t !== name) : [...list, name],
 		);
 	const typeLabel = (name: string) => name || "Other";
+	/** The delivery days picked; none picked shows every day. "" is no date. */
+	const [dates, setDates] = createSignal<string[]>([]);
+	const dateOptions = createMemo(() => {
+		const counts = new Map<string, number>();
+		for (const b of props.work.bouquets) {
+			const date = b.deliveryDate ?? "";
+			counts.set(date, (counts.get(date) ?? 0) + 1);
+		}
+		// Earliest first; bouquets with no date last.
+		return [...counts.entries()]
+			.sort(([a], [b]) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
+			.map(([date, count]) => ({ date, count }));
+	});
+	const toggleDate = (date: string) =>
+		setDates((list) =>
+			list.includes(date) ? list.filter((d) => d !== date) : [...list, date],
+		);
+	const dateLabel = (date: string) =>
+		date ? shortDeliveryDate(date) : "No date";
 
 	/** The bouquets for the picked companies and types: on screen and on paper alike. */
 	const shown = createMemo(() =>
 		props.work.bouquets.filter(
 			(b) =>
 				(!companies().length || companies().includes(b.customer.company)) &&
-				(!types().length || types().includes(b.typeName)),
+				(!types().length || types().includes(b.typeName)) &&
+				(!dates().length || dates().includes(b.deliveryDate ?? "")),
 		),
 	);
 
@@ -352,6 +373,7 @@ export function FloristSheet(props: {
 			FILE_LAYOUT[layout()],
 			companies().length > 0 && companies().map(companyLabel).join(", "),
 			types().length > 0 && types().map(typeLabel).join(", "),
+			dates().length > 0 && dates().map(dateLabel).join(", "),
 			sortBy() === "arrangement" && "By arrangement",
 			sortBy() === "style" && "By style",
 			sortBy() === "company" && "By company",
@@ -467,6 +489,35 @@ export function FloristSheet(props: {
 										class={pill(types().includes(option.name))}
 									>
 										{typeLabel(option.name)}
+										<span class="tabular-nums opacity-75">
+											{" "}
+											({option.count})
+										</span>
+									</button>
+								)}
+							</For>
+						</div>
+					</Show>
+					<Show when={dateOptions().length > 1}>
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="mr-1 text-sm font-medium">Delivery</span>
+							<button
+								type="button"
+								aria-pressed={!dates().length}
+								onClick={() => setDates([])}
+								class={pill(!dates().length)}
+							>
+								All
+							</button>
+							<For each={dateOptions()}>
+								{(option) => (
+									<button
+										type="button"
+										aria-pressed={dates().includes(option.date)}
+										onClick={() => toggleDate(option.date)}
+										class={pill(dates().includes(option.date))}
+									>
+										{dateLabel(option.date)}
 										<span class="tabular-nums opacity-75">
 											{" "}
 											({option.count})
@@ -627,6 +678,10 @@ export function FloristSheet(props: {
 							</Show>
 							<Show when={companies().length}>
 								{companies().map(companyLabel).join(", ")} only
+								<br />
+							</Show>
+							<Show when={dates().length}>
+								For {dates().map(dateLabel).join(", ")}
 								<br />
 							</Show>
 							{toMake()} {toMake() === 1 ? "bouquet" : "bouquets"} ·{" "}
