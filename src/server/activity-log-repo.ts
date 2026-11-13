@@ -14,6 +14,7 @@ import {
 	type OrderLogAction,
 	type OrderLogField,
 } from "~/lib/order-log";
+import { addDays, shopDayStartIso } from "~/lib/time";
 import { getDb, nowIso } from "./db";
 
 /**
@@ -126,6 +127,16 @@ export interface LogQuery {
 	itemId?: string;
 	/** Only this person's changes, by the name shown. */
 	actor?: string;
+	/** Only changes made by staff, customers or the system. */
+	actorType?: OrderActor["type"];
+	/**
+	 * An order number ("80" or "#80") finds that order's changes; other text
+	 * finds it in names, notes and the before and after values.
+	 */
+	search?: string;
+	/** First and last day to include, `YYYY-MM-DD`, Manila time. */
+	from?: string;
+	to?: string;
 	page?: number;
 	pageSize?: number;
 }
@@ -152,6 +163,30 @@ export function listLogs(query: LogQuery = {}) {
 		filter.push("actor_name = $actor");
 		filterParams.actor = query.actor;
 	}
+	if (query.actorType) {
+		filter.push("actor_type = $actorType");
+		filterParams.actorType = query.actorType;
+	}
+	const search = query.search?.trim();
+	const orderNumber = search?.match(/^#?\s*(\d+)$/)?.[1];
+	if (orderNumber) {
+		filter.push("item_name = $number");
+		filterParams.number = orderNumber;
+	} else if (search) {
+		filter.push(
+			`(item_name LIKE $like ESCAPE '\\' OR about LIKE $like ESCAPE '\\'
+			  OR from_value LIKE $like ESCAPE '\\' OR to_value LIKE $like ESCAPE '\\')`,
+		);
+		filterParams.like = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+	}
+	if (query.from) {
+		filter.push("at >= $fromAt");
+		filterParams.fromAt = shopDayStartIso(query.from);
+	}
+	if (query.to) {
+		filter.push("at < $toAt");
+		filterParams.toAt = shopDayStartIso(addDays(query.to, 1));
+	}
 	const db = getDb();
 	const { n: total } = db
 		.query(`SELECT COUNT(*) AS n FROM (${BOTH}) ${where(filter)}`)
@@ -166,14 +201,14 @@ export function listLogs(query: LogQuery = {}) {
 			limit: pageSize,
 			offset: (page - 1) * pageSize,
 		}) as Row[];
-	const people = (
-		db
-			.query(
-				`SELECT DISTINCT actor_name AS name FROM (${BOTH}) ${where(scope)}
-				 ORDER BY actor_name`,
-			)
-			.all(params) as { name: string }[]
-	).map((row) => row.name);
+	/** Who appears, with whether they're staff, a customer or the system. */
+	const people = db
+		.query(
+			`SELECT DISTINCT actor_name AS name, actor_type AS type
+			 FROM (${BOTH}) ${where(scope)}
+			 ORDER BY actor_name COLLATE NOCASE`,
+		)
+		.all(params) as { name: string; type: OrderActor["type"] }[];
 	return {
 		entries: rows.map(toEntry),
 		total,

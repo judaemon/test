@@ -26,6 +26,11 @@ export function shopNow(now = new Date()): ShopClock {
 	};
 }
 
+/** When a shop-local day starts, as a UTC ISO time. Manila has no DST. */
+export function shopDayStartIso(isoDate: string) {
+	return new Date(`${isoDate}T00:00:00+08:00`).toISOString();
+}
+
 export function addDays(isoDate: string, days: number) {
 	const time = Date.parse(`${isoDate}T00:00:00Z`) + days * 24 * 60 * 60 * 1000;
 	return new Date(time).toISOString().slice(0, 10);
