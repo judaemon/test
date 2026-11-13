@@ -1,3 +1,4 @@
+import * as Dialog from "@kobalte/core/dialog";
 import {
 	createFileRoute,
 	Link,
@@ -6,7 +7,7 @@ import {
 	useLocation,
 	useNavigate,
 } from "@tanstack/solid-router";
-import { createEffect, For, on, Show } from "solid-js";
+import { createEffect, createSignal, For, on, Show } from "solid-js";
 
 import { AdminIcons } from "~/components/admin/ui";
 import { FlowerMark, Wordmark } from "~/components/site/brand";
@@ -76,6 +77,56 @@ const NAV = [
 const navLink =
 	"flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-petal-900/75 lg:py-2 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
 
+const iconButton =
+	"flex size-11 shrink-0 items-center justify-center rounded-full text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
+
+function MenuIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			class={props.class}
+		>
+			<path d="M4 7h16M4 12h16M4 17h16" />
+		</svg>
+	);
+}
+
+function CloseIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			class={props.class}
+		>
+			<path d="M6 6l12 12M18 6 6 18" />
+		</svg>
+	);
+}
+
+function Brand() {
+	return (
+		<Link
+			to="/admin"
+			class="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+		>
+			<FlowerMark class="size-7" />
+			<Wordmark class="text-lg" />
+			<span class="rounded-full bg-petal-100 px-2 py-0.5 text-[11px] font-medium text-petal-700">
+				Admin
+			</span>
+		</Link>
+	);
+}
+
 function AdminLayout() {
 	const context = Route.useRouteContext();
 	const navigate = useNavigate();
@@ -83,86 +134,129 @@ function AdminLayout() {
 	const items = () =>
 		NAV.filter((item) => !("owner" in item) || user().role === "owner");
 
-	// On phones the tabs scroll sideways; keep the current page's tab in view.
 	const location = useLocation();
-	let nav: HTMLElement | undefined;
+	const current = () =>
+		items().find((item) => location().pathname.startsWith(item.to))?.label;
+
+	// Below lg (phones, iPad upright) the nav lives in a drawer.
+	const [menuOpen, setMenuOpen] = createSignal(false);
 	createEffect(
 		on(
 			() => location().pathname,
-			() =>
-				requestAnimationFrame(() =>
-					nav
-						?.querySelector('[data-status="active"]')
-						?.scrollIntoView({ block: "nearest", inline: "center" }),
-				),
+			() => setMenuOpen(false),
 		),
 	);
+
+	// Swipe the drawer back toward the edge to put it away.
+	let swipeX: number | undefined;
+	const swipeStart = (event: PointerEvent) => {
+		swipeX = event.pointerType === "mouse" ? undefined : event.clientX;
+	};
+	const swipeEnd = (event: PointerEvent) => {
+		if (swipeX !== undefined && swipeX - event.clientX > 60) setMenuOpen(false);
+		swipeX = undefined;
+	};
 
 	const signOut = async () => {
 		await authClient.signOut();
 		await navigate({ to: "/admin/login" });
 	};
 
+	const NavList = () => (
+		<nav aria-label="Admin" class="flex flex-col gap-1">
+			<For each={items()}>
+				{(item) => (
+					<Link
+						to={item.to}
+						activeOptions={{ exact: "exact" in item }}
+						activeProps={{
+							class: "bg-petal-100 font-medium text-petal-900",
+						}}
+						class={navLink}
+					>
+						<item.icon class="size-5" />
+						{item.label}
+					</Link>
+				)}
+			</For>
+		</nav>
+	);
+
+	const Account = () => (
+		<div class="flex flex-col gap-1 border-t border-petal-100 pt-4">
+			<a href="/" target="_blank" rel="noreferrer" class={navLink}>
+				<AdminIcons.shop class="size-5" />
+				View shop
+			</a>
+			<div class="px-3 py-2">
+				<p class="truncate text-sm font-medium">{user().name}</p>
+				<p class="truncate text-xs text-petal-900/55">
+					{user().email} · {user().role === "owner" ? "Owner" : "Staff"}
+				</p>
+			</div>
+			<button type="button" onClick={signOut} class={navLink}>
+				<AdminIcons.logout class="size-5" />
+				Sign out
+			</button>
+		</div>
+	);
+
 	return (
 		<div class="min-h-screen bg-cream text-petal-900 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] print:block print:bg-white">
-			<aside class="sticky top-0 z-20 border-b border-petal-100 bg-white/90 backdrop-blur lg:h-screen lg:border-b-0 lg:border-r print:hidden">
-				<div class="flex h-full flex-col gap-1 px-3 py-3 lg:py-5">
-					<div class="flex items-center justify-between gap-2 px-2 lg:mb-5">
-						<Link
-							to="/admin"
-							class="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-						>
-							<FlowerMark class="size-7" />
-							<Wordmark class="text-lg" />
-							<span class="rounded-full bg-petal-100 px-2 py-0.5 text-[11px] font-medium text-petal-700">
-								Admin
-							</span>
-						</Link>
-						<button
-							type="button"
-							onClick={signOut}
-							class="rounded-full p-2.5 text-petal-900/60 hover:bg-petal-100 hover:text-petal-900 lg:hidden"
-							aria-label="Sign out"
-						>
-							<AdminIcons.logout class="size-5" />
-						</button>
-					</div>
-					<nav
-						ref={nav}
-						aria-label="Admin"
-						class="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:px-0"
+			{/* Phones and iPad upright: a bar with the menu button. */}
+			<header class="sticky top-0 z-20 flex items-center gap-1 border-b border-petal-100 bg-white/90 py-1.5 pr-3 pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:hidden print:hidden">
+				<button
+					type="button"
+					onClick={() => setMenuOpen(true)}
+					class={iconButton}
+					aria-label="Open menu"
+					aria-expanded={menuOpen()}
+				>
+					<MenuIcon class="size-6" />
+				</button>
+				<Brand />
+				<Show when={current()}>
+					{(label) => (
+						<span class="ml-auto truncate pl-3 text-sm font-medium text-petal-900/70">
+							{label()}
+						</span>
+					)}
+				</Show>
+			</header>
+
+			<Dialog.Root open={menuOpen()} onOpenChange={setMenuOpen}>
+				<Dialog.Portal>
+					<Dialog.Overlay class="admin-drawer-overlay fixed inset-0 z-50 bg-petal-900/40 lg:hidden" />
+					<Dialog.Content
+						class="admin-drawer fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] flex-col bg-white shadow-[8px_0_32px_-12px_rgb(0_0_0/0.25)] outline-none lg:hidden"
+						onPointerDown={swipeStart}
+						onPointerUp={swipeEnd}
+						onPointerCancel={() => (swipeX = undefined)}
 					>
-						<For each={items()}>
-							{(item) => (
-								<Link
-									to={item.to}
-									activeOptions={{ exact: "exact" in item }}
-									activeProps={{
-										class: "bg-petal-100 font-medium text-petal-900",
-									}}
-									class={navLink}
-								>
-									<item.icon class="size-5" />
-									{item.label}
-								</Link>
-							)}
-						</For>
-					</nav>
-					<div class="mt-auto hidden flex-col gap-1 border-t border-petal-100 pt-4 lg:flex">
-						<a href="/" target="_blank" rel="noreferrer" class={navLink}>
-							<AdminIcons.shop class="size-5" />
-							View shop
-						</a>
-						<div class="px-3 py-2">
-							<p class="truncate text-sm font-medium">{user().name}</p>
-							<p class="truncate text-xs text-petal-900/55">
-								{user().email} · {user().role === "owner" ? "Owner" : "Staff"}
-							</p>
+						<Dialog.Title class="sr-only">Admin menu</Dialog.Title>
+						<div class="flex items-center justify-between gap-2 border-b border-petal-100 py-2 pr-2 pl-[max(1.25rem,env(safe-area-inset-left))]">
+							<Brand />
+							<Dialog.CloseButton class={iconButton} aria-label="Close menu">
+								<CloseIcon class="size-6" />
+							</Dialog.CloseButton>
 						</div>
-						<button type="button" onClick={signOut} class={navLink}>
-							<AdminIcons.logout class="size-5" />
-							Sign out
-						</button>
+						<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+							<NavList />
+							<Account />
+						</div>
+					</Dialog.Content>
+				</Dialog.Portal>
+			</Dialog.Root>
+
+			{/* iPad sideways and desktop: the sidebar, scrolling on short screens. */}
+			<aside class="sticky top-0 hidden h-dvh flex-col border-r border-petal-100 bg-white/90 backdrop-blur lg:flex print:hidden">
+				<div class="px-5 pt-5 pb-4">
+					<Brand />
+				</div>
+				<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-3 pb-4">
+					<NavList />
+					<div class="mt-auto">
+						<Account />
 					</div>
 				</div>
 			</aside>

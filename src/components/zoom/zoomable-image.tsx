@@ -9,6 +9,8 @@ const ZOOM = 2.5;
 /**
  * Full-screen photo viewer. Click or tap the photo to zoom in where you
  * point; move the pointer (or drag) to look around; click again to zoom out.
+ * Tap the dark backdrop, swipe the photo down, press Escape or use the close
+ * button to put it away.
  */
 export function Lightbox(props: {
 	open: boolean;
@@ -19,6 +21,7 @@ export function Lightbox(props: {
 }) {
 	const [zoomed, setZoomed] = createSignal(false);
 	const [origin, setOrigin] = createSignal("50% 50%");
+	const [drag, setDrag] = createSignal(0);
 
 	const aim = (event: PointerEvent | MouseEvent) => {
 		const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -29,36 +32,95 @@ export function Lightbox(props: {
 		);
 	};
 
+	const close = () => {
+		setZoomed(false);
+		setDrag(0);
+		props.onOpenChange(false);
+	};
+
+	// Swipe down on the (unzoomed) photo to dismiss it, as on a phone.
+	let startY: number | undefined;
+	let swiped = false;
+	const onDown = (event: PointerEvent) => {
+		swiped = false;
+		startY =
+			event.pointerType !== "mouse" && !zoomed() ? event.clientY : undefined;
+	};
+	const onMove = (event: PointerEvent) => {
+		if (zoomed()) return aim(event);
+		if (startY === undefined) return;
+		const dy = Math.max(0, event.clientY - startY);
+		if (dy > 8) swiped = true;
+		setDrag(dy);
+	};
+	const onUp = () => {
+		if (startY !== undefined && drag() > 90) close();
+		else setDrag(0);
+		startY = undefined;
+	};
+
 	return (
 		<Dialog.Root
 			open={props.open}
 			onOpenChange={(open) => {
-				if (!open) setZoomed(false);
+				if (!open) {
+					setZoomed(false);
+					setDrag(0);
+				}
 				props.onOpenChange(open);
 			}}
 		>
 			<Dialog.Portal>
-				<Dialog.Overlay class="fixed inset-0 z-[60] bg-black/85" />
-				<Dialog.Content class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 p-4 outline-none">
+				<Dialog.Overlay
+					class="fixed inset-0 z-[60] bg-black/85 transition-opacity"
+					style={{ opacity: drag() ? Math.max(0.35, 1 - drag() / 400) : 1 }}
+				/>
+				<Dialog.Content
+					class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 p-4 outline-none"
+					// The dark space around the photo is the backdrop: tap it to close.
+					onClick={(event: MouseEvent) => {
+						if (event.target === event.currentTarget) close();
+					}}
+				>
 					<Dialog.Title class="sr-only">{props.alt}</Dialog.Title>
 					<Dialog.CloseButton
-						class="absolute right-4 top-4 z-10 flex size-10 items-center justify-center rounded-full bg-white/90 text-xl text-black shadow outline-none focus-visible:ring-2 focus-visible:ring-white"
-						aria-label="Close"
+						class="absolute top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-10 flex size-12 items-center justify-center rounded-full bg-white/95 text-black shadow-[0_4px_16px_rgb(0_0_0/0.35)] outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+						aria-label="Close photo"
 					>
-						✕
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							class="size-6"
+						>
+							<path d="M6 6l12 12M18 6 6 18" />
+						</svg>
 					</Dialog.CloseButton>
 					<button
 						type="button"
 						aria-label={zoomed() ? "Zoom out" : "Zoom in"}
+						onPointerDown={onDown}
+						onPointerMove={onMove}
+						onPointerUp={onUp}
+						onPointerCancel={onUp}
 						onClick={(event) => {
+							if (swiped) return;
 							aim(event);
 							setZoomed((z) => !z);
 						}}
-						onPointerMove={(event) => zoomed() && aim(event)}
 						class={cn(
 							"max-h-[85vh] max-w-[92vw] touch-none overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-white",
 							zoomed() ? "cursor-zoom-out" : "cursor-zoom-in",
+							!drag() && "transition-transform duration-200",
 						)}
+						style={{
+							transform: drag()
+								? `translateY(${drag()}px) scale(${1 - Math.min(drag(), 300) / 1500})`
+								: "none",
+						}}
 					>
 						<img
 							src={props.src}
@@ -71,11 +133,18 @@ export function Lightbox(props: {
 							}}
 						/>
 					</button>
-					<p class="text-center text-sm text-white/80">
+					<p class="pointer-events-none text-center text-sm text-white/80">
 						{props.caption ? `${props.caption} · ` : ""}
-						{zoomed()
-							? "Move to look around · click to zoom out"
-							: "Click the photo to zoom in"}
+						<span class="pointer-coarse:hidden">
+							{zoomed()
+								? "Move to look around · click to zoom out"
+								: "Click the photo to zoom in · Esc to close"}
+						</span>
+						<span class="hidden pointer-coarse:inline">
+							{zoomed()
+								? "Drag to look around · tap to zoom out"
+								: "Tap to zoom · swipe down or tap outside to close"}
+						</span>
 					</p>
 				</Dialog.Content>
 			</Dialog.Portal>
