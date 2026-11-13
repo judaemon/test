@@ -48,10 +48,8 @@ import {
 	orderMessages,
 } from "~/lib/bouquet-messages";
 import { orderColor } from "~/lib/cadets";
-import { cashTotal, formatBills } from "~/lib/custom-bouquet";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { type FloristOption, floristName, floristOf } from "~/lib/florists";
-import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet } from "~/lib/order-edit";
 import {
 	FACETS,
@@ -847,9 +845,8 @@ function OrdersPage() {
 								<th class="px-3 py-3 font-medium">Payment</th>
 								<th class="px-3 py-3 font-medium">Method</th>
 								<th class="px-3 py-3 font-medium">Ref no.</th>
-								<th class="px-3 py-3 font-medium">Style</th>
+								<th class="px-3 py-3 font-medium">Bouquet</th>
 								<th class="px-3 py-3 font-medium">Photo</th>
-								<th class="px-3 py-3 font-medium">Flowers</th>
 								<th class="px-3 py-3 font-medium">Wrapper</th>
 								<th class="px-3 py-3 font-medium">Notes / Dedication</th>
 							</tr>
@@ -860,7 +857,7 @@ function OrdersPage() {
 								fallback={
 									<tr>
 										<td
-											colSpan={17}
+											colSpan={16}
 											data-wide
 											class="px-4 py-12 text-center text-petal-900/55"
 										>
@@ -1129,7 +1126,10 @@ function OrdersPage() {
 											>
 												{order.payment.referenceNumber ?? "—"}
 											</td>
-											<td data-label="Style" class="px-5 py-2 md:px-3 md:py-3">
+											<td
+												data-label="Bouquet"
+												class="px-5 py-2 md:px-3 md:py-3"
+											>
 												<span class="font-semibold">{line.sku}</span>
 												{/* Each bouquet has its own row; this says which. */}
 												<Show when={line.quantity > 1}>
@@ -1153,60 +1153,6 @@ function OrdersPage() {
 															class="size-14 rounded-lg border border-black/10 bg-white object-cover"
 														/>
 													)}
-												</Show>
-											</td>
-											<td
-												data-label="Flowers"
-												data-wide
-												class="px-5 py-2 md:px-3 md:py-3"
-											>
-												<Show when={line.custom?.referenceImages?.length}>
-													<span class="mb-1 flex gap-1">
-														<For each={line.custom?.referenceImages}>
-															{(url, index) => (
-																<ZoomableImage
-																	src={url}
-																	alt={`Reference photo ${index() + 1}`}
-																	caption={`#${order.number} · reference ${index() + 1}`}
-																	hoverPreview
-																	class="size-9 rounded-md border border-black/10 object-cover"
-																/>
-															)}
-														</For>
-													</span>
-												</Show>
-												<Show when={line.custom?.bills?.length}>
-													<p class="font-semibold tabular-nums">
-														{formatPrice(
-															cashTotal(line.custom?.bills),
-															order.currency,
-														)}{" "}
-														cash
-													</p>
-													<p class="mb-1 whitespace-nowrap text-xs tabular-nums text-petal-900/70">
-														{formatBills(line.custom?.bills)}
-													</p>
-												</Show>
-												<Show
-													when={line.recipe?.length}
-													fallback={line.custom?.bills?.length ? null : "—"}
-												>
-													<Show when={stemCount(line.recipe)}>
-														{(count) => (
-															<p class="font-semibold tabular-nums">
-																{count()} flowers
-															</p>
-														)}
-													</Show>
-													<ul class="text-xs text-petal-900/70">
-														<For each={line.recipe}>
-															{(item) => (
-																<li class="whitespace-nowrap tabular-nums">
-																	{formatRecipeItem(item)}
-																</li>
-															)}
-														</For>
-													</ul>
 												</Show>
 											</td>
 											<td
