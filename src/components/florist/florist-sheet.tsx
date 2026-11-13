@@ -12,7 +12,6 @@ import { cn } from "~/lib/utils";
 import type {
 	FloristBouquet,
 	FloristCard,
-	FloristPayment,
 	FloristWork,
 } from "~/server/florist-work";
 import type { RecipeItem } from "~/types/product";
@@ -119,14 +118,6 @@ const FULL_CARD_GRID: Record<Orientation, Record<1 | 2, string>> = {
 		1: "print:grid-cols-[150mm_minmax(0,1fr)]",
 		2: "print:grid-cols-1 print:grid-rows-[minmax(0,1fr)_auto]",
 	},
-};
-
-const PAYMENT: Record<FloristPayment, { label: string; paid: boolean }> = {
-	paid: { label: "Paid", paid: true },
-	deposit: { label: "Deposit paid", paid: true },
-	verifying: { label: "Checking payment", paid: false },
-	unpaid: { label: "Not paid", paid: false },
-	rejected: { label: "Payment rejected", paid: false },
 };
 
 const chunk = <T,>(list: T[], size: number) =>
@@ -282,10 +273,15 @@ export function FloristSheet(props: {
 		return list;
 	});
 
-	/** The checklist: always by company, then class, under each company's name. */
+	/** The checklist: by company, then order number, under each company's name. */
+	const byCompanyThenNumber = (a: FloristBouquet, b: FloristBouquet) =>
+		companyRank(a.customer.company) - companyRank(b.customer.company) ||
+		a.customer.company.localeCompare(b.customer.company) ||
+		a.orderNumber.localeCompare(b.orderNumber, undefined, { numeric: true }) ||
+		a.orderPiece - b.orderPiece;
 	const checklist = createMemo(() => {
 		const byName = new Map<string, FloristBouquet[]>();
-		for (const b of [...shown()].sort(byCompany)) {
+		for (const b of [...shown()].sort(byCompanyThenNumber)) {
 			const list = byName.get(b.customer.company);
 			if (list) list.push(b);
 			else byName.set(b.customer.company, [b]);
@@ -809,10 +805,28 @@ export function FloristSheet(props: {
 													{(bouquet) => (
 														<li class="flex items-start gap-2.5 border-t border-petal-50 px-3 py-1.5 first:border-t-0 print:break-inside-avoid print:border-black/20 print:px-2 print:py-1">
 															<span class="mt-0.5 inline-block size-4 shrink-0 rounded-sm border-2 border-petal-900/40 print:border-black" />
+															{/* Small, and never cropped, so the bouquet is easy to spot by its colors. */}
+															<span class="flex size-12 shrink-0 items-center justify-center print:size-[12mm]">
+																<Show when={bouquetPhotos(bouquet)[0]}>
+																	{(src) => (
+																		<img
+																			src={photoSrc(src(), "thumb")}
+																			alt={`${bouquet.title} · ${bouquet.colorName}`}
+																			class="max-h-full max-w-full rounded object-contain"
+																		/>
+																	)}
+																</Show>
+															</span>
 															<span class="min-w-0 flex-1 leading-tight">
 																<span class="font-semibold tabular-nums">
 																	#{bouquet.orderNumber}
 																</span>{" "}
+																<Show when={bouquet.orderPieces > 1}>
+																	<span class="text-xs font-medium text-petal-900/60 print:text-[7.5pt] print:text-black/70">
+																		({bouquet.orderPiece} of{" "}
+																		{bouquet.orderPieces} in this order){" "}
+																	</span>
+																</Show>
 																{bouquet.title}
 																<span class="text-petal-900/60">
 																	{" "}
@@ -1056,11 +1070,6 @@ function BouquetCard(props: {
 					<Show when={b().stage === "done"}>
 						<span class="rounded-full bg-success px-2 py-0.5 text-xs font-medium text-success-foreground">
 							Done
-						</span>
-					</Show>
-					<Show when={b().waitingForPayment && b().stage !== "done"}>
-						<span class="rounded-full bg-warning px-2 py-0.5 text-xs font-medium text-warning-foreground">
-							Waiting for payment
 						</span>
 					</Show>
 					<Show when={b().isTest}>
@@ -1443,7 +1452,6 @@ function GroupCard(props: {
 			<ol class="grid gap-x-4 border-t border-petal-100 px-4 py-2 text-sm sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 print:gap-x-[4mm] print:border-black/30 print:px-[3mm] print:py-[2mm] print:text-[8.5pt]">
 				<For each={props.bouquets}>
 					{(b) => {
-						const payment = () => PAYMENT[b.payment];
 						const card = () => b.card ?? b.orderCard;
 						return (
 							<li class="flex items-start gap-2 border-b border-petal-50 py-1.5 print:break-inside-avoid print:border-black/15 print:py-[1mm]">
@@ -1481,15 +1489,6 @@ function GroupCard(props: {
 										{[b.customer.company, b.customer.className]
 											.filter(Boolean)
 											.join(" · ")}
-										<span
-											class={cn(
-												"ml-1.5 whitespace-nowrap font-semibold",
-												!payment().paid &&
-													"rounded-sm bg-warning px-1 text-warning-foreground print:bg-black print:text-white",
-											)}
-										>
-											{payment().label}
-										</span>
 										<Show when={b.stage === "done"}> · Done</Show>
 										<Show when={b.isTest}> · Test</Show>
 									</span>
@@ -1516,7 +1515,7 @@ function GroupCard(props: {
 }
 
 /**
- * The shorter card, 4 or 6 to a page: order number, payment, the photo and
+ * The shorter card, 4 or 6 to a page: order number, the photo and
  * who it's for, and (if asked) the flowers and wrapper.
  */
 function ShortBouquetCard(props: {
@@ -1529,7 +1528,6 @@ function ShortBouquetCard(props: {
 }) {
 	const b = () => props.bouquet;
 	const small = () => props.perPage >= 6;
-	const payment = () => PAYMENT[b().payment];
 	const label = (text: string) => (
 		<span class="text-petal-900/60 print:text-black/60">{text} </span>
 	);
@@ -1582,17 +1580,6 @@ function ShortBouquetCard(props: {
 						</span>
 					</Show>
 				</p>
-				{/* Border and words, not just colour, so it reads on a black-and-white printer. */}
-				<span
-					class={cn(
-						"shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold print:text-[8pt]",
-						payment().paid
-							? "border-success bg-success text-success-foreground print:border-black print:bg-transparent print:text-black"
-							: "border-warning bg-warning text-warning-foreground print:border-2 print:border-black print:bg-black print:text-white",
-					)}
-				>
-					{payment().label}
-				</span>
 			</header>
 
 			<div

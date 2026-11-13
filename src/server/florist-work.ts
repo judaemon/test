@@ -55,6 +55,9 @@ export interface FloristBouquet {
 	isTest: boolean;
 	/** `YYYY-MM-DD`, when the customer chose one. */
 	deliveryDate?: string;
+	/** Which piece of its order this is, and how many the order has (every florist's). */
+	orderPiece: number;
+	orderPieces: number;
 	customer: {
 		name: string;
 		company: string;
@@ -142,7 +145,11 @@ export function floristWork(
 	for (const order of orders) {
 		if (order.stage === "cancelled") continue;
 		const d = order.details;
+		const orderPieces = order.lines.reduce((n, line) => n + line.quantity, 0);
+		let piecesBefore = 0;
 		order.lines.forEach((line, index) => {
+			const lineStart = piecesBefore;
+			piecesBefore += line.quantity;
 			for (let unit = 0; unit < line.quantity; unit++) {
 				if (floristOf(line, unit) !== florist.id) continue;
 				if (order.stage === "done") {
@@ -169,6 +176,8 @@ export function floristWork(
 					payment: floristPayment(order.payment),
 					isTest: order.isTest,
 					...(d.deliveryDate ? { deliveryDate: d.deliveryDate } : {}),
+					orderPiece: lineStart + unit + 1,
+					orderPieces,
 					customer: {
 						name: d.lastName ? `${d.lastName}, ${d.firstName}` : d.fullName,
 						company: d.company,
