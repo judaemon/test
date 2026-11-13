@@ -91,12 +91,17 @@ export function Sheet(props: {
 	return (
 		<div
 			class={cn(
-				"card-sheet relative box-border grid grid-cols-2 grid-rows-2 overflow-hidden bg-white text-[#1f1216]",
+				"card-sheet relative box-border grid grid-cols-2 overflow-hidden bg-white text-[#1f1216]",
 				props.class,
 			)}
 			style={{
 				width: `${SHEET.width}mm`,
 				height: `${SHEET.height}mm`,
+				// Each row is exactly half the A4 paper, centred on the 1 mm short
+				// sheet, so every card is a true quarter of the paper with the same
+				// space from its outer edge as from the middle cut.
+				"grid-template-rows": "repeat(2, 148.5mm)",
+				"align-content": "center",
 				transform: props.upsideDown ? "rotate(180deg)" : undefined,
 				"print-color-adjust": "exact",
 				"-webkit-print-color-adjust": "exact",
@@ -297,6 +302,31 @@ export function HelloQr(props: { size: number; class?: string }) {
 	);
 }
 
+/**
+ * A little bouquet, two blooms in a cone with a sparkle, the same as the
+ * Custom bouquets icon in Admin: the mark in the middle of a card's own code,
+ * so it reads as "your bouquet", apart from the flower on ORAIA's code.
+ */
+function BouquetMark(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2.2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={props.class}
+		>
+			<path d="M7 10 12 21l5-11" />
+			<circle cx="9" cy="7" r="3" />
+			<circle cx="15" cy="7" r="3" />
+			<path d="M19 3v4M17 5h4" />
+		</svg>
+	);
+}
+
 /** A QR code drawn as it renders, sized in millimetres, with a mark in the middle. */
 function Qr(props: {
 	value: string;
@@ -372,43 +402,68 @@ export function SurpriseQr(props: { link: string; size: number; pt: number }) {
 				value={absoluteUrl(bouquetPath(props.link))}
 				size={props.size}
 				label="QR code to this bouquet and its message"
-				mark={<Sparkle class="size-[70%] text-petal-700" />}
+				mark={<BouquetMark class="size-[82%] text-petal-700" />}
 			/>
 		</CaptionedQr>
 	);
 }
 
+/** A card's own code, to its private bouquet page, with a sparkle in its middle. */
+export function BouquetQr(props: { link: string; size: number }) {
+	return (
+		<Qr
+			value={absoluteUrl(bouquetPath(props.link))}
+			size={props.size}
+			label="QR code to this bouquet and its message"
+			mark={<BouquetMark class="size-[82%] text-petal-700" />}
+		/>
+	);
+}
+
 /**
- * The card's own code, small, with its caption centered under it in grey:
- * a quiet postscript that stays out of the message's way.
+ * Why to scan a card's own code, in grey, said plainly: it keeps the bouquet
+ * and this note to look back on. Nothing grander, so no one expects more.
  */
+export function ScanLure(props: { centered?: boolean }) {
+	return (
+		<span
+			class={cn(
+				"flex flex-col",
+				props.centered ? "items-center text-center" : "items-start text-left",
+			)}
+		>
+			<span
+				class="font-sans font-semibold uppercase text-[#6b5e63]"
+				style={{
+					"font-size": "4.4pt",
+					"letter-spacing": "0.22em",
+					"margin-right": props.centered ? "-0.22em" : undefined,
+				}}
+			>
+				Scan to keep
+			</span>
+			<span
+				class="font-display italic text-[#6b5e63] [text-wrap:balance]"
+				style={{
+					"font-size": "6.2pt",
+					"line-height": "1.3",
+					"margin-top": "0.6mm",
+					"max-width": "27mm",
+				}}
+			>
+				your bouquet and this note, to look back on ♡
+			</span>
+		</span>
+	);
+}
+
+/** The card's own code with its invitation centered under it. */
 export function SurpriseQrRow(props: { link: string; size: number }) {
 	return (
-		<span class="inline-flex flex-col items-center text-center">
-			<Qr
-				value={absoluteUrl(bouquetPath(props.link))}
-				size={props.size}
-				label="QR code to this bouquet and its message"
-				mark={<Sparkle class="size-[70%] text-petal-700" />}
-			/>
-			<span class="flex flex-col items-center whitespace-nowrap">
-				<span
-					class="font-sans font-semibold uppercase text-[#6b5e63]"
-					style={{
-						"font-size": "4.4pt",
-						"letter-spacing": "0.22em",
-						"margin-right": "-0.22em",
-						"margin-top": "1.6mm",
-					}}
-				>
-					Scan me
-				</span>
-				<span
-					class="font-display italic text-[#6b5e63]"
-					style={{ "font-size": "6pt", "margin-top": "0.4mm" }}
-				>
-					a little surprise ♡
-				</span>
+		<span class="inline-flex flex-col items-center">
+			<BouquetQr link={props.link} size={props.size} />
+			<span style={{ "margin-top": "1.6mm" }}>
+				<ScanLure centered />
 			</span>
 		</span>
 	);

@@ -7,8 +7,10 @@ import { CARDS_PER_SHEET, centerMessage } from "~/lib/print-cards";
 import { SITE_URL } from "~/lib/site";
 import { cn } from "~/lib/utils";
 import {
+	BouquetQr,
 	type CardFit,
 	HelloQr,
+	ScanLure,
 	SheetLabel,
 	SurpriseQrRow,
 	shrinkToFit,
@@ -75,10 +77,15 @@ export function FoldedSheet(props: {
 }) {
 	return (
 		<div
-			class="card-sheet relative box-border grid grid-cols-2 grid-rows-2 overflow-hidden bg-white text-[#1f1216]"
+			class="card-sheet relative box-border grid grid-cols-2 overflow-hidden bg-white text-[#1f1216]"
 			style={{
 				width: `${FOLD_SHEET.width}mm`,
 				height: `${FOLD_SHEET.height}mm`,
+				// Each row is exactly half the A4 paper, centred on the 1 mm short
+				// sheet, so every card is a true quarter of the paper with the same
+				// space from its outer edge as from the middle cut.
+				"grid-template-rows": "repeat(2, 105mm)",
+				"align-content": "center",
 				transform: props.upsideDown ? "rotate(180deg)" : undefined,
 				"print-color-adjust": "exact",
 				"-webkit-print-color-adjust": "exact",
@@ -305,7 +312,7 @@ export function FoldedOutside() {
 }
 
 /** The "To" name, small capitals over the name in the display serif. */
-function ToLine(props: { to: string; centered?: boolean }) {
+function ToLine(props: { to: string; centered?: boolean; rule?: boolean }) {
 	return (
 		<div
 			class={cn(
@@ -329,16 +336,20 @@ function ToLine(props: { to: string; centered?: boolean }) {
 			>
 				{props.to}
 			</p>
-			<span
-				class="block bg-petal-500"
-				style={{ width: "8mm", height: "0.35mm", "margin-top": "2.5mm" }}
-			/>
+			<Show when={props.rule !== false}>
+				<span
+					class="block bg-petal-500"
+					style={{ width: "8mm", height: "0.35mm", "margin-top": "2.5mm" }}
+				/>
+			</Show>
 		</div>
 	);
 }
 
 /** How big the card's own QR code prints inside, in millimetres. */
-const INSIDE_QR_MM = 11;
+const INSIDE_QR_MM = 17;
+/** Smaller after a long message, where room is short. */
+const SPREAD_QR_MM = 12;
 
 /**
  * The inside of a card, laid flat. Usually who it's to on the left page and
@@ -373,26 +384,52 @@ export function FoldedInside(props: {
 		>
 			{/* To on the left page, message on the right. */}
 			<div class="grid size-full grid-cols-2 group-data-[mode=spread]:hidden">
-				<Page class="px-[8mm] py-[12mm]">
+				<Page class="px-[6mm] py-[12mm]">
 					<Show
-						when={props.to}
-						fallback={<FlowerMark print class="block size-[9mm] opacity-80" />}
+						when={props.qr}
+						fallback={
+							<Show
+								when={props.to}
+								fallback={
+									<FlowerMark print class="block size-[9mm] opacity-80" />
+								}
+							>
+								<Sparkle
+									class="text-petal-700"
+									style={{
+										width: "2.6mm",
+										height: "2.6mm",
+										"margin-bottom": "4mm",
+									}}
+								/>
+								<ToLine to={props.to} centered />
+							</Show>
+						}
 					>
-						<Sparkle
-							class="text-petal-700"
-							style={{
-								width: "2.6mm",
-								height: "2.6mm",
-								"margin-bottom": "4mm",
-							}}
-						/>
-						<ToLine to={props.to} centered />
-					</Show>
-					<Show when={props.qr}>
 						{(link) => (
-							<span class="absolute inset-x-0 bottom-[11mm] flex justify-center">
-								<SurpriseQrRow link={link()} size={INSIDE_QR_MM} />
-							</span>
+							// Who it's to across the top; under it the code, and beside it the
+							// pink rule level with the code's top edge, its words under that.
+							// One left edge for both, the block centered on the page.
+							<div class="flex max-w-full flex-col items-start text-left">
+								<Show when={props.to}>
+									<div style={{ "margin-bottom": "3.5mm" }}>
+										<ToLine to={props.to} rule={false} />
+									</div>
+								</Show>
+								<div class="flex items-start gap-[3mm]">
+									<BouquetQr link={link()} size={INSIDE_QR_MM} />
+									<div class="flex flex-col items-start">
+										<span
+											aria-hidden="true"
+											class="block bg-petal-500"
+											style={{ width: "8mm", height: "0.35mm" }}
+										/>
+										<span style={{ "margin-top": "2.6mm" }}>
+											<ScanLure />
+										</span>
+									</div>
+								</div>
+							</div>
 						)}
 					</Show>
 				</Page>
@@ -445,7 +482,7 @@ export function FoldedInside(props: {
 									class="block"
 									style={{ "margin-top": "4mm", "break-inside": "avoid" }}
 								>
-									<SurpriseQrRow link={link()} size={INSIDE_QR_MM} />
+									<SurpriseQrRow link={link()} size={SPREAD_QR_MM} />
 								</span>
 							)}
 						</Show>
