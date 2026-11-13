@@ -197,7 +197,7 @@ function Deliveries() {
 		name: (a, b) => a.order.name.localeCompare(b.order.name),
 	};
 
-	/** By company, then (with all dates shown) by delivery day: "Alpha · Nov 14". */
+	/** By delivery day (earliest first, no date last), then company: "Nov 14 · Alpha". */
 	const groups = createMemo(() => {
 		const keys = [...sortBy(), "order", "bouquet"] as SortKey[];
 		const rows: Row[] = shown().flatMap((order) =>
@@ -238,9 +238,9 @@ function Deliveries() {
 		}
 		return [...byGroup.values()].sort(
 			(a, b) =>
+				dateRank(a.date, b.date) ||
 				companyRank(a.company) - companyRank(b.company) ||
-				a.company.localeCompare(b.company) ||
-				dateRank(a.date, b.date),
+				a.company.localeCompare(b.company),
 		);
 	});
 
