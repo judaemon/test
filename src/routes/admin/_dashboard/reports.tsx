@@ -17,6 +17,7 @@ const TABS = [
 	{ to: "/admin/reports/orders", label: "Orders" },
 	{ to: "/admin/reports/battalions", label: "Battalions" },
 	{ to: "/admin/reports/deliveries", label: "Deliveries" },
+	{ to: "/admin/reports/cards", label: "Cards" },
 	{ to: "/admin/reports/cash", label: "Cash payments" },
 	{ to: "/admin/reports/flowers", label: "Flowers to buy" },
 	{ to: "/admin/reports/bouquets", label: "Bouquets" },

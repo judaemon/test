@@ -65,6 +65,7 @@ import { Route as AdminDashboardProductsProductIdRouteImport } from './routes/ad
 import { Route as AdminDashboardReportsIndexRouteImport } from './routes/admin/_dashboard/reports/index'
 import { Route as AdminDashboardReportsBattalionsRouteImport } from './routes/admin/_dashboard/reports/battalions'
 import { Route as AdminDashboardReportsBouquetsRouteImport } from './routes/admin/_dashboard/reports/bouquets'
+import { Route as AdminDashboardReportsCardsRouteImport } from './routes/admin/_dashboard/reports/cards'
 import { Route as AdminDashboardReportsCashRouteImport } from './routes/admin/_dashboard/reports/cash'
 import { Route as AdminDashboardReportsDeliveriesRouteImport } from './routes/admin/_dashboard/reports/deliveries'
 import { Route as AdminDashboardReportsFlowersRouteImport } from './routes/admin/_dashboard/reports/flowers'
@@ -381,6 +382,12 @@ const AdminDashboardReportsBouquetsRoute =
     path: '/bouquets',
     getParentRoute: () => AdminDashboardReportsRoute,
   } as any)
+const AdminDashboardReportsCardsRoute =
+  AdminDashboardReportsCardsRouteImport.update({
+    id: '/cards',
+    path: '/cards',
+    getParentRoute: () => AdminDashboardReportsRoute,
+  } as any)
 const AdminDashboardReportsCashRoute =
   AdminDashboardReportsCashRouteImport.update({
     id: '/cash',
@@ -558,6 +565,7 @@ export interface FileRoutesByFullPath {
   '/admin/products/$productId': typeof AdminDashboardProductsProductIdRoute
   '/admin/reports/battalions': typeof AdminDashboardReportsBattalionsRoute
   '/admin/reports/bouquets': typeof AdminDashboardReportsBouquetsRoute
+  '/admin/reports/cards': typeof AdminDashboardReportsCardsRoute
   '/admin/reports/cash': typeof AdminDashboardReportsCashRoute
   '/admin/reports/deliveries': typeof AdminDashboardReportsDeliveriesRoute
   '/admin/reports/flowers': typeof AdminDashboardReportsFlowersRoute
@@ -634,6 +642,7 @@ export interface FileRoutesByTo {
   '/admin/products/$productId': typeof AdminDashboardProductsProductIdRoute
   '/admin/reports/battalions': typeof AdminDashboardReportsBattalionsRoute
   '/admin/reports/bouquets': typeof AdminDashboardReportsBouquetsRoute
+  '/admin/reports/cards': typeof AdminDashboardReportsCardsRoute
   '/admin/reports/cash': typeof AdminDashboardReportsCashRoute
   '/admin/reports/deliveries': typeof AdminDashboardReportsDeliveriesRoute
   '/admin/reports/flowers': typeof AdminDashboardReportsFlowersRoute
@@ -714,6 +723,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/products/$productId': typeof AdminDashboardProductsProductIdRoute
   '/admin/_dashboard/reports/battalions': typeof AdminDashboardReportsBattalionsRoute
   '/admin/_dashboard/reports/bouquets': typeof AdminDashboardReportsBouquetsRoute
+  '/admin/_dashboard/reports/cards': typeof AdminDashboardReportsCardsRoute
   '/admin/_dashboard/reports/cash': typeof AdminDashboardReportsCashRoute
   '/admin/_dashboard/reports/deliveries': typeof AdminDashboardReportsDeliveriesRoute
   '/admin/_dashboard/reports/flowers': typeof AdminDashboardReportsFlowersRoute
@@ -795,6 +805,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId'
     | '/admin/reports/battalions'
     | '/admin/reports/bouquets'
+    | '/admin/reports/cards'
     | '/admin/reports/cash'
     | '/admin/reports/deliveries'
     | '/admin/reports/flowers'
@@ -871,6 +882,7 @@ export interface FileRouteTypes {
     | '/admin/products/$productId'
     | '/admin/reports/battalions'
     | '/admin/reports/bouquets'
+    | '/admin/reports/cards'
     | '/admin/reports/cash'
     | '/admin/reports/deliveries'
     | '/admin/reports/flowers'
@@ -950,6 +962,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/products/$productId'
     | '/admin/_dashboard/reports/battalions'
     | '/admin/_dashboard/reports/bouquets'
+    | '/admin/_dashboard/reports/cards'
     | '/admin/_dashboard/reports/cash'
     | '/admin/_dashboard/reports/deliveries'
     | '/admin/_dashboard/reports/flowers'
@@ -1406,6 +1419,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AdminDashboardReportsBouquetsRouteImport
       parentRoute: typeof AdminDashboardReportsRoute
     }
+    '/admin/_dashboard/reports/cards': {
+      id: '/admin/_dashboard/reports/cards'
+      path: '/cards'
+      fullPath: '/admin/reports/cards'
+      preLoaderRoute: typeof AdminDashboardReportsCardsRouteImport
+      parentRoute: typeof AdminDashboardReportsRoute
+    }
     '/admin/_dashboard/reports/cash': {
       id: '/admin/_dashboard/reports/cash'
       path: '/cash'
@@ -1576,6 +1596,7 @@ const AccountRouteWithChildren =
 interface AdminDashboardReportsRouteChildren {
   AdminDashboardReportsBattalionsRoute: typeof AdminDashboardReportsBattalionsRoute
   AdminDashboardReportsBouquetsRoute: typeof AdminDashboardReportsBouquetsRoute
+  AdminDashboardReportsCardsRoute: typeof AdminDashboardReportsCardsRoute
   AdminDashboardReportsCashRoute: typeof AdminDashboardReportsCashRoute
   AdminDashboardReportsDeliveriesRoute: typeof AdminDashboardReportsDeliveriesRoute
   AdminDashboardReportsFlowersRoute: typeof AdminDashboardReportsFlowersRoute
@@ -1587,6 +1608,7 @@ interface AdminDashboardReportsRouteChildren {
 const AdminDashboardReportsRouteChildren: AdminDashboardReportsRouteChildren = {
   AdminDashboardReportsBattalionsRoute: AdminDashboardReportsBattalionsRoute,
   AdminDashboardReportsBouquetsRoute: AdminDashboardReportsBouquetsRoute,
+  AdminDashboardReportsCardsRoute: AdminDashboardReportsCardsRoute,
   AdminDashboardReportsCashRoute: AdminDashboardReportsCashRoute,
   AdminDashboardReportsDeliveriesRoute: AdminDashboardReportsDeliveriesRoute,
   AdminDashboardReportsFlowersRoute: AdminDashboardReportsFlowersRoute,

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
+import { orderCards } from "~/lib/bouquet-messages";
 import {
 	CADET_CLASSES,
 	CIVILIAN,
@@ -8,6 +9,7 @@ import {
 import { type FloristOption, floristOf } from "~/lib/florists";
 import { type OrderFlower, orderFlowers } from "~/lib/flower-tally";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
+import { type CardPrintStatus, cardSlot, printStatus } from "~/lib/print-cards";
 import { savings } from "~/lib/sale";
 import {
 	isPaymentSettled,
@@ -19,6 +21,7 @@ import {
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
+import { listCardPrints } from "../card-prints-repo";
 import { getDeliveryDates } from "../delivery-dates-repo";
 import { listFloristOptions } from "../florists-repo";
 import {
@@ -80,6 +83,21 @@ export interface ReportLine {
 	florists: string[];
 }
 
+/** One dedication card on an order, and whether it went on paper as it reads now. */
+export interface ReportCard {
+	/** "order" for an order-wide card, else "line:unit", as on Admin → Cards. */
+	slot: string;
+	/** Index into the order's lines and which of its bouquets; unset order-wide. */
+	lineIndex?: number;
+	unit?: number;
+	to: string;
+	message: string;
+	/** "new": not printed yet; "changed": printed, then its words changed. */
+	printStatus: CardPrintStatus;
+	printedAt?: string;
+	printedBy?: string;
+}
+
 /** Just enough of an order to list it when a number is clicked. */
 export interface ReportOrder {
 	id: string;
@@ -108,6 +126,8 @@ export interface ReportOrder {
 	flowers: OrderFlower[];
 	/** Its bouquets with no recipe on record, so not in `flowers`. */
 	bouquetsWithoutRecipe: number;
+	/** Its dedication cards, bouquet by bouquet, with their print status. */
+	cards: ReportCard[];
 	cancelReason?: string;
 }
 
@@ -314,6 +334,12 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			}
 		}
 
+		const prints = new Map(
+			listCardPrints().map((print) => [
+				`${print.orderId}/${print.slot}`,
+				print,
+			]),
+		);
 		const orders: ReportOrder[] = all.map((order) => {
 			const needs = orderFlowers(order.lines);
 			return {
@@ -352,6 +378,22 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 				})),
 				flowers: needs.flowers,
 				bouquetsWithoutRecipe: needs.missing,
+				cards: orderCards(order).map((card) => {
+					const slot = cardSlot(card);
+					const print = prints.get(`${order.id}/${slot}`);
+					return {
+						slot,
+						...(card.lineIndex === undefined
+							? {}
+							: { lineIndex: card.lineIndex, unit: card.unit ?? 0 }),
+						to: card.to,
+						message: card.message,
+						printStatus: printStatus(card, print),
+						...(print
+							? { printedAt: print.printedAt, printedBy: print.printedBy }
+							: {}),
+					};
+				}),
 				cancelReason: order.cancelReason,
 			};
 		});
