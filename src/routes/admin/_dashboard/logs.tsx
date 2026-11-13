@@ -51,8 +51,12 @@ export const Route = createFileRoute("/admin/_dashboard/logs")({
 			who: text(search.who, 120),
 			by: isActorType(search.by) ? search.by : undefined,
 			q: text(search.q, 120),
-			from: isCalendarDate(String(search.from ?? "")) ? String(search.from) : undefined,
-			to: isCalendarDate(String(search.to ?? "")) ? String(search.to) : undefined,
+			from: isCalendarDate(String(search.from ?? ""))
+				? String(search.from)
+				: undefined,
+			to: isCalendarDate(String(search.to ?? ""))
+				? String(search.to)
+				: undefined,
 			page: Number.isInteger(page) && page > 1 ? page : undefined,
 			size: (PAGE_SIZES as readonly number[]).includes(size) ? size : undefined,
 		};
@@ -122,13 +126,13 @@ function LogsPage() {
 						searchFor(query(), 0);
 					}}
 				>
-					<label class="flex min-w-[min(100%,16rem)] flex-1 flex-col gap-1 text-sm">
+					<label class="flex min-w-[min(100%,12rem)] flex-1 flex-col gap-1 text-sm">
 						Find
 						<input
 							type="search"
 							value={query()}
 							onInput={(e) => searchFor(e.currentTarget.value)}
-							placeholder="Order number (e.g. 80), name or value"
+							placeholder="Order # (e.g. 80) or text"
 							class={cn(adminInput, "h-9 sm:h-9")}
 						/>
 					</label>
@@ -145,18 +149,22 @@ function LogsPage() {
 							}}
 							class={select}
 						>
-							<option value="">Everything</option>
+							<option value="" selected={!search().area}>
+								Everything
+							</option>
 							<For each={Object.entries(LOG_AREAS)}>
-								{([value, label]) => <option value={value}>{label}</option>}
+								{([value, label]) => (
+									<option value={value} selected={search().area === value}>
+										{label}
+									</option>
+								)}
 							</For>
 						</select>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
 						Who
 						<select
-							value={
-								search().who ?? (search().by ? `by:${search().by}` : "")
-							}
+							value={search().who ?? (search().by ? `by:${search().by}` : "")}
 							onChange={(e) => {
 								const value = e.currentTarget.value;
 								const by = value.startsWith("by:") ? value.slice(3) : "";
@@ -166,28 +174,42 @@ function LogsPage() {
 										: { who: value || undefined, by: undefined },
 								);
 							}}
-							class={select}
+							class={cn(select, "max-w-[14rem] sm:max-w-[16rem]")}
 						>
-							<option value="">Everyone</option>
+							<option value="" selected={!search().who && !search().by}>
+								Everyone
+							</option>
 							<For each={Object.entries(ACTOR_TYPES)}>
 								{([type, labels]) => (
 									<optgroup label={labels.group}>
-										<option value={`by:${type}`}>{labels.all}</option>
+										<option
+											value={`by:${type}`}
+											selected={!search().who && search().by === type}
+										>
+											{labels.all}
+										</option>
 										<For
 											each={log().people.filter(
 												(person) => person.type === type,
 											)}
 										>
 											{(person) => (
-												<option value={person.name}>{person.name}</option>
+												<option
+													value={person.name}
+													selected={search().who === person.name}
+												>
+													{person.name}
+												</option>
 											)}
 										</For>
 									</optgroup>
 								)}
 							</For>
 							<Show
-								when={log().people.filter((person) => !isActorType(person.type))
-									.length}
+								when={
+									log().people.filter((person) => !isActorType(person.type))
+										.length
+								}
 							>
 								<optgroup label="Other">
 									<For
@@ -196,35 +218,43 @@ function LogsPage() {
 										)}
 									>
 										{(person) => (
-											<option value={person.name}>{person.name}</option>
+											<option
+												value={person.name}
+												selected={search().who === person.name}
+											>
+												{person.name}
+											</option>
 										)}
 									</For>
 								</optgroup>
 							</Show>
 						</select>
 					</label>
-					<label class="flex flex-col gap-1 text-sm">
-						From
-						<input
-							type="date"
-							value={search().from ?? ""}
-							max={search().to}
-							onChange={(e) =>
-								go({ from: e.currentTarget.value || undefined })
-							}
-							class={cn(select, "pr-2")}
-						/>
-					</label>
-					<label class="flex flex-col gap-1 text-sm">
-						To
-						<input
-							type="date"
-							value={search().to ?? ""}
-							min={search().from}
-							onChange={(e) => go({ to: e.currentTarget.value || undefined })}
-							class={cn(select, "pr-2")}
-						/>
-					</label>
+					{/* The two dates wrap together. */}
+					<div class="flex gap-3">
+						<label class="flex flex-col gap-1 text-sm">
+							From
+							<input
+								type="date"
+								value={search().from ?? ""}
+								max={search().to}
+								onChange={(e) =>
+									go({ from: e.currentTarget.value || undefined })
+								}
+								class={cn(select, "pr-2")}
+							/>
+						</label>
+						<label class="flex flex-col gap-1 text-sm">
+							To
+							<input
+								type="date"
+								value={search().to ?? ""}
+								min={search().from}
+								onChange={(e) => go({ to: e.currentTarget.value || undefined })}
+								class={cn(select, "pr-2")}
+							/>
+						</label>
+					</div>
 				</form>
 				<div class="flex flex-wrap items-center gap-3">
 					<Show when={search().item}>
