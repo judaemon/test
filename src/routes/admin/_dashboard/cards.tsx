@@ -45,6 +45,7 @@ import {
 	CARDS_PER_SHEET,
 	type CardPrintStatus,
 	cardMatches,
+	compareByNumber,
 	mirrorSheet,
 	type PrintCard,
 	toSheets,
@@ -171,6 +172,14 @@ const MODES: {
 ];
 
 const STYLE_KEY = "oraia:card-style";
+const ORDER_KEY = "oraia:card-order";
+
+/**
+ * How the card list and sheets are ordered: as they're handed over (day,
+ * company, class, buyer), or by order number, where new orders only ever
+ * join at the end.
+ */
+type CardOrder = "handover" | "number";
 /** The numbered test: two sheets, cards 1 to 8. */
 const TEST_SHEETS = 2;
 
@@ -396,11 +405,26 @@ function CardsPage() {
 			(card) => company() === ALL || companyOf(card) === company(),
 		),
 	);
-	const shown = createMemo(() =>
-		ofCompany().filter(
+	const [cardOrder, setCardOrderSignal] = createSignal<CardOrder>("handover");
+	onMount(() => {
+		try {
+			if (localStorage.getItem(ORDER_KEY) === "number")
+				setCardOrderSignal("number");
+		} catch {}
+	});
+	const setCardOrder = (next: CardOrder) => {
+		setCardOrderSignal(next);
+		try {
+			localStorage.setItem(ORDER_KEY, next);
+		} catch {}
+	};
+	const shown = createMemo(() => {
+		const list = ofCompany().filter(
 			(card) => statusMatches(card, status()) && searchMatches(card),
-		),
-	);
+		);
+		// The server sends them in handover order.
+		return cardOrder() === "number" ? list.sort(compareByNumber) : list;
+	});
 	const selected = createMemo(() =>
 		shown().filter((card) => !skipped().has(card.key)),
 	);
@@ -818,6 +842,34 @@ function CardsPage() {
 								)}
 							</For>
 						</FilterRow>
+
+						<FilterRow label="Order by">
+							<For
+								each={
+									[
+										["handover", "Handover (day, company, class)"],
+										["number", "Order number"],
+									] as [CardOrder, string][]
+								}
+							>
+								{([key, label]) => (
+									<button
+										type="button"
+										aria-pressed={cardOrder() === key}
+										class={pill(cardOrder() === key)}
+										onClick={() => setCardOrder(key)}
+									>
+										{label}
+									</button>
+								)}
+							</For>
+						</FilterRow>
+						<Show when={cardOrder() === "number"}>
+							<p class="-mt-2 text-xs text-petal-900/55">
+								Oldest order first. New orders only join at the end, so the list
+								keeps its place when the page refreshes.
+							</p>
+						</Show>
 					</div>
 
 					<Show when={batch()?.kind === "cards"}>

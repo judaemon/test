@@ -76,6 +76,18 @@ export function compareCards(a: PrintCard, b: PrintCard) {
 	);
 }
 
+/**
+ * Cards by order number, oldest first, then their place on the order. New
+ * orders only ever join at the end, so a list printed in this order keeps
+ * its place however often the page is refreshed.
+ */
+export function compareByNumber(a: PrintCard, b: PrintCard) {
+	return (
+		a.number.localeCompare(b.number, undefined, { numeric: true }) ||
+		a.slot.localeCompare(b.slot, undefined, { numeric: true })
+	);
+}
+
 /** The private page a card's QR code opens: its bouquet and its message. */
 export const bouquetPath = (link: string) => `/b/${link}`;
 

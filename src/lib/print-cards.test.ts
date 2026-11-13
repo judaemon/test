@@ -4,6 +4,7 @@ import {
 	cardMatches,
 	cardSlot,
 	centerMessage,
+	compareByNumber,
 	compareCards,
 	mirrorSheet,
 	type PrintCard,
@@ -81,6 +82,44 @@ describe("compareCards", () => {
 			card({ key: "y", slot: "2:0" }),
 		];
 		expect(cards.sort(compareCards).map((c) => c.key)).toEqual(["y", "x"]);
+	});
+});
+
+describe("compareByNumber", () => {
+	test("orders by number, oldest first, then by place on the order", () => {
+		const cards = [
+			card({
+				key: "c",
+				number: "102",
+				slot: "0:0",
+				deliveryDate: "2026-11-13",
+			}),
+			card({ key: "a", number: "95", slot: "1:0", company: "Zulu" }),
+			card({ key: "b", number: "95", slot: "0:1" }),
+			card({ key: "d", number: "1001", slot: "order", deliveryDate: "" }),
+		];
+		expect(cards.sort(compareByNumber).map((c) => c.key)).toEqual([
+			"b",
+			"a",
+			"c",
+			"d",
+		]);
+	});
+
+	test("a new order joins at the end without moving the rest", () => {
+		const before = [
+			card({ key: "a", number: "95" }),
+			card({ key: "b", number: "102" }),
+		];
+		const after = [
+			...before,
+			card({ key: "n", number: "103", deliveryDate: "2026-01-01" }),
+		];
+		expect(after.sort(compareByNumber).map((c) => c.key)).toEqual([
+			"a",
+			"b",
+			"n",
+		]);
 	});
 });
 
