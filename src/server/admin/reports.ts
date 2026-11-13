@@ -156,6 +156,8 @@ export interface Report {
 	florists: FloristOption[];
 	/** The event's delivery days, past ones too. */
 	deliveryDates: string[];
+	/** Orders marked as a test, left out of everything above, so totals can be tallied with Orders. */
+	testOrders: { orders: number; items: number };
 	currency: string;
 }
 
@@ -366,6 +368,13 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 			orders,
 			florists: listFloristOptions(),
 			deliveryDates: getDeliveryDates(),
+			testOrders: (() => {
+				const tests = listOrders({ limit: 100_000, test: "only" });
+				return {
+					orders: tests.length,
+					items: tests.reduce((sum, o) => sum + o.itemCount, 0),
+				};
+			})(),
 			currency: active[0]?.currency ?? "PHP",
 		};
 	},

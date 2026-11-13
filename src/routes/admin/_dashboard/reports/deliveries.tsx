@@ -43,6 +43,9 @@ const companyRank = (name: string) => {
 	return index === -1 ? COMPANIES.length : index;
 };
 
+/** Which orders are listed: to deliver (not cancelled), cancelled, or all. */
+type Status = "deliver" | "cancelled" | typeof ALL;
+
 /** What the list can be sorted by, in the order picked. */
 type SortKey = "order" | "bouquet" | "class" | "name";
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -65,14 +68,38 @@ interface Row {
 
 /**
  * Who gets a bouquet on each delivery day, by company and class: a list to
- * print and tick off on the day. Cancelled orders are left out.
+ * print and tick off on the day. Cancelled orders are left out unless asked
+ * for, and a tally squares the counts with the Orders page.
  */
 function Deliveries() {
 	const report = useReport();
 	const money = useMoney();
+	const isCancelled = (order: ReportOrder) => order.status === "cancelled";
+	const [status, setStatus] = createSignal<Status>("deliver");
+	const inStatus = (s: Status, order: ReportOrder) =>
+		s === ALL || (s === "cancelled") === isCancelled(order);
 	const active = createMemo(() =>
-		report().orders.filter((order) => order.status !== "cancelled"),
+		report().orders.filter((order) => inStatus(status(), order)),
 	);
+	const itemCount = (orders: ReportOrder[]) =>
+		orders.reduce(
+			(sum, order) =>
+				sum + order.lines.reduce((n, line) => n + line.quantity, 0),
+			0,
+		);
+	/** The same totals as the Orders page (real orders, every status), split up. */
+	const tally = createMemo(() => {
+		const all = report().orders;
+		const toDeliver = all.filter((order) => !isCancelled(order));
+		const cancelled = all.filter(isCancelled);
+		return {
+			orders: all.length,
+			items: itemCount(all),
+			toDeliver: { orders: toDeliver.length, items: itemCount(toDeliver) },
+			cancelled: { orders: cancelled.length, items: itemCount(cancelled) },
+			test: report().testOrders,
+		};
+	});
 
 	// The event's days, then any other day an order has, then "no date yet".
 	const days = createMemo(() => {
@@ -187,7 +214,7 @@ function Deliveries() {
 
 	/** What's still owed on it, to collect at handover. */
 	const owed = (order: ReportOrder) =>
-		Math.max(0, order.total - order.received);
+		isCancelled(order) ? 0 : Math.max(0, order.total - order.received);
 	const bouquetCount = (rows: Row[]) =>
 		rows.reduce((sum, row) => sum + row.line.quantity, 0);
 	const dayLabel = (date: string) =>
@@ -204,10 +231,20 @@ function Deliveries() {
 		printFileName([
 			"Deliveries",
 			dayLabel(shownDay()),
+			status() === "cancelled" && "Cancelled",
+			status() === ALL && "Incl. cancelled",
 			klass() !== ALL && classLabel(klass()),
 			company() !== ALL && companyLabel(company()),
 		]),
 	);
+
+	const pickStatus = (next: Status) => {
+		setStatus(next);
+		// The day picked may have none of these; all dates always has them.
+		if (!days().includes(shownDay())) setDay(days()[0]);
+		setKlass(ALL);
+		setCompany(ALL);
+	};
 
 	const pickDay = (date: string) => {
 		setDay(date);
@@ -229,6 +266,54 @@ function Deliveries() {
 					order number. Give orders their day in Orders, in the Delivery date
 					column.
 				</p>
+				{/* Squares with Orders: its "Total ordered" counts every status, test orders aside. */}
+				<div class="mb-4 rounded-xl border border-petal-100 bg-petal-50/60 px-3.5 py-2.5 text-sm text-petal-900/75">
+					<p>
+						<strong class="font-semibold text-petal-900 tabular-nums">
+							{tally().orders} orders · {tally().items} items
+						</strong>{" "}
+						in all, the same as Total ordered in{" "}
+						<Link
+							to="/admin/orders"
+							class="font-medium text-petal-700 underline-offset-2 hover:underline"
+						>
+							Orders
+						</Link>
+						:
+					</p>
+					<p class="tabular-nums">
+						{tally().toDeliver.orders} to deliver ({tally().toDeliver.items}{" "}
+						items) + {tally().cancelled.orders} cancelled (
+						{tally().cancelled.items} items)
+						<Show when={tally().test.orders}>
+							{" "}
+							· {tally().test.orders} test{" "}
+							{tally().test.orders === 1 ? "order" : "orders"} (
+							{tally().test.items} items) not counted anywhere
+						</Show>
+					</p>
+				</div>
+				<div class="mb-3 flex flex-wrap items-center gap-x-2">
+					<span class="mr-1 text-sm font-medium">Status</span>
+					<FilterTabs
+						label="Status"
+						tabs={(
+							[
+								["deliver", "To deliver"],
+								["cancelled", "Cancelled"],
+								[ALL, "All"],
+							] as const
+						).map(([key, label]) => ({
+							key: key as Status,
+							label,
+							count: () =>
+								report().orders.filter((order) => inStatus(key, order)).length,
+						}))}
+						value={status()}
+						onChange={pickStatus}
+						class="mb-0"
+					/>
+				</div>
 				<FilterTabs
 					label="Delivery day"
 					tabs={days().map((date) => ({
@@ -408,6 +493,7 @@ function Deliveries() {
 														"border-t border-petal-100 align-top print:break-inside-avoid print:border-black/25",
 														row.parts > 1 &&
 															"bg-petal-50/60 print:bg-transparent",
+														isCancelled(row.order) && "text-petal-900/50",
 													)}
 												>
 													<td class="py-2 pr-2 print:py-1">
@@ -475,24 +561,33 @@ function Deliveries() {
 													</td>
 													<td class="py-2 pr-3 text-right print:py-1">
 														<Show
-															when={!isPaid(row.order)}
+															when={!isCancelled(row.order)}
 															fallback={
-																<span class="whitespace-nowrap text-xs font-medium text-success-foreground print:text-[8pt] print:text-black">
-																	Paid
+																<span class="whitespace-nowrap rounded-full bg-petal-100 px-2 py-0.5 text-xs font-medium text-petal-900/70 print:border print:border-black print:bg-transparent print:text-[8pt] print:text-black">
+																	Cancelled
 																</span>
 															}
 														>
 															<Show
-																when={isFirstListed(group.rows, row)}
+																when={!isPaid(row.order)}
 																fallback={
-																	<span class="whitespace-nowrap text-xs text-petal-900/55 print:text-[8pt] print:text-black/60">
-																		With #{row.order.number} above
+																	<span class="whitespace-nowrap text-xs font-medium text-success-foreground print:text-[8pt] print:text-black">
+																		Paid
 																	</span>
 																}
 															>
-																<span class="whitespace-nowrap rounded-full bg-error px-2 py-0.5 text-xs font-semibold tabular-nums text-error-foreground print:border print:border-black print:bg-transparent print:px-1.5 print:text-[9pt] print:text-black">
-																	{money(owed(row.order))}
-																</span>
+																<Show
+																	when={isFirstListed(group.rows, row)}
+																	fallback={
+																		<span class="whitespace-nowrap text-xs text-petal-900/55 print:text-[8pt] print:text-black/60">
+																			With #{row.order.number} above
+																		</span>
+																	}
+																>
+																	<span class="whitespace-nowrap rounded-full bg-error px-2 py-0.5 text-xs font-semibold tabular-nums text-error-foreground print:border print:border-black print:bg-transparent print:px-1.5 print:text-[9pt] print:text-black">
+																		{money(owed(row.order))}
+																	</span>
+																</Show>
 															</Show>
 														</Show>
 													</td>
