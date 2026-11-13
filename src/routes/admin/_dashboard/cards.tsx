@@ -405,11 +405,12 @@ function CardsPage() {
 			(card) => company() === ALL || companyOf(card) === company(),
 		),
 	);
-	const [cardOrder, setCardOrderSignal] = createSignal<CardOrder>("handover");
+	// Order number unless this browser last picked handover.
+	const [cardOrder, setCardOrderSignal] = createSignal<CardOrder>("number");
 	onMount(() => {
 		try {
-			if (localStorage.getItem(ORDER_KEY) === "number")
-				setCardOrderSignal("number");
+			if (localStorage.getItem(ORDER_KEY) === "handover")
+				setCardOrderSignal("handover");
 		} catch {}
 	});
 	const setCardOrder = (next: CardOrder) => {
@@ -847,8 +848,8 @@ function CardsPage() {
 							<For
 								each={
 									[
-										["handover", "Handover (day, company, class)"],
 										["number", "Order number"],
+										["handover", "Handover (day, company, class)"],
 									] as [CardOrder, string][]
 								}
 							>
