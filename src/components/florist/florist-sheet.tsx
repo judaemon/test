@@ -39,12 +39,29 @@ const classRank = (name: string) => {
 	return index === -1 ? CLASS_OPTIONS.length : index;
 };
 
-/** Company (Alfa to Hawk), then class, then order number. */
-const byCompany = (a: FloristBouquet, b: FloristBouquet) =>
-	companyRank(a.customer.company) - companyRank(b.customer.company) ||
-	a.customer.company.localeCompare(b.customer.company) ||
-	classRank(a.customer.className) - classRank(b.customer.className) ||
-	Number(a.orderNumber) - Number(b.orderNumber);
+const byNumber = (a: FloristBouquet, b: FloristBouquet) =>
+	a.orderNumber.localeCompare(b.orderNumber, undefined, { numeric: true }) ||
+	a.orderPiece - b.orderPiece;
+
+/** Each way to order the bouquets; several can be picked, the first sorting first. */
+const COMPARE: Record<
+	SortBy,
+	(a: FloristBouquet, b: FloristBouquet) => number
+> = {
+	order: byNumber,
+	arrangement: (a, b) =>
+		a.typeRank - b.typeRank ||
+		a.code.localeCompare(b.code) ||
+		a.colorName.localeCompare(b.colorName) ||
+		a.sizeName.localeCompare(b.sizeName),
+	style: (a, b) =>
+		a.code.localeCompare(b.code) || a.colorName.localeCompare(b.colorName),
+	// Company (Alfa to Hawk), then class.
+	company: (a, b) =>
+		companyRank(a.customer.company) - companyRank(b.customer.company) ||
+		a.customer.company.localeCompare(b.customer.company) ||
+		classRank(a.customer.className) - classRank(b.customer.className),
+};
 
 /** How many bouquets go on each A4 page. */
 const PER_PAGE = [1, 2, 4, 6] as const;
@@ -175,7 +192,11 @@ export function FloristSheet(props: {
 	/** Next to the print button. */
 	actions?: JSX.Element;
 }) {
-	const [sortBy, setSortBy] = createSignal<SortBy>("order");
+	const [sortBy, setSortBy] = createSignal<SortBy[]>(["order"]);
+	const toggleSort = (key: SortBy) =>
+		setSortBy((keys) =>
+			keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key],
+		);
 	const [perPage, setPerPage] = createSignal<PerPage>(2);
 	const [layout, setLayout] = createSignal<Layout>("full");
 	const [orientation, setOrientation] = createSignal<Orientation>("portrait");
@@ -253,23 +274,14 @@ export function FloristSheet(props: {
 
 	const bouquets = createMemo(() => {
 		const list = [...shown()];
-		if (sortBy() === "company") list.sort(byCompany);
-		if (sortBy() === "arrangement")
-			list.sort(
-				(a, b) =>
-					a.typeRank - b.typeRank ||
-					a.code.localeCompare(b.code) ||
-					a.colorName.localeCompare(b.colorName) ||
-					a.sizeName.localeCompare(b.sizeName) ||
-					Number(a.orderNumber) - Number(b.orderNumber),
-			);
-		if (sortBy() === "style")
-			list.sort(
-				(a, b) =>
-					a.code.localeCompare(b.code) ||
-					a.colorName.localeCompare(b.colorName) ||
-					Number(a.orderNumber) - Number(b.orderNumber),
-			);
+		const keys = sortBy();
+		list.sort((a, b) => {
+			for (const key of keys) {
+				const diff = COMPARE[key](a, b);
+				if (diff) return diff;
+			}
+			return byNumber(a, b);
+		});
 		return list;
 	});
 
@@ -320,12 +332,12 @@ export function FloristSheet(props: {
 
 	/**
 	 * The bouquets in sections: one per arrangement (custom bouquets, then
-	 * bouquets, corsages…) when ordered by arrangement, each starting a new
+	 * bouquets, corsages…) when ordered by arrangement first, each starting a new
 	 * page with its name on top; otherwise one section with no name.
 	 */
 	const sections = createMemo(() => {
 		const lists: { name?: string; bouquets: FloristBouquet[] }[] = [];
-		if (sortBy() !== "arrangement") lists.push({ bouquets: bouquets() });
+		if (sortBy()[0] !== "arrangement") lists.push({ bouquets: bouquets() });
 		else
 			for (const b of bouquets()) {
 				const last = lists.at(-1);
@@ -370,9 +382,12 @@ export function FloristSheet(props: {
 			companies().length > 0 && companies().map(companyLabel).join(", "),
 			types().length > 0 && types().map(typeLabel).join(", "),
 			dates().length > 0 && dates().map(dateLabel).join(", "),
-			sortBy() === "arrangement" && "By arrangement",
-			sortBy() === "style" && "By style",
-			sortBy() === "company" && "By company",
+			!(sortBy().length === 1 && sortBy()[0] === "order") &&
+				sortBy().length > 0 &&
+				`By ${sortBy()
+					.map((key) => SORTS.find((sort) => sort.key === key)?.label)
+					.join(", ")
+					.toLowerCase()}`,
 			props.includeDone && "With finished",
 		]),
 	);
@@ -453,17 +468,31 @@ export function FloristSheet(props: {
 					<div class="flex flex-wrap items-center gap-2">
 						<span class="mr-1 text-sm font-medium">Order by</span>
 						<For each={SORTS}>
-							{(sort) => (
-								<button
-									type="button"
-									aria-pressed={sortBy() === sort.key}
-									onClick={() => setSortBy(sort.key)}
-									class={pill(sortBy() === sort.key)}
-								>
-									{sort.label}
-								</button>
-							)}
+							{(sort) => {
+								const rank = () => sortBy().indexOf(sort.key) + 1;
+								return (
+									<button
+										type="button"
+										aria-pressed={rank() > 0}
+										onClick={() => toggleSort(sort.key)}
+										class={cn(
+											pill(rank() > 0),
+											"inline-flex items-center gap-1.5",
+										)}
+									>
+										<Show when={rank() && sortBy().length > 1}>
+											<span class="flex size-5 items-center justify-center rounded-full bg-white text-xs font-semibold tabular-nums text-petal-700">
+												{rank()}
+											</span>
+										</Show>
+										{sort.label}
+									</button>
+								);
+							}}
 						</For>
+						<span class="text-xs text-petal-900/55">
+							Pick one or more; the first one picked sorts first.
+						</span>
 					</div>
 					<Show when={typeOptions().length > 1}>
 						<div class="flex flex-wrap items-center gap-2">
