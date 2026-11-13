@@ -2,12 +2,12 @@ import { createFileRoute, Link } from "@tanstack/solid-router";
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 
 import { FilterTabs, useReport } from "~/components/admin/reports";
-import { adminCard } from "~/components/admin/ui";
+import { adminButton, adminCard, adminInput } from "~/components/admin/ui";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
 import { shortDeliveryDate, upcomingDeliveryDates } from "~/lib/delivery-dates";
 import { photoSrc } from "~/lib/photos";
-import type { CardPrintStatus } from "~/lib/print-cards";
+import { type CardPrintStatus, pickKey } from "~/lib/print-cards";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { cn } from "~/lib/utils";
 import type {
@@ -218,9 +218,66 @@ function Cards() {
 				(company() === ALL || companyOf(row) === company()),
 		),
 	);
-	const shown = createMemo(() =>
+	const ofFlorist = createMemo(() =>
 		ofClassAndCompany().filter((row) => hasFlorist(florist(), row)),
 	);
+
+	// Search: order number, bouquet, receiver or words on the card. Commas
+	// separate alternatives ("95, 102" finds both orders); within one, every
+	// word must be found. A number is an order number, matched exactly.
+	const [query, setQuery] = createSignal("");
+	const fold = (value: string) =>
+		value
+			.normalize("NFD")
+			.replace(/\p{Diacritic}/gu, "")
+			.toLowerCase();
+	const rowMatches = (row: Row, alternatives: string[][]) => {
+		const text = fold(
+			[
+				row.card.message,
+				row.card.to,
+				row.order.name,
+				...(row.line
+					? [row.line.title, row.line.colorName]
+					: row.order.lines.map((line) => line.title)),
+			].join("\n"),
+		);
+		return alternatives.some((words) =>
+			words.every((word) => {
+				const digits = word.replace(/^(#|no\.?)/, "");
+				return /^\d+$/.test(digits)
+					? row.order.number === digits
+					: text.includes(word);
+			}),
+		);
+	};
+	const shown = createMemo(() => {
+		const alternatives = query()
+			.split(",")
+			.map((part) => fold(part).split(/\s+/).filter(Boolean))
+			.filter((words) => words.length);
+		return alternatives.length
+			? ofFlorist().filter((row) => rowMatches(row, alternatives))
+			: ofFlorist();
+	});
+
+	// Cards picked to print; Admin → Cards opens with just these ticked.
+	// Cancelled orders' cards aren't printed, so they can't be picked.
+	const keyOf = (row: Row) => pickKey(row.order.number, row.card.slot);
+	const [picked, setPicked] = createSignal<ReadonlySet<string>>(new Set());
+	const canPick = (row: Row) => !isCancelled(row.order);
+	const isPicked = (row: Row) => picked().has(keyOf(row));
+	const pick = (rows: Row[], on: boolean) =>
+		setPicked((prev) => {
+			const next = new Set(prev);
+			for (const row of rows.filter(canPick))
+				on ? next.add(keyOf(row)) : next.delete(keyOf(row));
+			return next;
+		});
+	const allPicked = (rows: Row[]) => {
+		const pickable = rows.filter(canPick);
+		return pickable.length > 0 && pickable.every(isPicked);
+	};
 	const floristTabs = createMemo(() => {
 		const known = report().florists;
 		const keys = [
@@ -551,6 +608,39 @@ function Cards() {
 				</Show>
 			</div>
 
+			<div class="mb-5 print:hidden">
+				<label for="card-report-search" class="sr-only">
+					Search cards
+				</label>
+				<input
+					id="card-report-search"
+					type="search"
+					autocomplete="off"
+					class={adminInput}
+					placeholder="Order #, bouquet, receiver or words on the card…"
+					value={query()}
+					onInput={(e) => setQuery(e.currentTarget.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Escape") setQuery("");
+					}}
+				/>
+				<p class="mt-1.5 text-xs text-petal-900/55">
+					<Show
+						when={query().trim()}
+						fallback={
+							<>
+								Separate orders with commas:{" "}
+								<span class="font-medium text-petal-900/75">95, 102, 213</span>
+							</>
+						}
+					>
+						{shown().length}{" "}
+						{shown().length === 1 ? "card matches" : "cards match"} of{" "}
+						{ofFlorist().length} with these filters
+					</Show>
+				</p>
+			</div>
+
 			<Show
 				when={shown().length}
 				fallback={
@@ -602,7 +692,17 @@ function Cards() {
 									<thead class="text-xs uppercase tracking-wide text-petal-900/55 print:text-[7.5pt] print:text-black/70">
 										<tr>
 											<th class="w-8 pb-1.5 pr-2 font-medium">
-												<span class="sr-only">Checked</span>✓
+												<input
+													type="checkbox"
+													aria-label="Pick every card in this group to print"
+													checked={allPicked(group.rows)}
+													disabled={!group.rows.some(canPick)}
+													onChange={(e) =>
+														pick(group.rows, e.currentTarget.checked)
+													}
+													class="size-4 accent-petal-700 print:hidden"
+												/>
+												<span class="hidden print:inline">✓</span>
 											</th>
 											<th class="pb-1.5 pr-3 font-medium">Order</th>
 											<th class="pb-1.5 pr-3 font-medium">Delivery</th>
@@ -626,7 +726,18 @@ function Cards() {
 													)}
 												>
 													<td class="py-2 pr-2 print:py-1">
-														<span class="inline-block size-4 rounded-sm border-2 border-petal-900/40 print:border-black" />
+														<input
+															type="checkbox"
+															aria-label={`Pick the card for #${row.order.number} to print`}
+															checked={isPicked(row)}
+															disabled={!canPick(row)}
+															onChange={(e) =>
+																pick([row], e.currentTarget.checked)
+															}
+															class="size-4 accent-petal-700 print:hidden"
+														/>
+														{/* An empty box to tick on paper. */}
+														<span class="hidden size-4 rounded-sm border-2 border-black print:inline-block" />
 													</td>
 													<td class="py-2 pr-3 font-semibold tabular-nums print:py-1">
 														<Link
@@ -746,6 +857,41 @@ function Cards() {
 						</div>
 					)}
 				</For>
+			</Show>
+
+			<Show when={picked().size}>
+				<div class="sticky bottom-4 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-petal-200 bg-white px-4 py-3 shadow-lg print:hidden">
+					<p class="text-sm">
+						<strong class="font-semibold tabular-nums">{picked().size}</strong>{" "}
+						{picked().size === 1 ? "card" : "cards"} picked
+						<Show when={shown().some(canPick) && !allPicked(shown())}>
+							{" · "}
+							<button
+								type="button"
+								class="font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900"
+								onClick={() => pick(shown(), true)}
+							>
+								Pick all {shown().filter(canPick).length} shown
+							</button>
+						</Show>
+					</p>
+					<div class="flex gap-2">
+						<button
+							type="button"
+							class={adminButton.ghost}
+							onClick={() => setPicked(new Set<string>())}
+						>
+							Clear
+						</button>
+						<Link
+							to="/admin/cards"
+							search={{ pick: [...picked()].join(",") }}
+							class={adminButton.primary}
+						>
+							Print {picked().size === 1 ? "this card" : "these cards"}
+						</Link>
+					</div>
+				</div>
 			</Show>
 		</section>
 	);

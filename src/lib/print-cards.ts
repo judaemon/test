@@ -37,6 +37,13 @@ export interface PrintCard {
 	printed?: { to: string; message: string; at: string; by: string };
 }
 
+/**
+ * A card in a link to Admin → Cards, short so many fit in one: "95/1:0" is
+ * order #95's second bouquet's first card, "95/order" its order-wide card.
+ */
+export const pickKey = (orderNumber: string, slot: string) =>
+	`${orderNumber}/${slot}`;
+
 /** Where a card sits on its order, kept the same when its words change. */
 export const cardSlot = (card: { lineIndex?: number; unit?: number }) =>
 	card.lineIndex === undefined

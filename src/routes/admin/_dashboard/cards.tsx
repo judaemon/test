@@ -48,6 +48,7 @@ import {
 	compareByNumber,
 	mirrorSheet,
 	type PrintCard,
+	pickKey,
 	toSheets,
 } from "~/lib/print-cards";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
@@ -60,12 +61,17 @@ import {
 
 export const Route = createFileRoute("/admin/_dashboard/cards")({
 	// The day to open on, e.g. from Orders' "Print cards".
-	validateSearch: (search: Record<string, unknown>): { day?: string } => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { day?: string; pick?: string } => ({
 		day:
 			typeof search.day === "string" &&
 			(search.day === "none" || /^\d{4}-\d{2}-\d{2}$/.test(search.day))
 				? search.day
 				: undefined,
+		// Cards picked on Reports → Cards: "95/0:0,102/order" (see `pickKey`).
+		pick:
+			typeof search.pick === "string" && search.pick ? search.pick : undefined,
 	}),
 	loader: () => listPrintCardsFn(),
 	component: CardsPage,
@@ -235,9 +241,25 @@ function CardsPage() {
 	const [result, setResult] = createSignal(initial());
 	const cards = () => result().cards;
 
-	const [day, setDay] = createSignal<string>(Route.useSearch()().day ?? ALL);
+	const search = Route.useSearch()();
+	/** Cards picked on Reports → Cards: only these are listed, all ticked. */
+	const [picked, setPicked] = createSignal<ReadonlySet<string> | undefined>(
+		search.pick ? new Set(search.pick.split(",")) : undefined,
+	);
+	const pool = createMemo(() => {
+		const keys = picked();
+		return keys
+			? cards().filter((card) => keys.has(pickKey(card.number, card.slot)))
+			: cards();
+	});
+	const [day, setDay] = createSignal<string>(
+		picked() ? ALL : (search.day ?? ALL),
+	);
 	const [company, setCompany] = createSignal<string>(ALL);
-	const [status, setStatus] = createSignal<StatusFilter>("todo");
+	// Picked cards print whether or not they were printed before.
+	const [status, setStatus] = createSignal<StatusFilter>(
+		picked() ? ALL : "todo",
+	);
 	const [query, setQuery] = createSignal("");
 	/** Cards unticked by hand; everything else that's shown is printed. */
 	const [skipped, setSkipped] = createSignal<ReadonlySet<string>>(new Set());
@@ -385,7 +407,7 @@ function CardsPage() {
 	const searching = () => query().trim().length > 0;
 
 	const days = createMemo(() => {
-		const list = [...new Set(cards().map(dayOf))].sort();
+		const list = [...new Set(pool().map(dayOf))].sort();
 		// "No date" last.
 		return [
 			...list.filter((d) => d !== NONE),
@@ -393,7 +415,7 @@ function CardsPage() {
 		];
 	});
 	const ofDay = createMemo(() =>
-		cards().filter((card) => day() === ALL || dayOf(card) === day()),
+		pool().filter((card) => day() === ALL || dayOf(card) === day()),
 	);
 	const companies = createMemo(() =>
 		[...new Set(ofDay().map(companyOf))].sort((a, b) =>
@@ -785,7 +807,7 @@ function CardsPage() {
 										{dayLabel(d)}
 										<span class="tabular-nums opacity-75">
 											{" "}
-											{cards().filter((card) => dayOf(card) === d).length}
+											{pool().filter((card) => dayOf(card) === d).length}
 										</span>
 									</button>
 								)}
@@ -882,6 +904,44 @@ function CardsPage() {
 								the next batch.
 							</span>
 						</p>
+					</Show>
+					<Show when={picked()}>
+						{(keys) => (
+							<div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-petal-200 bg-petal-50 px-4 py-3 text-sm">
+								<p>
+									Showing the{" "}
+									<strong class="font-semibold tabular-nums">
+										{pool().length}
+									</strong>{" "}
+									{pool().length === 1 ? "card" : "cards"} picked on{" "}
+									<Link
+										to="/admin/reports/cards"
+										class="font-medium text-petal-700 underline-offset-2 hover:underline"
+									>
+										Reports → Cards
+									</Link>
+									, ticked and ready to print.
+									<Show when={keys().size > pool().length}>
+										{" "}
+										{keys().size - pool().length} picked{" "}
+										{keys().size - pool().length === 1
+											? "card is"
+											: "cards are"}{" "}
+										no longer on an active order.
+									</Show>
+								</p>
+								<button
+									type="button"
+									class={adminButton.ghost}
+									onClick={() => {
+										setPicked(undefined);
+										setStatus("todo");
+									}}
+								>
+									Show all cards
+								</button>
+							</div>
+						)}
 					</Show>
 					<div class={cn(adminCard, "overflow-hidden")}>
 						<div class="border-b border-petal-100 px-4 pt-4 pb-3">
