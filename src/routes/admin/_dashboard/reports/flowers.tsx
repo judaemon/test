@@ -126,7 +126,8 @@ type FloristFilter = string;
 /** The flower (and color, if picked) whose bouquets are listed. */
 interface FlowerPick {
 	flower: string;
-	filler: boolean;
+	/** Picked by color: filler or not. The whole flower takes both. */
+	filler?: boolean;
 	color?: string;
 }
 /** A battalion's name, everyone, or "none" for civilians and no company. */
@@ -240,6 +241,7 @@ function FlowersToBuy() {
 	const [picked, setPicked] = createSignal<FlowerPick | null>(null);
 	const stems = (filler: boolean) =>
 		tally()
+			.flatMap((flower) => flower.colors)
 			.filter((row) => row.filler === filler)
 			.reduce((sum, row) => sum + row.stems, 0);
 	const withoutRecipe = createMemo(() =>
@@ -486,6 +488,8 @@ function FlowersToBuy() {
 							{(flower) => {
 								const split = () =>
 									flower.colors.length > 1 || flower.colors[0]?.color !== "";
+								const usedBothWays = () =>
+									!flower.filler && flower.colors.some((row) => row.filler);
 								const bought = () =>
 									flower.colors.filter(
 										(row) => purchaseOf(row)?.status === "bought",
@@ -501,12 +505,7 @@ function FlowersToBuy() {
 											<th scope="row" class="py-2.5 pr-4 font-semibold">
 												<button
 													type="button"
-													onClick={() =>
-														setPicked({
-															flower: flower.flower,
-															filler: flower.filler,
-														})
-													}
+													onClick={() => setPicked({ flower: flower.flower })}
 													title="See the bouquets with this flower"
 													class="rounded text-left underline decoration-petal-300 decoration-dotted underline-offset-4 outline-none hover:text-petal-700 hover:decoration-solid focus-visible:ring-2 focus-visible:ring-petal-500 print:no-underline"
 												>
@@ -579,7 +578,7 @@ function FlowersToBuy() {
 																onClick={() =>
 																	setPicked({
 																		flower: flower.flower,
-																		filler: flower.filler,
+																		filler: row.filler,
 																		color: row.color,
 																	})
 																}
@@ -588,6 +587,11 @@ function FlowersToBuy() {
 															>
 																{row.color || "No color given"}
 															</button>
+															<Show when={usedBothWays() && row.filler}>
+																<span class="ml-1.5 text-xs text-petal-900/55">
+																	(filler)
+																</span>
+															</Show>
 														</th>
 														<td class="py-1.5 pr-4 text-right tabular-nums">
 															{amount(row)}
@@ -597,13 +601,13 @@ function FlowersToBuy() {
 														</td>
 														<td class="py-1.5 pr-4 text-right">
 															{ordersButton(
-																`Flower: ${flower.flower} · ${row.color || "No color"}`,
+																`Flower: ${flower.flower} · ${row.color || "No color"}${row.filler ? " (filler)" : ""}`,
 																row.orderIds,
 															)}
 														</td>
 														<td class="py-1">
 															<StatusPicker
-																name={`${flower.flower}, ${row.color || "no color"}`}
+																name={`${flower.flower}, ${row.color || "no color"}${row.filler ? " (filler)" : ""}`}
 																purchase={purchaseOf(row)}
 																onChange={(status) =>
 																	void setStatus(row, status)
@@ -684,7 +688,7 @@ function FlowerBouquets(props: {
 				const items = line.recipe.filter(
 					(item) =>
 						item.flower === pick.flower &&
-						!!item.filler === pick.filler &&
+						(pick.filler === undefined || !!item.filler === pick.filler) &&
 						(pick.color === undefined || (item.color ?? "") === pick.color),
 				);
 				if (!items.length) continue;
@@ -898,10 +902,7 @@ function SupplierChecklist(props: {
 		]
 			.filter(Boolean)
 			.join(" + ");
-	const rows = () =>
-		props.tally.flatMap((flower) =>
-			flower.colors.map((row) => ({ ...row, filler: flower.filler })),
-		);
+	const rows = () => props.tally.flatMap((flower) => flower.colors);
 	const cell = "border border-black/40 px-2 py-2.5 align-middle";
 	return (
 		<div data-print-sheet class="hidden bg-white text-black print:block">

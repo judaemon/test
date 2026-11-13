@@ -85,6 +85,32 @@ describe("tallyFlowers", () => {
 			["Red", 23, ["a", "b"]],
 		]);
 	});
+
+	test("groups by flower name, its filler colors in with the rest", () => {
+		const flowers = orderFlowers([
+			{
+				quantity: 2,
+				recipe: [
+					{ flower: "Aster", color: "White", count: 3 },
+					{ flower: "Aster", color: "White", count: 1, filler: true },
+					{ flower: "Aster", color: "Violet", count: 2, filler: true },
+					{ flower: "Misty", color: "Violet", count: 1, filler: true },
+				],
+			},
+		]).flowers;
+		const tally = tallyFlowers([{ id: "a", flowers }]);
+		expect(tally.map((row) => [row.flower, row.stems, row.filler])).toEqual([
+			["Aster", 12, false],
+			["Misty", 2, true],
+		]);
+		expect(
+			tally[0]?.colors.map((row) => [row.color, row.filler, row.stems]),
+		).toEqual([
+			["Violet", true, 4],
+			["White", false, 6],
+			["White", true, 2],
+		]);
+	});
 });
 
 describe("compareFlowers", () => {

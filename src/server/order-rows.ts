@@ -34,6 +34,7 @@ import { listAdminProducts } from "./catalog-repo";
 import { getDeliveryDates } from "./delivery-dates-repo";
 import { listFloristOptions } from "./florists-repo";
 import { countOrderNotes } from "./order-notes-repo";
+import { withLatestRecipes } from "./order-recipe-sync";
 import { listOrders } from "./orders-repo";
 
 /** One bouquet of an order: the table shows a row per bouquet. */
@@ -292,7 +293,9 @@ export const matchingOrderRows = (search: OrdersSearch) =>
 
 function filterOrderRows(search: OrdersSearch) {
 	refreshArrangements();
-	const rows = listOrders({ search: search.q, limit: 1_000_000 })
+	const rows = withLatestRecipes(
+		listOrders({ search: search.q, limit: 1_000_000 }),
+	)
 		.filter((order) => {
 			const day = placedDay(order.createdAt);
 			return (

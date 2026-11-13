@@ -324,6 +324,15 @@ export function FloristSheet(props: {
 			if (merge() && same.length > 1) groups.push(same);
 			else singles.push(...same);
 		}
+		// The same bouquet in different wrappers side by side, by bouquet name.
+		groups.sort(([a], [b]) =>
+			!a || !b
+				? 0
+				: a.title.localeCompare(b.title) ||
+					a.colorName.localeCompare(b.colorName) ||
+					a.sizeName.localeCompare(b.sizeName) ||
+					a.wrapper.localeCompare(b.wrapper),
+		);
 		// Singles keep the order picked above; split groups lose their place.
 		const order = new Map(list.map((b, i) => [b.key, i]));
 		singles.sort((a, b) => (order.get(a.key) ?? 0) - (order.get(b.key) ?? 0));
@@ -359,10 +368,22 @@ export function FloristSheet(props: {
 				.filter((b) => b.stage !== "done")
 				.map((b) => ({ quantity: 1, recipe: b.recipe })),
 		);
-		return {
-			missing,
-			rows: flowers.sort(compareFlowers),
-		};
+		const rows = flowers.sort(compareFlowers);
+		// By flower name: its colors (fillers too) under one heading.
+		const byName: { flower: string; stems: number; rows: typeof rows }[] = [];
+		for (const row of rows) {
+			const last = byName.at(-1);
+			if (last?.flower === row.flower) {
+				last.rows.push(row);
+				last.stems += row.stems;
+			} else
+				byName.push({
+					flower: row.flower,
+					stems: row.stems,
+					rows: [row],
+				});
+		}
+		return { missing, rows, byName };
 	});
 	const totalStems = () =>
 		flowers()
@@ -744,57 +765,120 @@ export function FloristSheet(props: {
 											</tr>
 										</thead>
 										<tbody>
-											<For each={flowers().rows}>
-												{(row) => (
-													<tr class="border-t border-petal-50 print:break-inside-avoid print:border-black/20">
-														<td class="px-3 py-1.5 print:px-2">
-															<span class="inline-block size-4 rounded-sm border-2 border-petal-900/40 print:border-black" />
-														</td>
-														<td class="px-2 py-1.5">
-															<span class="flex items-center gap-2">
-																<span class="size-8 shrink-0 overflow-hidden rounded-md bg-petal-50 print:size-[7mm]">
-																	<Show when={photoFor(row.flower, row.color)}>
-																		{(src) => (
-																			<img
-																				src={photoSrc(src(), "thumb")}
-																				alt=""
-																				loading="eager"
-																				class="size-full object-cover"
-																			/>
-																		)}
-																	</Show>
+											<For each={flowers().byName}>
+												{(group) => {
+													const flowerRow = (
+														row: (typeof group.rows)[number],
+														sub: boolean,
+													) => (
+														<tr class="border-t border-petal-50 print:break-inside-avoid print:border-black/20">
+															<td class="px-3 py-1.5 print:px-2">
+																<span class="inline-block size-4 rounded-sm border-2 border-petal-900/40 print:border-black" />
+															</td>
+															<td
+																class={cn(
+																	"px-2 py-1.5",
+																	sub && "pl-8 print:pl-5",
+																)}
+															>
+																<span class="flex items-center gap-2">
+																	<span class="size-8 shrink-0 overflow-hidden rounded-md bg-petal-50 print:size-[7mm]">
+																		<Show
+																			when={photoFor(row.flower, row.color)}
+																		>
+																			{(src) => (
+																				<img
+																					src={photoSrc(src(), "thumb")}
+																					alt=""
+																					loading="eager"
+																					class="size-full object-cover"
+																				/>
+																			)}
+																		</Show>
+																	</span>
+																	<span class="leading-tight">
+																		<Show
+																			when={!sub}
+																			fallback={
+																				<span>
+																					{row.color || "No color given"}
+																				</span>
+																			}
+																		>
+																			<span class="font-medium">
+																				{row.flower}
+																			</span>
+																			<Show when={row.color}>
+																				<span class="text-petal-900/60">
+																					{" "}
+																					· {row.color}
+																				</span>
+																			</Show>
+																		</Show>
+																		<Show when={row.filler}>
+																			<span class="text-petal-900/50">
+																				{" "}
+																				(filler)
+																			</span>
+																		</Show>
+																	</span>
 																</span>
-																<span class="leading-tight">
-																	<span class="font-medium">{row.flower}</span>
-																	<Show when={row.color}>
-																		<span class="text-petal-900/60">
-																			{" "}
-																			· {row.color}
+															</td>
+															<td class="px-3 py-1.5 text-right font-semibold tabular-nums">
+																{row.stems || ""}
+																<Show when={row.clusters}>
+																	<span class="block text-xs font-normal">
+																		{row.clusters} cluster
+																		{row.clusters === 1 ? "" : "s"}
+																	</span>
+																</Show>
+															</td>
+															<td class="px-3 py-1.5 text-right tabular-nums text-petal-900/70">
+																{row.bouquets}
+															</td>
+														</tr>
+													);
+													return (
+														<Show
+															when={group.rows.length > 1}
+															fallback={flowerRow(
+																group.rows[0] as (typeof group.rows)[number],
+																false,
+															)}
+														>
+															{/* One flower in several colors: its name and total, then each to tick. */}
+															<tr class="border-t border-petal-100 bg-petal-50/50 print:break-inside-avoid print:break-after-avoid print:border-black/30 print:bg-black/5">
+																<td class="px-3 py-1.5 print:px-2" />
+																<td class="px-2 py-1.5">
+																	<span class="flex items-center gap-2">
+																		<span class="size-8 shrink-0 overflow-hidden rounded-md bg-petal-50 print:size-[7mm]">
+																			<Show when={photoFor(group.flower)}>
+																				{(src) => (
+																					<img
+																						src={photoSrc(src(), "thumb")}
+																						alt=""
+																						loading="eager"
+																						class="size-full object-cover"
+																					/>
+																				)}
+																			</Show>
 																		</span>
-																	</Show>
-																	<Show when={row.filler}>
-																		<span class="text-petal-900/50">
-																			{" "}
-																			(filler)
+																		<span class="font-semibold">
+																			{group.flower}
 																		</span>
-																	</Show>
-																</span>
-															</span>
-														</td>
-														<td class="px-3 py-1.5 text-right font-semibold tabular-nums">
-															{row.stems || ""}
-															<Show when={row.clusters}>
-																<span class="block text-xs font-normal">
-																	{row.clusters} cluster
-																	{row.clusters === 1 ? "" : "s"}
-																</span>
-															</Show>
-														</td>
-														<td class="px-3 py-1.5 text-right tabular-nums text-petal-900/70">
-															{row.bouquets}
-														</td>
-													</tr>
-												)}
+																	</span>
+																</td>
+																<td class="px-3 py-1.5 text-right font-semibold tabular-nums">
+																	{group.stems || ""}
+																</td>
+																<td />
+															</tr>
+															<For each={group.rows}>
+																{(row) => flowerRow(row, true)}
+															</For>
+														</Show>
+													);
+												}}
 											</For>
 										</tbody>
 									</table>

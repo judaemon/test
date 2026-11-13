@@ -27,6 +27,7 @@ import {
 	PURCHASE_STATUSES,
 	setFlowerPurchase,
 } from "../flower-purchases-repo";
+import { withLatestRecipes } from "../order-recipe-sync";
 import { listOrders } from "../orders-repo";
 import { listPaymentAccounts } from "../payments-repo";
 import { asRecord, oneOf, text } from "../validate";
@@ -171,7 +172,10 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Report> => {
 		await requireStaff();
 		// Test orders don't count towards anything.
-		const all = listOrders({ limit: 100_000, test: "exclude" });
+		// Open orders' bouquets on their recipe as it is now.
+		const all = withLatestRecipes(
+			listOrders({ limit: 100_000, test: "exclude" }),
+		);
 		const active = all.filter((order) => order.stage !== "cancelled");
 		const cancelled = all.filter((order) => order.stage === "cancelled");
 

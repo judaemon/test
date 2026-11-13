@@ -12,6 +12,7 @@ import type { RecipeItem } from "~/types/product";
 import { listArrangementTypes } from "./arrangement-types-repo";
 import { getDb } from "./db";
 import type { Florist } from "./florists-repo";
+import { withLatestRecipes } from "./order-recipe-sync";
 import { listOrders } from "./orders-repo";
 import { currentPhotoUrl } from "./photo-watermarks";
 
@@ -138,10 +139,13 @@ export function floristWork(
 	);
 	const bouquets: FloristBouquet[] = [];
 	let doneCount = 0;
-	const orders = listOrders({
-		limit: 1_000_000,
-		test: options.forStaff ? undefined : "exclude",
-	});
+	// Open orders' bouquets on their recipe as it is now.
+	const orders = withLatestRecipes(
+		listOrders({
+			limit: 1_000_000,
+			test: options.forStaff ? undefined : "exclude",
+		}),
+	);
 	for (const order of orders) {
 		if (order.stage === "cancelled") continue;
 		const d = order.details;

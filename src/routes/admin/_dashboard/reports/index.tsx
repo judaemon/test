@@ -37,6 +37,7 @@ function ReportSummary() {
 	const cashUnpaid = () => cash().filter((order) => !isPaid(order));
 	const flowers = createMemo(() =>
 		tallyFlowers(active())
+			.flatMap((flower) => flower.colors)
 			.filter((row) => !row.filler)
 			.reduce((sum, row) => sum + row.stems, 0),
 	);

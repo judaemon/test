@@ -65,9 +65,10 @@ export interface FlowerTallyRow extends OrderFlower {
 	orderIds: string[];
 }
 
-/** A flower across orders: its total, then each color. */
+/** A flower across orders, by name: its total, then each color (fillers too). */
 export interface FlowerTally {
 	flower: string;
+	/** Only ever used as filler. */
 	filler: boolean;
 	stems: number;
 	clusters: number;
@@ -85,19 +86,23 @@ export function tallyFlowers(
 	const byFlower = new Map<string, FlowerTally>();
 	for (const order of orders) {
 		for (const item of order.flowers) {
-			const flowerKey = `${item.flower}|${item.filler ? "f" : ""}`;
+			// By name: a flower used both ways has its filler rows with the rest.
+			const flowerKey = item.flower;
 			const flower = byFlower.get(flowerKey) ?? {
 				flower: item.flower,
-				filler: item.filler,
+				filler: true,
 				stems: 0,
 				clusters: 0,
 				orderIds: [],
 				colors: [],
 			};
+			flower.filler &&= item.filler;
 			flower.stems += item.stems;
 			flower.clusters += item.clusters;
 			if (!flower.orderIds.includes(order.id)) flower.orderIds.push(order.id);
-			let color = flower.colors.find((row) => row.color === item.color);
+			let color = flower.colors.find(
+				(row) => row.color === item.color && row.filler === item.filler,
+			);
 			if (!color) {
 				color = { ...item, stems: 0, clusters: 0, bouquets: 0, orderIds: [] };
 				flower.colors.push(color);
@@ -111,9 +116,6 @@ export function tallyFlowers(
 	}
 	const tally = [...byFlower.values()];
 	// A to Z, fillers in with the rest, as every printed flower list is.
-	for (const flower of tally)
-		flower.colors.sort((a, b) =>
-			compareFlowers({ ...a, filler: false }, { ...b, filler: false }),
-		);
+	for (const flower of tally) flower.colors.sort(compareFlowers);
 	return tally.sort(compareFlowers);
 }
