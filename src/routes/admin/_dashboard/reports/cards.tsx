@@ -669,6 +669,15 @@ function Cards() {
 											? "No date yet"
 											: formatDeliveryDate(group.date)}
 										<Show when={klass() !== ALL}> · {classLabel(klass())}</Show>
+										<Show when={florist() !== ALL}>
+											{" · Florist: "}
+											{floristLabel(florist())}
+										</Show>
+										<Show when={status() !== "deliver"}>
+											{status() === "cancelled"
+												? " · Cancelled only"
+												: " · Incl. cancelled"}
+										</Show>
 									</p>
 									<h3 class="font-display text-xl font-semibold leading-tight print:text-[16pt]">
 										{companyLabel(group.company)}
