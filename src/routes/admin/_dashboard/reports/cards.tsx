@@ -340,6 +340,15 @@ function Cards() {
 		);
 	});
 
+	/** Where each group starts in one running count across every group shown. */
+	const groupStarts = createMemo(() => {
+		let n = 0;
+		return groups().map((group) => {
+			const start = n;
+			n += group.rows.length;
+			return start;
+		});
+	});
 	const orderCount = (rows: Row[]) =>
 		new Set(rows.map((row) => row.order.id)).size;
 	const dayLabel = (date: string) =>
@@ -713,6 +722,9 @@ function Cards() {
 												/>
 												<span class="hidden print:inline">✓</span>
 											</th>
+											<th class="pb-1.5 pr-3 text-right font-medium">
+												<span class="sr-only">Count</span>#
+											</th>
 											<th class="pb-1.5 pr-3 font-medium">Order</th>
 											<th class="pb-1.5 pr-3 font-medium">Delivery</th>
 											<th class="pb-1.5 pr-3 font-medium">From</th>
@@ -725,7 +737,7 @@ function Cards() {
 									</thead>
 									<tbody>
 										<For each={group.rows}>
-											{(row) => (
+											{(row, i) => (
 												<tr
 													class={cn(
 														"border-t border-petal-100 align-top print:break-inside-avoid print:border-black/25",
@@ -747,6 +759,9 @@ function Cards() {
 														/>
 														{/* An empty box to tick on paper. */}
 														<span class="hidden size-4 rounded-sm border-2 border-black print:inline-block" />
+													</td>
+													<td class="py-2 pr-3 text-right text-xs tabular-nums text-petal-900/55 print:py-1 print:text-[8pt] print:text-black/70">
+														{groupStarts()[index()] + i() + 1}
 													</td>
 													<td class="py-2 pr-3 font-semibold tabular-nums print:py-1">
 														<Link
