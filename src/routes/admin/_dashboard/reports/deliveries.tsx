@@ -148,13 +148,42 @@ function Deliveries() {
 		),
 	);
 
-	const shown = createMemo(() =>
+	// Florists are given bouquets, not orders: "" is a bouquet no one has yet.
+	const [florist, setFlorist] = createSignal<string>(ALL);
+	/** How many of a line's bouquets the florist has (all of them for everyone). */
+	const unitsFor = (key: string, line: ReportLine) =>
+		key === ALL
+			? line.quantity
+			: line.florists.filter((id) => id === key).length;
+	const hasFlorist = (key: string, order: ReportOrder) =>
+		order.lines.some((line) => unitsFor(key, line) > 0);
+	const ofClassAndCompany = createMemo(() =>
 		ofDay().filter(
 			(order) =>
 				(klass() === ALL || classOf(order) === klass()) &&
 				(company() === ALL || companyOf(order) === company()),
 		),
 	);
+	const shown = createMemo(() =>
+		ofClassAndCompany().filter((order) => hasFlorist(florist(), order)),
+	);
+	const floristTabs = createMemo(() => {
+		const known = report().florists;
+		const keys = [
+			...known
+				.filter((f) => f.active || ofDay().some((o) => hasFlorist(f.id, o)))
+				.map((f) => f.id),
+			...(ofDay().some((o) => hasFlorist("", o)) ? [""] : []),
+		];
+		return keys.map((key) => ({
+			key,
+			label: key
+				? (known.find((f) => f.id === key)?.name ?? key)
+				: "Not assigned",
+		}));
+	});
+	const floristLabel = (key: string) =>
+		floristTabs().find((tab) => tab.key === key)?.label ?? "";
 
 	const byNumber = (a: ReportOrder, b: ReportOrder) =>
 		a.number.localeCompare(b.number, undefined, { numeric: true });
@@ -172,12 +201,21 @@ function Deliveries() {
 	const groups = createMemo(() => {
 		const keys = [...sortBy(), "order", "bouquet"] as SortKey[];
 		const rows: Row[] = shown().flatMap((order) =>
-			order.lines.map((line, i) => ({
-				order,
-				line,
-				part: i + 1,
-				parts: order.lines.length,
-			})),
+			order.lines.flatMap((line, i) => {
+				// Only the florist's own bouquets of a line, when one is picked.
+				const units = unitsFor(florist(), line);
+				return units
+					? [
+							{
+								order,
+								line:
+									units === line.quantity ? line : { ...line, quantity: units },
+								part: i + 1,
+								parts: order.lines.length,
+							},
+						]
+					: [];
+			}),
 		);
 		rows.sort((a, b) => {
 			for (const key of keys) {
@@ -235,6 +273,7 @@ function Deliveries() {
 			status() === ALL && "Incl. cancelled",
 			klass() !== ALL && classLabel(klass()),
 			company() !== ALL && companyLabel(company()),
+			florist() !== ALL && floristLabel(florist()),
 		]),
 	);
 
@@ -362,6 +401,26 @@ function Deliveries() {
 							class="mb-0"
 						/>
 					</div>
+					<Show when={floristTabs().length}>
+						<div class="mb-3 flex flex-wrap items-center gap-x-2">
+							<span class="mr-1 text-sm font-medium">Florist</span>
+							<FilterTabs
+								label="Florist"
+								tabs={[{ key: ALL, label: "Everyone" }, ...floristTabs()].map(
+									(tab) => ({
+										...tab,
+										count: () =>
+											ofClassAndCompany().filter((order) =>
+												hasFlorist(tab.key, order),
+											).length,
+									}),
+								)}
+								value={florist()}
+								onChange={setFlorist}
+								class="mb-0"
+							/>
+						</div>
+					</Show>
 					<label class="mb-4 flex min-h-10 w-fit cursor-pointer items-center gap-2 text-sm">
 						<input
 							type="checkbox"
