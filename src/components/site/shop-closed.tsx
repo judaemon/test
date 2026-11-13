@@ -1,9 +1,26 @@
 import { Link } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 
+import { ChoiceSelect } from "~/components/checkout/choice-select";
+import { ColorSwatch } from "~/components/order/company-label";
 import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
+import {
+	CIVILIAN,
+	CLASS_LABELS,
+	CLASS_OPTIONS,
+	COMPANIES,
+	companyColor,
+	isCadetClass,
+} from "~/lib/cadets";
+import { SERIAL_NUMBER_MAX, serialDigits } from "~/lib/checkout";
 import { TAGLINE } from "~/lib/contact";
-import { WISH_NAME_MAX } from "~/lib/shop-status";
+import { shortDeliveryDate } from "~/lib/delivery-dates";
+import {
+	checkWish,
+	WISH_DATES,
+	WISH_NAME_MAX,
+	type WishField,
+} from "~/lib/shop-status";
 import { cn } from "~/lib/utils";
 import { addShopWishFn } from "~/server/shop-status";
 
@@ -18,8 +35,18 @@ export function ShopClosed(props: {
 	preview?: boolean;
 }) {
 	const [name, setName] = createSignal("");
+	const [className, setClassName] = createSignal("");
+	const [company, setCompany] = createSignal("");
+	const [serialNumber, setSerialNumber] = createSignal("");
+	const [date, setDate] = createSignal("");
 	const [sending, setSending] = createSignal(false);
 	const [error, setError] = createSignal("");
+	const [errors, setErrors] = createSignal<Partial<Record<WishField, string>>>(
+		{},
+	);
+	const clearError = (field: WishField) =>
+		setErrors(({ [field]: _, ...rest }) => rest);
+	const cadet = () => isCadetClass(className());
 	const [thanked, setThanked] = createSignal<string>();
 
 	const send = async (event: SubmitEvent) => {
@@ -27,16 +54,30 @@ export function ShopClosed(props: {
 		if (props.preview) return;
 		const form = event.currentTarget as HTMLFormElement;
 		setError("");
+		const details = {
+			name: name(),
+			className: className(),
+			company: company(),
+			serialNumber: serialNumber(),
+			date: date(),
+		};
+		const checked = checkWish(details);
+		if (!checked.ok) {
+			setErrors(checked.errors);
+			return;
+		}
+		setErrors({});
 		setSending(true);
 		try {
 			const result = await addShopWishFn({
 				data: {
-					name: name(),
+					...details,
 					website: (form.elements.namedItem("website") as HTMLInputElement)
 						?.value,
 				},
 			});
 			if (result.ok) setThanked(result.name);
+			else if (result.errors) setErrors(result.errors);
 			else setError(result.message);
 		} catch {
 			setError("That didn’t go through. Please try again.");
@@ -146,8 +187,8 @@ export function ShopClosed(props: {
 							</h2>
 							<p class="mt-2 text-petal-900/70">
 								We’re bringing extra bouquets to the event, and you can buy one
-								there. Signify your interest by entering your name, so we know
-								how many to bring.
+								there. Signify your interest with your details and the day
+								you’ll be there, so we know how many to bring.
 							</p>
 							{/* Said plainly, so nobody thinks they've ordered or reserved. */}
 							<ul
@@ -172,23 +213,155 @@ export function ShopClosed(props: {
 									</span>
 								</li>
 							</ul>
-							<form class="mt-5 flex flex-col gap-3" onSubmit={send}>
-								<label class="text-sm font-medium" for="wish-name">
-									Your name
-								</label>
-								<input
-									id="wish-name"
-									name="name"
-									autocomplete="name"
-									maxLength={WISH_NAME_MAX}
-									required
-									placeholder="e.g. Ana Cruz"
-									value={name()}
-									onInput={(e) => setName(e.currentTarget.value)}
-									aria-invalid={!!error()}
-									aria-describedby={error() ? "wish-error" : "wish-note"}
-									class="-mt-1 h-12 w-full rounded-2xl border border-petal-200 bg-white px-4 text-base text-petal-900 outline-none transition-colors placeholder:text-petal-900/35 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30"
+							<form class="mt-5 flex flex-col gap-4" onSubmit={send} noValidate>
+								<div class="flex flex-col gap-2">
+									<label class="text-sm font-medium" for="wish-name">
+										Your name
+									</label>
+									<input
+										id="wish-name"
+										name="name"
+										autocomplete="name"
+										maxLength={WISH_NAME_MAX}
+										required
+										placeholder="e.g. Ana Cruz"
+										value={name()}
+										onInput={(e) => {
+											setName(e.currentTarget.value);
+											clearError("name");
+										}}
+										aria-invalid={!!errors().name}
+										aria-describedby={
+											errors().name ? "wish-name-error" : "wish-note"
+										}
+										class={cn(
+											fieldClass,
+											errors().name && "border-destructive",
+										)}
+									/>
+									<FieldError id="wish-name-error" message={errors().name} />
+								</div>
+								<ChoiceSelect
+									name="className"
+									label="Class"
+									placeholder="Choose your class"
+									options={CLASS_OPTIONS}
+									optionLabel={(value) =>
+										CLASS_LABELS[value as keyof typeof CLASS_LABELS] ?? value
+									}
+									value={className()}
+									onChange={(value) => {
+										setClassName(value);
+										// Civilians don't have a company or a serial number.
+										if (value === CIVILIAN) {
+											setCompany("");
+											setSerialNumber("");
+										}
+										clearError("className");
+										clearError("company");
+										clearError("serialNumber");
+									}}
+									error={errors().className}
 								/>
+								{/* Only cadets are asked for these. */}
+								<Show when={cadet()}>
+									<ChoiceSelect
+										name="company"
+										label="Company"
+										placeholder="Choose your company"
+										options={COMPANIES.map((company) => company.name)}
+										optionPrefix={(value) => (
+											<ColorSwatch color={companyColor(value)} />
+										)}
+										value={company()}
+										onChange={(value) => {
+											setCompany(value);
+											clearError("company");
+										}}
+										error={errors().company}
+									/>
+									<div class="flex flex-col gap-2">
+										<label class="text-sm font-medium" for="wish-serial">
+											Serial number
+										</label>
+										<div
+											class={cn(
+												"flex h-11 items-center rounded-xl border bg-white transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30",
+												errors().serialNumber
+													? "border-destructive"
+													: "border-petal-200",
+											)}
+										>
+											<span
+												aria-hidden="true"
+												class="pl-3 text-base text-petal-900/55 sm:text-sm"
+											>
+												C-
+											</span>
+											<input
+												id="wish-serial"
+												name="serialNumber"
+												inputMode="numeric"
+												autocomplete="off"
+												maxLength={SERIAL_NUMBER_MAX}
+												placeholder="numbers"
+												value={serialNumber()}
+												onInput={(e) => {
+													const digits = serialDigits(e.currentTarget.value);
+													e.currentTarget.value = digits;
+													setSerialNumber(digits);
+													clearError("serialNumber");
+												}}
+												aria-invalid={!!errors().serialNumber}
+												aria-describedby={
+													errors().serialNumber
+														? "wish-serial-error"
+														: undefined
+												}
+												class="h-full min-w-0 flex-1 rounded-r-xl bg-transparent px-1.5 text-base text-petal-900 outline-none placeholder:text-petal-900/35 sm:text-sm"
+											/>
+										</div>
+										<FieldError
+											id="wish-serial-error"
+											message={errors().serialNumber}
+										/>
+									</div>
+								</Show>
+								<fieldset class="flex flex-col gap-2">
+									<legend class="mb-2 text-sm font-medium">
+										Which day will you be there?
+									</legend>
+									<div class="grid grid-cols-2 gap-2">
+										<For each={WISH_DATES}>
+											{(day) => (
+												<label
+													class={cn(
+														"flex h-11 cursor-pointer items-center justify-center rounded-xl border text-base font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-petal-500 sm:text-sm",
+														date() === day
+															? "border-petal-700 bg-petal-700 text-white"
+															: errors().date
+																? "border-destructive bg-white hover:bg-petal-50"
+																: "border-petal-200 bg-white hover:bg-petal-50",
+													)}
+												>
+													<input
+														type="radio"
+														name="date"
+														value={day}
+														checked={date() === day}
+														onChange={() => {
+															setDate(day);
+															clearError("date");
+														}}
+														class="sr-only"
+													/>
+													{shortDeliveryDate(day)}
+												</label>
+											)}
+										</For>
+									</div>
+									<FieldError id="wish-date-error" message={errors().date} />
+								</fieldset>
 								{/* People never see this; bots fill it in. */}
 								<div
 									aria-hidden="true"
@@ -220,6 +393,20 @@ export function ShopClosed(props: {
 				</div>
 			</main>
 		</div>
+	);
+}
+
+/** Matches the checkout dropdowns beside it. */
+const fieldClass =
+	"h-11 w-full rounded-xl border border-petal-200 bg-white px-3 text-base text-petal-900 outline-none transition-colors placeholder:text-petal-900/35 focus-visible:border-petal-500 focus-visible:ring-2 focus-visible:ring-petal-500/30 sm:text-sm";
+
+function FieldError(props: { id: string; message?: string }) {
+	return (
+		<Show when={props.message}>
+			<p id={props.id} role="alert" class="text-xs text-destructive">
+				{props.message}
+			</p>
+		</Show>
 	);
 }
 

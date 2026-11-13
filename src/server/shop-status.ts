@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/solid-start";
 
 import {
-	cleanWishName,
+	checkWish,
 	SHOP_HEADING_MAX,
 	SHOP_MESSAGE_MAX,
 	type ShopStatus,
-	WISH_NAME_MAX,
+	type WishField,
 } from "~/lib/shop-status";
 import { requireOwner, requireStaff } from "./admin-auth";
 import {
@@ -54,7 +54,11 @@ export const saveShopStatusFn = createServerFn({ method: "POST" })
 
 export type WishResult =
 	| { ok: true; name: string }
-	| { ok: false; message: string };
+	| {
+			ok: false;
+			message: string;
+			errors?: Partial<Record<WishField, string>>;
+	  };
 
 /**
  * Public, while the shop is closed: someone signifies interest in buying a
@@ -63,27 +67,37 @@ export type WishResult =
 export const addShopWishFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => {
 		const source = asRecord(input);
+		const short = (key: string) =>
+			typeof source[key] === "string"
+				? (source[key] as string).slice(0, 200)
+				: "";
 		return {
-			name: typeof source.name === "string" ? source.name.slice(0, 200) : "",
-			website: typeof source.website === "string" ? source.website : "",
+			name: short("name"),
+			className: short("className"),
+			company: short("company"),
+			serialNumber: short("serialNumber"),
+			date: short("date"),
+			website: short("website"),
 		};
 	})
 	.handler(async ({ data }): Promise<WishResult> => {
-		const name = cleanWishName(data.name);
-		if (!name)
+		const checked = checkWish(data);
+		if (!checked.ok)
 			return {
 				ok: false,
-				message: `Please enter your name (up to ${WISH_NAME_MAX} characters).`,
+				message: "Please check the details above.",
+				errors: checked.errors,
 			};
+		const { wish } = checked;
 		// Looks fine to a bot, but nothing is kept.
-		if (data.website) return { ok: true, name };
+		if (data.website) return { ok: true, name: wish.name };
 		if (!getShopStatus().closed)
 			return {
 				ok: false,
 				message: "We’re taking orders again! Order your bouquet in the shop.",
 			};
-		addShopWish(name);
-		return { ok: true, name };
+		addShopWish(wish);
+		return { ok: true, name: wish.name };
 	});
 
 export const deleteShopWishFn = createServerFn({ method: "POST" })

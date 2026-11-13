@@ -11,12 +11,16 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { CompanyLabel } from "~/components/order/company-label";
 import { ShopClosed } from "~/components/site/shop-closed";
+import { formatSerialNumber } from "~/lib/checkout";
+import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { formatLogTime } from "~/lib/order-log";
 import {
 	DEFAULT_SHOP_STATUS,
 	SHOP_HEADING_MAX,
 	SHOP_MESSAGE_MAX,
+	WISH_DATES,
 } from "~/lib/shop-status";
 import { cn } from "~/lib/utils";
 import {
@@ -93,7 +97,16 @@ function ShopPage() {
 			await navigator.clipboard.writeText(
 				[...wishes()]
 					.reverse()
-					.map((wish, i) => `${i + 1}. ${wish.name}`)
+					.map((wish, i) =>
+						[
+							`${i + 1}. ${wish.name}`,
+							[wish.company, wish.className].filter(Boolean).join(" "),
+							wish.serialNumber && formatSerialNumber(wish.serialNumber),
+							wish.date && shortDeliveryDate(wish.date),
+						]
+							.filter(Boolean)
+							.join(" · "),
+					)
 					.join("\n"),
 			);
 			setCopied(true);
@@ -255,6 +268,16 @@ function ShopPage() {
 									People who signified interest in buying a bouquet at the
 									event, newest first. These aren’t orders.
 								</p>
+								<p class="mt-1 flex flex-wrap gap-x-4 text-sm font-medium tabular-nums">
+									<For each={WISH_DATES}>
+										{(day) => (
+											<span>
+												{shortDeliveryDate(day)}:{" "}
+												{wishes().filter((wish) => wish.date === day).length}
+											</span>
+										)}
+									</For>
+								</p>
 							</div>
 							<button
 								type="button"
@@ -280,9 +303,25 @@ function ShopPage() {
 								<For each={wishes()}>
 									{(wish) => (
 										<li class="flex items-center gap-3 px-5 py-2.5">
-											<span class="min-w-0 flex-1 truncate font-medium">
-												{wish.name}
-											</span>
+											<div class="min-w-0 flex-1">
+												<p class="truncate font-medium">{wish.name}</p>
+												<p class="flex flex-wrap items-center gap-x-2 text-xs text-petal-900/65">
+													<Show when={wish.className}>
+														<CompanyLabel
+															company={wish.company}
+															className={wish.className}
+														/>
+													</Show>
+													<Show when={wish.serialNumber}>
+														<span class="tabular-nums">
+															{formatSerialNumber(wish.serialNumber)}
+														</span>
+													</Show>
+													<Show when={wish.date}>
+														<span>{shortDeliveryDate(wish.date)}</span>
+													</Show>
+												</p>
+											</div>
 											<span class="shrink-0 text-xs tabular-nums text-petal-900/55">
 												{formatLogTime(wish.createdAt)}
 											</span>
