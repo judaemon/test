@@ -590,7 +590,7 @@ export function OrderList(props: { list: OrderListState }) {
 								</p>
 							</Show>
 							<For each={sections()}>
-								{(section) => (
+								{(section, index) => (
 									<section
 										class={cn(
 											"print:mt-4",
@@ -606,6 +606,9 @@ export function OrderList(props: { list: OrderListState }) {
 										<OrderTable
 											orders={section.orders}
 											currency={currency()}
+											startAt={sections()
+												.slice(0, index())
+												.reduce((n, s) => n + s.orders.length, 0)}
 											pageTitle={
 												section.heading ? (
 													<SectionTitle
@@ -652,6 +655,8 @@ export function OrderTable(props: {
 	currency: string;
 	/** Printed in the table's head, so it repeats on every page it runs onto. */
 	pageTitle?: JSX.Element;
+	/** Rows in tables above this one, so the count runs on across them. */
+	startAt?: number;
 }) {
 	const navigate = useNavigate();
 	// Each row is filled with its company's color, like the orders page.
@@ -663,7 +668,7 @@ export function OrderTable(props: {
 				<Show when={props.pageTitle}>
 					<tr class="hidden print:table-row">
 						<th
-							colSpan={6}
+							colSpan={7}
 							class="bg-petal-50 px-2 py-2 text-left text-sm font-semibold normal-case tracking-normal text-petal-900"
 						>
 							<span class="flex items-center gap-2">{props.pageTitle}</span>
@@ -671,6 +676,9 @@ export function OrderTable(props: {
 					</tr>
 				</Show>
 				<tr>
+					<th class="py-2 pl-5 text-right font-medium print:pl-2">
+						<span class="sr-only">Count</span>#
+					</th>
 					<th class="px-5 py-2 font-medium print:px-2">Name</th>
 					<th class="px-3 py-2 font-medium print:px-2">Company · Class</th>
 					<th class="px-3 py-2 font-medium print:px-2">Bouquets</th>
@@ -681,7 +689,7 @@ export function OrderTable(props: {
 			</thead>
 			<tbody>
 				<For each={props.orders}>
-					{(order) => (
+					{(order, i) => (
 						<tr
 							// The whole row opens the order; the order number stays a
 							// real link for keyboard users and opening in a new tab.
@@ -705,14 +713,20 @@ export function OrderTable(props: {
 							}}
 						>
 							<td
-								data-wide
-								class="px-5 py-2.5 font-medium print:pl-4 print:pr-2"
+								data-label="#"
+								class="py-2.5 pl-5 text-xs tabular-nums text-petal-900/55 md:text-right print:pl-4 print:text-black/70"
 								style={{
 									// Company stripe; the outline keeps Bravo's white visible.
 									"box-shadow": color(order)
 										? `inset 6px 0 0 ${color(order)}, inset 7px 0 0 rgb(0 0 0 / 0.15)`
 										: undefined,
 								}}
+							>
+								{(props.startAt ?? 0) + i() + 1}
+							</td>
+							<td
+								data-wide
+								class="px-5 py-2.5 font-medium print:pl-4 print:pr-2"
 							>
 								{order.name}
 							</td>

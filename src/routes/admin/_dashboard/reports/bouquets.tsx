@@ -49,6 +49,9 @@ function BouquetsReport() {
 					<table class="w-full min-w-[560px] text-left text-sm print:min-w-0">
 						<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 							<tr>
+								<th class="pb-2 pr-3 text-right font-medium">
+									<span class="sr-only">Count</span>#
+								</th>
 								<th class="pb-2 pr-4 font-medium">Bouquet</th>
 								<th class="pb-2 pr-4 text-right font-medium">Orders</th>
 								<th class="pb-2 pr-4 text-right font-medium">Bouquets</th>
@@ -57,7 +60,7 @@ function BouquetsReport() {
 						</thead>
 						<tbody>
 							<For each={report().byBouquet}>
-								{(row) => (
+								{(row, i) => (
 									<tr
 										class="cursor-pointer border-t border-petal-100 transition-colors hover:bg-petal-50"
 										onClick={(event) => {
@@ -66,6 +69,9 @@ function BouquetsReport() {
 											show(`Bouquet: ${row.code}`, row);
 										}}
 									>
+										<td class="py-2.5 pr-3 text-right text-xs tabular-nums text-petal-900/55 print:text-black/70">
+											{i() + 1}
+										</td>
 										<th scope="row" class="py-2.5 pr-4 font-normal">
 											<span class="flex items-center gap-3">
 												<Show when={row.image}>
@@ -106,6 +112,7 @@ function BouquetsReport() {
 						</tbody>
 						<tfoot>
 							<tr class="border-t-2 border-petal-200 font-semibold">
+								<td />
 								<th scope="row" class="py-3 pr-4 font-semibold">
 									Total
 								</th>

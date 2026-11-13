@@ -477,6 +477,9 @@ function FlowersToBuy() {
 					<table class="w-full min-w-[560px] max-w-4xl text-left text-sm print:min-w-0">
 						<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 							<tr>
+								<th class="w-8 pb-2 pr-3 text-right font-medium">
+									<span class="sr-only">Count</span>#
+								</th>
 								<th class="pb-2 pr-4 font-medium">Flower</th>
 								<th class="w-20 pb-2 pr-4 text-right font-medium">Stems</th>
 								<th class="w-20 pb-2 pr-4 text-right font-medium">Bouquets</th>
@@ -485,7 +488,7 @@ function FlowersToBuy() {
 							</tr>
 						</thead>
 						<For each={tally()}>
-							{(flower) => {
+							{(flower, index) => {
 								const split = () =>
 									flower.colors.length > 1 || flower.colors[0]?.color !== "";
 								const usedBothWays = () =>
@@ -502,6 +505,9 @@ function FlowersToBuy() {
 													rowTint(purchaseOf(flower.colors[0] as FlowerRow)),
 											)}
 										>
+											<td class="py-2.5 pr-3 text-right text-xs tabular-nums text-petal-900/55 print:text-black/70">
+												{index() + 1}
+											</td>
 											<th scope="row" class="py-2.5 pr-4 font-semibold">
 												<button
 													type="button"
@@ -569,6 +575,7 @@ function FlowersToBuy() {
 															rowTint(purchaseOf(row)),
 														)}
 													>
+														<td />
 														<th
 															scope="row"
 															class="py-1.5 pl-5 pr-4 font-normal"
@@ -922,6 +929,7 @@ function SupplierChecklist(props: {
 				<thead>
 					<tr class="bg-black/5">
 						<th class={cn(cell, "w-10 text-center")}>✓</th>
+						<th class={cn(cell, "w-10 text-right")}>#</th>
 						<th class={cell}>Flower</th>
 						<th class={cell}>Color</th>
 						<th class={cn(cell, "text-right")}>Quantity</th>
@@ -931,11 +939,12 @@ function SupplierChecklist(props: {
 				</thead>
 				<tbody>
 					<For each={rows()}>
-						{(row) => (
+						{(row, i) => (
 							<tr class="break-inside-avoid">
 								<td class={cn(cell, "text-center")}>
 									<span class="inline-block size-4 border-2 border-black" />
 								</td>
+								<td class={cn(cell, "text-right tabular-nums")}>{i() + 1}</td>
 								<td class={cn(cell, "font-semibold")}>
 									{row.flower}
 									<Show when={row.filler}>
@@ -959,7 +968,7 @@ function SupplierChecklist(props: {
 				</tbody>
 				<tfoot>
 					<tr class="font-bold">
-						<td class={cell} colSpan={3}>
+						<td class={cell} colSpan={4}>
 							Total
 						</td>
 						<td class={cn(cell, "text-right tabular-nums")}>

@@ -298,7 +298,7 @@ function BattalionsReport() {
 							</span>
 						</h2>
 						<For each={b.companies}>
-							{(company) => (
+							{(company, j) => (
 								<div
 									class={cn(
 										adminCard,
@@ -325,6 +325,15 @@ function BattalionsReport() {
 										<OrderTable
 											orders={company.orders}
 											currency={report().currency}
+											startAt={
+												shown()
+													.slice(0, i())
+													.flatMap((x) => x.companies)
+													.reduce((n, c) => n + c.orders.length, 0) +
+												b.companies
+													.slice(0, j())
+													.reduce((n, c) => n + c.orders.length, 0)
+											}
 										/>
 									</Show>
 								</div>

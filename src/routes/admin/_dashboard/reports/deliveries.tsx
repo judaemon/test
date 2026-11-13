@@ -244,6 +244,16 @@ function Deliveries() {
 		);
 	});
 
+	/** Where each group starts in one running count across every group shown. */
+	const groupStarts = createMemo(() => {
+		let n = 0;
+		return groups().map((group) => {
+			const start = n;
+			n += group.rows.length;
+			return start;
+		});
+	});
+
 	/** Each order once, from its rows. */
 	const ordersOf = (rows: Row[]) => [...new Set(rows.map((row) => row.order))];
 	/** The row that carries an order's amount to collect: its first one listed. */
@@ -541,6 +551,9 @@ function Deliveries() {
 											<th class="w-8 pb-1.5 pr-2 font-medium">
 												<span class="sr-only">Handed over</span>✓
 											</th>
+											<th class="pb-1.5 pr-3 text-right font-medium">
+												<span class="sr-only">Count</span>#
+											</th>
 											<th class="pb-1.5 pr-3 font-medium">Order</th>
 											<th class="pb-1.5 pr-3 font-medium">Delivery</th>
 											<th class="pb-1.5 pr-3 font-medium">Name</th>
@@ -555,7 +568,7 @@ function Deliveries() {
 									</thead>
 									<tbody>
 										<For each={group.rows}>
-											{(row) => (
+											{(row, i) => (
 												<tr
 													class={cn(
 														"border-t border-petal-100 align-top print:break-inside-avoid print:border-black/25",
@@ -567,7 +580,11 @@ function Deliveries() {
 													<td class="py-2 pr-2 print:py-1">
 														<span class="inline-block size-4 rounded-sm border-2 border-petal-900/40 print:border-black" />
 													</td>
+													<td class="py-2 pr-3 text-right text-xs tabular-nums text-petal-900/55 print:py-1 print:text-[8pt] print:text-black/70">
+														{groupStarts()[index()] + i() + 1}
+													</td>
 													<td class="py-2 pr-3 font-semibold tabular-nums print:py-1">
+														
 														<Link
 															to="/admin/orders/$orderId"
 															params={{ orderId: row.order.id }}

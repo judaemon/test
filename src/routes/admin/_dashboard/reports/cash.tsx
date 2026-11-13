@@ -86,6 +86,9 @@ function CashPayments() {
 					<table class="w-full min-w-[720px] text-left text-sm print:min-w-0">
 						<thead class="text-xs uppercase tracking-wide text-petal-900/55">
 							<tr>
+								<th class="pb-2 pr-3 text-right font-medium">
+									<span class="sr-only">Count</span>#
+								</th>
 								<th class="pb-2 pr-4 font-medium">Customer</th>
 								<th class="pb-2 pr-4 font-medium">Class · Company</th>
 								<th class="pb-2 pr-4 font-medium">Serial no.</th>
@@ -96,8 +99,11 @@ function CashPayments() {
 						</thead>
 						<tbody>
 							<For each={shown()}>
-								{(order) => (
+								{(order, i) => (
 									<tr class="border-t border-petal-100">
+										<td class="py-2.5 pr-3 text-right text-xs tabular-nums text-petal-900/55 print:text-black/70">
+											{i() + 1}
+										</td>
 										<td class="py-2.5 pr-4 font-medium">{order.name}</td>
 										<td class="py-2.5 pr-4">
 											<CompanyLabel
