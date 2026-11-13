@@ -5,7 +5,11 @@ import { FilterTabs, useReport } from "~/components/admin/reports";
 import { adminButton, adminCard, adminInput } from "~/components/admin/ui";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
-import { shortDeliveryDate, upcomingDeliveryDates } from "~/lib/delivery-dates";
+import {
+	companyDays,
+	shortDeliveryDate,
+	upcomingDeliveryDates,
+} from "~/lib/delivery-dates";
 import { photoSrc } from "~/lib/photos";
 import { type CardPrintStatus, pickKey } from "~/lib/print-cards";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
@@ -310,6 +314,13 @@ function Cards() {
 		to: (a, b) => a.card.to.localeCompare(b.card.to),
 	};
 
+	/** Each company's delivery day, from every order still to deliver. */
+	const mainDays = createMemo(() =>
+		companyDays(
+			report().orders.filter((order) => order.status !== "cancelled"),
+		),
+	);
+
 	/** By delivery day (earliest first, no date last), then company. */
 	const groups = createMemo(() => {
 		const keys = [...sortBy(), "order", "bouquet"] as SortKey[];
@@ -332,9 +343,15 @@ function Cards() {
 			group.rows.push(row);
 			byGroup.set(key, group);
 		}
+		// A company's undated orders come after its delivery day's groups.
+		const dayOf = (group: { company: string; date: string }) =>
+			group.date === NONE
+				? (mainDays().get(group.company === NONE ? "" : group.company) ?? NONE)
+				: group.date;
 		return [...byGroup.values()].sort(
 			(a, b) =>
-				dateRank(a.date, b.date) ||
+				dateRank(dayOf(a), dayOf(b)) ||
+				Number(a.date === NONE) - Number(b.date === NONE) ||
 				companyRank(a.company) - companyRank(b.company) ||
 				a.company.localeCompare(b.company),
 		);

@@ -57,3 +57,28 @@ export function shortDeliveryDate(date: string) {
 		day: "numeric",
 	});
 }
+
+/**
+ * The day each company mostly takes delivery: the date most of its orders
+ * have (the earlier one on a tie). Orders with no date yet are listed with
+ * their company's day, so "Alfa · No date yet" follows Nov 14's companies.
+ */
+export function companyDays(
+	orders: readonly { company: string; deliveryDate: string }[],
+): Map<string, string> {
+	const counts = new Map<string, Map<string, number>>();
+	for (const { company, deliveryDate } of orders) {
+		if (!deliveryDate) continue;
+		const days = counts.get(company) ?? new Map<string, number>();
+		days.set(deliveryDate, (days.get(deliveryDate) ?? 0) + 1);
+		counts.set(company, days);
+	}
+	const main = new Map<string, string>();
+	for (const [company, days] of counts) {
+		const [day] = [...days].sort(
+			([a, x], [b, y]) => y - x || a.localeCompare(b),
+		)[0] as [string, number];
+		main.set(company, day);
+	}
+	return main;
+}
