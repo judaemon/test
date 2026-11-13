@@ -48,29 +48,24 @@ describe("cleanWishName", () => {
 describe("checkWish", () => {
 	const cadet = {
 		name: "Ana Cruz",
-		className: "2CL",
 		company: "Alfa",
 		serialNumber: "C-12345",
 		date: "2026-11-14",
 	};
-	test("a cadet needs class, company, serial number and day", () => {
+	test("a cadet needs company, serial number and day", () => {
 		expect(checkWish(cadet)).toEqual({
 			ok: true,
 			wish: { ...cadet, serialNumber: "12345" },
 		});
-		const result = checkWish({ ...cadet, company: "", serialNumber: "" });
-		expect(result.ok).toBe(false);
-		if (!result.ok)
-			expect(Object.keys(result.errors).sort()).toEqual([
-				"company",
-				"serialNumber",
-			]);
+		const result = checkWish({ ...cadet, serialNumber: "" });
+		expect(!result.ok && Object.keys(result.errors)).toEqual(["serialNumber"]);
+		const unknown = checkWish({ ...cadet, company: "Zulu" });
+		expect(!unknown.ok && unknown.errors.company).toBeTruthy();
 	});
-	test("civilians leave company and serial number out", () => {
-		const result = checkWish({ ...cadet, className: "Civilian" });
+	test("civilians leave the serial number out", () => {
+		const result = checkWish({ ...cadet, company: "Civilian" });
 		expect(result.ok && result.wish).toMatchObject({
-			className: "Civilian",
-			company: "",
+			company: "Civilian",
 			serialNumber: "",
 		});
 	});
@@ -81,10 +76,10 @@ describe("checkWish", () => {
 		}
 		expect(checkWish({ ...cadet, date: "2026-11-15" }).ok).toBe(true);
 	});
-	test("needs a class and a name", () => {
+	test("needs a company and a name", () => {
 		const result = checkWish({ date: "2026-11-14" });
 		expect(!result.ok && Object.keys(result.errors).sort()).toEqual([
-			"className",
+			"company",
 			"name",
 		]);
 	});

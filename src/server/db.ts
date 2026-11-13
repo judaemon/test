@@ -876,8 +876,8 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	);
 	CREATE INDEX shop_wishes_by_time ON shop_wishes (created_at);
 	`,
-	// v62: the extra bouquets list also takes class, company and serial number
-	// (as checkout does) and which event day, November 14 or 15.
+	// v62: the extra bouquets list also takes company (or Civilian), serial
+	// number and which event day, November 14 or 15. class_name is unused.
 	`
 	ALTER TABLE shop_wishes ADD COLUMN class_name TEXT NOT NULL DEFAULT '';
 	ALTER TABLE shop_wishes ADD COLUMN company TEXT NOT NULL DEFAULT '';

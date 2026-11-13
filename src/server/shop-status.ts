@@ -73,7 +73,6 @@ export const addShopWishFn = createServerFn({ method: "POST" })
 				: "";
 		return {
 			name: short("name"),
-			className: short("className"),
 			company: short("company"),
 			serialNumber: short("serialNumber"),
 			date: short("date"),

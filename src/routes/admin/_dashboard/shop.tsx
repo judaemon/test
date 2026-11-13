@@ -13,6 +13,7 @@ import {
 } from "~/components/admin/ui";
 import { CompanyLabel } from "~/components/order/company-label";
 import { ShopClosed } from "~/components/site/shop-closed";
+import { CIVILIAN } from "~/lib/cadets";
 import { formatSerialNumber } from "~/lib/checkout";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { formatLogTime } from "~/lib/order-log";
@@ -100,7 +101,7 @@ function ShopPage() {
 					.map((wish, i) =>
 						[
 							`${i + 1}. ${wish.name}`,
-							[wish.company, wish.className].filter(Boolean).join(" "),
+							wish.company,
 							wish.serialNumber && formatSerialNumber(wish.serialNumber),
 							wish.date && shortDeliveryDate(wish.date),
 						]
@@ -306,10 +307,14 @@ function ShopPage() {
 											<div class="min-w-0 flex-1">
 												<p class="truncate font-medium">{wish.name}</p>
 												<p class="flex flex-wrap items-center gap-x-2 text-xs text-petal-900/65">
-													<Show when={wish.className}>
+													<Show when={wish.company}>
 														<CompanyLabel
-															company={wish.company}
-															className={wish.className}
+															company={
+																wish.company === CIVILIAN ? "" : wish.company
+															}
+															className={
+																wish.company === CIVILIAN ? CIVILIAN : ""
+															}
 														/>
 													</Show>
 													<Show when={wish.serialNumber}>

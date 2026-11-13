@@ -6,11 +6,10 @@ import { ColorSwatch } from "~/components/order/company-label";
 import { FlowerMark, Sparkle, Wordmark } from "~/components/site/brand";
 import {
 	CIVILIAN,
+	CIVILIAN_COLOR,
 	CLASS_LABELS,
-	CLASS_OPTIONS,
 	COMPANIES,
 	companyColor,
-	isCadetClass,
 } from "~/lib/cadets";
 import { SERIAL_NUMBER_MAX, serialDigits } from "~/lib/checkout";
 import { TAGLINE } from "~/lib/contact";
@@ -35,7 +34,6 @@ export function ShopClosed(props: {
 	preview?: boolean;
 }) {
 	const [name, setName] = createSignal("");
-	const [className, setClassName] = createSignal("");
 	const [company, setCompany] = createSignal("");
 	const [serialNumber, setSerialNumber] = createSignal("");
 	const [date, setDate] = createSignal("");
@@ -46,7 +44,7 @@ export function ShopClosed(props: {
 	);
 	const clearError = (field: WishField) =>
 		setErrors(({ [field]: _, ...rest }) => rest);
-	const cadet = () => isCadetClass(className());
+	const cadet = () => !!companyColor(company());
 	const [thanked, setThanked] = createSignal<string>();
 
 	const send = async (event: SubmitEvent) => {
@@ -56,7 +54,6 @@ export function ShopClosed(props: {
 		setError("");
 		const details = {
 			name: name(),
-			className: className(),
 			company: company(),
 			serialNumber: serialNumber(),
 			date: date(),
@@ -242,44 +239,33 @@ export function ShopClosed(props: {
 									<FieldError id="wish-name-error" message={errors().name} />
 								</div>
 								<ChoiceSelect
-									name="className"
-									label="Class"
-									placeholder="Choose your class"
-									options={CLASS_OPTIONS}
+									name="company"
+									label="Company"
+									placeholder="Choose your company"
+									options={[
+										CIVILIAN,
+										...COMPANIES.map((company) => company.name),
+									]}
 									optionLabel={(value) =>
-										CLASS_LABELS[value as keyof typeof CLASS_LABELS] ?? value
+										value === CIVILIAN ? CLASS_LABELS[CIVILIAN] : value
 									}
-									value={className()}
+									optionPrefix={(value) => (
+										<ColorSwatch
+											color={companyColor(value) ?? CIVILIAN_COLOR}
+										/>
+									)}
+									value={company()}
 									onChange={(value) => {
-										setClassName(value);
-										// Civilians don't have a company or a serial number.
-										if (value === CIVILIAN) {
-											setCompany("");
-											setSerialNumber("");
-										}
-										clearError("className");
+										setCompany(value);
+										// Civilians don't have a serial number.
+										if (value === CIVILIAN) setSerialNumber("");
 										clearError("company");
 										clearError("serialNumber");
 									}}
-									error={errors().className}
+									error={errors().company}
 								/>
-								{/* Only cadets are asked for these. */}
+								{/* Only cadets are asked for this. */}
 								<Show when={cadet()}>
-									<ChoiceSelect
-										name="company"
-										label="Company"
-										placeholder="Choose your company"
-										options={COMPANIES.map((company) => company.name)}
-										optionPrefix={(value) => (
-											<ColorSwatch color={companyColor(value)} />
-										)}
-										value={company()}
-										onChange={(value) => {
-											setCompany(value);
-											clearError("company");
-										}}
-										error={errors().company}
-									/>
 									<div class="flex flex-col gap-2">
 										<label class="text-sm font-medium" for="wish-serial">
 											Serial number

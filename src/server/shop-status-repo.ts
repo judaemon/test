@@ -1,3 +1,4 @@
+import { CIVILIAN } from "~/lib/cadets";
 import {
 	DEFAULT_SHOP_STATUS,
 	type ShopStatus,
@@ -60,8 +61,8 @@ export function listShopWishes(): ShopWish[] {
 	).map((row) => ({
 		id: row.id,
 		name: row.name,
-		className: row.class_name,
-		company: row.company,
+		// A few early entries kept "Civilian" as their class instead.
+		company: row.company || (row.class_name === CIVILIAN ? CIVILIAN : ""),
 		serialNumber: row.serial_number,
 		date: row.date,
 		createdAt: row.created_at,
@@ -82,12 +83,11 @@ export function addShopWish(wish: WishDetails) {
 		.get({ name: wish.name, since });
 	if (repeat) return false;
 	db.query(
-		`INSERT INTO shop_wishes (id, name, class_name, company, serial_number, date, created_at)
-		 VALUES ($id, $name, $className, $company, $serialNumber, $date, $now)`,
+		`INSERT INTO shop_wishes (id, name, company, serial_number, date, created_at)
+		 VALUES ($id, $name, $company, $serialNumber, $date, $now)`,
 	).run({
 		id: crypto.randomUUID(),
 		name: wish.name,
-		className: wish.className,
 		company: wish.company,
 		serialNumber: wish.serialNumber,
 		date: wish.date,

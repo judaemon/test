@@ -1,4 +1,4 @@
-import { companyColor, isCadetClass, isClassOption } from "~/lib/cadets";
+import { CIVILIAN, companyColor } from "~/lib/cadets";
 import { SERIAL_NUMBER_MAX, serialDigits } from "~/lib/checkout";
 
 /**
@@ -58,9 +58,7 @@ export const WISH_DATES = ["2026-11-14", "2026-11-15"] as const;
 /** What someone leaves on the extra bouquets list. */
 export interface WishDetails {
 	name: string;
-	/** "1CL"–"4CL", or "Civilian". */
-	className: string;
-	/** Cadet company, e.g. "Alfa"; empty for civilians. */
+	/** Cadet company, e.g. "Alfa", or "Civilian". */
 	company: string;
 	/** A cadet's serial number, digits only; empty for civilians. */
 	serialNumber: string;
@@ -71,8 +69,8 @@ export interface WishDetails {
 export type WishField = keyof WishDetails;
 
 /**
- * Tidies what the form sent and checks it the way checkout checks a buyer:
- * cadets need a company and a serial number, civilians neither.
+ * Tidies what the form sent and checks it: everyone picks a company (or
+ * Civilian), and cadets also give their serial number.
  */
 export function checkWish(
 	raw: unknown,
@@ -91,12 +89,9 @@ export function checkWish(
 	if (!name)
 		errors.name = `Please enter your name (up to ${WISH_NAME_MAX} characters).`;
 
-	const className = str("className");
-	const cadet = isCadetClass(className);
-	if (!isClassOption(className)) errors.className = "Choose your class.";
-
-	const company = cadet ? str("company") : "";
-	if (cadet && !companyColor(company)) errors.company = "Choose your company.";
+	const company = str("company");
+	const cadet = !!companyColor(company);
+	if (!cadet && company !== CIVILIAN) errors.company = "Choose your company.";
 
 	const serialNumber = cadet ? serialDigits(str("serialNumber")) : "";
 	if (cadet) {
@@ -110,5 +105,5 @@ export function checkWish(
 		errors.date = "Choose the day you’ll be there.";
 
 	if (Object.keys(errors).length || !name) return { ok: false, errors };
-	return { ok: true, wish: { name, className, company, serialNumber, date } };
+	return { ok: true, wish: { name, company, serialNumber, date } };
 }
