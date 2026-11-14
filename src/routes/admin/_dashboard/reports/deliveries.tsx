@@ -130,7 +130,8 @@ function Deliveries() {
 		Route.useSearch()().day?.split(","),
 	);
 	const [klass, setKlass] = createSignal<string>(ALL);
-	const [company, setCompany] = createSignal<string>(ALL);
+	/** Companies picked; none picked means every company. */
+	const [companyPicks, setCompanyPicks] = createSignal<string[]>([]);
 	const [pagePerCompany, setPagePerCompany] = createSignal(false);
 	const [sortBy, setSortBy] = createSignal<SortKey[]>(["order", "bouquet"]);
 	const toggleSort = (key: SortKey) =>
@@ -166,6 +167,22 @@ function Deliveries() {
 			(a, b) => companyRank(a) - companyRank(b) || a.localeCompare(b),
 		),
 	);
+	/** Picked companies that have orders on the days shown, in list order. */
+	const pickedCompanies = createMemo(() =>
+		companies().filter((name) => companyPicks().includes(name)),
+	);
+	const onCompanies = (order: ReportOrder) =>
+		pickedCompanies().length === 0 ||
+		pickedCompanies().includes(companyOf(order));
+	/** "All" on its own; any company toggles, alongside the others. */
+	const pickCompany = (key: string) =>
+		setCompanyPicks(() => {
+			if (key === ALL) return [];
+			const current = pickedCompanies();
+			return current.includes(key)
+				? current.filter((name) => name !== key)
+				: [...current, key];
+		});
 
 	// Florists are given bouquets, not orders: "" is a bouquet no one has yet.
 	const [florist, setFlorist] = createSignal<string>(ALL);
@@ -179,8 +196,7 @@ function Deliveries() {
 	const ofClassAndCompany = createMemo(() =>
 		ofDay().filter(
 			(order) =>
-				(klass() === ALL || classOf(order) === klass()) &&
-				(company() === ALL || companyOf(order) === company()),
+				(klass() === ALL || classOf(order) === klass()) && onCompanies(order),
 		),
 	);
 	const shown = createMemo(() =>
@@ -349,7 +365,7 @@ function Deliveries() {
 			status() === "cancelled" && "Cancelled",
 			status() === ALL && "Incl. cancelled",
 			klass() !== ALL && classLabel(klass()),
-			company() !== ALL && companyLabel(company()),
+			pickedCompanies().map(companyLabel).join(", "),
 			florist() !== ALL && floristLabel(florist()),
 		]),
 	);
@@ -360,7 +376,6 @@ function Deliveries() {
 		const still = shownDays().filter((date) => days().includes(date));
 		setDayPicks(still.length ? still : [days()[0] ?? NONE]);
 		setKlass(ALL);
-		setCompany(ALL);
 	};
 
 	/** All dates on its own; any other day toggles, alongside the others. */
@@ -374,7 +389,6 @@ function Deliveries() {
 			return next.length ? next : [ALL];
 		});
 		setKlass(ALL);
-		setCompany(ALL);
 	};
 
 	return (
@@ -482,8 +496,8 @@ function Deliveries() {
 											(klass() === ALL || classOf(order) === klass()),
 									).length,
 							}))}
-							value={company()}
-							onChange={setCompany}
+							value={pickedCompanies().length ? pickedCompanies() : [ALL]}
+							onChange={pickCompany}
 							class="mb-0"
 						/>
 					</div>
