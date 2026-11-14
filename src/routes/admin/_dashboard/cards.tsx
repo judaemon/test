@@ -558,7 +558,14 @@ function CardsPage() {
 
 	const reference = (card: PrintCard) =>
 		withReference()
-			? [`#${card.number}`, card.label].filter(Boolean).join(" · ")
+			? [
+					`#${card.number}`,
+					card.company,
+					card.deliveryDate && shortDeliveryDate(card.deliveryDate),
+					card.label,
+				]
+					.filter(Boolean)
+					.join(" · ")
 			: undefined;
 
 	const dayLabel = (d: string) =>
