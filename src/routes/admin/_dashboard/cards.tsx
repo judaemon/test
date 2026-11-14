@@ -252,9 +252,17 @@ function CardsPage() {
 			? cards().filter((card) => keys.has(pickKey(card.number, card.slot)))
 			: cards();
 	});
-	const [day, setDay] = createSignal<string>(
-		picked() ? ALL : (search.day ?? ALL),
+	/** Delivery days picked; none picked means every day. */
+	const [dayPicks, setDayPicks] = createSignal<ReadonlySet<string>>(
+		new Set(picked() || !search.day ? [] : [search.day]),
 	);
+	const toggleDay = (d: string) =>
+		setDayPicks((prev) => {
+			const next = new Set(prev);
+			if (next.has(d)) next.delete(d);
+			else next.add(d);
+			return next;
+		});
 	/** Companies picked; none picked means every company. */
 	const [picks, setPicks] = createSignal<ReadonlySet<string>>(new Set());
 	const togglePick = (name: string) =>
@@ -423,16 +431,23 @@ function CardsPage() {
 		];
 	});
 	const ofDay = createMemo(() =>
-		pool().filter((card) => day() === ALL || dayOf(card) === day()),
+		pool().filter(
+			(card) => dayPicks().size === 0 || dayPicks().has(dayOf(card)),
+		),
 	);
 	const companies = createMemo(() =>
 		[...new Set(ofDay().map(companyOf))].sort((a, b) =>
 			a === NONE ? 1 : b === NONE ? -1 : a.localeCompare(b),
 		),
 	);
+	/** Picked companies that have cards on the chosen days. */
+	const companyPicks = createMemo(
+		() => new Set(companies().filter((name) => picks().has(name))),
+	);
 	const ofCompany = createMemo(() =>
 		ofDay().filter(
-			(card) => picks().size === 0 || picks().has(companyOf(card)),
+			(card) =>
+				companyPicks().size === 0 || companyPicks().has(companyOf(card)),
 		),
 	);
 	// Order number unless this browser last picked handover.
@@ -583,10 +598,13 @@ function CardsPage() {
 	usePrintTitle(() =>
 		printFileName([
 			"Cards",
-			day() !== ALL && dayLabel(day()),
-			picks().size > 0 &&
-				companies()
-					.filter((name) => picks().has(name))
+			dayPicks().size > 0 &&
+				days()
+					.filter((d) => dayPicks().has(d))
+					.map(dayLabel)
+					.join(", "),
+			companyPicks().size > 0 &&
+				[...companyPicks()]
 					.map((name) => (name === NONE ? "No company" : name))
 					.join(", "),
 			STYLES.find((option) => option.key === style())?.label,
@@ -806,9 +824,9 @@ function CardsPage() {
 						<FilterRow label="Delivery day">
 							<button
 								type="button"
-								aria-pressed={day() === ALL}
-								class={pill(day() === ALL)}
-								onClick={() => setDay(ALL)}
+								aria-pressed={dayPicks().size === 0}
+								class={pill(dayPicks().size === 0)}
+								onClick={() => setDayPicks(new Set<string>())}
 							>
 								All days
 							</button>
@@ -816,12 +834,9 @@ function CardsPage() {
 								{(d) => (
 									<button
 										type="button"
-										aria-pressed={day() === d}
-										class={pill(day() === d)}
-										onClick={() => {
-											setDay(d);
-											setPicks(new Set<string>());
-										}}
+										aria-pressed={dayPicks().has(d)}
+										class={pill(dayPicks().has(d))}
+										onClick={() => toggleDay(d)}
 									>
 										{dayLabel(d)}
 										<span class="tabular-nums opacity-75">
@@ -836,8 +851,8 @@ function CardsPage() {
 						<FilterRow label="Company">
 							<button
 								type="button"
-								aria-pressed={picks().size === 0}
-								class={pill(picks().size === 0)}
+								aria-pressed={companyPicks().size === 0}
+								class={pill(companyPicks().size === 0)}
 								onClick={() => setPicks(new Set<string>())}
 							>
 								All companies
@@ -846,8 +861,8 @@ function CardsPage() {
 								{(name) => (
 									<button
 										type="button"
-										aria-pressed={picks().has(name)}
-										class={pill(picks().has(name))}
+										aria-pressed={companyPicks().has(name)}
+										class={pill(companyPicks().has(name))}
 										onClick={() => togglePick(name)}
 									>
 										{name === NONE ? "No company" : name}
