@@ -470,27 +470,21 @@ function OrdersPage() {
 										<ExpandIcon />
 										Table only
 									</button>
-									{/* The day's list to hand bouquets over with: the filtered day, if one. */}
+									{/* The list to hand bouquets over with: the filtered days, if any. */}
 									<Link
 										to="/admin/reports/deliveries"
 										search={{
-											day:
-												parseList(search().delivery).length === 1
-													? parseList(search().delivery)[0]
-													: undefined,
+											day: parseList(search().delivery).join(",") || undefined,
 										}}
 										class={adminButton.secondary}
 									>
 										Print handover list
 									</Link>
-									{/* Every dedication card, 4 to an A4 sheet: the filtered day, if one. */}
+									{/* Every dedication card, 4 to an A4 sheet: the filtered days, if any. */}
 									<Link
 										to="/admin/cards"
 										search={{
-											day:
-												parseList(search().delivery).length === 1
-													? parseList(search().delivery)[0]
-													: undefined,
+											day: parseList(search().delivery).join(",") || undefined,
 										}}
 										class={adminButton.secondary}
 									>

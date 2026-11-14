@@ -64,10 +64,13 @@ export const Route = createFileRoute("/admin/_dashboard/cards")({
 	validateSearch: (
 		search: Record<string, unknown>,
 	): { day?: string; pick?: string } => ({
+		// One day or several: "none,2026-11-15".
 		day:
-			typeof search.day === "string" &&
-			(search.day === "none" || /^\d{4}-\d{2}-\d{2}$/.test(search.day))
+			typeof search.day === "string"
 				? search.day
+						.split(",")
+						.filter((d) => d === "none" || /^\d{4}-\d{2}-\d{2}$/.test(d))
+						.join(",") || undefined
 				: undefined,
 		// Cards picked on Reports → Cards: "95/0:0,102/order" (see `pickKey`).
 		pick:
@@ -254,7 +257,7 @@ function CardsPage() {
 	});
 	/** Delivery days picked; none picked means every day. */
 	const [dayPicks, setDayPicks] = createSignal<ReadonlySet<string>>(
-		new Set(picked() || !search.day ? [] : [search.day]),
+		new Set(picked() || !search.day ? [] : search.day.split(",")),
 	);
 	const toggleDay = (d: string) =>
 		setDayPicks((prev) => {

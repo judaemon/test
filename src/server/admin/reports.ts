@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
+import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { orderCards } from "~/lib/bouquet-messages";
 import {
 	CADET_CLASSES,
@@ -6,6 +7,7 @@ import {
 	CIVILIAN_COLOR,
 	COMPANIES,
 } from "~/lib/cadets";
+import { CUSTOM_PRODUCT_ID } from "~/lib/custom-bouquet";
 import { type FloristOption, floristOf } from "~/lib/florists";
 import { type OrderFlower, orderFlowers } from "~/lib/flower-tally";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "~/lib/payment";
@@ -21,6 +23,7 @@ import {
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
 import { requireStaff } from "../admin-auth";
+import { listArrangementTypes } from "../arrangement-types-repo";
 import { listCardPrints } from "../card-prints-repo";
 import { getDeliveryDates } from "../delivery-dates-repo";
 import { listFloristOptions } from "../florists-repo";
@@ -79,6 +82,11 @@ export interface ReportLine {
 	image?: string;
 	quantity: number;
 	recipe: RecipeItem[];
+	/** "Bouquet", "Corsage", "Custom bouquet"…; "" when its type is gone. */
+	typeName: string;
+	sizeName: string;
+	/** Wrapper color(s), "" for none. */
+	wrapper: string;
 	/** Each bouquet's florist id, "" for not assigned. */
 	florists: string[];
 }
@@ -340,6 +348,9 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 				print,
 			]),
 		);
+		const typeNames = new Map(
+			listArrangementTypes().map((type) => [type.id, type.name]),
+		);
 		const orders: ReportOrder[] = all.map((order) => {
 			const needs = orderFlowers(order.lines);
 			return {
@@ -372,6 +383,12 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 					...(line.image ? { image: line.image } : {}),
 					quantity: line.quantity,
 					recipe: line.recipe ?? [],
+					typeName:
+						line.productId === CUSTOM_PRODUCT_ID
+							? "Custom bouquet"
+							: (typeNames.get(line.arrangement || DEFAULT_ARRANGEMENT) ?? ""),
+					sizeName: line.sizeName ?? "",
+					wrapper: line.wrapperColor ?? "",
 					florists: Array.from({ length: line.quantity }, (_, unit) =>
 						floristOf(line, unit),
 					),

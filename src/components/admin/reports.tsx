@@ -192,13 +192,19 @@ export const drill =
 export function FilterTabs<K extends string>(props: {
 	label: string;
 	tabs: { key: K; label: string; count?: () => number }[];
-	value: K;
+	/** The tab picked, or several (then each is a toggle button). */
+	value: K | readonly K[];
 	onChange: (key: K) => void;
 	class?: string;
 }) {
+	const multi = () => Array.isArray(props.value);
+	const isOn = (key: K) =>
+		Array.isArray(props.value)
+			? (props.value as readonly K[]).includes(key)
+			: props.value === key;
 	return (
 		<div
-			role="tablist"
+			role={multi() ? "group" : "tablist"}
 			aria-label={props.label}
 			class={cn("flex flex-wrap gap-2 print:hidden", props.class ?? "mb-4")}
 		>
@@ -206,12 +212,13 @@ export function FilterTabs<K extends string>(props: {
 				{(tab) => (
 					<button
 						type="button"
-						role="tab"
-						aria-selected={props.value === tab.key}
+						role={multi() ? undefined : "tab"}
+						aria-selected={multi() ? undefined : isOn(tab.key)}
+						aria-pressed={multi() ? isOn(tab.key) : undefined}
 						onClick={() => props.onChange(tab.key)}
 						class={cn(
 							"rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-							props.value === tab.key
+							isOn(tab.key)
 								? "border-petal-700 bg-petal-700 font-medium text-white"
 								: "border-petal-200 bg-white hover:bg-petal-50",
 						)}

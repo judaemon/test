@@ -15,22 +15,31 @@ import {
 	shortDeliveryDate,
 	upcomingDeliveryDates,
 } from "~/lib/delivery-dates";
+import { sortedRecipe } from "~/lib/flowers";
 import { photoSrc } from "~/lib/photos";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
 import { cn } from "~/lib/utils";
-import type { ReportLine, ReportOrder } from "~/server/admin/reports";
+import type {
+	ReportCard,
+	ReportLine,
+	ReportOrder,
+} from "~/server/admin/reports";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/deliveries")({
-	// The day to open on, e.g. from Orders' "Print handover list".
-	validateSearch: (search: Record<string, unknown>): { day?: string } => ({
-		day:
-			typeof search.day === "string" &&
-			(search.day === "none" ||
-				search.day === "all" ||
-				/^\d{4}-\d{2}-\d{2}$/.test(search.day))
+	// The days to open on, e.g. from Orders' "Print handover list":
+	// "2026-11-15", or several, "none,2026-11-15".
+	validateSearch: (search: Record<string, unknown>): { day?: string } => {
+		const days =
+			typeof search.day === "string"
 				? search.day
-				: undefined,
-	}),
+						.split(",")
+						.filter(
+							(d) =>
+								d === "none" || d === "all" || /^\d{4}-\d{2}-\d{2}$/.test(d),
+						)
+				: [];
+		return { day: days.length ? days.join(",") : undefined };
+	},
 	component: Deliveries,
 });
 
@@ -116,8 +125,9 @@ function Deliveries() {
 	});
 	const firstDay = () =>
 		upcomingDeliveryDates(report().deliveryDates)[0] ?? days()[0] ?? NONE;
-	const [day, setDay] = createSignal<string | undefined>(
-		Route.useSearch()().day,
+	/** Days picked; unset opens on the next delivery day. */
+	const [dayPicks, setDayPicks] = createSignal<string[] | undefined>(
+		Route.useSearch()().day?.split(","),
 	);
 	const [klass, setKlass] = createSignal<string>(ALL);
 	const [company, setCompany] = createSignal<string>(ALL);
@@ -127,17 +137,22 @@ function Deliveries() {
 		setSortBy((keys) =>
 			keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key],
 		);
-	const shownDay = () => day() ?? firstDay();
+	/** The days listed: [ALL] for every date. */
+	const shownDays = createMemo(() => {
+		const picked = dayPicks();
+		return picked?.length ? picked : [firstDay()];
+	});
+	const allDays = () => shownDays().includes(ALL);
 
 	const onDay = (date: string, order: ReportOrder) =>
 		date === ALL || (order.deliveryDate || NONE) === date;
+	const onShownDays = (order: ReportOrder) =>
+		shownDays().some((date) => onDay(date, order));
 	const dateOf = (order: ReportOrder) => order.deliveryDate || NONE;
 	/** Dates in order, "no date yet" last. */
 	const dateRank = (a: string, b: string) =>
 		a === b ? 0 : a === NONE ? 1 : b === NONE ? -1 : a.localeCompare(b);
-	const ofDay = createMemo(() =>
-		active().filter((order) => onDay(shownDay(), order)),
-	);
+	const ofDay = createMemo(() => active().filter(onShownDays));
 	const classOf = (order: ReportOrder) => order.className || NONE;
 	const companyOf = (order: ReportOrder) => order.company || NONE;
 
@@ -241,7 +256,7 @@ function Deliveries() {
 		>();
 		for (const row of rows) {
 			const company = companyOf(row.order);
-			const date = shownDay() === ALL ? dateOf(row.order) : shownDay();
+			const date = dateOf(row.order);
 			const key = `${company}\u0000${date}`;
 			const group = byGroup.get(key) ?? { company, date, rows: [] };
 			group.rows.push(row);
@@ -271,6 +286,44 @@ function Deliveries() {
 		});
 	});
 
+	/**
+	 * Every bouquet listed, by name and color, most first, with who ordered
+	 * each one: "Odette · Cream × 12", then the 12 customers.
+	 */
+	const bouquetTally = createMemo(() => {
+		const tally = new Map<string, TallyBouquet>();
+		for (const group of groups())
+			for (const row of group.rows) {
+				const lineIndex = row.part - 1;
+				const line = row.order.lines[lineIndex] ?? row.line;
+				const key = `${line.title}\u0000${line.colorName}`;
+				const item = tally.get(key) ?? { line, people: [] };
+				line.florists.forEach((id, unit) => {
+					// Only the picked florist's own bouquets of the line.
+					if (florist() !== ALL && id !== florist()) return;
+					const card =
+						row.order.cards.find(
+							(c) => c.lineIndex === lineIndex && c.unit === unit,
+						) ?? row.order.cards.find((c) => c.slot === "order");
+					item.people.push({ order: row.order, unit, of: line.quantity, card });
+				});
+				tally.set(key, item);
+			}
+		return [...tally.values()].sort(
+			(a, b) =>
+				b.people.length - a.people.length ||
+				a.line.title.localeCompare(b.line.title) ||
+				a.line.colorName.localeCompare(b.line.colorName),
+		);
+	});
+	/** Four bouquet cards to a printed page. */
+	const tallyPages = () => {
+		const list = bouquetTally();
+		return Array.from({ length: Math.ceil(list.length / 4) }, (_, i) =>
+			list.slice(i * 4, i * 4 + 4),
+		);
+	};
+
 	/** Each order once, from its rows. */
 	const ordersOf = (rows: Row[]) => [...new Set(rows.map((row) => row.order))];
 	/** The row that carries an order's amount to collect: its first one listed. */
@@ -295,7 +348,12 @@ function Deliveries() {
 	usePrintTitle(() =>
 		printFileName([
 			"Deliveries",
-			dayLabel(shownDay()),
+			allDays()
+				? dayLabel(ALL)
+				: days()
+						.filter((date) => shownDays().includes(date))
+						.map(dayLabel)
+						.join(", "),
 			status() === "cancelled" && "Cancelled",
 			status() === ALL && "Incl. cancelled",
 			klass() !== ALL && classLabel(klass()),
@@ -307,13 +365,22 @@ function Deliveries() {
 	const pickStatus = (next: Status) => {
 		setStatus(next);
 		// The day picked may have none of these; all dates always has them.
-		if (!days().includes(shownDay())) setDay(days()[0]);
+		const still = shownDays().filter((date) => days().includes(date));
+		setDayPicks(still.length ? still : [days()[0] ?? NONE]);
 		setKlass(ALL);
 		setCompany(ALL);
 	};
 
+	/** All dates on its own; any other day toggles, alongside the others. */
 	const pickDay = (date: string) => {
-		setDay(date);
+		setDayPicks(() => {
+			if (date === ALL) return [ALL];
+			const current = shownDays().filter((d) => d !== ALL);
+			const next = current.includes(date)
+				? current.filter((d) => d !== date)
+				: [...current, date];
+			return next.length ? next : [ALL];
+		});
 		setKlass(ALL);
 		setCompany(ALL);
 	};
@@ -387,7 +454,7 @@ function Deliveries() {
 						label: dayLabel(date),
 						count: () => active().filter((order) => onDay(date, order)).length,
 					}))}
-					value={shownDay()}
+					value={shownDays()}
 					onChange={pickDay}
 					class="mb-3"
 				/>
@@ -532,7 +599,7 @@ function Deliveries() {
 									</p>
 									<h3 class="font-display text-xl font-semibold leading-tight print:text-[16pt]">
 										{companyLabel(group.company)}
-										<Show when={shownDay() === ALL}>
+										<Show when={allDays() || shownDays().length > 1}>
 											<span class="font-normal text-petal-900/60 print:text-black/60">
 												{" · "}
 												{dayLabel(group.date)}
@@ -706,7 +773,177 @@ function Deliveries() {
 						</div>
 					)}
 				</For>
+				<Show when={bouquetTally().length}>
+					<div class="mt-10 print:mt-0 print:break-before-page">
+						<div class="mb-3 flex items-baseline justify-between gap-3 print:mb-[2mm]">
+							<h3 class="font-display text-xl font-semibold print:text-[14pt]">
+								Bouquets in this list
+							</h3>
+							<p class="text-sm tabular-nums text-petal-900/70 print:text-[9pt] print:text-black">
+								{bouquetTally().length}{" "}
+								{bouquetTally().length === 1 ? "kind" : "kinds"} ·{" "}
+								{bouquetTally().reduce((n, item) => n + item.people.length, 0)}{" "}
+								bouquets
+							</p>
+						</div>
+						<For each={tallyPages()}>
+							{(page, i) => (
+								<div
+									class={cn(
+										"flex flex-col gap-4 print:gap-[3mm]",
+										i() > 0 && "mt-4 print:mt-0 print:break-before-page",
+									)}
+								>
+									<For each={page}>{(item) => <TallyCard item={item} />}</For>
+								</div>
+							)}
+						</For>
+					</div>
+				</Show>
 			</Show>
 		</section>
+	);
+}
+
+/** One bouquet in the list's tally, and everyone it goes to. */
+interface TallyBouquet {
+	line: ReportLine;
+	people: {
+		order: ReportOrder;
+		/** Which of the line's bouquets, from 0, of how many. */
+		unit: number;
+		of: number;
+		card?: ReportCard;
+	}[];
+}
+
+/**
+ * A bouquet, once: its photo and flowers, how many are in the list, and each
+ * customer to tick off, with their card. Four fit a printed page.
+ */
+function TallyCard(props: { item: TallyBouquet }) {
+	const line = () => props.item.line;
+	return (
+		<article class="overflow-hidden rounded-2xl border border-petal-100 bg-white print:rounded-[2mm] print:border-black/50 print:break-inside-avoid">
+			<header class="flex items-center justify-between gap-3 border-b border-petal-100 bg-petal-50 px-4 py-2.5 print:border-black/30 print:bg-black/5 print:px-[3mm] print:py-[1mm]">
+				<div class="min-w-0">
+					<h4 class="font-display text-xl font-semibold leading-tight print:text-[12pt]">
+						{line().title}
+						<span class="font-sans text-base font-normal text-petal-900/65 print:text-[9pt] print:text-black/65">
+							{" "}
+							· {line().colorName}
+						</span>
+					</h4>
+					<p class="text-sm text-petal-900/65 print:text-[8pt] print:text-black/65">
+						{[
+							line().typeName,
+							line().sizeName,
+							line().wrapper && `Wrapper ${line().wrapper}`,
+						]
+							.filter(Boolean)
+							.join(" · ")}
+					</p>
+				</div>
+				<span class="shrink-0 rounded-full border-2 border-petal-900 px-3 py-0.5 text-lg font-bold tabular-nums print:border-black print:px-[2mm] print:py-0 print:text-[12pt]">
+					× {props.item.people.length}
+				</span>
+			</header>
+
+			<div class="grid grid-cols-[8rem_minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[10rem_minmax(0,1fr)] print:grid-cols-[22mm_minmax(0,1fr)] print:gap-[3mm] print:p-[2mm]">
+				<div class="relative aspect-square overflow-hidden rounded-xl bg-petal-50 print:rounded-none print:bg-transparent">
+					<Show
+						when={line().image}
+						fallback={
+							<span class="absolute inset-0 flex items-center justify-center text-sm text-petal-900/40">
+								No photo
+							</span>
+						}
+					>
+						{(src) => (
+							<img
+								src={photoSrc(src())}
+								alt={`${line().title} · ${line().colorName}`}
+								loading="eager"
+								class="absolute inset-0 size-full object-contain"
+							/>
+						)}
+					</Show>
+				</div>
+				<div class="min-w-0 text-sm print:text-[8pt]">
+					<p class="border-b border-petal-100 pb-0.5 font-semibold print:border-black/25">
+						Flowers
+					</p>
+					<Show
+						when={line().recipe.length}
+						fallback={
+							<p class="py-1 text-petal-900/55">No flowers on record.</p>
+						}
+					>
+						<ul class="grid py-1 print:grid-cols-2 print:gap-x-[4mm] print:py-[0.5mm]">
+							<For each={sortedRecipe(line().recipe)}>
+								{(flower) => (
+									<li class="flex items-baseline gap-1.5">
+										<span class="min-w-0 flex-1">
+											{flower.flower}
+											<Show when={flower.color}>
+												<span class="text-petal-900/60 print:text-black/60">
+													{" "}
+													· {flower.color}
+												</span>
+											</Show>
+										</span>
+										<span class="shrink-0 font-semibold tabular-nums">
+											{flower.count ? `× ${flower.count}` : "cluster"}
+										</span>
+									</li>
+								)}
+							</For>
+						</ul>
+					</Show>
+				</div>
+			</div>
+
+			<ol class="grid gap-x-4 border-t border-petal-100 px-4 py-2 text-sm sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 print:gap-x-[3mm] print:border-black/30 print:px-[2mm] print:py-[1mm] print:text-[7.5pt]">
+				<For each={props.item.people}>
+					{(person) => (
+						<li class="flex items-start gap-2 border-b border-petal-50 py-1.5 print:break-inside-avoid print:border-black/15 print:py-[0.5mm]">
+							<span class="mt-0.5 inline-block size-4 shrink-0 rounded-sm border-2 border-petal-900/40 print:mt-[0.3mm] print:size-[3mm] print:border-black" />
+							<span class="min-w-0 flex-1 leading-tight">
+								<span class="flex flex-wrap items-baseline gap-x-1.5">
+									<Link
+										to="/admin/orders/$orderId"
+										params={{ orderId: person.order.id }}
+										class="font-bold tabular-nums text-petal-700 underline-offset-2 hover:underline print:text-inherit"
+									>
+										#{person.order.number}
+									</Link>
+									<Show when={person.of > 1}>
+										<span class="text-xs text-petal-900/60 print:text-[6.5pt] print:text-black/60">
+											{person.unit + 1} of {person.of}
+										</span>
+									</Show>
+									<span class="font-semibold wrap-anywhere">
+										{person.order.name}
+									</span>
+								</span>
+								<span class="block text-xs text-petal-900/65 print:text-[6.5pt] print:text-black/65">
+									{[person.order.company, person.order.className]
+										.filter(Boolean)
+										.join(" · ")}
+								</span>
+								<Show when={person.card}>
+									{(card) => (
+										<span class="line-clamp-2 text-xs wrap-anywhere print:line-clamp-1 print:text-[6.5pt]">
+											Card: {card().to ? `To ${card().to}: ` : ""}“
+											{card().message}”
+										</span>
+									)}
+								</Show>
+							</span>
+						</li>
+					)}
+				</For>
+			</ol>
+		</article>
 	);
 }
