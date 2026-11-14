@@ -255,7 +255,15 @@ function CardsPage() {
 	const [day, setDay] = createSignal<string>(
 		picked() ? ALL : (search.day ?? ALL),
 	);
-	const [company, setCompany] = createSignal<string>(ALL);
+	/** Companies picked; none picked means every company. */
+	const [picks, setPicks] = createSignal<ReadonlySet<string>>(new Set());
+	const togglePick = (name: string) =>
+		setPicks((prev) => {
+			const next = new Set(prev);
+			if (next.has(name)) next.delete(name);
+			else next.add(name);
+			return next;
+		});
 	// Picked cards print whether or not they were printed before.
 	const [status, setStatus] = createSignal<StatusFilter>(
 		picked() ? ALL : "todo",
@@ -424,7 +432,7 @@ function CardsPage() {
 	);
 	const ofCompany = createMemo(() =>
 		ofDay().filter(
-			(card) => company() === ALL || companyOf(card) === company(),
+			(card) => picks().size === 0 || picks().has(companyOf(card)),
 		),
 	);
 	// Order number unless this browser last picked handover.
@@ -576,7 +584,11 @@ function CardsPage() {
 		printFileName([
 			"Cards",
 			day() !== ALL && dayLabel(day()),
-			company() !== ALL && (company() === NONE ? "No company" : company()),
+			picks().size > 0 &&
+				companies()
+					.filter((name) => picks().has(name))
+					.map((name) => (name === NONE ? "No company" : name))
+					.join(", "),
 			STYLES.find((option) => option.key === style())?.label,
 			batch()?.kind === "test"
 				? "Test"
@@ -808,7 +820,7 @@ function CardsPage() {
 										class={pill(day() === d)}
 										onClick={() => {
 											setDay(d);
-											setCompany(ALL);
+											setPicks(new Set<string>());
 										}}
 									>
 										{dayLabel(d)}
@@ -821,23 +833,35 @@ function CardsPage() {
 							</For>
 						</FilterRow>
 
-						<label class="flex flex-col gap-1.5 text-sm font-medium">
-							Company
-							<select
-								class={adminInput}
-								value={company()}
-								onChange={(e) => setCompany(e.currentTarget.value)}
+						<FilterRow label="Company">
+							<button
+								type="button"
+								aria-pressed={picks().size === 0}
+								class={pill(picks().size === 0)}
+								onClick={() => setPicks(new Set<string>())}
 							>
-								<option value={ALL}>All companies</option>
-								<For each={companies()}>
-									{(name) => (
-										<option value={name}>
-											{name === NONE ? "No company" : name}
-										</option>
-									)}
-								</For>
-							</select>
-						</label>
+								All companies
+							</button>
+							<For each={companies()}>
+								{(name) => (
+									<button
+										type="button"
+										aria-pressed={picks().has(name)}
+										class={pill(picks().has(name))}
+										onClick={() => togglePick(name)}
+									>
+										{name === NONE ? "No company" : name}
+										<span class="tabular-nums opacity-75">
+											{" "}
+											{
+												ofDay().filter((card) => companyOf(card) === name)
+													.length
+											}
+										</span>
+									</button>
+								)}
+							</For>
+						</FilterRow>
 
 						<FilterRow label="Show">
 							<For
