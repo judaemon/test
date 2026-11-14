@@ -809,19 +809,19 @@ interface TallyBouquet {
 function TallyCard(props: { item: TallyBouquet }) {
 	const line = () => props.item.line;
 	return (
-		<article class="flex gap-3 border-b border-petal-900/20 py-2 text-sm print:break-inside-avoid print:gap-[2.5mm] print:border-black/40 print:py-[1.5mm] print:text-[8pt]">
+		<article class="flex gap-4 border-b border-petal-900/20 py-4 text-sm print:min-h-[42mm] print:break-inside-avoid print:gap-[4mm] print:border-black/40 print:py-[3mm] print:text-[9pt]">
 			<Show when={line().image}>
 				{(src) => (
 					<img
 						src={photoSrc(src(), "thumb")}
 						alt=""
 						loading="eager"
-						class="size-14 shrink-0 object-contain print:size-[14mm]"
+						class="size-32 shrink-0 object-contain print:size-[34mm]"
 					/>
 				)}
 			</Show>
 			<div class="min-w-0 flex-1">
-				<p class="leading-snug">
+				<p class="text-base leading-snug print:text-[11pt]">
 					<strong class="tabular-nums">{props.item.people.length} ×</strong>{" "}
 					<strong>{line().title}</strong> · {line().colorName}
 					<span class="text-petal-900/60 print:text-black/60">
@@ -835,7 +835,7 @@ function TallyCard(props: { item: TallyBouquet }) {
 							.join("")}
 					</span>
 				</p>
-				<p class="leading-snug text-petal-900/75 print:text-black/75">
+				<p class="mt-0.5 leading-snug text-petal-900/75 print:mt-[0.5mm] print:text-black/75">
 					{line().recipe.length
 						? sortedRecipe(line().recipe)
 								.map(
@@ -845,13 +845,13 @@ function TallyCard(props: { item: TallyBouquet }) {
 								.join(", ")
 						: "No flowers on record."}
 				</p>
-				<ul class="mt-1 grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3 print:mt-[0.5mm] print:grid-cols-3 print:gap-x-[3mm] print:text-[7pt]">
+				<ul class="mt-2.5 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 print:mt-[2mm] print:grid-cols-3 print:gap-x-[4mm] print:gap-y-[1.5mm] print:text-[8pt]">
 					<For each={props.item.people}>
 						{(person) => (
-							<li class="flex min-w-0 items-start gap-1.5 leading-tight">
-								<span class="mt-[0.2em] inline-block size-3 shrink-0 border border-petal-900/60 print:size-[2.5mm] print:border-black" />
+							<li class="flex min-w-0 items-start gap-2 leading-snug">
+								<span class="mt-[0.15em] inline-block size-3.5 shrink-0 border border-petal-900/60 print:size-[3mm] print:border-black" />
 								<span class="min-w-0">
-									<span class="block truncate">
+									<span class="block">
 										<Link
 											to="/admin/orders/$orderId"
 											params={{ orderId: person.order.id }}
@@ -864,12 +864,11 @@ function TallyCard(props: { item: TallyBouquet }) {
 											({person.unit + 1}/{person.of})
 										</Show>{" "}
 										{person.order.name}
-										<span class="text-petal-900/60 print:text-black/60">
-											{[person.order.company, person.order.className]
-												.filter(Boolean)
-												.map((part) => ` · ${part}`)
-												.join("")}
-										</span>
+									</span>
+									<span class="block text-petal-900/60 print:text-black/60">
+										{[person.order.company, person.order.className]
+											.filter(Boolean)
+											.join(" · ")}
 									</span>
 									<Show when={person.card}>
 										{(card) => (
