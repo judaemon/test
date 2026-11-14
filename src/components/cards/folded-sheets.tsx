@@ -101,14 +101,15 @@ export function FoldedSheet(props: {
 }
 
 function FoldGuides() {
-	const cut = "absolute bg-[#8a7f84]";
-	const hair = "0.2mm";
+	const cut = "absolute bg-[#d9d3d5]";
+	// Faint and thin: enough to line up the cut, hardly seen on the card.
+	const hair = "0.12mm";
 	const len = "5mm";
 	// Clear of the 3 mm every printer leaves blank, e.g. the Epson L3210.
 	const inset = "5mm";
 	const fold = (left: string, edge: "top" | "bottom") => (
 		<span
-			class="absolute border-l border-dashed border-[#8a7f84]"
+			class="absolute border-l border-dashed border-[#d9d3d5]"
 			style={{ left, [edge]: inset, height: len, "border-left-width": hair }}
 		/>
 	);

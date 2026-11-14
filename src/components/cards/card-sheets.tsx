@@ -135,11 +135,12 @@ export function SheetLabel(props: { label?: string }) {
 
 /** Hairline ticks where to cut: the middle of each edge, and a cross at the center. */
 function CutGuides() {
-	const mark = "absolute bg-[#8a7f84]";
+	const mark = "absolute bg-[#d9d3d5]";
 	const len = "5mm";
 	// Clear of the 3 mm every printer leaves blank, e.g. the Epson L3210.
 	const inset = "5mm";
-	const hair = "0.2mm";
+	// Faint and thin: enough to line up the cut, hardly seen on the card.
+	const hair = "0.12mm";
 	return (
 		<div aria-hidden="true" class="pointer-events-none absolute inset-0">
 			{/* Down the middle: top and bottom edges. */}
