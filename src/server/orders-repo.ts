@@ -401,6 +401,27 @@ export function getOrderByNumber(number: string): Order | undefined {
 	return row ? toOrders([row])[0] : undefined;
 }
 
+/** The highest order number so far; 0 before the first order. */
+export function latestOrderNumber(): number {
+	const row = getDb()
+		.query(
+			"SELECT COALESCE(MAX(CAST(number AS INTEGER)), 0) AS latest FROM orders",
+		)
+		.get() as { latest: number };
+	return row.latest;
+}
+
+/** Orders numbered above `after`, oldest first, at most `limit`. */
+export function listOrdersAfterNumber(after: number, limit = 20): Order[] {
+	const rows = getDb()
+		.query(
+			`SELECT * FROM orders WHERE CAST(number AS INTEGER) > $after
+			 ORDER BY CAST(number AS INTEGER) LIMIT $limit`,
+		)
+		.all({ after, limit }) as OrderRow[];
+	return toOrders(rows);
+}
+
 /**
  * Marks an order as a test or a real order. A test order holds no flowers or
  * wrappers, so its stock goes back, and is taken again if it's unmarked.

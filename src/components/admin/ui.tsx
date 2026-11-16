@@ -255,6 +255,12 @@ export const AdminIcons = {
 			<path d="M12 15.5s-3-1.8-3-3.8a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 2-3 3.8-3 3.8Z" />
 		</svg>
 	),
+	printer: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+			<path d="M7 14h10v7H7z" />
+		</svg>
+	),
 	products: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<circle cx="12" cy="8" r="4" />

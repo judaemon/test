@@ -26,6 +26,7 @@ import { Route as AccountOccasionsRouteImport } from './routes/account/occasions
 import { Route as AccountOrdersRouteImport } from './routes/account/orders'
 import { Route as AdminDashboardRouteImport } from './routes/admin/_dashboard'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminPrinterRouteImport } from './routes/admin/printer'
 import { Route as AssetsSplatRouteImport } from './routes/assets/$'
 import { Route as BTokenRouteImport } from './routes/b.$token'
 import { Route as FloristTokenRouteImport } from './routes/florist.$token'
@@ -171,6 +172,11 @@ const AdminDashboardRoute = AdminDashboardRouteImport.update({
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPrinterRoute = AdminPrinterRouteImport.update({
+  id: '/admin/printer',
+  path: '/admin/printer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssetsSplatRoute = AssetsSplatRouteImport.update({
@@ -531,6 +537,7 @@ export interface FileRoutesByFullPath {
   '/account/orders': typeof AccountOrdersRoute
   '/admin': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/admin/printer': typeof AdminPrinterRoute
   '/assets/$': typeof AssetsSplatRoute
   '/b/$token': typeof BTokenRoute
   '/florist/$token': typeof FloristTokenRoute
@@ -609,6 +616,7 @@ export interface FileRoutesByTo {
   '/account/occasions': typeof AccountOccasionsRoute
   '/account/orders': typeof AccountOrdersRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/printer': typeof AdminPrinterRoute
   '/assets/$': typeof AssetsSplatRoute
   '/b/$token': typeof BTokenRoute
   '/florist/$token': typeof FloristTokenRoute
@@ -689,6 +697,7 @@ export interface FileRoutesById {
   '/account/orders': typeof AccountOrdersRoute
   '/admin/_dashboard': typeof AdminDashboardRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/admin/printer': typeof AdminPrinterRoute
   '/assets/$': typeof AssetsSplatRoute
   '/b/$token': typeof BTokenRoute
   '/florist/$token': typeof FloristTokenRoute
@@ -771,6 +780,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin'
     | '/admin/login'
+    | '/admin/printer'
     | '/assets/$'
     | '/b/$token'
     | '/florist/$token'
@@ -849,6 +859,7 @@ export interface FileRouteTypes {
     | '/account/occasions'
     | '/account/orders'
     | '/admin/login'
+    | '/admin/printer'
     | '/assets/$'
     | '/b/$token'
     | '/florist/$token'
@@ -928,6 +939,7 @@ export interface FileRouteTypes {
     | '/account/orders'
     | '/admin/_dashboard'
     | '/admin/login'
+    | '/admin/printer'
     | '/assets/$'
     | '/b/$token'
     | '/florist/$token'
@@ -1006,6 +1018,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   AdminDashboardRoute: typeof AdminDashboardRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
+  AdminPrinterRoute: typeof AdminPrinterRoute
   AssetsSplatRoute: typeof AssetsSplatRoute
   BTokenRoute: typeof BTokenRoute
   FloristTokenRoute: typeof FloristTokenRoute
@@ -1144,6 +1157,13 @@ declare module '@tanstack/solid-router' {
       path: '/admin/login'
       fullPath: '/admin/login'
       preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/printer': {
+      id: '/admin/printer'
+      path: '/admin/printer'
+      fullPath: '/admin/printer'
+      preLoaderRoute: typeof AdminPrinterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assets/$': {
@@ -1724,6 +1744,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   AdminDashboardRoute: AdminDashboardRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
+  AdminPrinterRoute: AdminPrinterRoute,
   AssetsSplatRoute: AssetsSplatRoute,
   BTokenRoute: BTokenRoute,
   FloristTokenRoute: FloristTokenRoute,

@@ -62,6 +62,8 @@ import {
 	changePaymentMethod,
 	createOrder,
 	getOrderById,
+	latestOrderNumber,
+	listOrdersAfterNumber,
 	OrderRuleError,
 	reviewPayment,
 	setDeliveryDate,
@@ -106,6 +108,32 @@ export const getAdminOrder = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		await requireStaff();
 		return getOrderById(data) ?? null;
+	});
+
+/**
+ * For the order printer: orders placed after the last one it printed, and the
+ * latest few to print again. Without `after` (just switched on) it only says
+ * where the numbers are up to, so it doesn't print the whole backlog.
+ */
+export const listOrdersToPrint = createServerFn({ method: "GET" })
+	.validator((input: unknown) => {
+		const after = asRecord(input ?? {}).after;
+		return {
+			after:
+				typeof after === "number" && Number.isInteger(after) && after >= 0
+					? after
+					: undefined,
+		};
+	})
+	.handler(async ({ data }) => {
+		await requireStaff();
+		const latest = latestOrderNumber();
+		return {
+			latest,
+			newOrders:
+				data.after === undefined ? [] : listOrdersAfterNumber(data.after),
+			recent: listOrdersAfterNumber(Math.max(0, latest - 8)).reverse(),
+		};
 	});
 
 async function runAction(action: () => Order): Promise<OrderActionResult> {
