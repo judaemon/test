@@ -299,7 +299,13 @@ function OrdersPage() {
 			{
 				key: undefined,
 				label: "All",
-				count: stages.reduce((sum, option) => sum + option.count, 0),
+				// Cancelled has its own tab; All has them only when they're shown.
+				count: stages
+					.filter(
+						(option) =>
+							option.key !== "cancelled" || data().orderSummary.countsCancelled,
+					)
+					.reduce((sum, option) => sum + option.count, 0),
 			},
 			// The tabs count bouquets, not orders, so "New orders 310" under
 			// a card of 255 orders would read as a mistake: just "New".
@@ -1569,8 +1575,9 @@ function NotesButton(props: { count: number; onClick: () => void }) {
 }
 
 /**
- * Cancelled orders are left out of the cards' totals so they square with the
- * money; ticking this puts them back in.
+ * Cancelled orders are hidden from the list and left out of the cards' totals,
+ * so they square with the money; ticking this shows and counts them again.
+ * The Cancelled tab shows them either way.
  */
 function CancelledToggle(props: {
 	summary: OrderSummary;
@@ -1587,7 +1594,7 @@ function CancelledToggle(props: {
 					class="size-5 accent-petal-700"
 				/>
 				<span>
-					Count cancelled orders in the totals{" "}
+					Show cancelled orders and count them in the totals{" "}
 					<span class="tabular-nums text-petal-900/55">
 						({cancelled().orders.toLocaleString()}{" "}
 						{cancelled().orders === 1 ? "order" : "orders"} ·{" "}

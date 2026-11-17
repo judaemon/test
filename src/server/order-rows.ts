@@ -330,13 +330,19 @@ function filterOrderRows(search: OrdersSearch) {
 				FACET_IDS.map((id) => [id, FIELDS[id].keys(row)]),
 			) as Record<FacetId, string[]>,
 	);
+	// Cancelled orders are hidden unless staff ask for them, by the Cancelled
+	// tab or by showing them (`cancelled=count`), which also counts them.
+	const countsCancelled = search.cancelled === "count";
 	// A row passes a filter if it has any of the ticked choices.
 	const passes = (i: number, ...except: FacetId[]) =>
 		FACET_IDS.every(
 			(id) =>
 				except.includes(id) ||
-				!chosen[id].size ||
-				keys[i][id].some((key) => chosen[id].has(key)),
+				(chosen[id].size
+					? keys[i][id].some((key) => chosen[id].has(key))
+					: id !== "stage" ||
+						countsCancelled ||
+						rows[i].order.stage !== "cancelled"),
 		);
 
 	const options = {} as Record<FacetId, FilterOption[]>;
@@ -393,9 +399,8 @@ function filterOrderRows(search: OrdersSearch) {
 			wrappers: { needed: 0, made: 0 },
 			orders: 0,
 		});
-	// Cancelled orders stay out of the totals unless staff ask for them, so
-	// the numbers square with the money that came in.
-	const countsCancelled = search.cancelled === "count";
+	// Cancelled orders stay out of the totals unless shown, so the numbers
+	// square with the money that came in.
 	const orderSummary: OrderSummary = {
 		orders: 0,
 		items: 0,
