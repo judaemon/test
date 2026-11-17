@@ -96,6 +96,10 @@ export interface OrderSummary {
 	orders: number;
 	/** Everything in those orders, of every type: a bouquet ordered twice is two. */
 	items: number;
+	/** Cancelled orders matching the filters, left out above unless counted. */
+	cancelled: { orders: number; items: number };
+	/** Whether cancelled orders are in the totals (`cancelled=count`). */
+	countsCancelled: boolean;
 }
 
 /** What a row can be filtered by, with the choices known up front in order. */
@@ -389,14 +393,28 @@ function filterOrderRows(search: OrdersSearch) {
 			wrappers: { needed: 0, made: 0 },
 			orders: 0,
 		});
+	// Cancelled orders stay out of the totals unless staff ask for them, so
+	// the numbers square with the money that came in.
+	const countsCancelled = search.cancelled === "count";
 	const orderSummary: OrderSummary = {
 		orders: 0,
 		items: 0,
+		cancelled: { orders: 0, items: 0 },
+		countsCancelled,
 	};
 	const ordersSeen = new Set<string>();
+	const cancelledSeen = new Set<string>();
 	const typeOrdersSeen = new Set<string>();
 	rows.forEach((row, i) => {
 		if (!passes(i, "arrangement", "stage")) return;
+		if (row.order.stage === "cancelled") {
+			orderSummary.cancelled.items += 1;
+			if (!cancelledSeen.has(row.order.id)) {
+				cancelledSeen.add(row.order.id);
+				orderSummary.cancelled.orders += 1;
+			}
+			if (!countsCancelled) return;
+		}
 		const key = arrangementOf(row.line);
 		const entry = summaryCounts.get(key) ?? {
 			key,

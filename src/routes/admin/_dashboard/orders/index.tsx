@@ -503,6 +503,12 @@ function OrdersPage() {
 							selected={parseList(search().arrangement)}
 							onSelect={(key) => setSearch({ arrangement: key })}
 						/>
+						<CancelledToggle
+							summary={data().orderSummary}
+							onChange={(count) =>
+								setSearch({ cancelled: count ? "count" : undefined })
+							}
+						/>
 
 						<nav
 							aria-label="Filter by status"
@@ -1559,6 +1565,38 @@ function NotesButton(props: { count: number; onClick: () => void }) {
 				</span>
 			</Show>
 		</button>
+	);
+}
+
+/**
+ * Cancelled orders are left out of the cards' totals so they square with the
+ * money; ticking this puts them back in.
+ */
+function CancelledToggle(props: {
+	summary: OrderSummary;
+	onChange: (count: boolean) => void;
+}) {
+	const cancelled = () => props.summary.cancelled;
+	return (
+		<Show when={cancelled().orders > 0}>
+			<label class="-mt-3 mb-5 flex min-h-10 w-fit cursor-pointer items-center gap-2 text-sm text-petal-900/70">
+				<input
+					type="checkbox"
+					checked={props.summary.countsCancelled}
+					onChange={(e) => props.onChange(e.currentTarget.checked)}
+					class="size-5 accent-petal-700"
+				/>
+				<span>
+					Count cancelled orders in the totals{" "}
+					<span class="tabular-nums text-petal-900/55">
+						({cancelled().orders.toLocaleString()}{" "}
+						{cancelled().orders === 1 ? "order" : "orders"} ·{" "}
+						{cancelled().items.toLocaleString()}{" "}
+						{cancelled().items === 1 ? "bouquet" : "bouquets"})
+					</span>
+				</span>
+			</label>
+		</Show>
 	);
 }
 

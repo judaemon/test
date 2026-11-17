@@ -33,6 +33,8 @@ export interface OrdersSearch {
 	from?: string;
 	to?: string;
 	q?: string;
+	/** "count": the cards above the table count cancelled orders too. */
+	cancelled?: "count";
 	/** Latest order on top unless "oldest". */
 	sort?: "oldest";
 	/** "table": only the table, filling the screen, for keeping an eye on orders. */
@@ -105,6 +107,7 @@ export function validateOrdersSearch(
 		from: date("from"),
 		to: date("to"),
 		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 80) : undefined,
+		cancelled: search.cancelled === "count" ? "count" : undefined,
 		sort: search.sort === "oldest" ? "oldest" : undefined,
 		view: search.view === "table" ? "table" : undefined,
 		page: Number.isInteger(page) && page > 1 ? page : undefined,

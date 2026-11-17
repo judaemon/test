@@ -100,14 +100,12 @@ function Deliveries() {
 				sum + order.lines.reduce((n, line) => n + line.quantity, 0),
 			0,
 		);
-	/** The same totals as the Orders page (real orders, every status), split up. */
+	/** The same totals as the Orders page (real orders, not cancelled), and what's left out. */
 	const tally = createMemo(() => {
 		const all = report().orders;
 		const toDeliver = all.filter((order) => !isCancelled(order));
 		const cancelled = all.filter(isCancelled);
 		return {
-			orders: all.length,
-			items: itemCount(all),
 			toDeliver: { orders: toDeliver.length, items: itemCount(toDeliver) },
 			cancelled: { orders: cancelled.length, items: itemCount(cancelled) },
 			test: report().testOrders,
@@ -405,30 +403,30 @@ function Deliveries() {
 					order number. Give orders their day in Orders, in the Delivery date
 					column.
 				</p>
-				{/* Squares with Orders: its "Total ordered" counts every status, test orders aside. */}
+				{/* Squares with Orders: its "Total ordered" leaves out cancelled and test orders. */}
 				<div class="mb-4 rounded-xl border border-petal-100 bg-petal-50/60 px-3.5 py-2.5 text-sm text-petal-900/75">
 					<p>
 						<strong class="font-semibold text-petal-900 tabular-nums">
-							{tally().orders} orders · {tally().items} items
+							{tally().toDeliver.orders} orders · {tally().toDeliver.items}{" "}
+							items
 						</strong>{" "}
-						in all, the same as Total ordered in{" "}
+						to deliver, the same as Total ordered in{" "}
 						<Link
 							to="/admin/orders"
 							class="font-medium text-petal-700 underline-offset-2 hover:underline"
 						>
 							Orders
 						</Link>
-						:
+						.
 					</p>
 					<p class="tabular-nums">
-						{tally().toDeliver.orders} to deliver ({tally().toDeliver.items}{" "}
-						items) + {tally().cancelled.orders} cancelled (
+						Not counted: {tally().cancelled.orders} cancelled (
 						{tally().cancelled.items} items)
 						<Show when={tally().test.orders}>
 							{" "}
 							· {tally().test.orders} test{" "}
 							{tally().test.orders === 1 ? "order" : "orders"} (
-							{tally().test.items} items) not counted anywhere
+							{tally().test.items} items)
 						</Show>
 					</p>
 				</div>
