@@ -1,9 +1,12 @@
 import { Link } from "@tanstack/solid-router";
+import { Show } from "solid-js";
 
 import { CONTACT, TAGLINE } from "~/lib/contact";
+import { useShopMode } from "~/lib/use-catalog";
 import { FlowerMark, Wordmark } from "./brand";
 
 export function SiteFooter() {
+	const shopMode = useShopMode();
 	return (
 		<footer class="border-t border-petal-100 bg-cream">
 			<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
@@ -32,12 +35,15 @@ export function SiteFooter() {
 						<p class="text-sm text-petal-900/70">
 							<span lang="el">ωραία</span> (oh-REH-ah) · Greek for “beautiful”
 						</p>
-						<Link
-							to="/promos"
-							class="py-2 text-sm font-medium text-petal-700 underline underline-offset-2"
-						>
-							Promos
-						</Link>
+						{/* No promos while the shop is view only. */}
+						<Show when={shopMode() !== "view"}>
+							<Link
+								to="/promos"
+								class="py-2 text-sm font-medium text-petal-700 underline underline-offset-2"
+							>
+								Promos
+							</Link>
+						</Show>
 						<Link
 							to="/active-orders"
 							class="py-2 text-sm font-medium text-petal-700 underline underline-offset-2"

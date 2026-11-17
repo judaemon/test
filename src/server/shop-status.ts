@@ -4,6 +4,7 @@ import {
 	checkWish,
 	SHOP_HEADING_MAX,
 	SHOP_MESSAGE_MAX,
+	SHOP_MODES,
 	type ShopStatus,
 	type WishField,
 } from "~/lib/shop-status";
@@ -15,9 +16,9 @@ import {
 	listShopWishes,
 	saveShopStatus,
 } from "./shop-status-repo";
-import { asRecord, text } from "./validate";
+import { asRecord, oneOf, text } from "./validate";
 
-/** Admin → Shop: whether it's open, its closed notice, and the names left. */
+/** Admin → Shop: how it runs, its closed notice, and the names left. */
 export const getShopAdminFn = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
@@ -25,12 +26,12 @@ export const getShopAdminFn = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-/** Opening and closing the shop is the owner's call. */
+/** Opening, closing or making the shop view only is the owner's call. */
 export const saveShopStatusFn = createServerFn({ method: "POST" })
 	.validator((input: unknown): ShopStatus => {
 		const source = asRecord(input);
 		return {
-			closed: source.closed === true,
+			mode: oneOf(source.mode, SHOP_MODES, "Shop mode"),
 			heading: text(source, "heading", {
 				label: "The heading",
 				max: SHOP_HEADING_MAX,
@@ -90,10 +91,14 @@ export const addShopWishFn = createServerFn({ method: "POST" })
 		const { wish } = checked;
 		// Looks fine to a bot, but nothing is kept.
 		if (data.website) return { ok: true, name: wish.name };
-		if (!getShopStatus().closed)
+		const { mode } = getShopStatus();
+		if (mode !== "closed")
 			return {
 				ok: false,
-				message: "We’re taking orders again! Order your bouquet in the shop.",
+				message:
+					mode === "open"
+						? "We’re taking orders again! Order your bouquet in the shop."
+						: "The event is over. Thank you! Message us to order a bouquet.",
 			};
 		addShopWish(wish);
 		return { ok: true, name: wish.name };

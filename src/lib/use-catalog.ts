@@ -30,16 +30,23 @@ export function useCustomSettings() {
 	return useLoaderData({ from: "__root__", select: (data) => data.custom });
 }
 
-/** The sales live today (from the root route). */
+/**
+ * The sales live today (from the root route). None while the shop is view
+ * only: nothing can be bought at those prices.
+ */
 export function useSales() {
-	return useLoaderData({ from: "__root__", select: (data) => data.sales });
+	return useLoaderData({
+		from: "__root__",
+		select: (data) => (data.shop.mode === "view" ? [] : data.sales),
+	});
 }
 
 /** Order promos live today, e.g. ₱500 off every 10th order (from the root route). */
 export function useOrderPromos() {
 	return useLoaderData({
 		from: "__root__",
-		select: (data) => data.orderPromos,
+		// None while the shop is view only, like sales.
+		select: (data) => (data.shop.mode === "view" ? [] : data.orderPromos),
 	});
 }
 
@@ -80,6 +87,17 @@ export function useBagMethodDeal() {
 			else if (saves === best.saves) best.methods.push(method);
 		}
 		return best;
+	});
+}
+
+/**
+ * How the shop runs (from the root route): `open` for orders, `closed` when
+ * the event's orders are full, `view` for looking only.
+ */
+export function useShopMode() {
+	return useLoaderData({
+		from: "__root__",
+		select: (data) => data.shop.mode,
 	});
 }
 

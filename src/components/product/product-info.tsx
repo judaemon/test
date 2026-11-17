@@ -22,6 +22,7 @@ import {
 	getLineQuantity,
 	setCartOpen,
 } from "~/lib/cart-store";
+import { CONTACT } from "~/lib/contact";
 import { stemCount } from "~/lib/flowers";
 import {
 	formatPrice,
@@ -37,6 +38,7 @@ import { type BouquetSizeInfo, findSize } from "~/lib/sizes";
 import {
 	useArrangementTypes,
 	useFlowerPhotos,
+	useShopMode,
 	useSizes,
 } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
@@ -58,6 +60,9 @@ interface ProductInfoProps {
 export function ProductInfo(props: ProductInfoProps) {
 	const [quantity, setQuantity] = createSignal(1);
 	const [isAdding, setIsAdding] = createSignal(false);
+	// View only: the bouquet to look at, and how to message us for one.
+	const shopMode = useShopMode();
+	const ordering = () => shopMode() !== "view";
 
 	const price = () => getVariantPrice(props.product, props.variant);
 	const saleItem = () => ({
@@ -157,25 +162,30 @@ export function ProductInfo(props: ProductInfoProps) {
 						item={saleItem()}
 					/>
 				</p>
-				<Show
-					when={props.variant.inStock}
-					fallback={
-						<Badge variant="error" round>
-							{stockLabel(props.variant)}
+				<Show when={ordering()}>
+					<Show
+						when={props.variant.inStock}
+						fallback={
+							<Badge variant="error" round>
+								{stockLabel(props.variant)}
+							</Badge>
+						}
+					>
+						<Badge
+							variant={props.variant.preorder ? "warning" : "success"}
+							round
+						>
+							{props.variant.preorder
+								? stockLabel(props.variant)
+								: props.variant.stock === undefined
+									? "Available"
+									: `Available · ${stockLabel(props.variant)}`}
 						</Badge>
-					}
-				>
-					<Badge variant={props.variant.preorder ? "warning" : "success"} round>
-						{props.variant.preorder
-							? stockLabel(props.variant)
-							: props.variant.stock === undefined
-								? "Available"
-								: `Available · ${stockLabel(props.variant)}`}
-					</Badge>
+					</Show>
 				</Show>
 			</div>
 
-			<Show when={sale()}>
+			<Show when={ordering() && sale()}>
 				{(best) => (
 					<p class="-mt-3 flex flex-wrap items-center gap-x-2 text-sm">
 						<span class="font-semibold text-sale">{best().sale.name}</span>
@@ -200,7 +210,9 @@ export function ProductInfo(props: ProductInfoProps) {
 				)}
 			</Show>
 
-			<Show when={props.variant.preorder && props.variant.inStock}>
+			<Show
+				when={ordering() && props.variant.preorder && props.variant.inStock}
+			>
 				<p class="-mt-2 rounded-lg bg-warning/60 px-3 py-2 text-sm text-warning-foreground">
 					<strong class="font-semibold">Pre-order.</strong>{" "}
 					<Show
@@ -331,98 +343,128 @@ export function ProductInfo(props: ProductInfoProps) {
 				)}
 			</Show>
 
-			<Show when={props.variant.inStock && !isMaxedOut()}>
-				<NumberField
-					class="flex flex-col gap-2"
-					rawValue={quantity()}
-					onRawValueChange={handleQuantityChange}
-					minValue={1}
-					maxValue={maxQuantity()}
-					format={false}
-				>
-					<NumberFieldLabel>Quantity</NumberFieldLabel>
-					<NumberFieldGroup class="flex w-36 items-center rounded-md border border-input">
-						<NumberFieldDecrementTrigger
-							aria-label="Decrease quantity"
-							class="static size-10 shrink-0 rounded-l-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-						>
-							<MinusIcon class="size-4" />
-						</NumberFieldDecrementTrigger>
-						<NumberFieldInput class="h-10 rounded-none border-0 px-0 text-center tabular-nums" />
-						<NumberFieldIncrementTrigger
-							aria-label="Increase quantity"
-							class="static size-10 shrink-0 rounded-r-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-						>
-							<PlusIcon class="size-4" />
-						</NumberFieldIncrementTrigger>
-					</NumberFieldGroup>
-				</NumberField>
-			</Show>
+			<Show
+				when={ordering()}
+				fallback={
+					<div class="flex flex-col gap-3 rounded-lg bg-petal-50 p-4">
+						<p class="text-sm">
+							<strong class="font-semibold">Like this bouquet?</strong> We’re
+							not taking orders on the site right now. Message us and we’ll make
+							it for you.
+						</p>
+						<div class="flex flex-wrap gap-2">
+							<a
+								href={CONTACT.facebookUrl}
+								target="_blank"
+								rel="noreferrer"
+								class="inline-flex h-10 items-center rounded-full bg-petal-700 px-4 text-sm font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2"
+							>
+								Message on Facebook
+							</a>
+							<a
+								href={`tel:${CONTACT.phone.replace(/\s/g, "")}`}
+								class="inline-flex h-10 items-center rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+							>
+								Call or text {CONTACT.phone}
+							</a>
+						</div>
+					</div>
+				}
+			>
+				<Show when={props.variant.inStock && !isMaxedOut()}>
+					<NumberField
+						class="flex flex-col gap-2"
+						rawValue={quantity()}
+						onRawValueChange={handleQuantityChange}
+						minValue={1}
+						maxValue={maxQuantity()}
+						format={false}
+					>
+						<NumberFieldLabel>Quantity</NumberFieldLabel>
+						<NumberFieldGroup class="flex w-36 items-center rounded-md border border-input">
+							<NumberFieldDecrementTrigger
+								aria-label="Decrease quantity"
+								class="static size-10 shrink-0 rounded-l-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+							>
+								<MinusIcon class="size-4" />
+							</NumberFieldDecrementTrigger>
+							<NumberFieldInput class="h-10 rounded-none border-0 px-0 text-center tabular-nums" />
+							<NumberFieldIncrementTrigger
+								aria-label="Increase quantity"
+								class="static size-10 shrink-0 rounded-r-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+							>
+								<PlusIcon class="size-4" />
+							</NumberFieldIncrementTrigger>
+						</NumberFieldGroup>
+					</NumberField>
+				</Show>
 
-			<div class="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-				<Show
-					when={!isMaxedOut()}
-					fallback={
+				<div class="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+					<Show
+						when={!isMaxedOut()}
+						fallback={
+							<Button
+								size="lg"
+								variant="outline"
+								class="h-12 w-full text-base"
+								onClick={() => setCartOpen(true)}
+							>
+								<BagIcon class="size-5" />
+								<span>View bag</span>
+							</Button>
+						}
+					>
 						<Button
 							size="lg"
-							variant="outline"
 							class="h-12 w-full text-base"
-							onClick={() => setCartOpen(true)}
+							disabled={!props.variant.inStock || isAdding()}
+							aria-busy={isAdding()}
+							onClick={handleAddToCart}
 						>
-							<BagIcon class="size-5" />
-							<span>View bag</span>
+							<Show
+								when={props.variant.inStock}
+								fallback={<span>{stockLabel(props.variant)}</span>}
+							>
+								<BagIcon class="size-5" />
+								<span>
+									{isAdding()
+										? "Adding…"
+										: props.variant.preorder
+											? preorderReadyDate(props.variant)
+												? `Pre-order · Ready ${formatReadyDate(preorderReadyDate(props.variant) ?? "")}`
+												: "Pre-order"
+											: "Add to Bag"}
+								</span>
+							</Show>
 						</Button>
-					}
-				>
-					<Button
-						size="lg"
-						class="h-12 w-full text-base"
-						disabled={!props.variant.inStock || isAdding()}
-						aria-busy={isAdding()}
-						onClick={handleAddToCart}
-					>
-						<Show
-							when={props.variant.inStock}
-							fallback={<span>{stockLabel(props.variant)}</span>}
-						>
-							<BagIcon class="size-5" />
-							<span>
-								{isAdding()
-									? "Adding…"
-									: props.variant.preorder
-										? preorderReadyDate(props.variant)
-											? `Pre-order · Ready ${formatReadyDate(preorderReadyDate(props.variant) ?? "")}`
-											: "Pre-order"
-										: "Add to Bag"}
-							</span>
-						</Show>
-					</Button>
-				</Show>
-				<Show when={isMaxedOut()}>
-					<p class="text-center text-sm text-muted-foreground">
-						{props.variant.stock !== undefined && inBag() >= props.variant.stock
-							? `Your bag has the last ${inBag()} ${props.variant.colorName}.`
-							: `Your bag has ${inBag()} ${props.variant.colorName} bouquets, the most for one order.`}
-					</p>
-				</Show>
-				<Show when={!isMaxedOut() && inBag() > 0}>
-					<p class="text-center text-sm text-muted-foreground">
-						{inBag()} already in your bag
-					</p>
-				</Show>
-				<Show when={!props.variant.inStock}>
-					<p class="text-center text-sm text-muted-foreground">
-						{props.variant.stock !== 0
-							? `${props.variant.colorName} isn’t available right now.`
-							: props.variant.preorder
-								? `Pre-orders for ${props.variant.colorName} are full.`
-								: `${props.variant.colorName} is sold out.`}
-						{props.product.variants.some((v) => v.inStock)
-							? " Pick another theme above to order."
-							: ""}
-					</p>
-				</Show>
-			</div>
+					</Show>
+					<Show when={isMaxedOut()}>
+						<p class="text-center text-sm text-muted-foreground">
+							{props.variant.stock !== undefined &&
+							inBag() >= props.variant.stock
+								? `Your bag has the last ${inBag()} ${props.variant.colorName}.`
+								: `Your bag has ${inBag()} ${props.variant.colorName} bouquets, the most for one order.`}
+						</p>
+					</Show>
+					<Show when={!isMaxedOut() && inBag() > 0}>
+						<p class="text-center text-sm text-muted-foreground">
+							{inBag()} already in your bag
+						</p>
+					</Show>
+					<Show when={!props.variant.inStock}>
+						<p class="text-center text-sm text-muted-foreground">
+							{props.variant.stock !== 0
+								? `${props.variant.colorName} isn’t available right now.`
+								: props.variant.preorder
+									? `Pre-orders for ${props.variant.colorName} are full.`
+									: `${props.variant.colorName} is sold out.`}
+							{props.product.variants.some((v) => v.inStock)
+								? " Pick another theme above to order."
+								: ""}
+						</p>
+					</Show>
+				</div>
+			</Show>
 		</div>
 	);
 }

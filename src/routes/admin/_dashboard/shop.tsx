@@ -21,6 +21,7 @@ import {
 	DEFAULT_SHOP_STATUS,
 	SHOP_HEADING_MAX,
 	SHOP_MESSAGE_MAX,
+	type ShopMode,
 	WISH_DATES,
 } from "~/lib/shop-status";
 import { cn } from "~/lib/utils";
@@ -35,10 +36,51 @@ export const Route = createFileRoute("/admin/_dashboard/shop")({
 	component: ShopPage,
 });
 
+/** The three ways the shop runs, in the order the owner picks from. */
+const MODES: {
+	mode: ShopMode;
+	title: string;
+	text: string;
+	/** Asked before switching to it, since it stops new orders. */
+	confirm?: { title: string; description: string; label: string };
+	done: string;
+}[] = [
+	{
+		mode: "open",
+		title: "Taking orders",
+		text: "For an event: customers fill their bag, build bouquets and check out.",
+		done: "The shop is taking orders.",
+	},
+	{
+		mode: "view",
+		title: "View only",
+		text: "Between events: the home page shows your bouquets to look at, with ways to message you. No bag, builder or checkout.",
+		confirm: {
+			title: "Make the shop view only?",
+			description:
+				"New orders stop right away, even on checkout pages left open. People can still look at every bouquet, and follow and pay for orders they’ve placed.",
+			label: "Make it view only",
+		},
+		done: "The shop is view only. People can look but not order.",
+	},
+	{
+		mode: "closed",
+		title: "Closed: fully booked",
+		text: "When an event’s orders are full: shopping pages show your message below, and people can signify interest in buying at the event.",
+		confirm: {
+			title: "Close online ordering?",
+			description:
+				"New orders stop right away, even on checkout pages left open. Shopping pages show your message instead. You can open again anytime.",
+			label: "Close the shop",
+		},
+		done: "The shop is closed. Shopping pages show your message now.",
+	},
+];
+
 /**
- * Opens and closes online ordering. The shop is for an event: when orders
- * are full, the owner closes it and shopping pages show a thank-you, with a
- * form where people leave their name for a bouquet at the event.
+ * How the shop runs: taking orders for an event, view only between events,
+ * or closed when an event's orders are full (shopping pages then show a
+ * thank-you, with a form where people leave their name for the event).
  */
 function ShopPage() {
 	const initial = Route.useLoaderData();
@@ -56,34 +98,30 @@ function ShopPage() {
 		heading().trim() !== status().heading ||
 		message().trim() !== status().message;
 
-	const save = async (closed: boolean) => {
+	const save = async (mode: ShopMode) => {
 		setSaving(true);
 		try {
 			const next = await saveShopStatusFn({
-				data: { closed, heading: heading(), message: message() },
+				data: { mode, heading: heading(), message: message() },
 			});
 			setStatus(next);
 			setHeading(next.heading);
 			setMessage(next.message);
 			// Shopping pages read this with the catalog: show it straight away.
 			await router.invalidate();
-			if (closed !== initialClosed()) {
+			if (mode !== savedMode()) {
 				toastSuccess(
-					closed
-						? "The shop is closed. Shopping pages show your message now."
-						: "The shop is open again for orders.",
+					MODES.find((option) => option.mode === mode)?.done ?? "Saved.",
 				);
 			} else toastSuccess("Message saved.");
-			setInitialClosed(closed);
+			setSavedMode(mode);
 		} catch (error) {
 			toastError(error);
 		} finally {
 			setSaving(false);
 		}
 	};
-	const [initialClosed, setInitialClosed] = createSignal(
-		initial().status.closed,
-	);
+	const [savedMode, setSavedMode] = createSignal(initial().status.mode);
 
 	const remove = async (id: string) => {
 		try {
@@ -121,74 +159,103 @@ function ShopPage() {
 		<div class="pb-16">
 			<PageHeader
 				title="Shop"
-				description="Close online ordering when orders are full. Shopping pages then thank everyone and let people signify interest in buying a bouquet at the event. Orders, payments and tracking keep working."
+				description="Take orders for an event, close ordering when it’s full, or make the shop view only between events."
 			/>
 
 			<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
 				<div class="flex min-w-0 flex-col gap-6">
-					{/* ----- Open or closed ----- */}
+					{/* ----- How the shop runs ----- */}
 					<section
-						class={cn(
-							adminCard,
-							"flex flex-wrap items-center gap-4 p-5",
-							status().closed && "border-petal-300 bg-petal-50",
-						)}
-						aria-label="Ordering"
+						class={cn(adminCard, "flex flex-col gap-3 p-5")}
+						aria-labelledby="shop-mode-heading"
 					>
-						<span
-							class={cn(
-								"flex size-12 shrink-0 items-center justify-center rounded-2xl",
-								status().closed
-									? "bg-petal-700 text-white"
-									: "bg-success text-success-foreground",
-							)}
-							aria-hidden="true"
-						>
-							<StoreIcon />
-						</span>
-						<div class="min-w-0 flex-1 basis-48">
-							<p class="text-lg font-semibold">
-								{status().closed ? "Ordering is closed" : "Ordering is open"}
-							</p>
-							<p class="text-sm text-petal-900/65">
-								{status().closed
-									? "Shopping pages show your message, and new orders are turned away."
-									: "Customers can order. Close it when you can’t take more."}
-							</p>
-						</div>
-						<Show
-							when={isOwner()}
-							fallback={
-								<p class="text-sm text-petal-900/60">
-									Only the owner can open or close the shop.
-								</p>
-							}
-						>
-							<Show
-								when={status().closed}
-								fallback={
-									<ConfirmButton
-										title="Close online ordering?"
-										description="New orders stop right away, even on checkout pages left open. Shopping pages show your message instead. You can open again anytime."
-										confirmLabel="Close the shop"
-										onConfirm={() => save(true)}
-										disabled={saving()}
-										class={adminButton.primary}
-									>
-										Close the shop
-									</ConfirmButton>
-								}
+						<div class="flex items-center gap-3">
+							<span
+								class={cn(
+									"flex size-10 shrink-0 items-center justify-center rounded-xl",
+									status().mode === "open"
+										? "bg-success text-success-foreground"
+										: "bg-petal-700 text-white",
+								)}
+								aria-hidden="true"
 							>
-								<button
-									type="button"
-									class={adminButton.secondary}
-									disabled={saving()}
-									onClick={() => void save(false)}
-								>
-									Open for orders again
-								</button>
-							</Show>
-						</Show>
+								<StoreIcon />
+							</span>
+							<div class="min-w-0">
+								<h2 id="shop-mode-heading" class="font-semibold">
+									How the shop runs
+								</h2>
+								<p class="text-sm text-petal-900/60">
+									<Show
+										when={isOwner()}
+										fallback="Only the owner can change this."
+									>
+										Orders already placed, payments and tracking keep working in
+										every mode.
+									</Show>
+								</p>
+							</div>
+						</div>
+						<ul class="flex flex-col gap-2">
+							<For each={MODES}>
+								{(option) => {
+									const current = () => status().mode === option.mode;
+									return (
+										<li
+											aria-current={current() ? "true" : undefined}
+											class={cn(
+												"flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border p-4",
+												current()
+													? "border-petal-500 bg-petal-50"
+													: "border-petal-100",
+											)}
+										>
+											<div class="min-w-0 flex-1 basis-56">
+												<p class="flex items-center gap-2 font-medium">
+													{option.title}
+													<Show when={current()}>
+														<span class="rounded-full bg-petal-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+															Now
+														</span>
+													</Show>
+												</p>
+												<p class="mt-0.5 text-sm text-petal-900/65">
+													{option.text}
+												</p>
+											</div>
+											<Show when={isOwner() && !current()}>
+												<Show
+													when={option.confirm}
+													fallback={
+														<button
+															type="button"
+															class={adminButton.secondary}
+															disabled={saving()}
+															onClick={() => void save(option.mode)}
+														>
+															Switch to this
+														</button>
+													}
+												>
+													{(confirm) => (
+														<ConfirmButton
+															title={confirm().title}
+															description={confirm().description}
+															confirmLabel={confirm().label}
+															onConfirm={() => save(option.mode)}
+															disabled={saving()}
+															class={adminButton.secondary}
+														>
+															Switch to this
+														</ConfirmButton>
+													)}
+												</Show>
+											</Show>
+										</li>
+									);
+								}}
+							</For>
+						</ul>
 					</section>
 
 					{/* ----- The message ----- */}
@@ -237,7 +304,7 @@ function ShopPage() {
 										!heading().trim() ||
 										!message().trim()
 									}
-									onClick={() => void save(status().closed)}
+									onClick={() => void save(status().mode)}
 								>
 									{saving() ? "Saving…" : "Save message"}
 								</button>

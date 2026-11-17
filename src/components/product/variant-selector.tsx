@@ -7,6 +7,7 @@ import {
 } from "~/components/ui/tooltip";
 import { photoSrc } from "~/lib/photos";
 import { stockLabel, swatchBackground } from "~/lib/product";
+import { useShopMode } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { ProductVariant } from "~/types/product";
 
@@ -26,6 +27,10 @@ export function VariantSelector(props: VariantSelectorProps) {
 	const labelId = createUniqueId();
 	const swatchRefs: HTMLButtonElement[] = [];
 	const [hoveredId, setHoveredId] = createSignal<string | null>(null);
+	// While the shop is view only, every theme is just to look at.
+	const shopMode = useShopMode();
+	const unavailable = (variant: ProductVariant | undefined) =>
+		!!variant && shopMode() !== "view" && !variant.inStock;
 
 	const selected = () =>
 		props.variants.find((variant) => variant.id === props.selectedId);
@@ -57,7 +62,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 			<p id={labelId} class="text-sm">
 				<span class="text-muted-foreground">Theme: </span>
 				<span class="font-semibold">{displayed()?.colorName}</span>
-				<Show when={displayed() && !displayed()?.inStock}>
+				<Show when={unavailable(displayed())}>
 					<span class="text-muted-foreground">
 						{" "}
 						({stockLabel(displayed() as ProductVariant).toLowerCase()})
@@ -85,7 +90,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 									role="radio"
 									aria-checked={isSelected()}
 									aria-label={
-										variant.inStock
+										!unavailable(variant)
 											? variant.colorName
 											: `${variant.colorName}, ${stockLabel(variant).toLowerCase()}`
 									}
@@ -115,7 +120,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 												aria-hidden="true"
 												class={cn(
 													"block size-full rounded-full border border-black/10",
-													!variant.inStock && "opacity-50",
+													unavailable(variant) && "opacity-50",
 												)}
 												style={{
 													background: swatchBackground(
@@ -132,12 +137,12 @@ export function VariantSelector(props: VariantSelectorProps) {
 												alt=""
 												class={cn(
 													"size-full rounded-full border border-black/10 object-cover",
-													!variant.inStock && "opacity-50",
+													unavailable(variant) && "opacity-50",
 												)}
 											/>
 										)}
 									</Show>
-									<Show when={!variant.inStock}>
+									<Show when={unavailable(variant)}>
 										<span
 											aria-hidden="true"
 											class="pointer-events-none absolute inset-0.5 flex overflow-hidden rounded-full items-center justify-center"
@@ -148,7 +153,7 @@ export function VariantSelector(props: VariantSelectorProps) {
 								</TooltipTrigger>
 								<TooltipContent class="px-2.5 py-1 text-xs">
 									{variant.colorName}
-									<Show when={!variant.inStock}>
+									<Show when={unavailable(variant)}>
 										<span class="text-muted-foreground">
 											{" "}
 											· {stockLabel(variant)}

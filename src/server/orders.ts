@@ -148,12 +148,20 @@ export const placeOrder = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<PlaceOrderResult> => {
-		// Closed while orders are full, even for a checkout page left open.
-		if (getShopStatus().closed)
+		// Closed while orders are full or the shop is view only, even for a
+		// checkout page left open.
+		const shopMode = getShopStatus().mode;
+		if (shopMode === "closed")
 			return {
 				ok: false,
 				message:
 					"Sorry, we’ve just closed online orders: we’re fully booked. We’ll have extra bouquets at the event!",
+			};
+		if (shopMode === "view")
+			return {
+				ok: false,
+				message:
+					"Sorry, we’re not taking online orders right now. Message us and we’ll make your bouquet.",
 			};
 		if (!data.noCancellationAccepted) {
 			return {

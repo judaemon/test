@@ -2,22 +2,32 @@ import { CIVILIAN, companyColor } from "~/lib/cadets";
 import { SERIAL_NUMBER_MAX, serialDigits } from "~/lib/checkout";
 
 /**
- * Whether the online shop takes orders. The shop is for an event, so staff
- * close it when orders are full: shopping pages then show `heading` and
- * `message`, and a short form where people can leave their name.
+ * How the online shop runs:
+ * - `open`: taking orders (for an event).
+ * - `closed`: the event's orders are full. Shopping pages show `heading` and
+ *   `message`, and a short form where people can leave their name.
+ * - `view`: between events. The home page and bouquet pages are for looking
+ *   only; the bag, builder, checkout and promos are off.
  */
+export const SHOP_MODES = ["open", "view", "closed"] as const;
+export type ShopMode = (typeof SHOP_MODES)[number];
+
 export interface ShopStatus {
-	closed: boolean;
+	mode: ShopMode;
 	heading: string;
 	message: string;
 }
+
+/** Whether new orders are taken. */
+export const takesOrders = (status: Pick<ShopStatus, "mode">) =>
+	status.mode === "open";
 
 export const SHOP_HEADING_MAX = 80;
 export const SHOP_MESSAGE_MAX = 800;
 export const WISH_NAME_MAX = 60;
 
 export const DEFAULT_SHOP_STATUS: ShopStatus = {
-	closed: false,
+	mode: "open",
 	heading: "We’re fully booked. Thank you!",
 	message:
 		"Your love for ORAIA filled our orders faster than we ever imagined, so we’ve closed online ordering to give every bouquet the care it deserves.\n\nTo everyone who ordered: thank you, we can’t wait for you to see them.\n\nMissed out? Don’t worry. We’re bringing extra bouquets to the event. Come find us on November 14 and 15!",
@@ -32,6 +42,17 @@ export function isShoppingPath(pathname: string) {
 	const path = pathname.replace(/\/+$/, "") || "/";
 	if (path === "/") return true;
 	return ["/shop", "/products", "/custom", "/checkout", "/promos"].some(
+		(prefix) => path === prefix || path.startsWith(`${prefix}/`),
+	);
+}
+
+/**
+ * Paths of the ordering pages, which go back to the home page while the shop
+ * is view only: there's nothing to put in a bag or pay for.
+ */
+export function isOrderingPath(pathname: string) {
+	const path = pathname.replace(/\/+$/, "") || "/";
+	return ["/custom", "/checkout", "/promos"].some(
 		(prefix) => path === prefix || path.startsWith(`${prefix}/`),
 	);
 }

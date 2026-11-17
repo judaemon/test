@@ -1,6 +1,29 @@
 import { describe, expect, test } from "bun:test";
 
-import { checkWish, cleanWishName, isShoppingPath } from "./shop-status";
+import {
+	checkWish,
+	cleanWishName,
+	isOrderingPath,
+	isShoppingPath,
+} from "./shop-status";
+
+describe("isOrderingPath", () => {
+	test("ordering pages go home while the shop is view only", () => {
+		for (const path of ["/custom", "/checkout/", "/promos"])
+			expect(isOrderingPath(path)).toBe(true);
+	});
+	test("the home page, bouquets and orders stay", () => {
+		for (const path of [
+			"/",
+			"/shop",
+			"/products/fiona",
+			"/order/abc",
+			"/active-orders",
+			"/customer",
+		])
+			expect(isOrderingPath(path)).toBe(false);
+	});
+});
 
 describe("isShoppingPath", () => {
 	test("shopping pages close with the shop", () => {

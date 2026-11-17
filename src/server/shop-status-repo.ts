@@ -1,6 +1,8 @@
 import { CIVILIAN } from "~/lib/cadets";
 import {
 	DEFAULT_SHOP_STATUS,
+	SHOP_MODES,
+	type ShopMode,
 	type ShopStatus,
 	type WishDetails,
 } from "~/lib/shop-status";
@@ -8,15 +10,23 @@ import { getDb, nowIso } from "./db";
 
 const KEY = "shop_status";
 
-/** Open until staff close it; the closed notice's words, or the defaults. */
+/** Open until the owner changes it; the closed notice's words, or the defaults. */
 export function getShopStatus(): ShopStatus {
 	const row = getDb()
 		.query("SELECT value FROM settings WHERE key = $key")
 		.get({ key: KEY }) as { value: string } | null;
 	if (!row) return { ...DEFAULT_SHOP_STATUS };
-	const saved = JSON.parse(row.value) as Partial<ShopStatus>;
+	const saved = JSON.parse(row.value) as Partial<ShopStatus> & {
+		/** Before view only, the shop was only ever open or closed. */
+		closed?: boolean;
+	};
+	const mode: ShopMode = (SHOP_MODES as readonly unknown[]).includes(saved.mode)
+		? (saved.mode as ShopMode)
+		: saved.closed === true
+			? "closed"
+			: "open";
 	return {
-		closed: saved.closed === true,
+		mode,
 		heading:
 			typeof saved.heading === "string" && saved.heading
 				? saved.heading

@@ -3,19 +3,24 @@ import { Show } from "solid-js";
 import { SalePrice } from "~/components/shop/sale-price";
 import { photoSrc } from "~/lib/photos";
 import { startingPrice, stockLabel } from "~/lib/product";
+import { useShopMode } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import type { Product, ProductVariant } from "~/types/product";
 
 /**
  * A bouquet's photo, name and price, opening its page on the given theme.
  * The arrow on the photo says it opens, for phones that can't hover.
+ * While the shop is view only, it leaves out stock and pre-order tags.
  */
 export function BouquetCard(props: {
 	product: Product;
 	variant: ProductVariant;
 }) {
+	const shopMode = useShopMode();
+	const viewOnly = () => shopMode() === "view";
 	const price = () => startingPrice(props.product);
-	const soldOut = () => !props.product.variants.some((v) => v.inStock);
+	const soldOut = () =>
+		!viewOnly() && !props.product.variants.some((v) => v.inStock);
 	return (
 		<Link
 			to="/products/$productId"
@@ -40,7 +45,11 @@ export function BouquetCard(props: {
 					aria-hidden="true"
 					class="absolute inset-0 bg-gradient-to-t from-petal-900/25 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"
 				/>
-				<Show when={!props.variant.inStock || props.variant.preorder}>
+				<Show
+					when={
+						!viewOnly() && (!props.variant.inStock || props.variant.preorder)
+					}
+				>
 					<span class="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium backdrop-blur-sm sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
 						{props.variant.inStock ? "Pre-order" : stockLabel(props.variant)}
 					</span>

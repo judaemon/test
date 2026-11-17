@@ -1,6 +1,7 @@
 import {
 	createRootRouteWithContext,
 	HeadContent,
+	Navigate,
 	Outlet,
 	Scripts,
 	useLocation,
@@ -13,14 +14,14 @@ import "@fontsource/inter/600.css";
 import "@fontsource-variable/fraunces/full.css";
 import "@fontsource-variable/fraunces/full-italic.css";
 
-import { onCleanup, onMount, Show, Suspense } from "solid-js";
+import { Match, onCleanup, onMount, Suspense, Switch } from "solid-js";
 import { HydrationScript } from "solid-js/web";
 
 import { ShopClosed } from "~/components/site/shop-closed";
 import { Toaster } from "~/components/ui/toast";
 import { authClient } from "~/lib/auth-client";
 import { startCartPersistence } from "~/lib/cart-store";
-import { isShoppingPath } from "~/lib/shop-status";
+import { isOrderingPath, isShoppingPath } from "~/lib/shop-status";
 import { absoluteUrl, SITE_NAME } from "~/lib/site";
 import { getCurrentUser } from "~/server/account";
 import { getCatalog } from "~/server/catalog";
@@ -102,18 +103,25 @@ function RootComponent() {
 
 /**
  * The page, or, on shopping pages while the shop is closed (orders full),
- * the closed notice. Orders, payment and accounts stay open.
+ * the closed notice. While it's view only, ordering pages go back home.
+ * Orders, payment and accounts stay open either way.
  */
 function ShopGate() {
 	const shop = Route.useLoaderData({ select: (data) => data.shop });
 	const location = useLocation();
 	return (
-		<Show
-			when={shop().closed && isShoppingPath(location().pathname)}
-			fallback={<Outlet />}
-		>
-			<ShopClosed heading={shop().heading} message={shop().message} />
-		</Show>
+		<Switch fallback={<Outlet />}>
+			<Match
+				when={shop().mode === "closed" && isShoppingPath(location().pathname)}
+			>
+				<ShopClosed heading={shop().heading} message={shop().message} />
+			</Match>
+			<Match
+				when={shop().mode === "view" && isOrderingPath(location().pathname)}
+			>
+				<Navigate to="/" replace />
+			</Match>
+		</Switch>
 	);
 }
 

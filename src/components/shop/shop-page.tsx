@@ -34,6 +34,7 @@ import {
 	useArrangementTypes,
 	useCatalog,
 	useCustomSettings,
+	useShopMode,
 	useSizes,
 } from "~/lib/use-catalog";
 import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
@@ -47,8 +48,14 @@ function scrollToId(id: string) {
 		?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
 }
 
-/** The storefront: Battalion Hop hero, the builder, the catalog, then how to order. */
+/**
+ * The storefront: Battalion Hop hero, the builder, the catalog, then how to
+ * order. While the shop is view only, it's the bouquets to look at and how
+ * to message us, without the builder or ordering steps.
+ */
 export function ShopPage() {
+	const shopMode = useShopMode();
+	const viewOnly = () => shopMode() === "view";
 	const allProducts = useCatalog();
 	const sizes = useSizes();
 	const search = useSearch({ strict: false }) as () => ShopFilters;
@@ -186,9 +193,11 @@ export function ShopPage() {
 
 	return (
 		<div class="flex min-h-screen flex-col bg-cream text-petal-900">
-			<p class="bg-petal-700 px-4 py-2 text-center text-sm font-medium text-white">
-				No more Google Sheets. Order your bouquet right here.
-			</p>
+			<Show when={!viewOnly()}>
+				<p class="bg-petal-700 px-4 py-2 text-center text-sm font-medium text-white">
+					No more Google Sheets. Order your bouquet right here.
+				</p>
+			</Show>
 			<SiteHeader />
 			<main class="flex-1">
 				{/* Apple-style hero: most of a screen tall, big centered type, two pill buttons. */}
@@ -209,12 +218,22 @@ export function ShopPage() {
 					<p class="mt-3 text-sm font-medium uppercase tracking-[0.2em] text-petal-900/60">
 						Flower shop · Baguio City
 					</p>
-					<p class="mt-10 text-sm font-medium uppercase tracking-[0.3em] text-petal-900/60 sm:mt-14 sm:text-base">
-						Soft launch for
-					</p>
-					<p class="mt-3 font-display type-soft text-5xl font-semibold leading-[0.95] tracking-tight text-balance sm:text-7xl lg:text-8xl">
-						BATTALION HOP 2027
-					</p>
+					<Show
+						when={!viewOnly()}
+						fallback={
+							<p class="mt-10 max-w-md text-base text-pretty text-petal-900/70 sm:mt-14 sm:text-lg">
+								Have a look at the bouquets we make. To order one, message us
+								and we’ll make it for you.
+							</p>
+						}
+					>
+						<p class="mt-10 text-sm font-medium uppercase tracking-[0.3em] text-petal-900/60 sm:mt-14 sm:text-base">
+							Soft launch for
+						</p>
+						<p class="mt-3 font-display type-soft text-5xl font-semibold leading-[0.95] tracking-tight text-balance sm:text-7xl lg:text-8xl">
+							BATTALION HOP 2027
+						</p>
+					</Show>
 					<div class="mt-10 flex flex-col items-center gap-3 sm:flex-row">
 						<button
 							type="button"
@@ -223,17 +242,18 @@ export function ShopPage() {
 							}}
 							class="inline-flex h-12 items-center justify-center rounded-full bg-petal-700 px-8 text-base font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
 						>
-							Shop bouquets
+							{viewOnly() ? "See our bouquets" : "Shop bouquets"}
 						</button>
 						<button
 							type="button"
 							onClick={() => {
+								if (viewOnly()) return scrollToId("message-us");
 								setStepsOpen(true);
 								scrollToId("how-to-order");
 							}}
 							class="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-petal-200 bg-white/70 px-8 text-base font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream"
 						>
-							How to order
+							{viewOnly() ? "Message us" : "How to order"}
 							<span aria-hidden="true">↓</span>
 						</button>
 					</div>
@@ -241,167 +261,118 @@ export function ShopPage() {
 
 				<div class="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6 lg:max-w-7xl lg:px-8">
 					<div class="min-w-0">
-						<section
-							aria-labelledby="custom-heading"
-							class="grid overflow-hidden rounded-3xl border border-petal-200 bg-white md:grid-cols-[minmax(0,1fr)_17rem]"
-						>
-							<div class="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-7 sm:p-8">
-								<img
-									src={CUSTOM_BANNER_IMAGE}
-									alt=""
-									width={128}
-									height={128}
-									class="size-24 shrink-0 rounded-2xl sm:size-32"
-								/>
-								<div class="min-w-0">
-									<p class="text-xs font-semibold uppercase tracking-[0.2em] text-petal-700">
-										Made your way
-									</p>
-									<h2
-										id="custom-heading"
-										class="mt-1 font-display type-soft text-2xl font-semibold sm:text-3xl"
-									>
-										Customize your bouquet
-									</h2>
-									<Show
-										when={custom().enabled}
-										fallback={
-											<p class="mt-2 max-w-xl text-petal-900/70">
-												Custom bouquets are paused for now. Message us and we’ll
-												make one for you.
-											</p>
-										}
-									>
-										<p class="mt-2 max-w-xl text-petal-900/70">
-											Pick your size, flowers, colors and wrapper
-											{custom().money.enabled
-												? ", or add cash for a money bouquet"
-												: ""}
-											. The price updates as you build.
+						<Show when={!viewOnly()}>
+							<section
+								aria-labelledby="custom-heading"
+								class="grid overflow-hidden rounded-3xl border border-petal-200 bg-white md:grid-cols-[minmax(0,1fr)_17rem]"
+							>
+								<div class="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-7 sm:p-8">
+									<img
+										src={CUSTOM_BANNER_IMAGE}
+										alt=""
+										width={128}
+										height={128}
+										class="size-24 shrink-0 rounded-2xl sm:size-32"
+									/>
+									<div class="min-w-0">
+										<p class="text-xs font-semibold uppercase tracking-[0.2em] text-petal-700">
+											Made your way
 										</p>
-										<ol class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-petal-900/80">
-											<For
-												// The builder's own order of steps.
-												each={[
-													...(builderSizes(custom().sizes).length
-														? ["Size"]
-														: []),
-													"Flowers & colors",
-													"Wrapper",
-													...(custom().money.enabled
-														? ["Money (optional)"]
-														: []),
-												]}
-											>
-												{(step, index) => (
-													<li class="flex items-center gap-2">
-														<span
-															aria-hidden="true"
-															class="flex size-6 items-center justify-center rounded-full bg-petal-100 text-xs font-semibold text-petal-700"
-														>
-															{index() + 1}
-														</span>
-														{step}
-													</li>
-												)}
-											</For>
-										</ol>
-										<div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-											<Link
-												to="/custom"
-												class="inline-flex h-11 items-center gap-2 rounded-full bg-petal-700 px-6 font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2"
-											>
-												Build your bouquet
-												<span aria-hidden="true">→</span>
-											</Link>
-											<Show when={startingPrice()}>
-												{(price) => (
-													<p class="text-sm text-petal-900/65">
-														From{" "}
-														<SalePrice
-															price={price()}
-															currency="PHP"
-															item={{ productId: CUSTOM_PRODUCT_ID }}
-															class="font-semibold text-petal-900"
-															compact
-														/>
-													</p>
-												)}
-											</Show>
-										</div>
-									</Show>
+										<h2
+											id="custom-heading"
+											class="mt-1 font-display type-soft text-2xl font-semibold sm:text-3xl"
+										>
+											Customize your bouquet
+										</h2>
+										<Show
+											when={custom().enabled}
+											fallback={
+												<p class="mt-2 max-w-xl text-petal-900/70">
+													Custom bouquets are paused for now. Message us and
+													we’ll make one for you.
+												</p>
+											}
+										>
+											<p class="mt-2 max-w-xl text-petal-900/70">
+												Pick your size, flowers, colors and wrapper
+												{custom().money.enabled
+													? ", or add cash for a money bouquet"
+													: ""}
+												. The price updates as you build.
+											</p>
+											<ol class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-petal-900/80">
+												<For
+													// The builder's own order of steps.
+													each={[
+														...(builderSizes(custom().sizes).length
+															? ["Size"]
+															: []),
+														"Flowers & colors",
+														"Wrapper",
+														...(custom().money.enabled
+															? ["Money (optional)"]
+															: []),
+													]}
+												>
+													{(step, index) => (
+														<li class="flex items-center gap-2">
+															<span
+																aria-hidden="true"
+																class="flex size-6 items-center justify-center rounded-full bg-petal-100 text-xs font-semibold text-petal-700"
+															>
+																{index() + 1}
+															</span>
+															{step}
+														</li>
+													)}
+												</For>
+											</ol>
+											<div class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+												<Link
+													to="/custom"
+													class="inline-flex h-11 items-center gap-2 rounded-full bg-petal-700 px-6 font-medium text-white transition-colors outline-none hover:bg-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500 focus-visible:ring-offset-2"
+												>
+													Build your bouquet
+													<span aria-hidden="true">→</span>
+												</Link>
+												<Show when={startingPrice()}>
+													{(price) => (
+														<p class="text-sm text-petal-900/65">
+															From{" "}
+															<SalePrice
+																price={price()}
+																currency="PHP"
+																item={{ productId: CUSTOM_PRODUCT_ID }}
+																class="font-semibold text-petal-900"
+																compact
+															/>
+														</p>
+													)}
+												</Show>
+											</div>
+										</Show>
+									</div>
 								</div>
-							</div>
-							<div class="flex flex-col justify-center gap-3 border-t border-petal-100 bg-petal-50/60 p-6 sm:p-8 md:border-l md:border-t-0">
-								<p class="font-semibold">
-									{custom().enabled
-										? "Something else in mind?"
-										: "Order by message"}
-								</p>
-								<p class="-mt-2 text-sm text-petal-900/65">
-									Send us a photo or an idea and we’ll quote it.
-								</p>
-								<a
-									href={CONTACT.facebookUrl}
-									target="_blank"
-									rel="noreferrer"
-									class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
-								>
-									<svg
-										aria-hidden="true"
-										viewBox="0 0 24 24"
-										class="size-4 shrink-0 fill-[#1877f2]"
-									>
-										<path d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.5 3.5h-2.9v8.4A12 12 0 0 0 24 12Z" />
-									</svg>
-									Message on Facebook
-								</a>
-								<a
-									href={CONTACT.signalUrl}
-									target="_blank"
-									rel="noreferrer"
-									class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
-								>
-									<svg
-										aria-hidden="true"
-										viewBox="0 0 24 24"
-										class="size-4 shrink-0 fill-[#3a76f0]"
-									>
-										<path d="M12 1.5C6.2 1.5 1.5 5.9 1.5 11.4c0 2.1.7 4 1.9 5.6L2.2 21.8l4.9-1.3c1.5.8 3.2 1.2 4.9 1.2 5.8 0 10.5-4.4 10.5-9.9S17.8 1.5 12 1.5Z" />
-									</svg>
-									Message on Signal
-								</a>
-								<a
-									href={CONTACT.telegramUrl}
-									target="_blank"
-									rel="noreferrer"
-									class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
-								>
-									<svg
-										aria-hidden="true"
-										viewBox="0 0 24 24"
-										class="size-4 shrink-0 fill-[#229ed9]"
-									>
-										<path d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24Zm5.6 8.2-1.9 9c-.1.6-.5.8-1 .5l-2.9-2.1-1.4 1.3c-.2.2-.3.3-.6.3l.2-3 5.4-4.9c.2-.2 0-.3-.3-.1l-6.7 4.2-2.9-.9c-.6-.2-.6-.6.1-.9l11.3-4.4c.5-.2 1 .1.7 1Z" />
-									</svg>
-									Message on Telegram
-								</a>
-								<p class="text-sm text-petal-900/65">
-									Or call or text{" "}
-									<a
-										href={`tel:${CONTACT.phone.replace(/\s/g, "")}`}
-										class="font-medium text-petal-700 underline underline-offset-2"
-									>
-										{CONTACT.phone}
-									</a>
-									.
-								</p>
-							</div>
-						</section>
+								<div class="flex flex-col justify-center gap-3 border-t border-petal-100 bg-petal-50/60 p-6 sm:p-8 md:border-l md:border-t-0">
+									<p class="font-semibold">
+										{custom().enabled
+											? "Something else in mind?"
+											: "Order by message"}
+									</p>
+									<p class="-mt-2 text-sm text-petal-900/65">
+										Send us a photo or an idea and we’ll quote it.
+									</p>
+									<MessageLinks />
+								</div>
+							</section>
+						</Show>
 
 						<h2
 							id="bouquets"
-							class="mt-14 scroll-mt-24 font-display type-soft text-2xl font-semibold"
+							class={cn(
+								"scroll-mt-24 font-display type-soft text-2xl font-semibold",
+								!viewOnly() && "mt-14",
+							)}
 						>
 							Floral Arrangements
 						</h2>
@@ -563,14 +534,19 @@ export function ShopPage() {
 											No bouquets match
 										</p>
 										<p class="text-sm text-petal-900/65">
-											Try another name, flower or size, or{" "}
-											<Link
-												to="/custom"
-												class="font-medium text-petal-700 underline"
+											<Show
+												when={!viewOnly()}
+												fallback="Try another name, flower or size."
 											>
-												build your own
-											</Link>
-											.
+												Try another name, flower or size, or{" "}
+												<Link
+													to="/custom"
+													class="font-medium text-petal-700 underline"
+												>
+													build your own
+												</Link>
+												.
+											</Show>
 										</p>
 									</Show>
 								</div>
@@ -587,15 +563,107 @@ export function ShopPage() {
 							</ul>
 						</Show>
 
-						<HowToOrder
-							class="mt-16"
-							open={stepsOpen()}
-							onOpenChange={setStepsOpen}
-						/>
+						<Show
+							when={!viewOnly()}
+							fallback={
+								<section
+									id="message-us"
+									aria-labelledby="message-us-heading"
+									class="mt-16 scroll-mt-24 rounded-3xl border border-petal-200 bg-white p-6 sm:p-8"
+								>
+									<p class="text-xs font-semibold uppercase tracking-[0.2em] text-petal-700">
+										To order
+									</p>
+									<h2
+										id="message-us-heading"
+										class="mt-1 font-display type-soft text-2xl font-semibold sm:text-3xl"
+									>
+										Like what you see? Message us
+									</h2>
+									<p class="mt-2 max-w-xl text-petal-900/70">
+										We’re not taking orders on the site right now. Tell us the
+										bouquet you like, or send a photo or an idea, and we’ll make
+										it for you.
+									</p>
+									<div class="mt-5 flex flex-col gap-3 sm:max-w-sm">
+										<MessageLinks />
+									</div>
+								</section>
+							}
+						>
+							<HowToOrder
+								class="mt-16"
+								open={stepsOpen()}
+								onOpenChange={setStepsOpen}
+							/>
+						</Show>
 					</div>
 				</div>
 			</main>
 			<SiteFooter />
 		</div>
+	);
+}
+
+/** Ways to message us, and the number to call or text. */
+function MessageLinks() {
+	return (
+		<>
+			<a
+				href={CONTACT.facebookUrl}
+				target="_blank"
+				rel="noreferrer"
+				class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+			>
+				<svg
+					aria-hidden="true"
+					viewBox="0 0 24 24"
+					class="size-4 shrink-0 fill-[#1877f2]"
+				>
+					<path d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.4l-.5 3.5h-2.9v8.4A12 12 0 0 0 24 12Z" />
+				</svg>
+				Message on Facebook
+			</a>
+			<a
+				href={CONTACT.signalUrl}
+				target="_blank"
+				rel="noreferrer"
+				class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+			>
+				<svg
+					aria-hidden="true"
+					viewBox="0 0 24 24"
+					class="size-4 shrink-0 fill-[#3a76f0]"
+				>
+					<path d="M12 1.5C6.2 1.5 1.5 5.9 1.5 11.4c0 2.1.7 4 1.9 5.6L2.2 21.8l4.9-1.3c1.5.8 3.2 1.2 4.9 1.2 5.8 0 10.5-4.4 10.5-9.9S17.8 1.5 12 1.5Z" />
+				</svg>
+				Message on Signal
+			</a>
+			<a
+				href={CONTACT.telegramUrl}
+				target="_blank"
+				rel="noreferrer"
+				class="inline-flex h-10 items-center gap-2.5 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium transition-colors outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+			>
+				<svg
+					aria-hidden="true"
+					viewBox="0 0 24 24"
+					class="size-4 shrink-0 fill-[#229ed9]"
+				>
+					<path d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24Zm5.6 8.2-1.9 9c-.1.6-.5.8-1 .5l-2.9-2.1-1.4 1.3c-.2.2-.3.3-.6.3l.2-3 5.4-4.9c.2-.2 0-.3-.3-.1l-6.7 4.2-2.9-.9c-.6-.2-.6-.6.1-.9l11.3-4.4c.5-.2 1 .1.7 1Z" />
+				</svg>
+				Message on Telegram
+			</a>
+			<p class="text-sm text-petal-900/65">
+				Or call or text{" "}
+				<a
+					href={`tel:${CONTACT.phone.replace(/\s/g, "")}`}
+					class="font-medium text-petal-700 underline underline-offset-2"
+				>
+					{CONTACT.phone}
+				</a>
+				.
+			</p>
+		</>
 	);
 }
