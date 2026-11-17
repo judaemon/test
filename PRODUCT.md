@@ -68,3 +68,9 @@ The shop is built around how the academy is organized. Orders carry company, cla
 3. **Organize everything the way the academy does:** by company, class, battalion and event day.
 4. **Built for the rush.** Phones in the evening for cadets, iPads and printers on the day for staff. Make it quick to scan and hard to get wrong under pressure.
 5. **Follow the event calendar.** Open, fully booked and view only are normal states of the shop, not error states.
+
+## Accessibility & Inclusion
+
+- **Weak mobile signal.** Cadets often order from the academy on slow or patchy mobile data. Pages must stay light and keep working on a poor connection.
+- **Usable on a phone.** Every cadet-facing step, and every staff screen used on the day, must work fully on a phone, not only on a laptop or iPad.
+- Beyond that, normal good practice (WCAG AA) applies; no other specific needs are known.
