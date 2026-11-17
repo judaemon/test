@@ -569,23 +569,35 @@ export function ShopPage() {
 								<section
 									id="message-us"
 									aria-labelledby="message-us-heading"
-									class="mt-16 scroll-mt-24 rounded-3xl border border-petal-200 bg-white p-6 sm:p-8"
+									class="mt-16 grid scroll-mt-24 overflow-hidden rounded-3xl border border-petal-200 bg-white md:grid-cols-[minmax(0,1fr)_20rem]"
 								>
-									<p class="text-xs font-semibold uppercase tracking-[0.2em] text-petal-700">
-										To order
-									</p>
-									<h2
-										id="message-us-heading"
-										class="mt-1 font-display type-soft text-2xl font-semibold sm:text-3xl"
-									>
-										Like what you see? Message us
-									</h2>
-									<p class="mt-2 max-w-xl text-petal-900/70">
-										We’re not taking orders on the site right now. Tell us the
-										bouquet you like, or send a photo or an idea, and we’ll make
-										it for you.
-									</p>
-									<div class="mt-5 flex flex-col gap-3 sm:max-w-sm">
+									{/* The ask on the left, and how to reach us beside it, like the builder's card. */}
+									<div class="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-7 sm:p-8 lg:p-10">
+										<img
+											src={CUSTOM_BANNER_IMAGE}
+											alt=""
+											width={128}
+											height={128}
+											class="size-24 shrink-0 rounded-2xl sm:size-32 md:hidden lg:block"
+										/>
+										<div class="min-w-0">
+											<p class="text-xs font-semibold uppercase tracking-[0.2em] text-petal-700">
+												To order
+											</p>
+											<h2
+												id="message-us-heading"
+												class="mt-1 font-display type-soft text-2xl font-semibold text-balance sm:text-3xl"
+											>
+												Like what you see? Message us
+											</h2>
+											<p class="mt-2 max-w-xl text-pretty text-petal-900/70">
+												We’re not taking orders on the site right now. Tell us
+												the bouquet you like, or send a photo or an idea, and
+												we’ll make it for you.
+											</p>
+										</div>
+									</div>
+									<div class="flex flex-col justify-center gap-3 border-t border-petal-100 bg-petal-50/60 p-6 sm:p-8 md:border-l md:border-t-0">
 										<MessageLinks />
 									</div>
 								</section>
