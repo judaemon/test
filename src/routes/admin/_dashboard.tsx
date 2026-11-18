@@ -103,6 +103,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 	{
 		label: "People",
 		items: [
+			{ to: "/admin/users", label: "Users", icon: AdminIcons.users },
 			{ to: "/admin/florists", label: "Florists", icon: AdminIcons.florists },
 			{
 				to: "/admin/suppliers",

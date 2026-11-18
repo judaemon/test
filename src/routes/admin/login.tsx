@@ -1,9 +1,4 @@
-import {
-	createFileRoute,
-	redirect,
-	useNavigate,
-	useRouter,
-} from "@tanstack/solid-router";
+import { createFileRoute, redirect } from "@tanstack/solid-router";
 import { createSignal, onMount, Show } from "solid-js";
 
 import { adminButton, adminInput, Field } from "~/components/admin/ui";
@@ -41,8 +36,6 @@ export const Route = createFileRoute("/admin/login")({
 function LoginPage() {
 	const search = Route.useSearch();
 	const setup = Route.useLoaderData();
-	const router = useRouter();
-	const navigate = useNavigate();
 	const [error, setError] = createSignal<string | null>(null);
 	const [busy, setBusy] = createSignal(false);
 	// Enabled once the page is interactive, so sign-in always goes through JS.
@@ -67,8 +60,9 @@ function LoginPage() {
 			);
 			return;
 		}
-		await router.invalidate();
-		await navigate({ href: safeRedirect(search().redirect) });
+		// A full page load, not an in-app move: a tab opened before a deploy
+		// would ask for code files that are gone and wait on "Signing in…".
+		window.location.assign(safeRedirect(search().redirect));
 	};
 
 	return (

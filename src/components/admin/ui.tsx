@@ -488,6 +488,12 @@ export const AdminIcons = {
 			<path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.7 2.6 2.4 3 5.2" />
 		</svg>
 	),
+	users: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<circle cx="12" cy="8" r="4" />
+			<path d="M4 20.5c.9-4 4-6.5 8-6.5s7.1 2.5 8 6.5" />
+		</svg>
+	),
 	trash: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
