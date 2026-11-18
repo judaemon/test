@@ -31,6 +31,10 @@ export function DateRangeFilter(props: {
 	from?: string;
 	to?: string;
 	onChange: (from?: string, to?: string) => void;
+	/** The button's name; "Date" unless given. */
+	label?: string;
+	/** Above the choices; "Placed on" unless given. */
+	title?: string;
 }) {
 	const summary = () => {
 		const { from, to } = props;
@@ -63,7 +67,7 @@ export function DateRangeFilter(props: {
 					<rect x="3.5" y="5" width="17" height="15" rx="2" />
 					<path d="M3.5 10h17M8 3v4M16 3v4" />
 				</svg>
-				Date
+				{props.label ?? "Date"}
 				<Show when={summary()}>
 					{(text) => (
 						<>
@@ -78,7 +82,7 @@ export function DateRangeFilter(props: {
 			<PopoverPrimitive.Portal>
 				<PopoverPrimitive.Content class="z-50 w-72 rounded-xl border border-petal-100 bg-white p-3 text-petal-900 shadow-lg outline-none">
 					<PopoverPrimitive.Title class="mb-2 text-sm font-medium">
-						Placed on
+						{props.title ?? "Placed on"}
 					</PopoverPrimitive.Title>
 					<div class="mb-3 flex flex-wrap gap-1.5">
 						<For each={PRESETS}>

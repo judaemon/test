@@ -686,7 +686,7 @@ function AdminLayout() {
 
 			<div class="flex min-w-0 flex-col">
 				{/* The top bar: where you are, and who's signed in. */}
-				<header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-petal-100 bg-white/90 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:h-16 lg:px-8 print:hidden">
+				<header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-petal-100 bg-white/90 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:h-16 lg:pr-8 lg:pl-3 print:hidden">
 					{/* Phones and iPad upright: the menu lives in a drawer. */}
 					<button
 						type="button"
