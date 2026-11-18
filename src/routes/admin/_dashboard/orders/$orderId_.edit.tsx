@@ -466,7 +466,7 @@ function EditShopOrder() {
 					</Index>
 				</section>
 
-				<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[240px]">
+				<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
 					<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
 						<Link
 							to="/admin/orders/$orderId"

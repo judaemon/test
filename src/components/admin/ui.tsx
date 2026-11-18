@@ -339,9 +339,14 @@ export function ConfirmButton(
 }
 
 /** Shows a server function failure to staff in plain words. */
+/** Shows an error's message, or a message passed as text. */
 export function toastError(error: unknown, fallback = "Something went wrong.") {
 	const message =
-		error instanceof Error && error.message ? error.message : fallback;
+		typeof error === "string" && error
+			? error
+			: error instanceof Error && error.message
+				? error.message
+				: fallback;
 	showToast({ variant: "error", title: message, duration: 5000 });
 }
 
@@ -491,6 +496,12 @@ export const AdminIcons = {
 	shop: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M10 20v-5h4v5" />
+		</svg>
+	),
+	events: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<path d="M4 8.5V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2.5a2.5 2.5 0 0 0 0 5V18a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4.5a2.5 2.5 0 0 0 0-5Z" />
+			<path d="M14.5 5v2M14.5 10.5v3M14.5 17v2" />
 		</svg>
 	),
 	landing: (p: { class?: string }) => (

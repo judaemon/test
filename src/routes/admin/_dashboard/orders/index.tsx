@@ -1468,7 +1468,7 @@ function GiveToFloristBar(props: {
 	return (
 		<section
 			aria-label="Ticked bouquets"
-			class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgb(0_0_0/0.06)] backdrop-blur lg:left-[240px]"
+			class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgb(0_0_0/0.06)] backdrop-blur lg:left-[var(--admin-sidebar,240px)]"
 		>
 			<div class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2">
 				<p class="text-sm">

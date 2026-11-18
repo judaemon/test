@@ -884,6 +884,25 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ALTER TABLE shop_wishes ADD COLUMN serial_number TEXT NOT NULL DEFAULT '';
 	ALTER TABLE shop_wishes ADD COLUMN date TEXT NOT NULL DEFAULT '';
 	`,
+	// v63: events (Admin → Events), like the Battalion Hop: when online
+	// ordering opens and closes, and the days bouquets are delivered (a JSON
+	// list of YYYY-MM-DD). One event at a time is the current one. Orders will
+	// belong to an event later.
+	`
+	CREATE TABLE events (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		orders_open_on TEXT NOT NULL,
+		orders_close_on TEXT NOT NULL,
+		delivery_dates TEXT NOT NULL DEFAULT '[]',
+		status TEXT NOT NULL DEFAULT 'upcoming',
+		notes TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	CREATE UNIQUE INDEX events_by_name ON events (lower(name));
+	CREATE INDEX events_by_status ON events (status);
+	`,
 ];
 
 declare global {

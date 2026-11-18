@@ -116,7 +116,7 @@ function LogsPage() {
 		<div>
 			<PageHeader
 				title="Logs"
-				description="Every change staff and customers make: to orders, floral arrangements, wrappers, suppliers and florists. Who made it, when, what it was before and after, and the page it was made from."
+				description="Every change staff and customers make: to orders, floral arrangements, wrappers, suppliers, florists and events. Who made it, when, what it was before and after, and the page it was made from."
 			/>
 			<div class="mb-4 flex flex-col gap-3">
 				<form

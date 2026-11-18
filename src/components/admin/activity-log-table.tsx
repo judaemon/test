@@ -67,6 +67,15 @@ function ItemName(props: { entry: LogEntry }): JSX.Element {
 							{props.entry.itemName}
 						</Link>
 					</Match>
+					<Match when={props.entry.area === "events"}>
+						<Link
+							to="/admin/events/$eventId"
+							params={{ eventId: itemId() }}
+							class={itemLink}
+						>
+							{props.entry.itemName}
+						</Link>
+					</Match>
 					<Match when={props.entry.area === "florists"}>
 						<Link
 							to="/admin/florists/$floristId"

@@ -7,6 +7,7 @@ export const LOG_AREAS = {
 	wrappers: "Wrappers",
 	suppliers: "Suppliers",
 	florists: "Florists",
+	events: "Events",
 } as const;
 export type LogArea = keyof typeof LOG_AREAS;
 /** Areas kept in `activity_log`; orders have their own log. */
@@ -15,7 +16,7 @@ export type ActivityArea = Exclude<LogArea, "orders">;
 export const isLogArea = (value: unknown): value is LogArea =>
 	typeof value === "string" && value in LOG_AREAS;
 
-/** What was done to a wrapper, supplier or arrangement. */
+/** What was done to a wrapper, supplier, arrangement or event. */
 export const ACTIVITY_ACTIONS = {
 	added: "Added",
 	edited: "Edited",

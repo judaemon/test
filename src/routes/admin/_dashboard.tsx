@@ -120,6 +120,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 	{
 		label: "Shop setup",
 		items: [
+			{ to: "/admin/events", label: "Events", icon: AdminIcons.events },
 			{ to: "/admin/shop", label: "Shop", icon: AdminIcons.shop },
 			{
 				to: "/admin/landing-page",
@@ -634,7 +635,9 @@ function AdminLayout() {
 
 	return (
 		<div
-			class={`min-h-screen bg-cream text-petal-900 lg:grid print:block print:bg-white ${sidebarOpen() ? "lg:grid-cols-[240px_minmax(0,1fr)]" : "lg:grid-cols-[72px_minmax(0,1fr)]"}`}
+			class="min-h-screen bg-cream text-petal-900 lg:grid lg:grid-cols-[var(--admin-sidebar)_minmax(0,1fr)] print:block print:bg-white"
+			// Pages' fixed save bars line up with it too: lg:left-[var(--admin-sidebar)].
+			style={{ "--admin-sidebar": sidebarOpen() ? "240px" : "72px" }}
 		>
 			<Dialog.Root open={menuOpen()} onOpenChange={setMenuOpen}>
 				<Dialog.Portal>

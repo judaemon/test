@@ -5,6 +5,7 @@ import {
 	yesNo,
 } from "~/lib/activity-log";
 import { type CustomWrapper, wrapperColors } from "~/lib/custom-bouquet";
+import { EVENT_STATUSES, type ShopEvent } from "~/lib/events";
 import { formatPrice } from "~/lib/product";
 import type { AdminProduct, RecipeItem } from "~/types/product";
 import { listArrangementTypes } from "./arrangement-types-repo";
@@ -91,6 +92,20 @@ export function supplierSnapshot(
 		["phone", "Phone", supplier.phone],
 		["email", "Email", supplier.email],
 		["notes", "Notes", supplier.notes],
+	]);
+}
+
+export function eventSnapshot(
+	event: ShopEvent | null | undefined,
+): ActivitySnapshot {
+	if (!event) return new Map();
+	return fields([
+		["name", "Name", event.name],
+		["ordersOpenOn", "Ordering opens", event.ordersOpenOn],
+		["ordersCloseOn", "Ordering closes", event.ordersCloseOn],
+		["deliveryDates", "Delivery days", event.deliveryDates.join(", ")],
+		["status", "Status", EVENT_STATUSES[event.status].label],
+		["notes", "Notes", event.notes],
 	]);
 }
 
