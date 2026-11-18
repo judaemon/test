@@ -3,6 +3,7 @@ import { createSignal, onMount, Show } from "solid-js";
 
 import { adminButton, adminInput, Field } from "~/components/admin/ui";
 import { FlowerMark } from "~/components/site/brand";
+import { PasswordInput } from "~/components/ui/password-input";
 import { authClient } from "~/lib/auth-client";
 import { getAdminSession, getAdminSetupStatus } from "~/server/admin/settings";
 
@@ -102,9 +103,8 @@ function LoginPage() {
 						/>
 					</Field>
 					<Field label="Password">
-						<input
+						<PasswordInput
 							name="password"
-							type="password"
 							required
 							autocomplete="current-password"
 							class={adminInput}

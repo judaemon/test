@@ -1813,8 +1813,22 @@ function RowSelect<T extends string>(props: {
 		}
 	};
 
+	// What the box shows must always be the order's real value. Browsers put
+	// back a choice made before a reload or Back (Firefox above all), and
+	// that showed one stage in another stage's color.
+	let box: HTMLSelectElement | undefined;
+	createEffect(() => {
+		const value = props.value;
+		if (box && box.value !== value) box.value = value;
+	});
+	onMount(() => {
+		if (box && box.value !== props.value) box.value = props.value;
+	});
+
 	return (
 		<select
+			ref={box}
+			autocomplete="off"
 			aria-label={props.label}
 			disabled={saving()}
 			onChange={(e) => void save(e.currentTarget)}

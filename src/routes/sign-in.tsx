@@ -11,6 +11,7 @@ import { pillPrimary } from "~/components/cart/cart-sheet";
 import { FlowerMark } from "~/components/site/brand";
 import { SiteFooter } from "~/components/site/site-footer";
 import { SiteHeader } from "~/components/site/site-header";
+import { PasswordInput } from "~/components/ui/password-input";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 
@@ -189,9 +190,8 @@ function SignInPage() {
 								mode() === "sign-up" ? "At least 10 characters." : undefined
 							}
 						>
-							<input
+							<PasswordInput
 								name="password"
-								type="password"
 								required
 								minLength={mode() === "sign-up" ? 10 : undefined}
 								autocomplete={
