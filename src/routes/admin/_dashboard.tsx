@@ -22,7 +22,13 @@ import {
 
 import { AdminIcons, Avatar, RoleBadge } from "~/components/admin/ui";
 import { FlowerMark, Wordmark } from "~/components/site/brand";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "~/components/ui/tooltip";
 import { authClient } from "~/lib/auth-client";
+import { cn } from "~/lib/utils";
 import { getAdminSession } from "~/server/admin/settings";
 
 export const Route = createFileRoute("/admin/_dashboard")({
@@ -143,10 +149,29 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 const navLink =
 	"flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-petal-900/75 lg:py-2 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
 
+/** Slim sidebar: icon-only rows, centered. */
+const railLink = "justify-center px-0";
+
 const iconButton =
 	"flex size-11 shrink-0 items-center justify-center rounded-full text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
 
-/** A window with its left panel marked: shows or hides the sidebar. */
+function MenuIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			class={props.class}
+		>
+			<path d="M4 7h16M4 12h16M4 17h16" />
+		</svg>
+	);
+}
+
+/** A window with its left panel marked: shrinks or expands the sidebar. */
 function PanelIcon(props: { class?: string }) {
 	return (
 		<svg
@@ -359,18 +384,40 @@ function ProfileMenu(props: {
 	);
 }
 
-function Brand() {
+/** The name and Admin tag; just the flower when the sidebar is slim. */
+function Brand(props: { compact?: boolean }) {
 	return (
 		<Link
 			to="/admin"
+			aria-label={props.compact ? "ORAIA Admin home" : undefined}
 			class="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 		>
 			<FlowerMark class="size-7" />
-			<Wordmark class="text-lg" />
-			<span class="rounded-full bg-petal-100 px-2 py-0.5 text-[11px] font-medium text-petal-700">
-				Admin
-			</span>
+			<Show when={!props.compact}>
+				<Wordmark class="text-lg" />
+				<span class="rounded-full bg-petal-100 px-2 py-0.5 text-[11px] font-medium text-petal-700">
+					Admin
+				</span>
+			</Show>
 		</Link>
+	);
+}
+
+/** In the slim sidebar, a row shows its name beside it on hover. */
+function RailTip(props: {
+	label: string;
+	rail: boolean;
+	children: JSX.Element;
+}) {
+	return (
+		<Show when={props.rail} fallback={props.children}>
+			<Tooltip placement="right" openDelay={150} closeDelay={0} gutter={10}>
+				<TooltipTrigger as="div">{props.children}</TooltipTrigger>
+				<TooltipContent class="rounded-lg border-petal-100 bg-petal-900 px-2.5 py-1 text-xs font-medium text-white shadow-[0_8px_20px_-10px_rgb(92_31_49/0.5)]">
+					{props.label}
+				</TooltipContent>
+			</Tooltip>
+		</Show>
 	);
 }
 
@@ -400,10 +447,12 @@ function AdminLayout() {
 			? accountPage()
 			: items().find((item) => location().pathname.startsWith(item.to))?.label;
 
-	// Large screens: the panel button hides or shows the sidebar, remembered
-	// on this device. Smaller screens: it opens the drawer.
+	// Large screens: the button at the bottom of the sidebar shrinks it to
+	// icons or expands it, remembered on this device. Smaller screens use the
+	// drawer, opened from the top bar.
 	const [sidebarOpen, setSidebarOpen] = createSignal(true);
 	const [wide, setWide] = createSignal(false);
+	const rail = () => wide() && !sidebarOpen();
 	onMount(() => {
 		try {
 			if (localStorage.getItem("admin-sidebar") === "hidden")
@@ -416,10 +465,6 @@ function AdminLayout() {
 		onCleanup(() => query.removeEventListener("change", update));
 	});
 	const togglePanel = () => {
-		if (!wide()) {
-			setMenuOpen(true);
-			return;
-		}
 		const next = !sidebarOpen();
 		setSidebarOpen(next);
 		try {
@@ -451,42 +496,58 @@ function AdminLayout() {
 		await navigate({ to: "/admin/login" });
 	};
 
-	const NavList = () => (
+	const NavList = (props: { rail?: boolean }) => (
 		<nav
 			aria-label={inAccount() ? "Account" : "Admin"}
-			class="flex flex-col gap-5"
+			class={cn("flex flex-col", props.rail ? "gap-3" : "gap-5")}
 		>
 			<Show when={inAccount()}>
-				<Link to="/admin" class={navLink}>
-					<BackIcon class="size-5" />
-					Back to dashboard
-				</Link>
+				<RailTip label="Back to dashboard" rail={!!props.rail}>
+					<Link to="/admin" class={cn(navLink, props.rail && railLink)}>
+						<BackIcon class="size-5" />
+						<span class={cn(props.rail && "sr-only")}>Back to dashboard</span>
+					</Link>
+				</RailTip>
 			</Show>
 			<For each={inAccount() ? ACCOUNT_GROUPS : groups()}>
-				{(group) => {
+				{(group, index) => {
 					const headingId = createUniqueId();
 					return (
 						<div>
 							<h2
 								id={headingId}
-								class="mb-1 px-3 text-[0.6875rem] font-medium uppercase tracking-[0.05em] text-petal-900/55"
+								class={cn(
+									"mb-1 px-3 text-[0.6875rem] font-medium uppercase tracking-[0.05em] text-petal-900/55",
+									props.rail && "sr-only",
+								)}
 							>
 								{group.label}
 							</h2>
+							{/* Slim sidebar: a short line stands in for the group name. */}
+							<Show when={props.rail && index() > 0}>
+								<span
+									aria-hidden="true"
+									class="mx-auto mb-3 block h-px w-6 bg-petal-200"
+								/>
+							</Show>
 							<ul aria-labelledby={headingId} class="flex flex-col gap-0.5">
 								<For each={group.items}>
 									{(item) => (
 										<li>
-											<Link
-												to={item.to}
-												activeProps={{
-													class: "bg-petal-100 font-medium text-petal-900",
-												}}
-												class={navLink}
-											>
-												<item.icon class="size-5" />
-												{item.label}
-											</Link>
+											<RailTip label={item.label} rail={!!props.rail}>
+												<Link
+													to={item.to}
+													activeProps={{
+														class: "bg-petal-100 font-medium text-petal-900",
+													}}
+													class={cn(navLink, props.rail && railLink)}
+												>
+													<item.icon class="size-5" />
+													<span class={cn(props.rail && "sr-only")}>
+														{item.label}
+													</span>
+												</Link>
+											</RailTip>
 										</li>
 									)}
 								</For>
@@ -498,32 +559,61 @@ function AdminLayout() {
 		</nav>
 	);
 
-	// Bottom of the sidebar and drawer: the public shop, in a new tab.
-	const ViewShop = () => (
-		<div class="shrink-0 border-t border-petal-100 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-			<a href="/" target="_blank" rel="noreferrer" class={navLink}>
-				<AdminIcons.shop class="size-5" />
-				View shop
-				<svg
-					aria-hidden="true"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.8"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					class="ml-auto size-4 text-petal-900/45"
+	// Bottom of the sidebar and drawer: the public shop in a new tab, and on
+	// large screens the button that shrinks or expands the sidebar.
+	const SidebarFooter = (props: { rail?: boolean; toggle?: boolean }) => (
+		<div
+			class={cn(
+				"flex shrink-0 gap-1 border-t border-petal-100 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+				props.rail ? "flex-col items-center" : "items-center",
+			)}
+		>
+			<RailTip label="View shop" rail={!!props.rail}>
+				<a
+					href="/"
+					target="_blank"
+					rel="noreferrer"
+					class={cn(navLink, "min-w-0 flex-1", props.rail && railLink)}
 				>
-					<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-				</svg>
-				<span class="sr-only">(opens in a new tab)</span>
-			</a>
+					<AdminIcons.shop class="size-5" />
+					<span class={cn(props.rail && "sr-only")}>View shop</span>
+					<Show when={!props.rail}>
+						<svg
+							aria-hidden="true"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="ml-auto size-4 text-petal-900/45"
+						>
+							<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+						</svg>
+					</Show>
+					<span class="sr-only">(opens in a new tab)</span>
+				</a>
+			</RailTip>
+			<Show when={props.toggle}>
+				<RailTip label="Expand sidebar" rail={!!props.rail}>
+					<button
+						type="button"
+						onClick={togglePanel}
+						class="flex size-10 shrink-0 items-center justify-center rounded-xl text-petal-900/60 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+						aria-label={props.rail ? "Expand sidebar" : "Collapse sidebar"}
+						aria-controls="admin-sidebar"
+						aria-expanded={!props.rail}
+					>
+						<PanelIcon class="size-5" />
+					</button>
+				</RailTip>
+			</Show>
 		</div>
 	);
 
 	return (
 		<div
-			class={`min-h-screen bg-cream text-petal-900 lg:grid print:block print:bg-white ${sidebarOpen() ? "lg:grid-cols-[240px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)]"}`}
+			class={`min-h-screen bg-cream text-petal-900 lg:grid print:block print:bg-white ${sidebarOpen() ? "lg:grid-cols-[240px_minmax(0,1fr)]" : "lg:grid-cols-[72px_minmax(0,1fr)]"}`}
 		>
 			<Dialog.Root open={menuOpen()} onOpenChange={setMenuOpen}>
 				<Dialog.Portal>
@@ -544,7 +634,7 @@ function AdminLayout() {
 						<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4">
 							<NavList />
 						</div>
-						<ViewShop />
+						<SidebarFooter />
 					</Dialog.Content>
 				</Dialog.Portal>
 			</Dialog.Root>
@@ -552,40 +642,36 @@ function AdminLayout() {
 			{/* iPad sideways and desktop: the sidebar, scrolling on short screens. */}
 			<aside
 				id="admin-sidebar"
-				class={`sticky top-0 hidden h-dvh flex-col border-r border-petal-100 bg-white/90 backdrop-blur print:hidden ${sidebarOpen() ? "lg:flex" : ""}`}
+				class="sticky top-0 hidden h-dvh flex-col border-r border-petal-100 bg-white/90 backdrop-blur lg:flex print:hidden"
 			>
-				<div class="flex h-16 shrink-0 items-center px-5">
-					<Brand />
+				{/* The line under the brand meets the top bar's bottom edge. */}
+				<div
+					class={cn(
+						"flex h-16 shrink-0 items-center border-b border-petal-100",
+						rail() ? "justify-center" : "px-5",
+					)}
+				>
+					<Brand compact={rail()} />
 				</div>
-				<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-2 pb-4">
-					<NavList />
+				<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+					<NavList rail={rail()} />
 				</div>
-				<ViewShop />
+				<SidebarFooter rail={rail()} toggle />
 			</aside>
 
 			<div class="flex min-w-0 flex-col">
-				{/* The top bar: the sidebar button, where you are, and who's signed in. */}
+				{/* The top bar: where you are, and who's signed in. */}
 				<header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-petal-100 bg-white/90 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:h-16 lg:px-8 print:hidden">
+					{/* Phones and iPad upright: the menu lives in a drawer. */}
 					<button
 						type="button"
-						onClick={togglePanel}
-						class={iconButton}
-						aria-label={
-							wide()
-								? sidebarOpen()
-									? "Hide sidebar"
-									: "Show sidebar"
-								: "Open menu"
-						}
-						aria-controls={wide() ? "admin-sidebar" : undefined}
-						aria-expanded={wide() ? sidebarOpen() : menuOpen()}
+						onClick={() => setMenuOpen(true)}
+						class={cn(iconButton, "mr-1 lg:hidden")}
+						aria-label="Open menu"
+						aria-expanded={menuOpen()}
 					>
-						<PanelIcon class="size-5" />
+						<MenuIcon class="size-6" />
 					</button>
-					<span
-						aria-hidden="true"
-						class="mx-2 h-5 w-px shrink-0 bg-petal-200"
-					/>
 					<nav aria-label="Breadcrumb" class="min-w-0">
 						<ol class="flex min-w-0 items-center gap-1.5 text-sm">
 							<li class="shrink-0">
