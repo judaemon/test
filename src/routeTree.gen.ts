@@ -53,6 +53,9 @@ import { Route as ApiAdminDataImportRouteImport } from './routes/api/admin/data-
 import { Route as ApiAdminPhotoBackupRouteImport } from './routes/api/admin/photo-backup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OrderOrderIdEditRouteImport } from './routes/order/$orderId_.edit'
+import { Route as AdminDashboardAccountIndexRouteImport } from './routes/admin/_dashboard/account/index'
+import { Route as AdminDashboardAccountProfileRouteImport } from './routes/admin/_dashboard/account/profile'
+import { Route as AdminDashboardAccountSecurityRouteImport } from './routes/admin/_dashboard/account/security'
 import { Route as AdminDashboardArrangementTypesIndexRouteImport } from './routes/admin/_dashboard/arrangement-types/index'
 import { Route as AdminDashboardArrangementTypesTypeIdRouteImport } from './routes/admin/_dashboard/arrangement-types/$typeId'
 import { Route as AdminDashboardFloristsIndexRouteImport } from './routes/admin/_dashboard/florists/index'
@@ -311,6 +314,24 @@ const OrderOrderIdEditRoute = OrderOrderIdEditRouteImport.update({
   path: '/order/$orderId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminDashboardAccountIndexRoute =
+  AdminDashboardAccountIndexRouteImport.update({
+    id: '/account/',
+    path: '/account/',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const AdminDashboardAccountProfileRoute =
+  AdminDashboardAccountProfileRouteImport.update({
+    id: '/account/profile',
+    path: '/account/profile',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const AdminDashboardAccountSecurityRoute =
+  AdminDashboardAccountSecurityRouteImport.update({
+    id: '/account/security',
+    path: '/account/security',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
 const AdminDashboardArrangementTypesIndexRoute =
   AdminDashboardArrangementTypesIndexRouteImport.update({
     id: '/arrangement-types/',
@@ -571,6 +592,8 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/order/$orderId/edit': typeof OrderOrderIdEditRoute
   '/admin/': typeof AdminDashboardIndexRoute
+  '/admin/account/profile': typeof AdminDashboardAccountProfileRoute
+  '/admin/account/security': typeof AdminDashboardAccountSecurityRoute
   '/admin/arrangement-types/$typeId': typeof AdminDashboardArrangementTypesTypeIdRoute
   '/admin/florists/$floristId': typeof AdminDashboardFloristsFloristIdRoute
   '/admin/flowers/$flowerId': typeof AdminDashboardFlowersFlowerIdRoute
@@ -595,6 +618,7 @@ export interface FileRoutesByFullPath {
   '/api/admin/photo-originals/$': typeof ApiAdminPhotoOriginalsSplatRoute
   '/api/admin/proofs/$': typeof ApiAdminProofsSplatRoute
   '/api/orders/$orderId/delivery-photo': typeof ApiOrdersOrderIdDeliveryPhotoRoute
+  '/admin/account/': typeof AdminDashboardAccountIndexRoute
   '/admin/arrangement-types/': typeof AdminDashboardArrangementTypesIndexRoute
   '/admin/florists/': typeof AdminDashboardFloristsIndexRoute
   '/admin/flowers/': typeof AdminDashboardFlowersIndexRoute
@@ -650,6 +674,8 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/order/$orderId/edit': typeof OrderOrderIdEditRoute
   '/admin': typeof AdminDashboardIndexRoute
+  '/admin/account/profile': typeof AdminDashboardAccountProfileRoute
+  '/admin/account/security': typeof AdminDashboardAccountSecurityRoute
   '/admin/arrangement-types/$typeId': typeof AdminDashboardArrangementTypesTypeIdRoute
   '/admin/florists/$floristId': typeof AdminDashboardFloristsFloristIdRoute
   '/admin/flowers/$flowerId': typeof AdminDashboardFlowersFlowerIdRoute
@@ -674,6 +700,7 @@ export interface FileRoutesByTo {
   '/api/admin/photo-originals/$': typeof ApiAdminPhotoOriginalsSplatRoute
   '/api/admin/proofs/$': typeof ApiAdminProofsSplatRoute
   '/api/orders/$orderId/delivery-photo': typeof ApiOrdersOrderIdDeliveryPhotoRoute
+  '/admin/account': typeof AdminDashboardAccountIndexRoute
   '/admin/arrangement-types': typeof AdminDashboardArrangementTypesIndexRoute
   '/admin/florists': typeof AdminDashboardFloristsIndexRoute
   '/admin/flowers': typeof AdminDashboardFlowersIndexRoute
@@ -733,6 +760,8 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/order/$orderId_/edit': typeof OrderOrderIdEditRoute
   '/admin/_dashboard/': typeof AdminDashboardIndexRoute
+  '/admin/_dashboard/account/profile': typeof AdminDashboardAccountProfileRoute
+  '/admin/_dashboard/account/security': typeof AdminDashboardAccountSecurityRoute
   '/admin/_dashboard/arrangement-types/$typeId': typeof AdminDashboardArrangementTypesTypeIdRoute
   '/admin/_dashboard/florists/$floristId': typeof AdminDashboardFloristsFloristIdRoute
   '/admin/_dashboard/flowers/$flowerId': typeof AdminDashboardFlowersFlowerIdRoute
@@ -757,6 +786,7 @@ export interface FileRoutesById {
   '/api/admin/photo-originals/$': typeof ApiAdminPhotoOriginalsSplatRoute
   '/api/admin/proofs/$': typeof ApiAdminProofsSplatRoute
   '/api/orders/$orderId/delivery-photo': typeof ApiOrdersOrderIdDeliveryPhotoRoute
+  '/admin/_dashboard/account/': typeof AdminDashboardAccountIndexRoute
   '/admin/_dashboard/arrangement-types/': typeof AdminDashboardArrangementTypesIndexRoute
   '/admin/_dashboard/florists/': typeof AdminDashboardFloristsIndexRoute
   '/admin/_dashboard/flowers/': typeof AdminDashboardFlowersIndexRoute
@@ -817,6 +847,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/order/$orderId/edit'
     | '/admin/'
+    | '/admin/account/profile'
+    | '/admin/account/security'
     | '/admin/arrangement-types/$typeId'
     | '/admin/florists/$floristId'
     | '/admin/flowers/$flowerId'
@@ -841,6 +873,7 @@ export interface FileRouteTypes {
     | '/api/admin/photo-originals/$'
     | '/api/admin/proofs/$'
     | '/api/orders/$orderId/delivery-photo'
+    | '/admin/account/'
     | '/admin/arrangement-types/'
     | '/admin/florists/'
     | '/admin/flowers/'
@@ -896,6 +929,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/order/$orderId/edit'
     | '/admin'
+    | '/admin/account/profile'
+    | '/admin/account/security'
     | '/admin/arrangement-types/$typeId'
     | '/admin/florists/$floristId'
     | '/admin/flowers/$flowerId'
@@ -920,6 +955,7 @@ export interface FileRouteTypes {
     | '/api/admin/photo-originals/$'
     | '/api/admin/proofs/$'
     | '/api/orders/$orderId/delivery-photo'
+    | '/admin/account'
     | '/admin/arrangement-types'
     | '/admin/florists'
     | '/admin/flowers'
@@ -978,6 +1014,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/order/$orderId_/edit'
     | '/admin/_dashboard/'
+    | '/admin/_dashboard/account/profile'
+    | '/admin/_dashboard/account/security'
     | '/admin/_dashboard/arrangement-types/$typeId'
     | '/admin/_dashboard/florists/$floristId'
     | '/admin/_dashboard/flowers/$flowerId'
@@ -1002,6 +1040,7 @@ export interface FileRouteTypes {
     | '/api/admin/photo-originals/$'
     | '/api/admin/proofs/$'
     | '/api/orders/$orderId/delivery-photo'
+    | '/admin/_dashboard/account/'
     | '/admin/_dashboard/arrangement-types/'
     | '/admin/_dashboard/florists/'
     | '/admin/_dashboard/flowers/'
@@ -1360,6 +1399,27 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof OrderOrderIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/_dashboard/account/': {
+      id: '/admin/_dashboard/account/'
+      path: '/account'
+      fullPath: '/admin/account/'
+      preLoaderRoute: typeof AdminDashboardAccountIndexRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/account/profile': {
+      id: '/admin/_dashboard/account/profile'
+      path: '/account/profile'
+      fullPath: '/admin/account/profile'
+      preLoaderRoute: typeof AdminDashboardAccountProfileRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/account/security': {
+      id: '/admin/_dashboard/account/security'
+      path: '/account/security'
+      fullPath: '/admin/account/security'
+      preLoaderRoute: typeof AdminDashboardAccountSecurityRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
     '/admin/_dashboard/arrangement-types/': {
       id: '/admin/_dashboard/arrangement-types/'
       path: '/arrangement-types'
@@ -1675,6 +1735,8 @@ interface AdminDashboardRouteChildren {
   AdminDashboardShopRoute: typeof AdminDashboardShopRoute
   AdminDashboardStaffRoute: typeof AdminDashboardStaffRoute
   AdminDashboardIndexRoute: typeof AdminDashboardIndexRoute
+  AdminDashboardAccountProfileRoute: typeof AdminDashboardAccountProfileRoute
+  AdminDashboardAccountSecurityRoute: typeof AdminDashboardAccountSecurityRoute
   AdminDashboardArrangementTypesTypeIdRoute: typeof AdminDashboardArrangementTypesTypeIdRoute
   AdminDashboardFloristsFloristIdRoute: typeof AdminDashboardFloristsFloristIdRoute
   AdminDashboardFlowersFlowerIdRoute: typeof AdminDashboardFlowersFlowerIdRoute
@@ -1687,6 +1749,7 @@ interface AdminDashboardRouteChildren {
   AdminDashboardSizesSizeIdRoute: typeof AdminDashboardSizesSizeIdRoute
   AdminDashboardSuppliersSupplierIdRoute: typeof AdminDashboardSuppliersSupplierIdRoute
   AdminDashboardWrappersWrapperIdRoute: typeof AdminDashboardWrappersWrapperIdRoute
+  AdminDashboardAccountIndexRoute: typeof AdminDashboardAccountIndexRoute
   AdminDashboardArrangementTypesIndexRoute: typeof AdminDashboardArrangementTypesIndexRoute
   AdminDashboardFloristsIndexRoute: typeof AdminDashboardFloristsIndexRoute
   AdminDashboardFlowersIndexRoute: typeof AdminDashboardFlowersIndexRoute
@@ -1714,6 +1777,8 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardShopRoute: AdminDashboardShopRoute,
   AdminDashboardStaffRoute: AdminDashboardStaffRoute,
   AdminDashboardIndexRoute: AdminDashboardIndexRoute,
+  AdminDashboardAccountProfileRoute: AdminDashboardAccountProfileRoute,
+  AdminDashboardAccountSecurityRoute: AdminDashboardAccountSecurityRoute,
   AdminDashboardArrangementTypesTypeIdRoute:
     AdminDashboardArrangementTypesTypeIdRoute,
   AdminDashboardFloristsFloristIdRoute: AdminDashboardFloristsFloristIdRoute,
@@ -1731,6 +1796,7 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardSuppliersSupplierIdRoute:
     AdminDashboardSuppliersSupplierIdRoute,
   AdminDashboardWrappersWrapperIdRoute: AdminDashboardWrappersWrapperIdRoute,
+  AdminDashboardAccountIndexRoute: AdminDashboardAccountIndexRoute,
   AdminDashboardArrangementTypesIndexRoute:
     AdminDashboardArrangementTypesIndexRoute,
   AdminDashboardFloristsIndexRoute: AdminDashboardFloristsIndexRoute,

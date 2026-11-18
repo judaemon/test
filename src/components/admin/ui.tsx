@@ -65,6 +65,74 @@ export function Avatar(props: { name: string; class?: string }) {
 	);
 }
 
+/**
+ * A titled block on a settings page: the heading and a line on what it's for,
+ * then a white card of rows (SettingsRow) and an optional footer for actions.
+ */
+export function SettingsSection(props: {
+	title: string;
+	description?: string;
+	footer?: JSX.Element;
+	children: JSX.Element;
+}) {
+	const id = createUniqueId();
+	const footer = children(() => props.footer);
+	return (
+		<section aria-labelledby={id} class="scroll-mt-24">
+			<h2 id={id} class="text-lg font-semibold">
+				{props.title}
+			</h2>
+			<Show when={props.description}>
+				<p class="mt-0.5 text-sm text-petal-900/65">{props.description}</p>
+			</Show>
+			<div class={cn(adminCard, "mt-4 overflow-hidden")}>
+				<div class="divide-y divide-petal-100">{props.children}</div>
+				<Show when={footer()}>
+					<div class="flex flex-wrap items-center justify-end gap-3 border-t border-petal-100 bg-petal-50/60 px-5 py-3">
+						{footer()}
+					</div>
+				</Show>
+			</div>
+		</section>
+	);
+}
+
+/**
+ * One setting: what it is on the left, its value or control on the right.
+ * Stacks on phones. Pass `for` (the field's id) when the control is a field,
+ * so the label names it; the description gets the id `<for>-hint`.
+ */
+export function SettingsRow(props: {
+	label: string;
+	description?: JSX.Element;
+	for?: string;
+	children: JSX.Element;
+}) {
+	return (
+		<div class="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] sm:items-center sm:gap-8">
+			<div class="min-w-0">
+				<Show
+					when={props.for}
+					fallback={<p class="text-sm font-medium">{props.label}</p>}
+				>
+					<label for={props.for} class="text-sm font-medium">
+						{props.label}
+					</label>
+				</Show>
+				<Show when={props.description}>
+					<p
+						id={props.for ? `${props.for}-hint` : undefined}
+						class="mt-0.5 text-sm text-petal-900/60"
+					>
+						{props.description}
+					</p>
+				</Show>
+			</div>
+			<div class="min-w-0 text-sm">{props.children}</div>
+		</div>
+	);
+}
+
 /** Owner in rose, staff in sage, wherever a role is shown. */
 export function RoleBadge(props: { role: "owner" | "staff"; class?: string }) {
 	return (

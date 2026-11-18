@@ -206,13 +206,59 @@ function ProfileIcon(props: { class?: string }) {
 	);
 }
 
+function LockIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={props.class}
+		>
+			<rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+			<path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+		</svg>
+	);
+}
+
+function BackIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={props.class}
+		>
+			<path d="M19 12H5M11 6l-6 6 6 6" />
+		</svg>
+	);
+}
+
+/** Inside Account, the sidebar swaps to these. */
+const ACCOUNT_GROUPS: { label: string; items: NavItem[] }[] = [
+	{
+		label: "Account settings",
+		items: [
+			{ to: "/admin/account/profile", label: "Profile", icon: ProfileIcon },
+			{ to: "/admin/account/security", label: "Security", icon: LockIcon },
+		],
+	},
+];
+
 const menuItem =
 	"flex w-full cursor-pointer select-none items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-petal-900/80 outline-none transition-colors data-[highlighted]:bg-petal-100 data-[highlighted]:text-petal-900";
 
 /** The signed-in person in the top bar; opens to their profile and sign out. */
 function ProfileMenu(props: {
 	user: { name: string; email: string; role: "owner" | "staff" };
-	onProfile: () => void;
+	onOpen: (to: "/admin/account/profile" | "/admin/account/security") => void;
 	onSignOut: () => void;
 }) {
 	return (
@@ -244,10 +290,21 @@ function ProfileMenu(props: {
 						</div>
 					</div>
 					<DropdownMenu.Separator class="mx-1.5 mb-1.5 border-petal-100" />
-					<DropdownMenu.Item class={menuItem} onSelect={props.onProfile}>
+					<DropdownMenu.Item
+						class={menuItem}
+						onSelect={() => props.onOpen("/admin/account/profile")}
+					>
 						<ProfileIcon class="size-5" />
-						My profile
+						Profile
 					</DropdownMenu.Item>
+					<DropdownMenu.Item
+						class={menuItem}
+						onSelect={() => props.onOpen("/admin/account/security")}
+					>
+						<LockIcon class="size-5" />
+						Security
+					</DropdownMenu.Item>
+					<DropdownMenu.Separator class="mx-1.5 my-1.5 border-petal-100" />
 					<DropdownMenu.Item class={menuItem} onSelect={props.onSignOut}>
 						<AdminIcons.logout class="size-5" />
 						Sign out
@@ -288,9 +345,11 @@ function AdminLayout() {
 	const items = () => groups().flatMap((group) => group.items);
 
 	const location = useLocation();
+	// Account has its own short sidebar, with a way back to the dashboard.
+	const inAccount = () => location().pathname.startsWith("/admin/account");
 	const current = () =>
-		location().pathname.startsWith("/admin/profile")
-			? "My profile"
+		inAccount()
+			? "Account"
 			: items().find((item) => location().pathname.startsWith(item.to))?.label;
 
 	// Below lg (phones, iPad upright) the nav lives in a drawer.
@@ -318,8 +377,17 @@ function AdminLayout() {
 	};
 
 	const NavList = () => (
-		<nav aria-label="Admin" class="flex flex-col gap-5">
-			<For each={groups()}>
+		<nav
+			aria-label={inAccount() ? "Account" : "Admin"}
+			class="flex flex-col gap-5"
+		>
+			<Show when={inAccount()}>
+				<Link to="/admin" class={navLink}>
+					<BackIcon class="size-5" />
+					Back to dashboard
+				</Link>
+			</Show>
+			<For each={inAccount() ? ACCOUNT_GROUPS : groups()}>
 				{(group) => {
 					const headingId = createUniqueId();
 					return (
@@ -440,7 +508,7 @@ function AdminLayout() {
 					<div class="ml-auto">
 						<ProfileMenu
 							user={user()}
-							onProfile={() => navigate({ to: "/admin/profile" })}
+							onOpen={(to) => navigate({ to })}
 							onSignOut={signOut}
 						/>
 					</div>
