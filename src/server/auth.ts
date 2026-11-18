@@ -3,6 +3,7 @@ import { getMigrations } from "better-auth/db/migration";
 import { admin } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start/solid";
 
+import { siblingOrigins } from "~/lib/origins";
 import { getDb, liveDb } from "./db";
 
 /**
@@ -17,6 +18,7 @@ import { getDb, liveDb } from "./db";
 const options = {
 	// Follows the database across an import, without a restart.
 	database: liveDb(),
+	trustedOrigins: siblingOrigins(process.env.BETTER_AUTH_URL),
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: 10,
