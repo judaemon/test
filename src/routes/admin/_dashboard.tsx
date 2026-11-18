@@ -15,6 +15,8 @@ import {
 	createUniqueId,
 	For,
 	on,
+	onCleanup,
+	onMount,
 	Show,
 } from "solid-js";
 
@@ -139,7 +141,8 @@ const navLink =
 const iconButton =
 	"flex size-11 shrink-0 items-center justify-center rounded-full text-petal-900/70 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
 
-function MenuIcon(props: { class?: string }) {
+/** A window with its left panel marked: shows or hides the sidebar. */
+function PanelIcon(props: { class?: string }) {
 	return (
 		<svg
 			aria-hidden="true"
@@ -148,9 +151,45 @@ function MenuIcon(props: { class?: string }) {
 			stroke="currentColor"
 			stroke-width="1.8"
 			stroke-linecap="round"
+			stroke-linejoin="round"
 			class={props.class}
 		>
-			<path d="M4 7h16M4 12h16M4 17h16" />
+			<rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+			<path d="M9.5 4.5v15" />
+		</svg>
+	);
+}
+
+function HomeIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={props.class}
+		>
+			<path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1Z" />
+		</svg>
+	);
+}
+
+function CrumbIcon(props: { class?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class={props.class}
+		>
+			<path d="m9.5 6 6 6-6 6" />
 		</svg>
 	);
 }
@@ -347,10 +386,41 @@ function AdminLayout() {
 	const location = useLocation();
 	// Account has its own short sidebar, with a way back to the dashboard.
 	const inAccount = () => location().pathname.startsWith("/admin/account");
+	const accountPage = () =>
+		ACCOUNT_GROUPS[0].items.find((item) =>
+			location().pathname.startsWith(item.to),
+		)?.label;
 	const current = () =>
 		inAccount()
-			? "Account"
+			? accountPage()
 			: items().find((item) => location().pathname.startsWith(item.to))?.label;
+
+	// Large screens: the panel button hides or shows the sidebar, remembered
+	// on this device. Smaller screens: it opens the drawer.
+	const [sidebarOpen, setSidebarOpen] = createSignal(true);
+	const [wide, setWide] = createSignal(false);
+	onMount(() => {
+		try {
+			if (localStorage.getItem("admin-sidebar") === "hidden")
+				setSidebarOpen(false);
+		} catch {}
+		const query = window.matchMedia("(min-width: 64rem)");
+		const update = () => setWide(query.matches);
+		update();
+		query.addEventListener("change", update);
+		onCleanup(() => query.removeEventListener("change", update));
+	});
+	const togglePanel = () => {
+		if (!wide()) {
+			setMenuOpen(true);
+			return;
+		}
+		const next = !sidebarOpen();
+		setSidebarOpen(next);
+		try {
+			localStorage.setItem("admin-sidebar", next ? "shown" : "hidden");
+		} catch {}
+	};
 
 	// Below lg (phones, iPad upright) the nav lives in a drawer.
 	const [menuOpen, setMenuOpen] = createSignal(false);
@@ -447,7 +517,9 @@ function AdminLayout() {
 	);
 
 	return (
-		<div class="min-h-screen bg-cream text-petal-900 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] print:block print:bg-white">
+		<div
+			class={`min-h-screen bg-cream text-petal-900 lg:grid print:block print:bg-white ${sidebarOpen() ? "lg:grid-cols-[240px_minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)]"}`}
+		>
 			<Dialog.Root open={menuOpen()} onOpenChange={setMenuOpen}>
 				<Dialog.Portal>
 					<Dialog.Overlay class="admin-drawer-overlay fixed inset-0 z-50 bg-petal-900/40 lg:hidden" />
@@ -473,7 +545,10 @@ function AdminLayout() {
 			</Dialog.Root>
 
 			{/* iPad sideways and desktop: the sidebar, scrolling on short screens. */}
-			<aside class="sticky top-0 hidden h-dvh flex-col border-r border-petal-100 bg-white/90 backdrop-blur lg:flex print:hidden">
+			<aside
+				id="admin-sidebar"
+				class={`sticky top-0 hidden h-dvh flex-col border-r border-petal-100 bg-white/90 backdrop-blur print:hidden ${sidebarOpen() ? "lg:flex" : ""}`}
+			>
 				<div class="flex h-16 shrink-0 items-center px-5">
 					<Brand />
 				</div>
@@ -484,28 +559,72 @@ function AdminLayout() {
 			</aside>
 
 			<div class="flex min-w-0 flex-col">
-				{/* The top bar: the menu button and brand on smaller screens, and who's signed in. */}
+				{/* The top bar: the sidebar button, where you are, and who's signed in. */}
 				<header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-petal-100 bg-white/90 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:h-16 lg:px-8 print:hidden">
 					<button
 						type="button"
-						onClick={() => setMenuOpen(true)}
-						class={`${iconButton} lg:hidden`}
-						aria-label="Open menu"
-						aria-expanded={menuOpen()}
+						onClick={togglePanel}
+						class={iconButton}
+						aria-label={
+							wide()
+								? sidebarOpen()
+									? "Hide sidebar"
+									: "Show sidebar"
+								: "Open menu"
+						}
+						aria-controls={wide() ? "admin-sidebar" : undefined}
+						aria-expanded={wide() ? sidebarOpen() : menuOpen()}
 					>
-						<MenuIcon class="size-6" />
+						<PanelIcon class="size-5" />
 					</button>
-					<div class="lg:hidden">
-						<Brand />
-					</div>
-					<Show when={current()}>
-						{(label) => (
-							<span class="hidden min-w-0 truncate pl-3 text-sm font-medium text-petal-900/70 sm:block lg:pl-0">
-								{label()}
-							</span>
-						)}
-					</Show>
-					<div class="ml-auto">
+					<span
+						aria-hidden="true"
+						class="mx-2 h-5 w-px shrink-0 bg-petal-200"
+					/>
+					<nav aria-label="Breadcrumb" class="min-w-0">
+						<ol class="flex min-w-0 items-center gap-1.5 text-sm">
+							<li class="shrink-0">
+								<Link
+									to="/admin"
+									aria-label="Dashboard"
+									class="flex size-8 items-center justify-center rounded-full text-petal-900/60 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+								>
+									<HomeIcon class="size-[1.125rem]" />
+								</Link>
+							</li>
+							<Show when={inAccount()}>
+								<li aria-hidden="true" class="shrink-0 text-petal-900/35">
+									<CrumbIcon class="size-4" />
+								</li>
+								<li class="shrink-0">
+									<Link
+										to="/admin/account"
+										class="rounded-md text-petal-900/60 transition-colors hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+									>
+										Account
+									</Link>
+								</li>
+							</Show>
+							<Show when={current()}>
+								{(label) => (
+									<>
+										<li aria-hidden="true" class="shrink-0 text-petal-900/35">
+											<CrumbIcon class="size-4" />
+										</li>
+										<li class="min-w-0">
+											<span
+												aria-current="page"
+												class="block truncate font-medium text-petal-900"
+											>
+												{label()}
+											</span>
+										</li>
+									</>
+								)}
+							</Show>
+						</ol>
+					</nav>
+					<div class="ml-auto shrink-0 pl-2">
 						<ProfileMenu
 							user={user()}
 							onOpen={(to) => navigate({ to })}
