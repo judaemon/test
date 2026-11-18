@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/solid-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import {
 	adminButton,
@@ -29,12 +29,12 @@ export const Route = createFileRoute("/admin/_dashboard/delivery-dates")({
 function DeliveryDatesPage() {
 	const loaded = Route.useLoaderData();
 	const router = useRouter();
-	const [dates, setDates] = createSignal<string[]>(loaded());
+	const [dates, setDates] = createSignal<string[]>(loaded().dates);
 	const [adding, setAdding] = createSignal("");
 	const [saving, setSaving] = createSignal(false);
 
 	const upcoming = () => new Set(upcomingDeliveryDates(dates()));
-	const changed = () => dates().join() !== loaded().join();
+	const changed = () => dates().join() !== loaded().dates.join();
 
 	const add = (event: SubmitEvent) => {
 		event.preventDefault();
@@ -70,8 +70,42 @@ function DeliveryDatesPage() {
 		<div class="mx-auto max-w-2xl pb-24">
 			<PageHeader
 				title="Delivery dates"
-				description="The days shoppers can choose at checkout. They must pick one of these. Change them for each event; past days drop off checkout on their own."
+				description="The days shoppers can choose at checkout. They must pick one of these. Past days drop off checkout on their own."
 			/>
+
+			{/* Which event these days belong to, and where else to change them. */}
+			<Show
+				when={loaded().event}
+				fallback={
+					<p class="mb-4 rounded-2xl border border-petal-100 bg-white px-4 py-3 text-sm text-petal-900/75">
+						No event is current, so these days are the shop’s own.{" "}
+						<Link
+							to="/admin/events"
+							class="font-medium text-petal-700 underline-offset-4 hover:underline"
+						>
+							Mark an event current
+						</Link>{" "}
+						to use its delivery days.
+					</p>
+				}
+			>
+				{(event) => (
+					<p class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-petal-200 bg-petal-50 px-4 py-3 text-sm">
+						<span class="min-w-0 flex-1">
+							These are the delivery days of{" "}
+							<strong class="font-semibold">{event().name}</strong>, the current
+							event. Changing them here changes the event.
+						</span>
+						<Link
+							to="/admin/events/$eventId"
+							params={{ eventId: event().id }}
+							class="shrink-0 font-medium text-petal-700 underline-offset-4 hover:underline"
+						>
+							Open the event <span aria-hidden="true">→</span>
+						</Link>
+					</p>
+				)}
+			</Show>
 
 			<section class={cn(adminCard, "mb-4 p-5")}>
 				<h2 class="mb-3 font-semibold">Offered at checkout</h2>

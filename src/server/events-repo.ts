@@ -108,3 +108,20 @@ export function deleteEvent(id: string) {
 		.run({ id });
 	return changes > 0;
 }
+
+/** The event the shop is working on now, if one is marked current. */
+export function currentEvent(): ShopEvent | null {
+	const row = getDb()
+		.query("SELECT * FROM events WHERE status = 'current' LIMIT 1")
+		.get() as EventRow | null;
+	return row ? toEvent(row) : null;
+}
+
+/** Replaces an event's delivery days (from Admin → Delivery dates). */
+export function setEventDeliveryDates(id: string, dates: readonly string[]) {
+	getDb()
+		.query(
+			"UPDATE events SET delivery_dates = $dates, updated_at = $now WHERE id = $id",
+		)
+		.run({ id, dates: JSON.stringify(tidyDates(dates)), now: nowIso() });
+}

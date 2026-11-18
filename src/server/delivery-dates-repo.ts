@@ -1,10 +1,26 @@
 import { DEFAULT_DELIVERY_DATES, tidyDates } from "~/lib/delivery-dates";
+import type { ShopEvent } from "~/lib/events";
 import { getDb, nowIso } from "./db";
+import { currentEvent, setEventDeliveryDates } from "./events-repo";
 
 const KEY = "delivery_dates";
 
-/** Every delivery date staff set, past ones too, earliest first. */
+/**
+ * The days checkout offers: the current event's delivery days, past ones
+ * too, earliest first. With no current event, the shop's own list.
+ */
 export function getDeliveryDates(): string[] {
+	return currentEvent()?.deliveryDates ?? getShopDeliveryDates();
+}
+
+/** Where the delivery days come from now: the current event, if there is one. */
+export function deliveryDatesEvent(): Pick<ShopEvent, "id" | "name"> | null {
+	const event = currentEvent();
+	return event ? { id: event.id, name: event.name } : null;
+}
+
+/** The list used when there's no current event. */
+function getShopDeliveryDates(): string[] {
 	const row = getDb()
 		.query("SELECT value FROM settings WHERE key = $key")
 		.get({ key: KEY }) as { value: string } | null;
@@ -17,7 +33,13 @@ export function getDeliveryDates(): string[] {
 	);
 }
 
+/** Saves the days checkout offers: onto the current event, if there is one. */
 export function saveDeliveryDates(dates: readonly string[]) {
+	const event = currentEvent();
+	if (event) {
+		setEventDeliveryDates(event.id, tidyDates(dates));
+		return getDeliveryDates();
+	}
 	getDb()
 		.query(
 			`INSERT INTO settings (key, value, updated_at) VALUES ($key, $value, $now)

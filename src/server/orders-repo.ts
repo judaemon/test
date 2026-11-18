@@ -286,11 +286,12 @@ export function createOrder(
 			   address, city, postal_code, delivery_date, delivery_slot, first_name, last_name, full_name, company, serial_number, class_name, notes,
 			   dedication_for, gift_message, lines, subtotal_cents, delivery_fee_cents, total_cents, currency,
 			   payment_method, payment_status, reference_number, proof_file, card_brand, card_last4, customer_id,
-			   amount_paid_cents, payment_notice, promo, promo_discount_cents)
+			   amount_paid_cents, payment_notice, promo, promo_discount_cents, event_id)
 			 VALUES ($id, $number, $now, 'new', $now, $email, '', $fullName, '', '', '', $deliveryDate, '', $firstName, $lastName, $fullName,
 			   $company, $serialNumber, $className, $notes, $dedicationFor, $dedicationMessage, $lines, $subtotal,
 			   $deliveryFee, $total, $currency, $method, $status, $reference, $proof, $cardBrand, $cardLast4,
-			   $customerId, $amountPaid, $paymentNotice, $promo, $promoDiscount)`,
+			   $customerId, $amountPaid, $paymentNotice, $promo, $promoDiscount,
+			   (SELECT id FROM events WHERE status = 'current'))`,
 		).run({
 			id: order.id,
 			number: String(nextNumber),

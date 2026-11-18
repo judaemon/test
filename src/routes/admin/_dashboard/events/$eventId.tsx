@@ -187,7 +187,7 @@ function EventEditor() {
 
 				<SettingsSection
 					title="Delivery days"
-					description="The days bouquets are delivered to cadets. For now, checkout still offers the days on Delivery dates."
+					description="The days bouquets are delivered to cadets. While this is the current event, checkout offers these days, and Delivery dates edits them."
 				>
 					<Show
 						when={draft.deliveryDates.length}

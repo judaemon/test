@@ -19,6 +19,7 @@ import {
 	STYLE_WRAPPERS_SQL,
 	wrapperIdForName,
 } from "./bouquet-tables";
+import { ordersToEvent } from "./migrations/orders-to-event";
 import { backfillRecipeVersions, RECIPE_VERSIONS_SQL } from "./recipe-versions";
 import { seedBouquets, seedPaymentAccounts } from "./seed-data";
 
@@ -903,6 +904,8 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	CREATE UNIQUE INDEX events_by_name ON events (lower(name));
 	CREATE INDEX events_by_status ON events (status);
 	`,
+	// v64: orders belong to an event; Battalion Hop 2026's days put right.
+	ordersToEvent,
 ];
 
 declare global {
