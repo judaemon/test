@@ -5,6 +5,7 @@ import { FilterTabs, useReport } from "~/components/admin/reports";
 import { adminButton, adminCard, adminInput } from "~/components/admin/ui";
 import { CLASS_OPTIONS, COMPANIES } from "~/lib/cadets";
 import { formatDeliveryDate, formatSerialNumber } from "~/lib/checkout";
+import { label } from "~/lib/crumbs";
 import {
 	companyDays,
 	shortDeliveryDate,
@@ -21,6 +22,7 @@ import type {
 } from "~/server/admin/reports";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/cards")({
+	staticData: { crumbs: label("Cards") },
 	validateSearch: (search: Record<string, unknown>): { day?: string } => ({
 		day:
 			typeof search.day === "string" &&

@@ -17,6 +17,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { label } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 import { listInventory, reorderProductsFn } from "~/server/admin/catalog";
 import type { AdminProduct } from "~/types/product";
@@ -24,6 +25,7 @@ import type { AdminProduct } from "~/types/product";
 export const Route = createFileRoute(
 	"/admin/_dashboard/signature-bouquets/arrange",
 )({
+	staticData: { crumbs: label("Arrange shop order") },
 	loader: ({ abortController }) =>
 		listInventory({ signal: abortController.signal }),
 	// The page copies the order once, so it must never open on a kept copy

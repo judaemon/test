@@ -14,6 +14,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 import {
 	deleteSupplierFn,
@@ -23,6 +24,9 @@ import {
 
 export const Route = createFileRoute("/admin/_dashboard/suppliers/$supplierId")(
 	{
+		staticData: {
+			crumbs: editorCrumbs("New supplier", "Untitled supplier", field("name")),
+		},
 		loader: async ({ params }) => {
 			if (params.supplierId === "new") return null;
 			const supplier = await getSupplierAdmin({ data: params.supplierId });

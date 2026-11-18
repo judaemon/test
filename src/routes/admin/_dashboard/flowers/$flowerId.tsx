@@ -16,6 +16,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import { type FlowerRecord, SINGLE_COLOR_NAME } from "~/lib/custom-bouquet";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
@@ -26,6 +27,9 @@ import {
 } from "~/server/admin/flowers";
 
 export const Route = createFileRoute("/admin/_dashboard/flowers/$flowerId")({
+	staticData: {
+		crumbs: editorCrumbs("New flower", "Untitled flower", field("name")),
+	},
 	loader: async ({ params }) => {
 		if (params.flowerId === "new") return null;
 		const flower = await getFlowerAdmin({ data: params.flowerId });

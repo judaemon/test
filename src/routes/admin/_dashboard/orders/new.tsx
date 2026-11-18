@@ -63,6 +63,18 @@ interface ChatOrderSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/orders/new")({
+	staticData: {
+		crumbs: ({ loaderData }) => {
+			const editing = loaderData as { number?: number } | null | undefined;
+			return [
+				{
+					label: editing
+						? `Edit custom order #${editing.number}`
+						: "Add custom order",
+				},
+			];
+		},
+	},
 	validateSearch: (search: Record<string, unknown>): ChatOrderSearch => ({
 		edit: typeof search.edit === "string" ? search.edit : undefined,
 	}),

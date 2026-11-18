@@ -11,9 +11,11 @@ import {
 	useReport,
 } from "~/components/admin/reports";
 import { adminCard } from "~/components/admin/ui";
+import { label } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/orders")({
+	staticData: { crumbs: label("Orders") },
 	component: OrdersReport,
 });
 

@@ -11,9 +11,11 @@ import {
 } from "~/components/admin/reports";
 import { adminCard } from "~/components/admin/ui";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { label } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/bouquets")({
+	staticData: { crumbs: label("Bouquets") },
 	component: BouquetsReport,
 });
 

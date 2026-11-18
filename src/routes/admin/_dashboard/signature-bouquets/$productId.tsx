@@ -25,6 +25,7 @@ import {
 import { WrapperList } from "~/components/admin/wrapper-select";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { DEFAULT_ARRANGEMENT, sizesForType } from "~/lib/arrangements";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import { findFlowerKind } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
 import { formatRecipeItem, sameRecipe } from "~/lib/flowers";
@@ -66,6 +67,13 @@ interface EditorSearch {
 export const Route = createFileRoute(
 	"/admin/_dashboard/signature-bouquets/$productId",
 )({
+	staticData: {
+		crumbs: editorCrumbs(
+			"New arrangement",
+			"Untitled arrangement",
+			field("title", "product"),
+		),
+	},
 	validateSearch: (search: Record<string, unknown>): EditorSearch => ({
 		color: typeof search.color === "string" ? search.color : undefined,
 	}),

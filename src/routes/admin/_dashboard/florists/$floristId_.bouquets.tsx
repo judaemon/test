@@ -12,6 +12,17 @@ import { getFloristWorkAdmin } from "~/server/admin/florists";
 export const Route = createFileRoute(
 	"/admin/_dashboard/florists/$floristId_/bouquets",
 )({
+	staticData: {
+		crumbs: ({ params, loaderData }) => [
+			{
+				label:
+					(loaderData as { florist?: { name?: string } } | undefined)?.florist
+						?.name || "Florist",
+				to: `/admin/florists/${params.floristId}`,
+			},
+			{ label: "Bouquets" },
+		],
+	},
 	validateSearch: (search: Record<string, unknown>): { done?: boolean } => ({
 		done: [true, 1, "1"].includes(search.done as never) || undefined,
 	}),

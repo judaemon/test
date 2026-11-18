@@ -16,6 +16,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import {
 	type CustomWrapper,
 	MAX_WRAPPER_COLORS,
@@ -32,6 +33,13 @@ import {
 } from "~/server/admin/wrappers";
 
 export const Route = createFileRoute("/admin/_dashboard/wrappers/$wrapperId")({
+	staticData: {
+		crumbs: editorCrumbs(
+			"New wrapper",
+			"Untitled wrapper",
+			field("name", "wrapper"),
+		),
+	},
 	loader: async ({ params }) => {
 		const [wrapper, suppliers] = await Promise.all([
 			params.wrapperId === "new"

@@ -46,6 +46,15 @@ import { getAdminOrder, updateShopOrderFn } from "~/server/admin/orders";
 
 export const Route = createFileRoute("/admin/_dashboard/orders/$orderId_/edit")(
 	{
+		staticData: {
+			crumbs: ({ params, loaderData }) => [
+				{
+					label: `Order #${(loaderData as { number?: number } | undefined)?.number ?? ""}`,
+					to: `/admin/orders/${params.orderId}`,
+				},
+				{ label: "Edit" },
+			],
+		},
 		loader: async ({ params }) => {
 			const order = await getAdminOrder({ data: params.orderId });
 			if (!order) throw notFound();

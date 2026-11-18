@@ -13,6 +13,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 import {
 	deleteArrangementTypeFn,
@@ -23,6 +24,9 @@ import {
 export const Route = createFileRoute(
 	"/admin/_dashboard/arrangement-types/$typeId",
 )({
+	staticData: {
+		crumbs: editorCrumbs("New type", "Untitled type", field("name")),
+	},
 	loader: async ({ params }) => {
 		if (params.typeId === "new") return null;
 		const type = await getArrangementTypeAdmin({ data: params.typeId });

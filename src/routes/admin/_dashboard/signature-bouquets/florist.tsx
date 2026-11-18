@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
 import { findArrangementType } from "~/lib/arrangements";
+import { label } from "~/lib/crumbs";
 import { sortedRecipe } from "~/lib/flowers";
 import { photoSrc } from "~/lib/photos";
 import { printFileName, usePrintTitle } from "~/lib/print-title";
@@ -17,6 +18,7 @@ import type { AdminProduct, AdminVariant, RecipeItem } from "~/types/product";
 export const Route = createFileRoute(
 	"/admin/_dashboard/signature-bouquets/florist",
 )({
+	staticData: { crumbs: label("Florist list") },
 	loader: () => getFloristList(),
 	component: FloristListPage,
 });

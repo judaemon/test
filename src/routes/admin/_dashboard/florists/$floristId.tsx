@@ -20,6 +20,7 @@ import {
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 import {
 	deleteFloristFn,
@@ -29,6 +30,9 @@ import {
 } from "~/server/admin/florists";
 
 export const Route = createFileRoute("/admin/_dashboard/florists/$floristId")({
+	staticData: {
+		crumbs: editorCrumbs("New florist", "Untitled florist", field("name")),
+	},
 	loader: async ({ params }) => {
 		if (params.floristId === "new") return null;
 		const florist = await getFloristAdmin({ data: params.floristId });

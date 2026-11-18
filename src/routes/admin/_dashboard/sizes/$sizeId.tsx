@@ -15,12 +15,16 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
+import { editorCrumbs, field } from "~/lib/crumbs";
 import { useArrangementTypes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
 import { deleteSizeFn, getSizeAdmin, saveSizeFn } from "~/server/admin/sizes";
 
 export const Route = createFileRoute("/admin/_dashboard/sizes/$sizeId")({
+	staticData: {
+		crumbs: editorCrumbs("New size", "Untitled size", field("name")),
+	},
 	// "+ Add corsage size" starts the new size with that type.
 	validateSearch: (search: Record<string, unknown>): { type?: string } => ({
 		type:

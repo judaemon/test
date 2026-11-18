@@ -19,10 +19,12 @@ import {
 import { adminButton, adminCard } from "~/components/admin/ui";
 import { ColorSwatch } from "~/components/order/company-label";
 import { BATTALIONS, battalionOf, companyColor } from "~/lib/cadets";
+import { label } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 import type { ReportOrder } from "~/server/admin/reports";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/battalions")({
+	staticData: { crumbs: label("Battalions") },
 	component: BattalionsReport,
 });
 

@@ -20,6 +20,7 @@ import {
 } from "~/components/admin/reports";
 import { adminButton, adminCard, toastError } from "~/components/admin/ui";
 import { BATTALIONS, battalionOf } from "~/lib/cadets";
+import { label } from "~/lib/crumbs";
 import {
 	type FlowerTally,
 	flowerKey,
@@ -41,6 +42,7 @@ import type {
 } from "~/server/flower-purchases-repo";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/flowers")({
+	staticData: { crumbs: label("Flowers to buy") },
 	loader: () => getFlowerPurchases(),
 	component: FlowersToBuy,
 });

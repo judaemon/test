@@ -6,6 +6,7 @@ import {
 	Outlet,
 	redirect,
 	useLocation,
+	useMatches,
 	useNavigate,
 } from "@tanstack/solid-router";
 import type { JSX } from "solid-js";
@@ -28,6 +29,7 @@ import {
 	TooltipTrigger,
 } from "~/components/ui/tooltip";
 import { authClient } from "~/lib/auth-client";
+import type { Crumb } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 import { getAdminSession } from "~/server/admin/settings";
 
@@ -438,14 +440,33 @@ function AdminLayout() {
 	const location = useLocation();
 	// Account has its own short sidebar, with a way back to the dashboard.
 	const inAccount = () => location().pathname.startsWith("/admin/account");
-	const accountPage = () =>
-		ACCOUNT_GROUPS[0].items.find((item) =>
-			location().pathname.startsWith(item.to),
-		)?.label;
-	const current = () =>
-		inAccount()
-			? accountPage()
-			: items().find((item) => location().pathname.startsWith(item.to))?.label;
+
+	// The trail after home: the sidebar page, then whatever the page under it
+	// names (an editor, an order, a report), e.g. Sizes › New size.
+	const matches = useMatches();
+	const crumbs = (): Crumb[] => {
+		const trail: Crumb[] = [];
+		if (inAccount()) trail.push({ label: "Account", to: "/admin/account" });
+		const pathname = location().pathname;
+		const section = (inAccount() ? ACCOUNT_GROUPS[0].items : items()).find(
+			(item) => pathname.startsWith(item.to),
+		);
+		const deepest = [...matches()]
+			.reverse()
+			.find((match) => match.staticData?.crumbs);
+		const own =
+			deepest?.staticData.crumbs?.({
+				params: deepest.params as Record<string, string>,
+				loaderData: deepest.loaderData,
+			}) ?? [];
+		if (section)
+			trail.push({
+				label: section.label,
+				to: own.length ? section.to : undefined,
+			});
+		trail.push(...own);
+		return trail;
+	};
 
 	// Large screens: the button at the bottom of the sidebar shrinks it to
 	// icons or expands it, remembered on this device. Smaller screens use the
@@ -683,36 +704,50 @@ function AdminLayout() {
 									<HomeIcon class="size-[1.125rem]" />
 								</Link>
 							</li>
-							<Show when={inAccount()}>
-								<li aria-hidden="true" class="shrink-0 text-petal-900/35">
-									<CrumbIcon class="size-4" />
-								</li>
-								<li class="shrink-0">
-									<Link
-										to="/admin/account"
-										class="rounded-md text-petal-900/60 transition-colors hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-									>
-										Account
-									</Link>
-								</li>
-							</Show>
-							<Show when={current()}>
-								{(label) => (
-									<>
-										<li aria-hidden="true" class="shrink-0 text-petal-900/35">
-											<CrumbIcon class="size-4" />
-										</li>
-										<li class="min-w-0">
-											<span
-												aria-current="page"
-												class="block truncate font-medium text-petal-900"
+							<For each={crumbs()}>
+								{(crumb, index) => {
+									const last = () => index() === crumbs().length - 1;
+									return (
+										<>
+											<li aria-hidden="true" class="shrink-0 text-petal-900/35">
+												<CrumbIcon class="size-4" />
+											</li>
+											{/* Earlier steps keep their full name; the page you're on shortens first. */}
+											<li
+												class={cn(
+													last() ? "min-w-0" : "min-w-0 max-w-40 shrink-[2]",
+												)}
 											>
-												{label()}
-											</span>
-										</li>
-									</>
-								)}
-							</Show>
+												<Show
+													when={!last() && crumb.to}
+													fallback={
+														<span
+															aria-current={last() ? "page" : undefined}
+															class={cn(
+																"block truncate",
+																last()
+																	? "font-medium text-petal-900"
+																	: "text-petal-900/60",
+															)}
+														>
+															{crumb.label}
+														</span>
+													}
+												>
+													{(to) => (
+														<Link
+															to={to()}
+															class="block truncate rounded-md text-petal-900/60 transition-colors hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
+														>
+															{crumb.label}
+														</Link>
+													)}
+												</Show>
+											</li>
+										</>
+									);
+								}}
+							</For>
 						</ol>
 					</nav>
 					<div class="ml-auto shrink-0 pl-2">

@@ -78,6 +78,13 @@ const SHOW_DELIVERY = false;
 const proofId = (fileName: string) => fileName.replace(/\.(png|jpg|webp)$/, "");
 
 export const Route = createFileRoute("/admin/_dashboard/orders/$orderId")({
+	staticData: {
+		crumbs: ({ loaderData }) => [
+			{
+				label: `Order #${(loaderData as { number?: number } | undefined)?.number ?? ""}`,
+			},
+		],
+	},
 	// Stepped back to after editing, wait for the fresh order rather than
 	// showing the old one first and swapping it in.
 	loader: {

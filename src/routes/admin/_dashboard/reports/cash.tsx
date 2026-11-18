@@ -10,9 +10,11 @@ import {
 import { adminCard } from "~/components/admin/ui";
 import { CompanyLabel } from "~/components/order/company-label";
 import { formatSerialNumber } from "~/lib/checkout";
+import { label } from "~/lib/crumbs";
 import { cn } from "~/lib/utils";
 
 export const Route = createFileRoute("/admin/_dashboard/reports/cash")({
+	staticData: { crumbs: label("Cash payments") },
 	component: CashPayments,
 });
 
