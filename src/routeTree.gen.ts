@@ -38,6 +38,7 @@ import { Route as AdminDashboardIndexRouteImport } from './routes/admin/_dashboa
 import { Route as AdminDashboardCardsRouteImport } from './routes/admin/_dashboard/cards'
 import { Route as AdminDashboardCustomRouteImport } from './routes/admin/_dashboard/custom'
 import { Route as AdminDashboardDeliveryDatesRouteImport } from './routes/admin/_dashboard/delivery-dates'
+import { Route as AdminDashboardLandingPageRouteImport } from './routes/admin/_dashboard/landing-page'
 import { Route as AdminDashboardLogsRouteImport } from './routes/admin/_dashboard/logs'
 import { Route as AdminDashboardOrderLogRouteImport } from './routes/admin/_dashboard/order-log'
 import { Route as AdminDashboardPasswordRouteImport } from './routes/admin/_dashboard/password'
@@ -237,6 +238,12 @@ const AdminDashboardDeliveryDatesRoute =
   AdminDashboardDeliveryDatesRouteImport.update({
     id: '/delivery-dates',
     path: '/delivery-dates',
+    getParentRoute: () => AdminDashboardRoute,
+  } as any)
+const AdminDashboardLandingPageRoute =
+  AdminDashboardLandingPageRouteImport.update({
+    id: '/landing-page',
+    path: '/landing-page',
     getParentRoute: () => AdminDashboardRoute,
   } as any)
 const AdminDashboardLogsRoute = AdminDashboardLogsRouteImport.update({
@@ -576,6 +583,7 @@ export interface FileRoutesByFullPath {
   '/admin/cards': typeof AdminDashboardCardsRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
   '/admin/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
+  '/admin/landing-page': typeof AdminDashboardLandingPageRoute
   '/admin/logs': typeof AdminDashboardLogsRoute
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
@@ -659,6 +667,7 @@ export interface FileRoutesByTo {
   '/admin/cards': typeof AdminDashboardCardsRoute
   '/admin/custom': typeof AdminDashboardCustomRoute
   '/admin/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
+  '/admin/landing-page': typeof AdminDashboardLandingPageRoute
   '/admin/logs': typeof AdminDashboardLogsRoute
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
@@ -744,6 +753,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/cards': typeof AdminDashboardCardsRoute
   '/admin/_dashboard/custom': typeof AdminDashboardCustomRoute
   '/admin/_dashboard/delivery-dates': typeof AdminDashboardDeliveryDatesRoute
+  '/admin/_dashboard/landing-page': typeof AdminDashboardLandingPageRoute
   '/admin/_dashboard/logs': typeof AdminDashboardLogsRoute
   '/admin/_dashboard/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/_dashboard/password': typeof AdminDashboardPasswordRoute
@@ -831,6 +841,7 @@ export interface FileRouteTypes {
     | '/admin/cards'
     | '/admin/custom'
     | '/admin/delivery-dates'
+    | '/admin/landing-page'
     | '/admin/logs'
     | '/admin/order-log'
     | '/admin/password'
@@ -914,6 +925,7 @@ export interface FileRouteTypes {
     | '/admin/cards'
     | '/admin/custom'
     | '/admin/delivery-dates'
+    | '/admin/landing-page'
     | '/admin/logs'
     | '/admin/order-log'
     | '/admin/password'
@@ -998,6 +1010,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/cards'
     | '/admin/_dashboard/custom'
     | '/admin/_dashboard/delivery-dates'
+    | '/admin/_dashboard/landing-page'
     | '/admin/_dashboard/logs'
     | '/admin/_dashboard/order-log'
     | '/admin/_dashboard/password'
@@ -1292,6 +1305,13 @@ declare module '@tanstack/solid-router' {
       path: '/delivery-dates'
       fullPath: '/admin/delivery-dates'
       preLoaderRoute: typeof AdminDashboardDeliveryDatesRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/landing-page': {
+      id: '/admin/_dashboard/landing-page'
+      path: '/landing-page'
+      fullPath: '/admin/landing-page'
+      preLoaderRoute: typeof AdminDashboardLandingPageRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
     '/admin/_dashboard/logs': {
@@ -1725,6 +1745,7 @@ interface AdminDashboardRouteChildren {
   AdminDashboardCardsRoute: typeof AdminDashboardCardsRoute
   AdminDashboardCustomRoute: typeof AdminDashboardCustomRoute
   AdminDashboardDeliveryDatesRoute: typeof AdminDashboardDeliveryDatesRoute
+  AdminDashboardLandingPageRoute: typeof AdminDashboardLandingPageRoute
   AdminDashboardLogsRoute: typeof AdminDashboardLogsRoute
   AdminDashboardOrderLogRoute: typeof AdminDashboardOrderLogRoute
   AdminDashboardPasswordRoute: typeof AdminDashboardPasswordRoute
@@ -1767,6 +1788,7 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardCardsRoute: AdminDashboardCardsRoute,
   AdminDashboardCustomRoute: AdminDashboardCustomRoute,
   AdminDashboardDeliveryDatesRoute: AdminDashboardDeliveryDatesRoute,
+  AdminDashboardLandingPageRoute: AdminDashboardLandingPageRoute,
   AdminDashboardLogsRoute: AdminDashboardLogsRoute,
   AdminDashboardOrderLogRoute: AdminDashboardOrderLogRoute,
   AdminDashboardPasswordRoute: AdminDashboardPasswordRoute,

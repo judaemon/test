@@ -130,7 +130,7 @@ function StaffPage() {
 				</Field>
 				<Field
 					label="Temporary password"
-					hint="At least 10 characters. They can change it under My password."
+					hint="At least 10 characters. They can change it under Account › Security."
 				>
 					<input
 						name="password"
@@ -153,40 +153,6 @@ function StaffPage() {
 					</button>
 				</div>
 			</form>
-
-			{/* For the developer: a copy of the live shop to test with locally. */}
-			<section class={cn(adminCard, "mt-8 flex flex-col gap-3 p-5")}>
-				<div>
-					<h2 class="font-semibold">Copy the shop to your computer</h2>
-					<p class="mt-1 text-sm text-petal-900/65">
-						Everything in one zip — bouquets, flowers, wrappers, orders,
-						accounts, settings and every photo — to test with locally. Login
-						sessions are left out. Load it with{" "}
-						<code class="rounded bg-petal-50 px-1 font-mono text-xs">
-							bun run data:import &lt;file.zip&gt;
-						</code>
-						.
-					</p>
-					<p class="mt-2 text-sm text-petal-900/65">
-						It holds real customers’ names, emails and payment proofs: keep it
-						private and delete it when you’re done.
-					</p>
-				</div>
-				<div>
-					<a
-						href="/api/admin/data-export"
-						download=""
-						class={adminButton.secondary}
-					>
-						Download all data
-					</a>
-				</div>
-			</section>
-
-			{/* Only on your own computer: the live shop never offers this. */}
-			<Show when={import.meta.env.DEV}>
-				<ImportData />
-			</Show>
 		</div>
 	);
 }
@@ -238,7 +204,7 @@ function ResetPasswordButton(props: { member: StaffMember }) {
 					<form onSubmit={save} class="grid gap-4">
 						<Field
 							label="Temporary password"
-							hint="At least 10 characters. They can change it under My password."
+							hint="At least 10 characters. They can change it under Account › Security."
 						>
 							<input
 								name="newPassword"
@@ -270,93 +236,5 @@ function ResetPasswordButton(props: { member: StaffMember }) {
 				</AlertDialogContent>
 			</AlertDialog>
 		</>
-	);
-}
-
-interface ImportResponse {
-	ok: boolean;
-	message?: string;
-	summary?: {
-		exportedAt: string;
-		rows: Record<string, number>;
-		uploads: number;
-		backup?: string;
-	};
-}
-
-/** Loads a Download all data zip in place of this computer's shop. */
-function ImportData() {
-	const [file, setFile] = createSignal<File | null>(null);
-	let input!: HTMLInputElement;
-
-	const runImport = async () => {
-		const zip = file();
-		if (!zip) return;
-		try {
-			const response = await fetch("/api/admin/data-import", {
-				method: "POST",
-				headers: { "Content-Type": "application/zip" },
-				body: zip,
-			});
-			const result = (await response
-				.json()
-				.catch(() => ({ ok: false }))) as ImportResponse;
-			if (!result.ok || !result.summary)
-				throw new Error(result.message ?? "Couldn’t import that file.");
-			const rows = result.summary.rows;
-			toastSuccess(
-				`Imported ${rows.orders ?? 0} orders, ${rows.signature_bouquets ?? 0} bouquets and ${result.summary.uploads} photos. Sign in with your live-site password.`,
-			);
-			// Login sessions aren't in the export, so this one is gone too.
-			window.location.assign("/admin");
-		} catch (error) {
-			toastError(error);
-		}
-	};
-
-	return (
-		<section class={cn(adminCard, "mt-5 flex flex-col gap-3 p-5")}>
-			<div>
-				<h2 class="font-semibold">Import data</h2>
-				<p class="mt-1 text-sm text-petal-900/65">
-					Load a zip from Download all data in place of this computer’s shop.
-					What’s here now is moved to{" "}
-					<code class="rounded bg-petal-50 px-1 font-mono text-xs">
-						.data-backups/
-					</code>
-					, never deleted. You’ll be signed out: sign in again with your
-					live-site password. Only shown on your own computer.
-				</p>
-			</div>
-			<div class="flex flex-wrap items-center gap-3">
-				<input
-					ref={input}
-					type="file"
-					accept=".zip,application/zip"
-					class="sr-only"
-					onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
-				/>
-				<button
-					type="button"
-					class={adminButton.secondary}
-					onClick={() => input.click()}
-				>
-					Choose zip…
-				</button>
-				<span class="min-w-0 text-sm text-petal-900/65 wrap-anywhere">
-					{file()?.name ?? "No file chosen"}
-				</span>
-				<ConfirmButton
-					title="Replace this shop’s data?"
-					description={`Everything here is replaced with ${file()?.name ?? "the zip"}. Your current data is kept in .data-backups/.`}
-					confirmLabel="Import"
-					onConfirm={runImport}
-					disabled={!file()}
-					class={adminButton.primary}
-				>
-					Import data
-				</ConfirmButton>
-			</div>
-		</section>
 	);
 }

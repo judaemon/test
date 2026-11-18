@@ -76,6 +76,8 @@ export function SettingsSection(props: {
 	children: JSX.Element;
 }) {
 	const id = createUniqueId();
+	// JSX props are resolved once: reading one in both `when` and the body
+	// would build it twice and break hydration (see PageHeader).
 	const footer = children(() => props.footer);
 	return (
 		<section aria-labelledby={id} class="scroll-mt-24">
@@ -103,32 +105,51 @@ export function SettingsSection(props: {
  * so the label names it; the description gets the id `<for>-hint`.
  */
 export function SettingsRow(props: {
-	label: string;
+	label: JSX.Element;
 	description?: JSX.Element;
 	for?: string;
+	/** Puts the control at the far right, for buttons and badges. */
+	end?: boolean;
+	/** Extra content under the label, such as a link. */
+	extra?: JSX.Element;
+	class?: string;
 	children: JSX.Element;
 }) {
+	// Resolved once, so a description with markup isn't built twice.
+	const label = children(() => props.label);
+	const description = children(() => props.description);
 	return (
-		<div class="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] sm:items-center sm:gap-8">
+		<div
+			class={cn(
+				"grid gap-3 px-5 py-4 sm:items-center sm:gap-8",
+				props.end
+					? "sm:grid-cols-[minmax(0,1fr)_auto]"
+					: "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]",
+				props.class,
+			)}
+		>
 			<div class="min-w-0">
 				<Show
 					when={props.for}
-					fallback={<p class="text-sm font-medium">{props.label}</p>}
+					fallback={<div class="text-sm font-medium">{label()}</div>}
 				>
 					<label for={props.for} class="text-sm font-medium">
-						{props.label}
+						{label()}
 					</label>
 				</Show>
-				<Show when={props.description}>
+				<Show when={description()}>
 					<p
 						id={props.for ? `${props.for}-hint` : undefined}
 						class="mt-0.5 text-sm text-petal-900/60"
 					>
-						{props.description}
+						{description()}
 					</p>
 				</Show>
+				{props.extra}
 			</div>
-			<div class="min-w-0 text-sm">{props.children}</div>
+			<div class={cn("min-w-0 text-sm", props.end && "sm:justify-self-end")}>
+				{props.children}
+			</div>
 		</div>
 	);
 }
@@ -470,6 +491,12 @@ export const AdminIcons = {
 	shop: (p: { class?: string }) => (
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10h18M10 20v-5h4v5" />
+		</svg>
+	),
+	landing: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<rect x="3" y="4" width="18" height="16" rx="2.5" />
+			<path d="M3 8.5h18M7 13h6M7 16.5h10" />
 		</svg>
 	),
 	logout: (p: { class?: string }) => (

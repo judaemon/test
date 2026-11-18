@@ -114,6 +114,11 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 		items: [
 			{ to: "/admin/shop", label: "Shop", icon: AdminIcons.shop },
 			{
+				to: "/admin/landing-page",
+				label: "Landing page",
+				icon: AdminIcons.landing,
+			},
+			{
 				to: "/admin/delivery-dates",
 				label: "Delivery dates",
 				icon: AdminIcons.calendar,
