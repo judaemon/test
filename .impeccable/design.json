@@ -1,0 +1,433 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T01:34:49+00:00",
+  "title": "Design System: ORAIA",
+  "extensions": {
+    "colorMeta": {
+      "cream": {
+        "role": "neutral",
+        "displayName": "Card Cream",
+        "tonalRamp": [
+          "#3a352c",
+          "#6b6456",
+          "#9b9483",
+          "#c4bdab",
+          "#e2dccd",
+          "#efe9dd",
+          "#f6f1e7",
+          "#fbf7f0"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "tonalRamp": [
+          "#262626",
+          "#525252",
+          "#737373",
+          "#a3a3a3",
+          "#d4d4d4",
+          "#e5e5e5",
+          "#f5f5f5",
+          "#ffffff"
+        ]
+      },
+      "butter": {
+        "role": "tertiary",
+        "displayName": "Butter",
+        "tonalRamp": [
+          "#4a3c12",
+          "#7a6420",
+          "#a88c33",
+          "#d0b252",
+          "#e8cd76",
+          "#f7e3a3",
+          "#fbefc9",
+          "#fdf8e8"
+        ]
+      },
+      "sale": {
+        "role": "status",
+        "displayName": "Sale Red",
+        "canonical": "oklch(0.56 0.2 25)"
+      },
+      "petal-50": {
+        "role": "secondary",
+        "displayName": "Pale Petal 50",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "petal-100": {
+        "role": "secondary",
+        "displayName": "Pale Petal 100",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "petal-200": {
+        "role": "secondary",
+        "displayName": "Pale Petal 200",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "petal-300": {
+        "role": "secondary",
+        "displayName": "Pale Petal 300",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "petal-500": {
+        "role": "primary",
+        "displayName": "Blush Rose",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "petal-700": {
+        "role": "primary",
+        "displayName": "Garden Rose",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "petal-900": {
+        "role": "primary",
+        "displayName": "Deep Rose Ink",
+        "tonalRamp": [
+          "#2e0f19",
+          "#5c1f31",
+          "#9e3d58",
+          "#d9718c",
+          "#f2a6b8",
+          "#f6cdd8",
+          "#fbe6ec",
+          "#fdf4f6"
+        ]
+      },
+      "sage-100": {
+        "role": "tertiary",
+        "displayName": "Sage 100",
+        "tonalRamp": [
+          "#2a3224",
+          "#5f6f51",
+          "#7f8e70",
+          "#9eab90",
+          "#b9c4ad",
+          "#d2dbc8",
+          "#e8eee2",
+          "#f4f7f1"
+        ]
+      },
+      "sage-300": {
+        "role": "tertiary",
+        "displayName": "Sage 300",
+        "tonalRamp": [
+          "#2a3224",
+          "#5f6f51",
+          "#7f8e70",
+          "#9eab90",
+          "#b9c4ad",
+          "#d2dbc8",
+          "#e8eee2",
+          "#f4f7f1"
+        ]
+      },
+      "sage-600": {
+        "role": "tertiary",
+        "displayName": "Sage 600",
+        "tonalRamp": [
+          "#2a3224",
+          "#5f6f51",
+          "#7f8e70",
+          "#9eab90",
+          "#b9c4ad",
+          "#d2dbc8",
+          "#e8eee2",
+          "#f4f7f1"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Success"
+      },
+      "success-ink": {
+        "role": "status",
+        "displayName": "Success Ink"
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Warning"
+      },
+      "warning-ink": {
+        "role": "status",
+        "displayName": "Warning Ink"
+      },
+      "error": {
+        "role": "status",
+        "displayName": "Error"
+      },
+      "error-ink": {
+        "role": "status",
+        "displayName": "Error Ink"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Main heading on shop pages and the home hero; 2.25rem on phones up to 3rem."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles, including every admin page title."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Bouquet names and shop section headings."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The ORAIA name only, via the Wordmark component."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All reading and form text; 1rem in phone fields."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase column names on stacked phone tables and small eyebrows."
+      }
+    },
+    "shadows": [
+      {
+        "name": "bouquet-lift",
+        "value": "0 18px 40px -24px rgb(92 31 49 / 0.4)",
+        "purpose": "Under bouquet photos only."
+      },
+      {
+        "name": "bouquet-lift-hover",
+        "value": "0 24px 44px -22px rgb(92 31 49 / 0.5)",
+        "purpose": "Bouquet photo on hover in some grids."
+      },
+      {
+        "name": "drawer-edge",
+        "value": "8px 0 32px -12px rgb(0 0 0 / 0.25)",
+        "purpose": "Admin drawer on phones."
+      }
+    ],
+    "motion": [
+      {
+        "name": "drawer-in",
+        "value": "280ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Admin drawer sliding in."
+      },
+      {
+        "name": "drawer-out",
+        "value": "180ms cubic-bezier(0.4, 0, 1, 1)",
+        "purpose": "Admin drawer leaving."
+      },
+      {
+        "name": "float",
+        "value": "7s ease-in-out infinite (10s slow)",
+        "purpose": "Decorative petals and sparkles drifting on shop pages."
+      },
+      {
+        "name": "state",
+        "value": "150ms",
+        "purpose": "Color transitions on hover and focus."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "stack-table",
+        "value": "48rem"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action on a screen: rose pill, deepens on hover.",
+      "html": "<button class=\"ds-btn-primary\">Add to bag</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border:none;border-radius:9999px;background:#9e3d58;color:#fff;font:500 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;cursor:pointer;transition:background-color .15s}.ds-btn-primary:hover{background:#5c1f31}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 2px #fbf7f0,0 0 0 4px #d9718c}.ds-btn-primary:disabled{opacity:.5;pointer-events:none}"
+    },
+    {
+      "name": "Checkout Button",
+      "kind": "button",
+      "refersTo": "button-primary-checkout",
+      "description": "The big full-width next step on checkout and product pages.",
+      "html": "<button class=\"ds-btn-checkout\">Place my order</button>",
+      "css": ".ds-btn-checkout{display:flex;width:100%;max-width:360px;align-items:center;justify-content:center;height:48px;padding:0 24px;border:none;border-radius:9999px;background:#9e3d58;color:#fff;font:600 16px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;cursor:pointer;transition:background-color .15s}.ds-btn-checkout:hover{background:#5c1f31}.ds-btn-checkout:focus-visible{outline:none;box-shadow:0 0 0 2px #fbf7f0,0 0 0 4px #d9718c}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Second choices beside the main action: white pill with a petal border.",
+      "html": "<button class=\"ds-btn-secondary\">Message us</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:1px solid #f6cdd8;border-radius:9999px;background:#fff;color:#5c1f31;font:500 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;cursor:pointer;transition:background-color .15s}.ds-btn-secondary:hover{background:#fdf4f6}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 2px #d9718c}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Admin destructive actions such as cancelling an order.",
+      "html": "<button class=\"ds-btn-danger\">Cancel order</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border:1px solid color-mix(in oklch,oklch(0.505 0.213 27.518) 30%,transparent);border-radius:9999px;background:#fff;color:oklch(0.505 0.213 27.518);font:500 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;cursor:pointer;transition:background-color .15s}.ds-btn-danger:hover{background:oklch(0.971 0.013 17.38)}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 0 0 2px color-mix(in oklch,oklch(0.505 0.213 27.518) 40%,transparent)}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "White field with gently rounded corners and a soft rose focus ring.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Serial number</span><input class=\"ds-input\" placeholder=\"e.g. 2027-01234\"><span class=\"ds-field-hint\">It's on your ID.</span></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:6px;max-width:320px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#5c1f31}.ds-field-label{font-size:14px;font-weight:500}.ds-field-hint{font-size:12px;color:rgb(92 31 49/.55)}.ds-input{height:44px;padding:0 12px;border:1px solid #f6cdd8;border-radius:12px;background:#fff;color:#5c1f31;font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}.ds-input::placeholder{color:rgb(92 31 49/.35)}.ds-input:focus-visible{border-color:#d9718c;box-shadow:0 0 0 2px rgb(217 113 140/.3)}"
+    },
+    {
+      "name": "Arrangement Chips",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "Pill tabs for Bouquets, Corsages, Boutonnières.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip-on\">Bouquets</button><button class=\"ds-chip\">Corsages</button><button class=\"ds-chip\">Boutonnières</button></div>",
+      "css": ".ds-chips{display:flex;gap:8px;flex-wrap:wrap}.ds-chip{height:40px;padding:0 16px;border:1px solid #f6cdd8;border-radius:9999px;background:#fff;color:#5c1f31;font:500 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;cursor:pointer;transition:background-color .15s}.ds-chip:hover{background:#fdf4f6}.ds-chip-on,.ds-chip-on:hover{background:#9e3d58;border-color:#9e3d58;color:#fff}.ds-chip:focus-visible{outline:none;box-shadow:0 0 0 2px #d9718c}"
+    },
+    {
+      "name": "Product Card",
+      "kind": "card",
+      "refersTo": "product-photo",
+      "description": "Bouquet photo with 24px corners and a rose lift shadow, name in soft Fraunces, price in Garden Rose.",
+      "html": "<a class=\"ds-product\" href=\"#\"><div class=\"ds-product-photo\"></div><div class=\"ds-product-meta\"><div><p class=\"ds-product-name\">Sophia</p><p class=\"ds-product-dots\"><span style=\"background:#f2a6b8\"></span><span style=\"background:#fff\"></span><span style=\"background:#9e3d58\"></span></p></div><p class=\"ds-product-price\">₱1,200</p></div></a>",
+      "css": ".ds-product{display:block;width:200px;text-decoration:none;border-radius:24px;outline:none}.ds-product-photo{aspect-ratio:1;border-radius:24px;background:linear-gradient(160deg,#fbe6ec,#f2a6b8);box-shadow:0 18px 40px -24px rgb(92 31 49/.4);transition:box-shadow .5s}.ds-product:hover .ds-product-photo{box-shadow:0 24px 44px -22px rgb(92 31 49/.5)}.ds-product:focus-visible{box-shadow:0 0 0 4px #fbf7f0,0 0 0 6px #d9718c}.ds-product-meta{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-top:12px;padding:0 4px}.ds-product-name{margin:0;font:600 18px/1.375 'Fraunces Variable',Georgia,serif;font-variation-settings:'SOFT' 100,'WONK' 1;color:#5c1f31}.ds-product-dots{display:flex;gap:4px;margin:6px 0 0}.ds-product-dots span{width:14px;height:14px;border-radius:9999px;border:1px solid rgb(0 0 0/.1)}.ds-product-price{margin:0;font:500 14px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;color:#9e3d58;white-space:nowrap}"
+    },
+    {
+      "name": "Shop Header",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Translucent cream sticky header: flower mark, wordmark, pill links.",
+      "html": "<header class=\"ds-header\"><a class=\"ds-wordmark\" href=\"#\">ORAIA</a><nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Shop</a><a href=\"#\">Check your order</a><a href=\"#\">Sign in</a></nav></header>",
+      "css": ".ds-header{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px;padding:0 16px;background:rgb(251 247 240/.85);backdrop-filter:blur(8px);border-bottom:1px solid #fbe6ec}.ds-wordmark{font:500 20px/1 'Fraunces Variable',Georgia,serif;font-variation-settings:'SOFT' 100,'WONK' 1;letter-spacing:.32em;margin-right:-.32em;text-transform:uppercase;color:#5c1f31;text-decoration:none}.ds-nav{display:flex;gap:4px}.ds-nav a{padding:6px 12px;border-radius:9999px;font:400 14px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;color:rgb(92 31 49/.8);text-decoration:none;white-space:nowrap;transition:background-color .15s,color .15s}.ds-nav a:hover{background:#fbe6ec;color:#5c1f31}.ds-nav a:focus-visible{outline:none;box-shadow:0 0 0 2px #d9718c}"
+    },
+    {
+      "name": "Admin Panel with Company Label",
+      "kind": "card",
+      "refersTo": "admin-card",
+      "description": "The quiet admin world: white panel, hairline rose border, company marked by an outlined dot and its name.",
+      "html": "<div class=\"ds-panel\"><p class=\"ds-panel-title\">Order 1042</p><p class=\"ds-company\"><span class=\"ds-swatch\" style=\"background:#16a34a\"></span>Alfa · 1CL</p><p class=\"ds-company\"><span class=\"ds-swatch\" style=\"background:#ffffff\"></span>Bravo · 2CL</p></div>",
+      "css": ".ds-panel{max-width:280px;padding:16px;border:1px solid #fbe6ec;border-radius:16px;background:#fff;color:#5c1f31;font:400 14px/1.43 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}.ds-panel-title{margin:0 0 8px;font-weight:600}.ds-company{display:flex;align-items:center;gap:6px;margin:4px 0}.ds-swatch{display:inline-block;width:10px;height:10px;border-radius:9999px;border:1px solid rgb(0 0 0/.2)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Pressed Petal Card",
+    "overview": "ORAIA looks like the card that comes with a bouquet: cream stock, deep rose ink, a soft hand-drawn serif for the names, and plenty of room around each line. The flowers in the photos supply the color; the interface stays in one rose family so the bouquets stay the brightest thing on the screen. Petals and small sparkles drift around the open spaces of the shop pages like loose petals fallen on a card, and never where someone has to read or tap.\n\nThe shop is soft and roomy. Steps come one at a time in big pill buttons and plain sentences, because the cadet ordering has likely never used a shop like this. Headings use Fraunces with its soft, slightly wonky cut, and everything people must read and act on (prices, forms, order details) uses the phone's own sans-serif, so it stays fast and familiar on a weak signal.\n\nThe admin is its own, quieter world. It keeps the cream page and rose ink so it still feels like ORAIA, but drops all ornament, sets work on white panels, uses Fraunces only for page titles and big numbers, and gives the company colors the job of telling orders apart. It is a tool for a rush on iPads and phones, not a showcase.",
+    "keyCharacteristics": [
+      "Cream page, never pure white; white is for cards, panels and fields.",
+      "One ink: deep rose (petal-900), lightened with opacity for quieter text.",
+      "One action color: rose (petal-700) on fully rounded pills.",
+      "Fraunces with the soft, wonky cut for names and headings; the system sans-serif for everything else.",
+      "Soft rose-tinted shadows under bouquet photos only.",
+      "Decoration (petals, sparkles, a soft pink glow) on shop pages only, away from content."
+    ],
+    "rules": [
+      {
+        "name": "The One Ink Rule",
+        "body": "All text is Deep Rose Ink at some opacity. No black, no zinc gray: the neutral grays left in the base theme belong to the stock components, not to ORAIA.",
+        "section": "colors"
+      },
+      {
+        "name": "The Photos Bring the Color Rule",
+        "body": "The interface stays rose-on-cream so the bouquets are the most colorful thing on any screen. New colors enter only as status or company meaning.",
+        "section": "colors"
+      },
+      {
+        "name": "The Serif Names, Sans Does Rule",
+        "body": "Fraunces names things (bouquets, pages, sections, the brand). Anything a person reads to decide or acts on (prices, buttons, fields, order details, instructions) is the system sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Soft Cut Rule",
+        "body": "Fraunces always carries the soft, wonky settings (`.type-soft`). A plain Fraunces heading is a mistake. Printed cards are the exception, where the plainer cut prints cleaner.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flowers Float Rule",
+        "body": "Only bouquet photos and things floating over the page (dialogs, sheets, the drawer) cast shadows. Cards, panels and buttons stay flat and use borders.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** put pages on Card Cream (`#fbf7f0`); keep white for cards, panels and fields.",
+      "**Do** write all text in Deep Rose Ink, using opacity for quieter levels.",
+      "**Do** make every button, chip and nav link a full pill, with Garden Rose for the one main action.",
+      "**Do** set names and headings in Fraunces with the soft cut, and everything people act on in the system sans.",
+      "**Do** keep the admin quiet: no petals or sparkles, white panels, Fraunces only for page titles and big numbers.",
+      "**Do** show company colors with the company name, as an outlined dot.",
+      "**Do** keep touch targets 44px tall on phones and fields at 1rem so iOS doesn't zoom."
+    ],
+    "donts": [
+      "**Don't** use a pure white page background.",
+      "**Don't** use military styling: no camouflage, stencil lettering, insignia, rank chevrons or badges, even though the customers are cadets.",
+      "**Don't** let petals, sparkles or the pink glow sit on top of prices, buttons, fields or order details; ornament stays in empty space and is hidden from screen readers.",
+      "**Don't** use the stock component grays or black for text; that is the base theme showing through.",
+      "**Don't** add shadows to flat cards, panels or buttons.",
+      "**Don't** use company colors as decoration or as brand accents."
+    ]
+  }
+}
