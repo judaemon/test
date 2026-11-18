@@ -244,23 +244,6 @@ function CloseIcon(props: { class?: string }) {
 	);
 }
 
-function ChevronIcon(props: { class?: string }) {
-	return (
-		<svg
-			aria-hidden="true"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.8"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			class={props.class}
-		>
-			<path d="m6 9 6 6 6-6" />
-		</svg>
-	);
-}
-
 function ProfileIcon(props: { class?: string }) {
 	return (
 		<svg
@@ -330,26 +313,35 @@ const menuItem =
 
 /** The signed-in person in the top bar; opens to their profile and sign out. */
 function ProfileMenu(props: {
-	user: { name: string; email: string; role: "owner" | "staff" };
+	user: {
+		name: string;
+		email: string;
+		role: "owner" | "staff";
+		image?: string;
+	};
 	onOpen: (to: "/admin/account/profile" | "/admin/account/security") => void;
 	onSignOut: () => void;
 }) {
 	return (
 		<DropdownMenu.Root placement="bottom-end" gutter={6}>
 			<DropdownMenu.Trigger
-				class="group flex h-11 shrink-0 items-center gap-2 rounded-full py-1 pr-1 pl-1 text-petal-900 outline-none transition-colors hover:bg-petal-100 focus-visible:ring-2 focus-visible:ring-petal-500 data-[expanded]:bg-petal-100 sm:pr-2.5"
+				class="flex size-10 shrink-0 items-center justify-center rounded-full outline-none transition-shadow hover:ring-4 hover:ring-petal-100 focus-visible:ring-2 focus-visible:ring-petal-500 data-[expanded]:ring-4 data-[expanded]:ring-petal-100"
 				aria-label={`Account: ${props.user.name}`}
 			>
-				<Avatar name={props.user.name} class="size-9 text-sm" />
-				<span class="hidden max-w-40 truncate text-sm font-medium sm:inline">
-					{props.user.name}
-				</span>
-				<ChevronIcon class="hidden size-4 text-petal-900/55 transition-transform group-data-[expanded]:rotate-180 sm:block" />
+				<Avatar
+					name={props.user.name}
+					image={props.user.image}
+					class="size-9 text-sm"
+				/>
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Portal>
 				<DropdownMenu.Content class="z-50 w-[min(18rem,calc(100vw-1.5rem))] origin-[var(--kb-menu-content-transform-origin)] rounded-2xl border border-petal-100 bg-white p-1.5 text-petal-900 shadow-[0_16px_40px_-16px_rgb(92_31_49/0.35)] outline-none data-[expanded]:animate-in data-[expanded]:fade-in-0 data-[expanded]:zoom-in-95 data-[closed]:animate-out data-[closed]:fade-out-0 data-[closed]:zoom-out-95">
 					<div class="flex items-center gap-3 px-3 pt-2.5 pb-3">
-						<Avatar name={props.user.name} class="size-10 text-sm" />
+						<Avatar
+							name={props.user.name}
+							image={props.user.image}
+							class="size-10 text-sm"
+						/>
 						<div class="min-w-0 flex-1">
 							<p class="flex items-center gap-2">
 								<span class="truncate text-sm font-semibold">
@@ -686,7 +678,7 @@ function AdminLayout() {
 
 			<div class="flex min-w-0 flex-col">
 				{/* The top bar: where you are, and who's signed in. */}
-				<header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-petal-100 bg-white/90 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:h-16 lg:pr-8 lg:pl-3 print:hidden">
+				<header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-petal-100 bg-white/90 pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.5rem,env(safe-area-inset-left))] backdrop-blur lg:h-16 lg:pr-4 lg:pl-3 print:hidden">
 					{/* Phones and iPad upright: the menu lives in a drawer. */}
 					<button
 						type="button"

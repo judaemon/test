@@ -51,16 +51,23 @@ function initials(name: string) {
 }
 
 /** A signed-in person's initials in a rose circle. Size it with a class. */
-export function Avatar(props: { name: string; class?: string }) {
+export function Avatar(props: {
+	name: string;
+	/** Their picture; the two initials show without one. */
+	image?: string;
+	class?: string;
+}) {
 	return (
 		<span
 			aria-hidden="true"
 			class={cn(
-				"inline-flex shrink-0 select-none items-center justify-center rounded-full bg-petal-100 font-semibold text-petal-700",
+				"inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-petal-100 font-semibold text-petal-700",
 				props.class,
 			)}
 		>
-			{initials(props.name)}
+			<Show when={props.image} fallback={initials(props.name)}>
+				{(src) => <img src={src()} alt="" class="size-full object-cover" />}
+			</Show>
 		</span>
 	);
 }

@@ -9,6 +9,8 @@ export interface StaffUser {
 	name: string;
 	email: string;
 	role: StaffRole;
+	/** Their profile picture's address, when the account has one. */
+	image?: string;
 }
 
 const STAFF_ROLES: Record<string, StaffRole> = {
@@ -31,6 +33,7 @@ export async function getStaffUser(): Promise<StaffUser | null> {
 		name: session.user.name,
 		email: session.user.email,
 		role,
+		image: session.user.image || undefined,
 	};
 }
 
