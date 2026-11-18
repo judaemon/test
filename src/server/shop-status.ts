@@ -18,6 +18,14 @@ import {
 } from "./shop-status-repo";
 import { asRecord, oneOf, text } from "./validate";
 
+/** Admin → Interested buyers: the names left on the fully booked page. */
+export const listShopWishesFn = createServerFn({ method: "GET" }).handler(
+	async () => {
+		await requireStaff();
+		return listShopWishes();
+	},
+);
+
 /** Admin → Shop: how it runs, its closed notice, and the names left. */
 export const getShopAdminFn = createServerFn({ method: "GET" }).handler(
 	async () => {

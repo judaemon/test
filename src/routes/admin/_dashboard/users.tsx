@@ -5,12 +5,10 @@ import {
 	type ColumnVisibilityState,
 	createColumnHelper,
 	createTable,
-	type PaginationState,
 	type RowSelectionState,
 	type SortingState,
-	type Updater,
 } from "@tanstack/solid-table";
-import { createEffect, createSignal, on, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 
 import {
 	adminTableFeatures,
@@ -21,10 +19,19 @@ import {
 } from "~/components/admin/data-table";
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
 import { textParam } from "~/components/admin/list-toolbar";
+import {
+	addressTableState,
+	fitsWords,
+	pageParam,
+	ResetFilters,
+	resolveUpdater,
+	sortParam,
+	TableSearch,
+} from "~/components/admin/table-state";
 import { PageHeader, toastError, toastSuccess } from "~/components/admin/ui";
 import { FacetFilter } from "~/components/ui/facet-filter";
 import { joinList, parseList } from "~/lib/shop-filters";
-import { cn, SEARCH_DEBOUNCE_MS } from "~/lib/utils";
+import { cn } from "~/lib/utils";
 import { listShopUsers, type ShopUser } from "~/server/admin/users";
 
 const PAGE_SIZES = [10, 20, 30, 50, 100] as const;
@@ -41,7 +48,7 @@ interface UsersSearch {
 	/** e.g. "name.asc"; missing is newest first. */
 	sort?: string;
 	page?: number;
-	perPage?: (typeof PAGE_SIZES)[number];
+	perPage?: number;
 }
 
 export const Route = createFileRoute("/admin/_dashboard/users")({
@@ -50,19 +57,13 @@ export const Route = createFileRoute("/admin/_dashboard/users")({
 			typeof search[key] === "string" && DAY.test(search[key] as string)
 				? (search[key] as string)
 				: undefined;
-		const [column, dir] = String(search.sort ?? "").split(".");
-		const page = Number(search.page);
 		return {
 			q: textParam(search, "q"),
 			orders: textParam(search, "orders"),
 			from: day("from"),
 			to: day("to"),
-			sort:
-				SORTABLE.includes(column as (typeof SORTABLE)[number]) &&
-				(dir === "asc" || dir === "desc")
-					? `${column}.${dir}`
-					: undefined,
-			page: Number.isInteger(page) && page > 1 ? page : undefined,
+			sort: sortParam(search, SORTABLE),
+			page: pageParam(search),
 			perPage: PAGE_SIZES.find((size) => size === Number(search.perPage)),
 		};
 	},
@@ -97,14 +98,8 @@ const fitsJoined = (user: ShopUser, range: { from?: string; to?: string }) => {
 	return (!range.from || day >= range.from) && (!range.to || day <= range.to);
 };
 
-const fitsQuery = (user: ShopUser, query: string) => {
-	const text = `${user.name} ${user.email}`.toLowerCase();
-	return query
-		.toLowerCase()
-		.split(/\s+/)
-		.filter(Boolean)
-		.every((word) => text.includes(word));
-};
+const fitsQuery = (user: ShopUser, query: string) =>
+	fitsWords(`${user.name} ${user.email}`, query);
 
 const features = adminTableFeatures;
 
@@ -213,15 +208,14 @@ function UsersPage() {
 			resetScroll: false,
 		});
 
-	// The table's state lives in the address, so Back and shared links keep it.
-	const sorting = (): SortingState => {
-		const [id, dir] = (search().sort ?? "").split(".");
-		return id ? [{ id, desc: dir === "desc" }] : DEFAULT_SORT;
-	};
-	const pagination = (): PaginationState => ({
-		pageIndex: (search().page ?? 1) - 1,
-		pageSize: search().perPage ?? PAGE_SIZES[0],
+	// The table's order and page live in the address.
+	const address = addressTableState({
+		search,
+		set: setSearch,
+		defaultSort: DEFAULT_SORT,
+		pageSizes: PAGE_SIZES,
 	});
+	const { sorting, pagination } = address;
 	const ordersChosen = () => parseList(search().orders);
 	const columnFilters = (): ColumnFiltersState => [
 		...(ordersChosen().length ? [{ id: "orders", value: ordersChosen() }] : []),
@@ -229,11 +223,6 @@ function UsersPage() {
 			? [{ id: "joined", value: { from: search().from, to: search().to } }]
 			: []),
 	];
-	const resolve = <T,>(updater: Updater<T>, previous: T) =>
-		typeof updater === "function"
-			? (updater as (old: T) => T)(previous)
-			: updater;
-
 	const [rowSelection, setRowSelection] = createSignal<RowSelectionState>({});
 	const [columnVisibility, setColumnVisibility] =
 		createSignal<ColumnVisibilityState>({});
@@ -266,37 +255,12 @@ function UsersPage() {
 			},
 		},
 		globalFilterFn: (row, _id, query: string) => fitsQuery(row.original, query),
-		onSortingChange: (updater) => {
-			const [next] = resolve(updater, sorting());
-			const isDefault =
-				!next ||
-				(next.id === DEFAULT_SORT[0]?.id &&
-					next.desc === DEFAULT_SORT[0]?.desc);
-			setSearch({
-				sort: isDefault
-					? undefined
-					: `${next.id}.${next.desc ? "desc" : "asc"}`,
-			});
-		},
-		onPaginationChange: (updater) => {
-			const next = resolve(updater, pagination());
-			const sizeChanged = next.pageSize !== pagination().pageSize;
-			setSearch(
-				{
-					page:
-						sizeChanged || next.pageIndex < 1 ? undefined : next.pageIndex + 1,
-					perPage:
-						next.pageSize === PAGE_SIZES[0]
-							? undefined
-							: (next.pageSize as UsersSearch["perPage"]),
-				},
-				true,
-			);
-		},
+		onSortingChange: address.onSortingChange,
+		onPaginationChange: address.onPaginationChange,
 		onRowSelectionChange: (updater) =>
-			setRowSelection((old) => resolve(updater, old)),
+			setRowSelection((old) => resolveUpdater(updater, old)),
 		onColumnVisibilityChange: (updater) =>
-			setColumnVisibility((old) => resolve(updater, old)),
+			setColumnVisibility((old) => resolveUpdater(updater, old)),
 		// The address sets the page; a new filter already starts at page one.
 		autoResetPageIndex: false,
 	});
@@ -307,29 +271,6 @@ function UsersPage() {
 		if (count > 0 && pagination().pageIndex >= count)
 			setSearch({ page: count > 1 ? count : undefined }, true);
 	});
-
-	// Typing updates the address once the person pauses.
-	const [query, setQuery] = createSignal(search().q ?? "");
-	let searchBox: HTMLInputElement | undefined;
-	createEffect(
-		on(
-			() => search().q,
-			(value) => {
-				if (document.activeElement !== searchBox) setQuery(value ?? "");
-			},
-			{ defer: true },
-		),
-	);
-	let debounce: ReturnType<typeof setTimeout> | undefined;
-	onCleanup(() => clearTimeout(debounce));
-	const type = (value: string) => {
-		setQuery(value);
-		clearTimeout(debounce);
-		debounce = setTimeout(
-			() => setSearch({ q: value.trim() || undefined }),
-			SEARCH_DEBOUNCE_MS,
-		);
-	};
 
 	/** People each orders choice would show, given the other filters. */
 	const orderCount = (key: string) =>
@@ -342,16 +283,13 @@ function UsersPage() {
 
 	const filtered = () =>
 		!!(search().q || search().orders || search().from || search().to);
-	const reset = () => {
-		clearTimeout(debounce);
-		setQuery("");
+	const reset = () =>
 		setSearch({
 			q: undefined,
 			orders: undefined,
 			from: undefined,
 			to: undefined,
 		});
-	};
 
 	const copySelected = async () => {
 		const emails = table
@@ -378,29 +316,12 @@ function UsersPage() {
 			/>
 
 			<div class="mb-3 flex flex-wrap items-center gap-2">
-				<label class="flex h-10 w-full items-center gap-2 rounded-xl border border-petal-200 bg-white px-3 transition-colors focus-within:border-petal-500 focus-within:ring-2 focus-within:ring-petal-500/30 sm:w-64">
-					<svg
-						aria-hidden="true"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						class="size-4 shrink-0 text-petal-900/45"
-					>
-						<circle cx="11" cy="11" r="6.5" />
-						<path d="m20 20-4.2-4.2" />
-					</svg>
-					<span class="sr-only">Search users</span>
-					<input
-						ref={searchBox}
-						type="search"
-						value={query()}
-						onInput={(e) => type(e.currentTarget.value)}
-						placeholder="Search name or email…"
-						class="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-petal-900/40 sm:text-sm"
-					/>
-				</label>
+				<TableSearch
+					label="Search users"
+					placeholder="Search name or email…"
+					value={search().q ?? ""}
+					onChange={(q) => setSearch({ q })}
+				/>
 				<FacetFilter
 					label="Orders"
 					options={ORDER_CHOICES.map((choice) => ({
@@ -419,14 +340,7 @@ function UsersPage() {
 					onChange={(from, to) => setSearch({ from, to })}
 				/>
 				<Show when={filtered()}>
-					<button
-						type="button"
-						onClick={reset}
-						class="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-petal-900/70 transition-colors outline-none hover:bg-petal-100 hover:text-petal-900 focus-visible:ring-2 focus-visible:ring-petal-500"
-					>
-						Reset
-						<span aria-hidden="true">✕</span>
-					</button>
+					<ResetFilters onClick={reset} />
 				</Show>
 				<div class="ml-auto">
 					<ViewOptions table={table} />

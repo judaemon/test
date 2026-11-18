@@ -129,6 +129,11 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 				icon: AdminIcons.landing,
 			},
 			{
+				to: "/admin/interested",
+				label: "Interested buyers",
+				icon: AdminIcons.interested,
+			},
+			{
 				to: "/admin/delivery-dates",
 				label: "Delivery dates",
 				icon: AdminIcons.calendar,
