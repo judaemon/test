@@ -8,6 +8,7 @@ import {
 	ConfirmButton,
 	Field,
 	PageHeader,
+	RoleBadge,
 	toastError,
 	toastSuccess,
 } from "~/components/admin/ui";
@@ -97,16 +98,7 @@ function StaffPage() {
 								<p class="text-sm text-petal-900/60">{member.email}</p>
 							</div>
 							<div class="flex items-center gap-3">
-								<span
-									class={cn(
-										"rounded-full px-2.5 py-0.5 text-xs font-medium",
-										member.role === "owner"
-											? "bg-petal-100 text-petal-700"
-											: "bg-sage-100 text-sage-600",
-									)}
-								>
-									{member.role === "owner" ? "Owner" : "Staff"}
-								</span>
+								<RoleBadge role={member.role === "owner" ? "owner" : "staff"} />
 								<Show when={member.id !== context().user.id}>
 									<ResetPasswordButton member={member} />
 									<ConfirmButton

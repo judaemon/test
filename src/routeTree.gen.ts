@@ -42,6 +42,7 @@ import { Route as AdminDashboardLogsRouteImport } from './routes/admin/_dashboar
 import { Route as AdminDashboardOrderLogRouteImport } from './routes/admin/_dashboard/order-log'
 import { Route as AdminDashboardPasswordRouteImport } from './routes/admin/_dashboard/password'
 import { Route as AdminDashboardPaymentsRouteImport } from './routes/admin/_dashboard/payments'
+import { Route as AdminDashboardProfileRouteImport } from './routes/admin/_dashboard/profile'
 import { Route as AdminDashboardReportsRouteImport } from './routes/admin/_dashboard/reports'
 import { Route as AdminDashboardSalesRouteImport } from './routes/admin/_dashboard/sales'
 import { Route as AdminDashboardShopRouteImport } from './routes/admin/_dashboard/shop'
@@ -253,6 +254,11 @@ const AdminDashboardPasswordRoute = AdminDashboardPasswordRouteImport.update({
 const AdminDashboardPaymentsRoute = AdminDashboardPaymentsRouteImport.update({
   id: '/payments',
   path: '/payments',
+  getParentRoute: () => AdminDashboardRoute,
+} as any)
+const AdminDashboardProfileRoute = AdminDashboardProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => AdminDashboardRoute,
 } as any)
 const AdminDashboardReportsRoute = AdminDashboardReportsRouteImport.update({
@@ -553,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/profile': typeof AdminDashboardProfileRoute
   '/admin/reports': typeof AdminDashboardReportsRouteWithChildren
   '/admin/sales': typeof AdminDashboardSalesRoute
   '/admin/shop': typeof AdminDashboardShopRoute
@@ -632,6 +639,7 @@ export interface FileRoutesByTo {
   '/admin/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/password': typeof AdminDashboardPasswordRoute
   '/admin/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/profile': typeof AdminDashboardProfileRoute
   '/admin/sales': typeof AdminDashboardSalesRoute
   '/admin/shop': typeof AdminDashboardShopRoute
   '/admin/staff': typeof AdminDashboardStaffRoute
@@ -713,6 +721,7 @@ export interface FileRoutesById {
   '/admin/_dashboard/order-log': typeof AdminDashboardOrderLogRoute
   '/admin/_dashboard/password': typeof AdminDashboardPasswordRoute
   '/admin/_dashboard/payments': typeof AdminDashboardPaymentsRoute
+  '/admin/_dashboard/profile': typeof AdminDashboardProfileRoute
   '/admin/_dashboard/reports': typeof AdminDashboardReportsRouteWithChildren
   '/admin/_dashboard/sales': typeof AdminDashboardSalesRoute
   '/admin/_dashboard/shop': typeof AdminDashboardShopRoute
@@ -796,6 +805,7 @@ export interface FileRouteTypes {
     | '/admin/order-log'
     | '/admin/password'
     | '/admin/payments'
+    | '/admin/profile'
     | '/admin/reports'
     | '/admin/sales'
     | '/admin/shop'
@@ -875,6 +885,7 @@ export interface FileRouteTypes {
     | '/admin/order-log'
     | '/admin/password'
     | '/admin/payments'
+    | '/admin/profile'
     | '/admin/sales'
     | '/admin/shop'
     | '/admin/staff'
@@ -955,6 +966,7 @@ export interface FileRouteTypes {
     | '/admin/_dashboard/order-log'
     | '/admin/_dashboard/password'
     | '/admin/_dashboard/payments'
+    | '/admin/_dashboard/profile'
     | '/admin/_dashboard/reports'
     | '/admin/_dashboard/sales'
     | '/admin/_dashboard/shop'
@@ -1269,6 +1281,13 @@ declare module '@tanstack/solid-router' {
       path: '/payments'
       fullPath: '/admin/payments'
       preLoaderRoute: typeof AdminDashboardPaymentsRouteImport
+      parentRoute: typeof AdminDashboardRoute
+    }
+    '/admin/_dashboard/profile': {
+      id: '/admin/_dashboard/profile'
+      path: '/profile'
+      fullPath: '/admin/profile'
+      preLoaderRoute: typeof AdminDashboardProfileRouteImport
       parentRoute: typeof AdminDashboardRoute
     }
     '/admin/_dashboard/reports': {
@@ -1650,6 +1669,7 @@ interface AdminDashboardRouteChildren {
   AdminDashboardOrderLogRoute: typeof AdminDashboardOrderLogRoute
   AdminDashboardPasswordRoute: typeof AdminDashboardPasswordRoute
   AdminDashboardPaymentsRoute: typeof AdminDashboardPaymentsRoute
+  AdminDashboardProfileRoute: typeof AdminDashboardProfileRoute
   AdminDashboardReportsRoute: typeof AdminDashboardReportsRouteWithChildren
   AdminDashboardSalesRoute: typeof AdminDashboardSalesRoute
   AdminDashboardShopRoute: typeof AdminDashboardShopRoute
@@ -1688,6 +1708,7 @@ const AdminDashboardRouteChildren: AdminDashboardRouteChildren = {
   AdminDashboardOrderLogRoute: AdminDashboardOrderLogRoute,
   AdminDashboardPasswordRoute: AdminDashboardPasswordRoute,
   AdminDashboardPaymentsRoute: AdminDashboardPaymentsRoute,
+  AdminDashboardProfileRoute: AdminDashboardProfileRoute,
   AdminDashboardReportsRoute: AdminDashboardReportsRouteWithChildren,
   AdminDashboardSalesRoute: AdminDashboardSalesRoute,
   AdminDashboardShopRoute: AdminDashboardShopRoute,

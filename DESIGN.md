@@ -254,7 +254,7 @@ Round, warm and obvious: one clear next step at a time.
 
 ### Navigation
 - **Shop header:** sticky, translucent cream with a blur and a petal-100 bottom hairline, 64px tall. Flower mark and wordmark on the left (the wordmark hides below 440px); pill text links on the right that fill petal-100 on hover; round 40px icon buttons for the account and bag, with a Garden Rose count bubble on the bag.
-- **Admin:** a white sidebar of rounded rows (12px corners) with the active row filled petal-100; on small screens, a slim white top bar and a slide-in drawer.
+- **Admin:** a white sidebar of rounded rows (12px corners) in labelled groups (Orders, Catalog, People, Shop setup, Records), each group named in the small uppercase label style; the active row is filled petal-100, and View shop is pinned at the bottom outside the scrolling list. A sticky white top bar (64px on desktop, 56px on smaller screens) shows the current page on the left and the signed-in person on the right: their initials in a petal-100 circle, then their name from `sm`. It opens a white menu with 16px corners and a soft rose shadow holding their name, role badge and email, then My profile and Sign out. On smaller screens the top bar also holds the menu button and brand, and the sidebar becomes a slide-in drawer.
 
 ### Signature: Company marker
 A small round color dot (`ColorSwatch`, 10–14px, with a faint dark outline so Bravo's white still shows) beside the company name, as "● Alfa · 1CL", on order rows, delivery lists, florist sheets and dedication cards.

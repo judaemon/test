@@ -41,6 +41,47 @@ export const adminButton = {
 
 export const adminCard = "rounded-2xl border border-petal-100 bg-white";
 
+/** "Maria Santos" → "MS"; one name gives one letter. */
+function initials(name: string) {
+	const words = name.trim().split(/\s+/).filter(Boolean);
+	if (words.length === 0) return "?";
+	const first = words[0][0];
+	const last = words.length > 1 ? words[words.length - 1][0] : "";
+	return (first + last).toUpperCase();
+}
+
+/** A signed-in person's initials in a rose circle. Size it with a class. */
+export function Avatar(props: { name: string; class?: string }) {
+	return (
+		<span
+			aria-hidden="true"
+			class={cn(
+				"inline-flex shrink-0 select-none items-center justify-center rounded-full bg-petal-100 font-semibold text-petal-700",
+				props.class,
+			)}
+		>
+			{initials(props.name)}
+		</span>
+	);
+}
+
+/** Owner in rose, staff in sage, wherever a role is shown. */
+export function RoleBadge(props: { role: "owner" | "staff"; class?: string }) {
+	return (
+		<span
+			class={cn(
+				"inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
+				props.role === "owner"
+					? "bg-petal-100 text-petal-700"
+					: "bg-sage-100 text-sage-600",
+				props.class,
+			)}
+		>
+			{props.role === "owner" ? "Owner" : "Staff"}
+		</span>
+	);
+}
+
 /**
  * A textarea that shows its value after server rendering. Solid renders
  * `value` as an attribute, which browsers ignore on <textarea>, so the initial
