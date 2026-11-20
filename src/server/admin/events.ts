@@ -3,6 +3,7 @@ import { diffSnapshots } from "~/lib/activity-log";
 import { isCalendarDate, tidyDates } from "~/lib/delivery-dates";
 import {
 	EVENT_DELIVERY_DATES_MAX,
+	EVENT_MAX_ORDERS_LIMIT,
 	EVENT_STATUSES,
 	isEventStatus,
 } from "~/lib/events";
@@ -12,6 +13,8 @@ import { requireStaff } from "../admin-auth";
 import {
 	deleteEvent,
 	eventNameTaken,
+	eventOrderCount,
+	eventOrderCounts,
 	getEvent,
 	listEvents,
 	otherEventWithStatus,
@@ -25,7 +28,11 @@ const oneSpace = (value: string) => value.replace(/\s+/g, " ");
 export const listEventsAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
-		return listEvents();
+		const counts = eventOrderCounts();
+		return listEvents().map((event) => ({
+			...event,
+			orders: counts[event.id] ?? 0,
+		}));
 	},
 );
 
@@ -33,7 +40,8 @@ export const getEventAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
 		await requireStaff();
-		return getEvent(data);
+		const event = getEvent(data);
+		return event ? { ...event, orders: eventOrderCount(event.id) } : null;
 	});
 
 export const saveEventFn = createServerFn({ method: "POST" })
@@ -69,6 +77,18 @@ export const saveEventFn = createServerFn({ method: "POST" })
 			);
 		if (deliveryDates[0] < ordersOpenOn)
 			throw new InputError("Delivery days can’t be before ordering opens.");
+		const rawMax = event.maxOrders;
+		let maxOrders: number | null = null;
+		if (rawMax !== null && rawMax !== undefined && rawMax !== "") {
+			const value = Number(rawMax);
+			if (!Number.isInteger(value) || value < 1)
+				throw new InputError("Most orders must be a whole number, 1 or more.");
+			if (value > EVENT_MAX_ORDERS_LIMIT)
+				throw new InputError(
+					`Most orders can be up to ${EVENT_MAX_ORDERS_LIMIT.toLocaleString()}.`,
+				);
+			maxOrders = value;
+		}
 		if (!isEventStatus(event.status))
 			throw new InputError(
 				"Pick where the event is: upcoming, current or done.",
@@ -81,6 +101,7 @@ export const saveEventFn = createServerFn({ method: "POST" })
 				ordersCloseOn,
 				deliveryDates,
 				status: event.status,
+				maxOrders,
 				notes: text(event, "notes", {
 					label: "Notes",
 					max: 1000,

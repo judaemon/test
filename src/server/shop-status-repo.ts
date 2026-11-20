@@ -4,14 +4,36 @@ import {
 	SHOP_MODES,
 	type ShopMode,
 	type ShopStatus,
+	shopModeForEvent,
+	WISH_DATES,
 	type WishDetails,
 } from "~/lib/shop-status";
 import { getDb, nowIso } from "./db";
+import { currentEvent, eventOrderCount } from "./events-repo";
 
 const KEY = "shop_status";
 
-/** Open until the owner changes it; the closed notice's words, or the defaults. */
+/**
+ * How the shop runs now, which follows the events (see `shopModeForEvent`),
+ * with the fully booked message as saved and the current event's days.
+ */
 export function getShopStatus(): ShopStatus {
+	const saved = getSavedShopStatus();
+	const event = currentEvent();
+	return {
+		...saved,
+		mode: shopModeForEvent(event, event ? eventOrderCount(event.id) : 0),
+		days: event?.deliveryDates.length
+			? event.deliveryDates
+			: [...WISH_DATES],
+	};
+}
+
+/**
+ * What's saved: the fully booked message, and the mode the owner last
+ * picked by hand (from before the shop followed the events).
+ */
+export function getSavedShopStatus(): ShopStatus {
 	const row = getDb()
 		.query("SELECT value FROM settings WHERE key = $key")
 		.get({ key: KEY }) as { value: string } | null;
@@ -44,7 +66,15 @@ export function saveShopStatus(status: ShopStatus) {
 			`INSERT INTO settings (key, value, updated_at) VALUES ($key, $value, $now)
 			 ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
 		)
-		.run({ key: KEY, value: JSON.stringify(status), now: nowIso() });
+		.run({
+			key: KEY,
+			value: JSON.stringify({
+				mode: status.mode,
+				heading: status.heading,
+				message: status.message,
+			}),
+			now: nowIso(),
+		});
 	return getShopStatus();
 }
 
@@ -52,14 +82,23 @@ export function saveShopStatus(status: ShopStatus) {
 export interface ShopWish extends WishDetails {
 	id: string;
 	createdAt: string;
+	/** The event it was left for; empty if none was current then. */
+	eventId: string;
+	eventName: string;
 }
 
 /** Newest first. */
 export function listShopWishes(): ShopWish[] {
 	return (
 		getDb()
-			.query("SELECT * FROM shop_wishes ORDER BY created_at DESC")
+			.query(
+				`SELECT w.*, e.name AS event_name FROM shop_wishes w
+				   LEFT JOIN events e ON e.id = w.event_id
+				  ORDER BY w.created_at DESC`,
+			)
 			.all() as {
+			event_id: string | null;
+			event_name: string | null;
 			id: string;
 			name: string;
 			class_name: string;
@@ -76,6 +115,8 @@ export function listShopWishes(): ShopWish[] {
 		serialNumber: row.serial_number,
 		date: row.date,
 		createdAt: row.created_at,
+		eventId: row.event_id ?? "",
+		eventName: row.event_name ?? "",
 	}));
 }
 
@@ -93,8 +134,9 @@ export function addShopWish(wish: WishDetails) {
 		.get({ name: wish.name, since });
 	if (repeat) return false;
 	db.query(
-		`INSERT INTO shop_wishes (id, name, company, serial_number, date, created_at)
-		 VALUES ($id, $name, $company, $serialNumber, $date, $now)`,
+		`INSERT INTO shop_wishes (id, name, company, serial_number, date, created_at, event_id)
+		 VALUES ($id, $name, $company, $serialNumber, $date, $now,
+		   (SELECT id FROM events WHERE status = 'current'))`,
 	).run({
 		id: crypto.randomUUID(),
 		name: wish.name,

@@ -19,6 +19,7 @@ import { editorCrumbs, field } from "~/lib/crumbs";
 import { isCalendarDate, tidyDates } from "~/lib/delivery-dates";
 import {
 	EVENT_DELIVERY_DATES_MAX,
+	EVENT_MAX_ORDERS_LIMIT,
 	EVENT_STATUS_KEYS,
 	EVENT_STATUSES,
 	type EventStatus,
@@ -66,7 +67,12 @@ function EventEditor() {
 		deliveryDates: loaded()?.deliveryDates ?? ([] as string[]),
 		status: (loaded()?.status ?? "upcoming") as EventStatus,
 		notes: loaded()?.notes ?? "",
+		maxOrders:
+			loaded()?.maxOrders === null || loaded()?.maxOrders === undefined
+				? ""
+				: String(loaded()?.maxOrders),
 	});
+	const orders = () => loaded()?.orders ?? 0;
 	const [adding, setAdding] = createSignal("");
 	const [saving, setSaving] = createSignal(false);
 
@@ -97,6 +103,7 @@ function EventEditor() {
 						deliveryDates: draft.deliveryDates,
 						status: draft.status,
 						notes: draft.notes,
+						maxOrders: draft.maxOrders.trim() || null,
 					},
 				},
 			});
@@ -155,7 +162,7 @@ function EventEditor() {
 
 				<SettingsSection
 					title="Ordering"
-					description="The days online ordering runs for this event. For now, open and close the shop yourself on Shop."
+					description="The days online ordering runs for this event."
 				>
 					<SettingsRow label="Opens" for="event-open">
 						<input
@@ -182,6 +189,47 @@ function EventEditor() {
 							required
 							class={adminInput}
 						/>
+					</SettingsRow>
+				</SettingsSection>
+
+				<SettingsSection
+					title="Most orders"
+					description="While this event is current, the shop takes orders until it has this many, then shows it’s fully booked. Cancelled and test orders don’t count."
+				>
+					<SettingsRow
+						label="Most orders"
+						for="event-max-orders"
+						description={
+							isNew()
+								? "Leave empty for no limit."
+								: `${orders()} ${orders() === 1 ? "order" : "orders"} so far. Leave empty for no limit.`
+						}
+					>
+						<input
+							id="event-max-orders"
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={EVENT_MAX_ORDERS_LIMIT}
+							step={1}
+							aria-describedby="event-max-orders-hint"
+							value={draft.maxOrders}
+							onInput={(e) => setDraft("maxOrders", e.currentTarget.value)}
+							placeholder="No limit"
+							class={adminInput}
+						/>
+						<Show
+							when={
+								!isNew() &&
+								draft.maxOrders.trim() &&
+								Number(draft.maxOrders) <= orders()
+							}
+						>
+							<p class="mt-1.5 text-sm text-warning-foreground">
+								That’s no more than the orders it has, so it would be fully
+								booked while current.
+							</p>
+						</Show>
 					</SettingsRow>
 				</SettingsSection>
 
@@ -253,7 +301,7 @@ function EventEditor() {
 
 				<SettingsSection
 					title="Status"
-					description="Where the event is. Only one event can be current."
+					description="Where the event is. Only one event can be current, and it runs the shop: with none current, the shop is view only."
 				>
 					<fieldset>
 						<legend class="sr-only">Status</legend>

@@ -9,6 +9,7 @@ import {
 	type WishField,
 } from "~/lib/shop-status";
 import { requireOwner, requireStaff } from "./admin-auth";
+import { currentEvent, eventOrderCount } from "./events-repo";
 import {
 	addShopWish,
 	deleteShopWish,
@@ -26,15 +27,30 @@ export const listShopWishesFn = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-/** Admin → Shop: how it runs, its closed notice, and the names left. */
+/** Admin → Shop: how it runs (from the current event), and the names left. */
 export const getShopAdminFn = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
-		return { status: getShopStatus(), wishes: listShopWishes() };
+		const event = currentEvent();
+		return {
+			status: getShopStatus(),
+			wishes: listShopWishes(),
+			event: event
+				? {
+						id: event.id,
+						name: event.name,
+						maxOrders: event.maxOrders,
+						orders: eventOrderCount(event.id),
+					}
+				: null,
+		};
 	},
 );
 
-/** Opening, closing or making the shop view only is the owner's call. */
+/**
+ * The fully booked message is the owner's to change. The mode is kept as
+ * sent, but the shop follows the events whatever it says.
+ */
 export const saveShopStatusFn = createServerFn({ method: "POST" })
 	.validator((input: unknown): ShopStatus => {
 		const source = asRecord(input);
@@ -89,7 +105,8 @@ export const addShopWishFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<WishResult> => {
-		const checked = checkWish(data);
+		const status = getShopStatus();
+		const checked = checkWish(data, status.days);
 		if (!checked.ok)
 			return {
 				ok: false,
@@ -99,7 +116,7 @@ export const addShopWishFn = createServerFn({ method: "POST" })
 		const { wish } = checked;
 		// Looks fine to a bot, but nothing is kept.
 		if (data.website) return { ok: true, name: wish.name };
-		const { mode } = getShopStatus();
+		const { mode } = status;
 		if (mode !== "closed")
 			return {
 				ok: false,

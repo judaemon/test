@@ -20,6 +20,7 @@ import {
 	wrapperIdForName,
 } from "./bouquet-tables";
 import { ordersToEvent } from "./migrations/orders-to-event";
+import { wishesToEvent } from "./migrations/wishes-to-event";
 import { backfillRecipeVersions, RECIPE_VERSIONS_SQL } from "./recipe-versions";
 import { seedBouquets, seedPaymentAccounts } from "./seed-data";
 
@@ -906,6 +907,8 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	`,
 	// v64: orders belong to an event; Battalion Hop 2026's days put right.
 	ordersToEvent,
+	// v65: events get a most-orders limit; names left belong to an event.
+	wishesToEvent,
 ];
 
 declare global {

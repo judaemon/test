@@ -27,9 +27,9 @@ beforeAll(async () => {
 describe("shop status", () => {
 	test("statuses saved before view only keep their open or closed", () => {
 		saveRaw({ closed: true, heading: "Full", message: "Thanks" });
-		expect(repo.getShopStatus().mode).toBe("closed");
+		expect(repo.getSavedShopStatus().mode).toBe("closed");
 		saveRaw({ closed: false, heading: "Full", message: "Thanks" });
-		expect(repo.getShopStatus().mode).toBe("open");
+		expect(repo.getSavedShopStatus().mode).toBe("open");
 	});
 	test("view only is kept", () => {
 		const saved = repo.saveShopStatus({
@@ -38,10 +38,10 @@ describe("shop status", () => {
 			message: "Thanks",
 		});
 		expect(saved.mode).toBe("view");
-		expect(repo.getShopStatus().mode).toBe("view");
+		expect(repo.getSavedShopStatus().mode).toBe("view");
 	});
 	test("an unknown mode reads as open", () => {
 		saveRaw({ mode: "nope", heading: "Full", message: "Thanks" });
-		expect(repo.getShopStatus().mode).toBe("open");
+		expect(repo.getSavedShopStatus().mode).toBe("open");
 	});
 });

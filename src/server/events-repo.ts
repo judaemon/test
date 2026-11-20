@@ -13,6 +13,7 @@ interface EventRow {
 	delivery_dates: string;
 	status: string;
 	notes: string;
+	max_orders: number | null;
 }
 
 function parseDates(value: string): string[] {
@@ -34,6 +35,7 @@ const toEvent = (row: EventRow): ShopEvent => ({
 	deliveryDates: parseDates(row.delivery_dates),
 	status: isEventStatus(row.status) ? row.status : "upcoming",
 	notes: row.notes,
+	maxOrders: row.max_orders ?? null,
 });
 
 export function listEvents(): ShopEvent[] {
@@ -78,6 +80,7 @@ export function saveEvent(id: string | null, input: EventInput) {
 		deliveryDates: JSON.stringify(tidyDates(input.deliveryDates)),
 		status: input.status,
 		notes: input.notes,
+		maxOrders: input.maxOrders,
 		now: nowIso(),
 	};
 	if (id) {
@@ -85,7 +88,7 @@ export function saveEvent(id: string | null, input: EventInput) {
 			.query(
 				`UPDATE events SET name = $name, orders_open_on = $ordersOpenOn,
 				   orders_close_on = $ordersCloseOn, delivery_dates = $deliveryDates,
-				   status = $status, notes = $notes, updated_at = $now
+				   status = $status, notes = $notes, max_orders = $maxOrders, updated_at = $now
 				 WHERE id = $id`,
 			)
 			.run({ id, ...params });
@@ -95,9 +98,9 @@ export function saveEvent(id: string | null, input: EventInput) {
 	const newId = `evt-${crypto.randomUUID().slice(0, 8)}`;
 	db.query(
 		`INSERT INTO events (id, name, orders_open_on, orders_close_on, delivery_dates,
-		   status, notes, created_at, updated_at)
+		   status, notes, max_orders, created_at, updated_at)
 		 VALUES ($id, $name, $ordersOpenOn, $ordersCloseOn, $deliveryDates,
-		   $status, $notes, $now, $now)`,
+		   $status, $notes, $maxOrders, $now, $now)`,
 	).run({ id: newId, ...params });
 	return newId;
 }
@@ -124,4 +127,24 @@ export function setEventDeliveryDates(id: string, dates: readonly string[]) {
 			"UPDATE events SET delivery_dates = $dates, updated_at = $now WHERE id = $id",
 		)
 		.run({ id, dates: JSON.stringify(tidyDates(dates)), now: nowIso() });
+}
+
+/** Orders that count toward an event's most: not cancelled, not tests. */
+export function eventOrderCount(id: string): number {
+	const { n } = getDb()
+		.query(
+			"SELECT COUNT(*) AS n FROM orders WHERE event_id = $id AND stage != 'cancelled' AND is_test = 0",
+		)
+		.get({ id }) as { n: number };
+	return n;
+}
+
+/** Each event's counted orders, by id. */
+export function eventOrderCounts(): Record<string, number> {
+	const rows = getDb()
+		.query(
+			"SELECT event_id AS id, COUNT(*) AS n FROM orders WHERE event_id IS NOT NULL AND stage != 'cancelled' AND is_test = 0 GROUP BY event_id",
+		)
+		.all() as { id: string; n: number }[];
+	return Object.fromEntries(rows.map((row) => [row.id, row.n]));
 }

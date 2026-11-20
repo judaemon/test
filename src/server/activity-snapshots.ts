@@ -105,6 +105,11 @@ export function eventSnapshot(
 		["ordersCloseOn", "Ordering closes", event.ordersCloseOn],
 		["deliveryDates", "Delivery days", event.deliveryDates.join(", ")],
 		["status", "Status", EVENT_STATUSES[event.status].label],
+		[
+			"maxOrders",
+			"Most orders",
+			event.maxOrders === null ? "No limit" : String(event.maxOrders),
+		],
 		["notes", "Notes", event.notes],
 	]);
 }

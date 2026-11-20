@@ -39,7 +39,7 @@ function EventsPage() {
 		<div class="mx-auto max-w-4xl pb-16">
 			<PageHeader
 				title="Events"
-				description="Each academy event the shop takes orders for: when ordering opens and closes, and the days bouquets are delivered."
+				description="Each academy event the shop takes orders for. The current one runs the shop: it takes orders until it has its most, then it’s fully booked. With none current, the shop is view only."
 				actions={
 					<Link
 						to="/admin/events/$eventId"
@@ -115,6 +115,24 @@ function EventsPage() {
 														<dt class="text-petal-900/55">Delivery</dt>
 														<dd class="text-petal-900/80">
 															{deliveryDays(event.deliveryDates)}
+														</dd>
+														<dt class="text-petal-900/55">Orders</dt>
+														<dd class="tabular-nums text-petal-900/80">
+															{event.maxOrders === null
+																? `${event.orders}, no limit`
+																: `${event.orders} of ${event.maxOrders}`}
+															<Show
+																when={
+																	event.status === "current" &&
+																	event.maxOrders !== null &&
+																	event.orders >= event.maxOrders
+																}
+															>
+																{" "}
+																<span class="font-medium text-petal-700">
+																	· Fully booked
+																</span>
+															</Show>
 														</dd>
 													</dl>
 												</div>

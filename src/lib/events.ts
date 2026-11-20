@@ -34,7 +34,15 @@ export interface ShopEvent {
 	deliveryDates: string[];
 	status: EventStatus;
 	notes: string;
+	/**
+	 * Once this many orders are in (cancelled and test ones aside), the shop
+	 * is fully booked. Null: no limit.
+	 */
+	maxOrders: number | null;
 }
+
+/** The highest "most orders" an event can be given. */
+export const EVENT_MAX_ORDERS_LIMIT = 100_000;
 
 const year = (date: string) => date.slice(0, 4);
 

@@ -16,6 +16,22 @@ export interface ShopStatus {
 	mode: ShopMode;
 	heading: string;
 	message: string;
+	/** The current event's delivery days, offered on the fully booked form. */
+	days?: string[];
+}
+
+/**
+ * How the shop runs follows the events: with no current event it's view
+ * only; with one it takes orders until it has its most orders, then it's
+ * fully booked. Cancelled and test orders don't count.
+ */
+export function shopModeForEvent(
+	event: { maxOrders: number | null } | null,
+	orders: number,
+): ShopMode {
+	if (!event) return "view";
+	if (event.maxOrders !== null && orders >= event.maxOrders) return "closed";
+	return "open";
 }
 
 /** Whether new orders are taken. */
@@ -73,7 +89,7 @@ export function cleanWishName(raw: unknown) {
 	return name;
 }
 
-/** The event days someone can say they'd come for a bouquet. */
+/** The days to offer when there's no current event to take them from. */
 export const WISH_DATES = ["2026-11-14", "2026-11-15"] as const;
 
 /** What someone leaves on the extra bouquets list. */
@@ -83,7 +99,7 @@ export interface WishDetails {
 	company: string;
 	/** A cadet's serial number, digits only; empty for civilians. */
 	serialNumber: string;
-	/** One of `WISH_DATES`. */
+	/** One of the event's delivery days. */
 	date: string;
 }
 
@@ -95,6 +111,8 @@ export type WishField = keyof WishDetails;
  */
 export function checkWish(
 	raw: unknown,
+	/** The days on offer: the current event's delivery days. */
+	days: readonly string[] = WISH_DATES,
 ):
 	| { ok: true; wish: WishDetails }
 	| { ok: false; errors: Partial<Record<WishField, string>> } {
@@ -122,7 +140,7 @@ export function checkWish(
 	}
 
 	const date = str("date");
-	if (!(WISH_DATES as readonly string[]).includes(date))
+	if (!days.includes(date))
 		errors.date = "Choose the day you’ll be there.";
 
 	if (Object.keys(errors).length || !name) return { ok: false, errors };

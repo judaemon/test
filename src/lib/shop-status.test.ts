@@ -5,6 +5,7 @@ import {
 	cleanWishName,
 	isOrderingPath,
 	isShoppingPath,
+	shopModeForEvent,
 } from "./shop-status";
 
 describe("isOrderingPath", () => {
@@ -105,5 +106,27 @@ describe("checkWish", () => {
 			"company",
 			"name",
 		]);
+	});
+});
+
+describe("shopModeForEvent", () => {
+	test("no current event: view only", () => {
+		expect(shopModeForEvent(null, 0)).toBe("view");
+	});
+	test("a current event takes orders, with or without a most", () => {
+		expect(shopModeForEvent({ maxOrders: null }, 5000)).toBe("open");
+		expect(shopModeForEvent({ maxOrders: 300 }, 299)).toBe("open");
+	});
+	test("at its most orders, it's fully booked", () => {
+		expect(shopModeForEvent({ maxOrders: 300 }, 300)).toBe("closed");
+		expect(shopModeForEvent({ maxOrders: 300 }, 301)).toBe("closed");
+	});
+});
+
+describe("checkWish days", () => {
+	test("takes the event's days when given", () => {
+		const wish = { name: "Ana Cruz", company: "Civilian", date: "2027-03-06" };
+		expect(checkWish(wish, ["2027-03-06"]).ok).toBe(true);
+		expect(checkWish(wish).ok).toBe(false);
 	});
 });

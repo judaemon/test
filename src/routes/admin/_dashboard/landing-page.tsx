@@ -255,6 +255,7 @@ function LandingPage() {
 						</p>
 						<div class="mt-4 overflow-hidden rounded-2xl border border-petal-100 shadow-[0_12px_32px_-20px_rgb(92_31_49/0.35)]">
 							<ShopClosed
+								days={initial().status.days}
 								heading={heading() || DEFAULT_SHOP_STATUS.heading}
 								message={message() || DEFAULT_SHOP_STATUS.message}
 								preview

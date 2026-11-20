@@ -114,7 +114,11 @@ function ShopGate() {
 			<Match
 				when={shop().mode === "closed" && isShoppingPath(location().pathname)}
 			>
-				<ShopClosed heading={shop().heading} message={shop().message} />
+				<ShopClosed
+					heading={shop().heading}
+					message={shop().message}
+					days={shop().days}
+				/>
 			</Match>
 			<Match
 				when={shop().mode === "view" && isOrderingPath(location().pathname)}

@@ -31,8 +31,11 @@ import { addShopWishFn } from "~/server/shop-status";
 export function ShopClosed(props: {
 	heading: string;
 	message: string;
+	/** The current event's delivery days, to say which one they'll come. */
+	days?: readonly string[];
 	preview?: boolean;
 }) {
+	const days = () => (props.days?.length ? props.days : WISH_DATES);
 	const [name, setName] = createSignal("");
 	const [company, setCompany] = createSignal("");
 	const [serialNumber, setSerialNumber] = createSignal("");
@@ -58,7 +61,7 @@ export function ShopClosed(props: {
 			serialNumber: serialNumber(),
 			date: date(),
 		};
-		const checked = checkWish(details);
+		const checked = checkWish(details, days());
 		if (!checked.ok) {
 			setErrors(checked.errors);
 			return;
@@ -318,7 +321,7 @@ export function ShopClosed(props: {
 										Which day will you be there?
 									</legend>
 									<div class="grid grid-cols-2 gap-2">
-										<For each={WISH_DATES}>
+										<For each={days()}>
 											{(day) => (
 												<label
 													class={cn(

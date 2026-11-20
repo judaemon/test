@@ -39,12 +39,11 @@ import { formatSerialNumber } from "~/lib/checkout";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { formatLogTime } from "~/lib/order-log";
 import { joinList, parseList } from "~/lib/shop-filters";
-import { WISH_DATES } from "~/lib/shop-status";
 import { deleteShopWishFn, listShopWishesFn } from "~/server/shop-status";
 import type { ShopWish } from "~/server/shop-status-repo";
 
 const PAGE_SIZES = [20, 50, 100] as const;
-const SORTABLE = ["name", "company", "date", "left"] as const;
+const SORTABLE = ["name", "company", "date", "event", "left"] as const;
 const DEFAULT_SORT: SortingState = [{ id: "left", desc: true }];
 /** Older entries have only a name; they filter as "No day given". */
 const NO_DAY = "none";
@@ -53,6 +52,8 @@ interface InterestedSearch {
 	q?: string;
 	/** Delivery days, or "none". */
 	day?: string;
+	/** Event ids, or "none". */
+	event?: string;
 	sort?: string;
 	page?: number;
 	perPage?: number;
@@ -62,6 +63,7 @@ export const Route = createFileRoute("/admin/_dashboard/interested")({
 	validateSearch: (search: Record<string, unknown>): InterestedSearch => ({
 		q: textParam(search, "q"),
 		day: textParam(search, "day"),
+		event: textParam(search, "event"),
 		sort: sortParam(search, SORTABLE),
 		page: pageParam(search),
 		perPage: PAGE_SIZES.find((size) => size === Number(search.perPage)),
@@ -74,6 +76,10 @@ export const Route = createFileRoute("/admin/_dashboard/interested")({
 const fitsDay = (wish: ShopWish, chosen: string[]) =>
 	!chosen.length ||
 	chosen.some((key) => (key === NO_DAY ? !wish.date : wish.date === key));
+
+const fitsEvent = (wish: ShopWish, chosen: string[]) =>
+	!chosen.length ||
+	chosen.some((key) => (key === NO_DAY ? !wish.eventId : wish.eventId === key));
 
 const fitsQuery = (wish: ShopWish, query: string) =>
 	fitsWords(
@@ -139,6 +145,7 @@ function InterestedPage() {
 		pageSizes: PAGE_SIZES,
 	});
 	const daysChosen = () => parseList(search().day);
+	const eventsChosen = () => parseList(search().event);
 
 	const remove = async (wish: ShopWish) => {
 		try {
@@ -228,6 +235,21 @@ function InterestedPage() {
 				</Show>
 			),
 		}),
+		column.accessor("eventName", {
+			id: "event",
+			meta: { label: "Event" },
+			sortFn: "text",
+			header: ({ column }) => <SortHeader column={column}>Event</SortHeader>,
+			filterFn: (row, _id, chosen: string[]) => fitsEvent(row.original, chosen),
+			cell: ({ getValue }) => (
+				<Show
+					when={getValue()}
+					fallback={<span class="text-petal-900/40">—</span>}
+				>
+					{getValue()}
+				</Show>
+			),
+		}),
 		column.accessor("createdAt", {
 			id: "left",
 			meta: { label: "Left on" },
@@ -276,7 +298,12 @@ function InterestedPage() {
 				return address.pagination();
 			},
 			get columnFilters(): ColumnFiltersState {
-				return daysChosen().length ? [{ id: "date", value: daysChosen() }] : [];
+				return [
+					...(daysChosen().length ? [{ id: "date", value: daysChosen() }] : []),
+					...(eventsChosen().length
+						? [{ id: "event", value: eventsChosen() }]
+						: []),
+				];
 			},
 			get globalFilter() {
 				return search().q ?? "";
@@ -305,21 +332,63 @@ function InterestedPage() {
 			setSearch({ page: count > 1 ? count : undefined }, true);
 	});
 
-	const dayCount = (key: string) =>
+	/** How many names a choice would show, given the other filters. */
+	const countWhere = (
+		fits: (wish: ShopWish) => boolean,
+		skip: "day" | "event",
+	) =>
 		wishes().filter(
-			(wish) => fitsQuery(wish, search().q ?? "") && fitsDay(wish, [key]),
+			(wish) =>
+				fitsQuery(wish, search().q ?? "") &&
+				(skip === "day" || fitsDay(wish, daysChosen())) &&
+				(skip === "event" || fitsEvent(wish, eventsChosen())) &&
+				fits(wish),
 		).length;
-	const dayOptions = () => [
-		...WISH_DATES.map((day) => ({
-			key: day,
-			label: shortDeliveryDate(day),
-			count: dayCount(day),
-		})),
-		...(wishes().some((wish) => !wish.date)
-			? [{ key: NO_DAY, label: "No day given", count: dayCount(NO_DAY) }]
-			: []),
-	];
-	const filtered = () => !!(search().q || search().day);
+	// The days and events the names were actually left for.
+	const dayOptions = () => {
+		const days = [...new Set(wishes().map((wish) => wish.date))]
+			.filter(Boolean)
+			.sort();
+		return [
+			...days.map((day) => ({
+				key: day,
+				label: shortDeliveryDate(day),
+				count: countWhere((wish) => wish.date === day, "day"),
+			})),
+			...(wishes().some((wish) => !wish.date)
+				? [
+						{
+							key: NO_DAY,
+							label: "No day given",
+							count: countWhere((wish) => !wish.date, "day"),
+						},
+					]
+				: []),
+		];
+	};
+	const eventOptions = () => {
+		const events = new Map<string, string>();
+		for (const wish of wishes())
+			if (wish.eventId)
+				events.set(wish.eventId, wish.eventName || "Deleted event");
+		return [
+			...[...events].map(([key, label]) => ({
+				key,
+				label,
+				count: countWhere((wish) => wish.eventId === key, "event"),
+			})),
+			...(wishes().some((wish) => !wish.eventId)
+				? [
+						{
+							key: NO_DAY,
+							label: "No event",
+							count: countWhere((wish) => !wish.eventId, "event"),
+						},
+					]
+				: []),
+		];
+	};
+	const filtered = () => !!(search().q || search().day || search().event);
 
 	return (
 		<div class="mx-auto flex h-[calc(100dvh-6.5rem)] min-h-[32rem] max-w-6xl flex-col lg:h-[calc(100dvh-8rem)]">
@@ -358,6 +427,12 @@ function InterestedPage() {
 					onChange={(q) => setSearch({ q })}
 				/>
 				<FacetFilter
+					label="Event"
+					options={eventOptions()}
+					selected={eventsChosen()}
+					onChange={(chosen) => setSearch({ event: joinList(chosen) })}
+				/>
+				<FacetFilter
 					label="Day"
 					options={dayOptions()}
 					selected={daysChosen()}
@@ -365,7 +440,9 @@ function InterestedPage() {
 				/>
 				<Show when={filtered()}>
 					<ResetFilters
-						onClick={() => setSearch({ q: undefined, day: undefined })}
+						onClick={() =>
+							setSearch({ q: undefined, day: undefined, event: undefined })
+						}
 					/>
 				</Show>
 				<div class="ml-auto">
