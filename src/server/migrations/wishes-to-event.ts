@@ -28,7 +28,7 @@ export function wishesToEvent(db: Database) {
 			.query("SELECT id FROM events WHERE status = 'current' LIMIT 1")
 			.get() as { id: string } | null);
 	if (!event) return;
-	db.query(
-		"UPDATE shop_wishes SET event_id = $id WHERE event_id IS NULL",
-	).run({ id: event.id });
+	db.query("UPDATE shop_wishes SET event_id = $id WHERE event_id IS NULL").run({
+		id: event.id,
+	});
 }

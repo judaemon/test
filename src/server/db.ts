@@ -20,6 +20,7 @@ import {
 	wrapperIdForName,
 } from "./bouquet-tables";
 import { ordersToEvent } from "./migrations/orders-to-event";
+import { testsToCancelled } from "./migrations/tests-to-cancelled";
 import { wishesToEvent } from "./migrations/wishes-to-event";
 import { backfillRecipeVersions, RECIPE_VERSIONS_SQL } from "./recipe-versions";
 import { seedBouquets, seedPaymentAccounts } from "./seed-data";
@@ -909,6 +910,8 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	ordersToEvent,
 	// v65: events get a most-orders limit; names left belong to an event.
 	wishesToEvent,
+	// v66: test orders become cancelled orders.
+	testsToCancelled,
 ];
 
 declare global {
