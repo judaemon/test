@@ -1,25 +1,24 @@
-import { createRouter as createTanStackRouter } from '@tanstack/solid-router'
-import { routeTree } from './routeTree.gen'
-
-import { getContext } from './integrations/tanstack-query/provider'
+import { createRouter as createTanStackRouter } from "@tanstack/solid-router";
+import { getContext } from "./integrations/tanstack-query/provider";
+import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
-  const router = createTanStackRouter({
-    routeTree,
+	const router = createTanStackRouter({
+		routeTree,
 
-    context: getContext(),
+		context: getContext(),
 
-    scrollRestoration: true,
-    // Pages start loading when a link is hovered or touched, and what's
-    // loaded is kept for the click that follows (30s, the router's default).
-    defaultPreload: 'intent',
-  })
+		scrollRestoration: true,
+		// Pages start loading when a link is hovered or touched, and what's
+		// loaded is kept for the click that follows (30s, the router's default).
+		defaultPreload: "intent",
+	});
 
-  return router
+	return router;
 }
 
-declare module '@tanstack/solid-router' {
-  interface Register {
-    router: ReturnType<typeof getRouter>
-  }
+declare module "@tanstack/solid-router" {
+	interface Register {
+		router: ReturnType<typeof getRouter>;
+	}
 }
