@@ -14,7 +14,7 @@ export const ORDER_PROMO_TERMS_MAX = 600;
 /**
  * A reward for ordering again, counted by serial number (cadets only, as
  * civilians have none), e.g. ₱500 off every 10th order. Set up in Admin →
- * Sales. Cancelled and test orders don't count.
+ * Sales. Cancelled orders don't count.
  */
 export interface OrderPromo extends ItemScope, MethodScope {
 	id: string;

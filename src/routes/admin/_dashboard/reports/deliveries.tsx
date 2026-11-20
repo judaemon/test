@@ -102,7 +102,7 @@ function Deliveries() {
 				sum + order.lines.reduce((n, line) => n + line.quantity, 0),
 			0,
 		);
-	/** The same totals as the Orders page (real orders, not cancelled), and what's left out. */
+	/** The same totals as the Orders page (not cancelled), and what's left out. */
 	const tally = createMemo(() => {
 		const all = report().orders;
 		const toDeliver = all.filter((order) => !isCancelled(order));
@@ -110,7 +110,6 @@ function Deliveries() {
 		return {
 			toDeliver: { orders: toDeliver.length, items: itemCount(toDeliver) },
 			cancelled: { orders: cancelled.length, items: itemCount(cancelled) },
-			test: report().testOrders,
 		};
 	});
 
@@ -405,7 +404,7 @@ function Deliveries() {
 					order number. Give orders their day in Orders, in the Delivery date
 					column.
 				</p>
-				{/* Squares with Orders: its "Total ordered" leaves out cancelled and test orders. */}
+				{/* Squares with Orders: its "Total ordered" leaves out cancelled orders. */}
 				<div class="mb-4 rounded-xl border border-petal-100 bg-petal-50/60 px-3.5 py-2.5 text-sm text-petal-900/75">
 					<p>
 						<strong class="font-semibold text-petal-900 tabular-nums">
@@ -424,12 +423,6 @@ function Deliveries() {
 					<p class="tabular-nums">
 						Not counted: {tally().cancelled.orders} cancelled (
 						{tally().cancelled.items} items)
-						<Show when={tally().test.orders}>
-							{" "}
-							· {tally().test.orders} test{" "}
-							{tally().test.orders === 1 ? "order" : "orders"} (
-							{tally().test.items} items)
-						</Show>
 					</p>
 				</div>
 				<div class="mb-3 flex flex-wrap items-center gap-x-2">

@@ -533,7 +533,7 @@ function OrderPromosSection(props: { promos: OrderPromo[]; options: Options }) {
 					<p class="mt-1 text-sm text-petal-900/65">
 						Rewards for ordering again, counted by serial number, so cadets
 						only. Checkout takes the discount off the order’s total, on top of
-						any sale. Cancelled and test orders don’t count.
+						any sale. Cancelled orders don’t count.
 					</p>
 				</div>
 				<Show when={editing() !== "new"}>

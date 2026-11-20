@@ -194,7 +194,7 @@ function EventEditor() {
 
 				<SettingsSection
 					title="Most orders"
-					description="While this event is current, the shop takes orders until it has this many, then shows it’s fully booked. Cancelled and test orders don’t count."
+					description="While this event is current, the shop takes orders until it has this many, then shows it’s fully booked. Cancelled orders don’t count."
 				>
 					<SettingsRow
 						label="Most orders"

@@ -56,8 +56,6 @@ import {
 	isFiltering,
 	type OrdersSearch,
 	rowsSearch,
-	typeKeys,
-	typeParam,
 	validateOrdersSearch,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
@@ -69,7 +67,6 @@ import {
 	assignFloristFn,
 	assignFloristMatchingFn,
 	listAdminOrderRows,
-	markOrderTest,
 	moveOrder,
 	type OrderActionResult,
 	reviewOrderPayment,
@@ -325,25 +322,6 @@ function OrdersPage() {
 	};
 
 	const router = useRouter();
-	const [marking, setMarking] = createSignal<string | null>(null);
-	const markTest = async (id: string, isTest: boolean) => {
-		if (marking()) return;
-		setMarking(id);
-		try {
-			const result = await markOrderTest({ data: { id, isTest } });
-			if (!result.ok) throw new Error(result.message);
-			toastSuccess(
-				isTest
-					? "Marked as a test. It won’t count in reports."
-					: "Now a real order again.",
-			);
-			await router.invalidate();
-		} catch (error) {
-			toastError(error);
-		} finally {
-			setMarking(null);
-		}
-	};
 
 	// Ticked rows, to give to a florist together. A new view starts afresh.
 	const [picked, setPicked] = createSignal<Map<string, BouquetPick>>(new Map());
@@ -682,18 +660,9 @@ function OrdersPage() {
 									<FacetFilter
 										label={facet.label}
 										options={facetOptions(facet.id)}
-										selected={
-											facet.id === "type"
-												? typeKeys(search().type)
-												: parseList(search()[facet.id])
-										}
+										selected={parseList(search()[facet.id])}
 										onChange={(chosen) =>
-											setSearch({
-												[facet.id]:
-													facet.id === "type"
-														? typeParam(chosen)
-														: joinList(chosen),
-											})
+											setSearch({ [facet.id]: joinList(chosen) })
 										}
 									/>
 								</Show>
@@ -914,10 +883,7 @@ function OrdersPage() {
 													params: { orderId: order.id },
 												});
 											}}
-											class={cn(
-												"cursor-pointer border-b border-black/5 align-top transition-[filter] hover:brightness-[0.95]",
-												order.isTest && "opacity-60",
-											)}
+											class="cursor-pointer border-b border-black/5 align-top transition-[filter] hover:brightness-[0.95]"
 											style={{
 												"background-color": color ? `${color}2e` : "#ffffff",
 											}}
@@ -955,11 +921,6 @@ function OrdersPage() {
 														#{order.number}
 													</Link>
 												</span>
-												<Show when={order.isTest}>
-													<span class="ml-1.5 rounded-full bg-petal-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-														Test
-													</span>
-												</Show>
 												<p class="whitespace-nowrap text-xs text-petal-900/55">
 													{new Date(order.createdAt).toLocaleString("en-PH", {
 														timeZone: "Asia/Manila",
@@ -993,14 +954,6 @@ function OrdersPage() {
 																▾
 															</span>
 														</summary>
-														<button
-															type="button"
-															disabled={marking() === order.id}
-															onClick={() => markTest(order.id, !order.isTest)}
-															class="mt-1 whitespace-nowrap py-1 text-xs font-medium text-petal-700 underline underline-offset-2 hover:text-petal-900 disabled:opacity-50"
-														>
-															{order.isTest ? "Not a test" : "Mark as test"}
-														</button>
 														<Show
 															when={
 																order.stage === "new" ||

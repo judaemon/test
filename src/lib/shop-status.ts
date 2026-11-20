@@ -23,7 +23,7 @@ export interface ShopStatus {
 /**
  * How the shop runs follows the events: with no current event it's view
  * only; with one it takes orders until it has its most orders, then it's
- * fully booked. Cancelled and test orders don't count.
+ * fully booked. Cancelled orders don't count.
  */
 export function shopModeForEvent(
 	event: { maxOrders: number | null } | null,
@@ -140,8 +140,7 @@ export function checkWish(
 	}
 
 	const date = str("date");
-	if (!days.includes(date))
-		errors.date = "Choose the day you’ll be there.";
+	if (!days.includes(date)) errors.date = "Choose the day you’ll be there.";
 
 	if (Object.keys(errors).length || !name) return { ok: false, errors };
 	return { ok: true, wish: { name, company, serialNumber, date } };

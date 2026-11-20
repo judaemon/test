@@ -55,9 +55,6 @@ export function OrderReceipt(props: { order: Order; width: number }) {
 			<p class="text-center text-[1.1em] font-bold tracking-widest">ORAIA</p>
 			<p class="text-center text-[1.5em] font-bold">Order #{order().number}</p>
 			<p class="text-center">{placedAt(order().createdAt)}</p>
-			<Show when={order().isTest}>
-				<p class="text-center font-bold">** TEST ORDER **</p>
-			</Show>
 			<Rule />
 			<p class="font-bold">{details().fullName}</p>
 			<Show when={cadet()}>

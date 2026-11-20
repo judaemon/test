@@ -179,8 +179,6 @@ export interface Order extends PricedCart {
 	cancelledBouquets: CancelledBouquet[];
 	/** Each time staff changed the payment method, oldest first. */
 	paymentMethodChanges: PaymentMethodChange[];
-	/** Marked by staff: left out of reports, and holds no stock. */
-	isTest: boolean;
 }
 
 /** A customer's view of their own order: no staff-only details or file names. */
@@ -190,7 +188,6 @@ export interface CustomerOrder
 		| "payment"
 		| "delivery"
 		| "customerId"
-		| "isTest"
 		| "cancelledBy"
 		| "cancelProof"
 		| "cancelledBouquets"

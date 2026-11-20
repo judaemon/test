@@ -69,7 +69,6 @@ import {
 	setDeliveryDate,
 	setDeliveryPhoto,
 	setOrderStage,
-	setOrderTest,
 	setReferenceNumber,
 	setRider,
 	setWrapperStatus,
@@ -281,21 +280,6 @@ export const changePaymentMethodFn = createServerFn({ method: "POST" })
 				},
 				staffActor(user),
 			),
-		);
-	});
-
-export const markOrderTest = createServerFn({ method: "POST" })
-	.validator((input: unknown) => {
-		const source = asRecord(input);
-		return {
-			id: text(source, "id", { max: 64 }),
-			isTest: source.isTest === true,
-		};
-	})
-	.handler(async ({ data }) => {
-		const user = await requireStaff();
-		return runAction(() =>
-			setOrderTest(data.id, data.isTest, staffActor(user)),
 		);
 	});
 

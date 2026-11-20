@@ -69,7 +69,7 @@ function ShopPage() {
 			<div class="grid gap-10">
 				<SettingsSection
 					title="Ordering"
-					description="Orders already placed, payments and tracking keep working in every mode. Cancelled and test orders don’t count toward an event’s most."
+					description="Orders already placed, payments and tracking keep working in every mode. Cancelled orders don’t count toward an event’s most."
 					footer={
 						<>
 							<p class="me-auto text-sm text-petal-900/70">{reason()}</p>

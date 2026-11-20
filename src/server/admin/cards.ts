@@ -26,7 +26,7 @@ export interface PrintCardsResult {
 
 /**
  * Every dedication card on active orders, with the words they have now, so
- * edits by staff or the customer are what print. Test orders are left out.
+ * edits by staff or the customer are what print.
  */
 export const listPrintCardsFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<PrintCardsResult> => {
@@ -38,7 +38,7 @@ export const listPrintCardsFn = createServerFn({ method: "GET" }).handler(
 			]),
 		);
 		const cards: PrintCard[] = [];
-		for (const order of listOrders({ limit: 100_000, test: "exclude" })) {
+		for (const order of listOrders({ limit: 100_000 })) {
 			if (order.stage === "cancelled") continue;
 			const { details } = order;
 			const buyer = details.lastName

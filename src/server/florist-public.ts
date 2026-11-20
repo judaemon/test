@@ -6,7 +6,7 @@ import { asRecord, text } from "./validate";
 
 /**
  * A florist's own page, from their private link: no sign-in, so it shows only
- * what they need to make their bouquets (no payments, emails or test orders).
+ * what they need to make their bouquets (no payments or emails).
  * A link that was turned off or replaced finds nothing.
  */
 export const getFloristWorkByToken = createServerFn({ method: "GET" })

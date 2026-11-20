@@ -56,7 +56,6 @@ import {
 	assignRider,
 	getAdminOrder,
 	listOrderLogFn,
-	markOrderTest,
 	moveOrder,
 	type OrderActionResult,
 	reviewOrderPayment,
@@ -148,13 +147,6 @@ function OrderDetail() {
 			() => moveOrder({ data: { id: order().id, stage } }),
 			`Moved to ${STAGE_LABELS[stage]}.`,
 		);
-	const markTest = (isTest: boolean) =>
-		run(
-			() => markOrderTest({ data: { id: order().id, isTest } }),
-			isTest
-				? "Marked as a test. It won’t count in reports."
-				: "Now a real order again.",
-		);
 	const review = (decision: "verified" | "rejected") =>
 		run(
 			() => reviewOrderPayment({ data: { id: order().id, status: decision } }),
@@ -183,14 +175,6 @@ function OrderDetail() {
 					},
 				)}`}
 			/>
-
-			<Show when={order().isTest}>
-				<p class="mb-5 rounded-2xl border border-petal-200 bg-petal-50 px-4 py-3 text-sm">
-					<strong class="font-semibold">Test order.</strong> It’s left out of
-					reports and holds no stock. Customers can still find it in Check your
-					order.
-				</p>
-			</Show>
 
 			<Show when={order().customerEditedAt}>
 				{(at) => (
@@ -823,14 +807,6 @@ function OrderDetail() {
 								</Link>
 							</Show>
 						</Show>
-						<button
-							type="button"
-							class={cn(adminButton.secondary, "w-full")}
-							disabled={busy()}
-							onClick={() => markTest(!order().isTest)}
-						>
-							{order().isTest ? "Not a test order" : "Mark as test order"}
-						</button>
 						<Show when={!cancelled() && order().stage !== "done"}>
 							<CancelOrderButton
 								order={order()}

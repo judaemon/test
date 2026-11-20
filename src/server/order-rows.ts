@@ -16,7 +16,6 @@ import {
 	type FacetId,
 	NONE,
 	type OrdersSearch,
-	typeKeys,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from "~/lib/payment";
 import type { PricedLine } from "~/lib/pricing";
@@ -205,11 +204,6 @@ const FIELDS: Record<
 		fixed: ["yes", "no"],
 		label: (key) => (key === "yes" ? "With card" : "No card"),
 	},
-	type: {
-		keys: ({ order }) => [order.isTest ? "test" : "real"],
-		fixed: ["real", "test"],
-		label: (key) => (key === "test" ? "Test orders" : "Real orders"),
-	},
 };
 
 /** Each arrangement's type now, and the types' names, for the filter. */
@@ -319,10 +313,7 @@ function filterOrderRows(search: OrdersSearch) {
 		);
 
 	const chosen = Object.fromEntries(
-		FACET_IDS.map((id) => [
-			id,
-			new Set(id === "type" ? typeKeys(search.type) : parseList(search[id])),
-		]),
+		FACET_IDS.map((id) => [id, new Set(parseList(search[id]))]),
 	) as Record<FacetId, Set<string>>;
 	const keys = rows.map(
 		(row) =>

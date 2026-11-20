@@ -129,11 +129,11 @@ export function setEventDeliveryDates(id: string, dates: readonly string[]) {
 		.run({ id, dates: JSON.stringify(tidyDates(dates)), now: nowIso() });
 }
 
-/** Orders that count toward an event's most: not cancelled, not tests. */
+/** Orders that count toward an event's most: not cancelled. */
 export function eventOrderCount(id: string): number {
 	const { n } = getDb()
 		.query(
-			"SELECT COUNT(*) AS n FROM orders WHERE event_id = $id AND stage != 'cancelled' AND is_test = 0",
+			"SELECT COUNT(*) AS n FROM orders WHERE event_id = $id AND stage != 'cancelled'",
 		)
 		.get({ id }) as { n: number };
 	return n;
@@ -143,7 +143,7 @@ export function eventOrderCount(id: string): number {
 export function eventOrderCounts(): Record<string, number> {
 	const rows = getDb()
 		.query(
-			"SELECT event_id AS id, COUNT(*) AS n FROM orders WHERE event_id IS NOT NULL AND stage != 'cancelled' AND is_test = 0 GROUP BY event_id",
+			"SELECT event_id AS id, COUNT(*) AS n FROM orders WHERE event_id IS NOT NULL AND stage != 'cancelled' GROUP BY event_id",
 		)
 		.all() as { id: string; n: number }[];
 	return Object.fromEntries(rows.map((row) => [row.id, row.n]));

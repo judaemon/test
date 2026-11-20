@@ -185,7 +185,7 @@ export function FloristSheet(props: {
 	work: FloristWork;
 	includeDone: boolean;
 	onIncludeDone: (on: boolean) => void;
-	/** Staff see order links and test orders. */
+	/** Staff see order links. */
 	staff?: boolean;
 	/** Above the title: a back link, say. */
 	top?: JSX.Element;
@@ -1185,11 +1185,6 @@ function BouquetCard(props: {
 							Done
 						</span>
 					</Show>
-					<Show when={b().isTest}>
-						<span class="rounded-full bg-petal-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-							Test
-						</span>
-					</Show>
 				</p>
 				<p class="text-sm">
 					<Show
@@ -1603,7 +1598,6 @@ function GroupCard(props: {
 											.filter(Boolean)
 											.join(" · ")}
 										<Show when={b.stage === "done"}> · Done</Show>
-										<Show when={b.isTest}> · Test</Show>
 									</span>
 									<Show when={props.withNotes && card()}>
 										{(c) => (
@@ -1685,11 +1679,6 @@ function ShortBouquetCard(props: {
 					<Show when={b().quantity > 1}>
 						<span class="text-xs font-semibold text-petal-900/70 print:text-[7.5pt]">
 							{b().unit + 1} of {b().quantity}
-						</span>
-					</Show>
-					<Show when={b().isTest}>
-						<span class="rounded-full bg-petal-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-							Test
 						</span>
 					</Show>
 				</p>

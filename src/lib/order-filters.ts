@@ -1,5 +1,3 @@
-import { joinList, parseList } from "~/lib/shop-filters";
-
 /**
  * The admin orders table's filters, kept in the address so a view can be
  * shared or bookmarked. Each list filter is comma-separated keys, like the
@@ -27,8 +25,6 @@ export interface OrdersSearch {
 	florist?: string;
 	/** "yes" or "no". */
 	card?: string;
-	/** "real" or "test"; missing means real orders only, "all" means both. */
-	type?: string;
 	/** Shop-local dates, YYYY-MM-DD, both ends included. */
 	from?: string;
 	to?: string;
@@ -58,7 +54,6 @@ export const FACETS = [
 	{ id: "wrapperStatus", label: "Wrapper status" },
 	{ id: "florist", label: "Florist" },
 	{ id: "card", label: "Dedication card" },
-	{ id: "type", label: "Real / test" },
 ] as const;
 export type FacetId = (typeof FACETS)[number]["id"] | "stage";
 
@@ -103,7 +98,6 @@ export function validateOrdersSearch(
 		wrapperStatus: list("wrapperStatus"),
 		florist: list("florist"),
 		card: list("card"),
-		type: list("type"),
 		from: date("from"),
 		to: date("to"),
 		q: typeof q === "string" && q.trim() ? q.trim().slice(0, 80) : undefined,
@@ -115,18 +109,6 @@ export function validateOrdersSearch(
 			? perPage
 			: undefined,
 	};
-}
-
-/** The ticked real/test choices: real orders only, until staff say otherwise. */
-export function typeKeys(type?: string) {
-	if (!type) return ["real"];
-	return type === "all" ? [] : parseList(type);
-}
-
-/** The other way round: the default stays out of the address. */
-export function typeParam(keys: string[]) {
-	if (keys.length === 1 && keys[0] === "real") return undefined;
-	return joinList(keys) ?? "all";
 }
 
 /** The search without how it's shown, for loading rows: the view doesn't change them. */

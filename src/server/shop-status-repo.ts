@@ -23,9 +23,7 @@ export function getShopStatus(): ShopStatus {
 	return {
 		...saved,
 		mode: shopModeForEvent(event, event ? eventOrderCount(event.id) : 0),
-		days: event?.deliveryDates.length
-			? event.deliveryDates
-			: [...WISH_DATES],
+		days: event?.deliveryDates.length ? event.deliveryDates : [...WISH_DATES],
 	};
 }
 

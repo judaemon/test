@@ -770,12 +770,15 @@ describe("the 10th order promo, by serial number", () => {
 		const placed = [];
 		for (let i = 0; i < 9; i++) placed.push(await orderFor(serial));
 		expect(placed.every((order) => !order.promo)).toBe(true);
-		// One cancelled and one test order: back to 7 that count.
+		// Two cancelled orders: back to 7 that count.
 		repo.cancelOrder(placed[0]?.id as string, {
 			reason: "x",
 			cancelledBy: "Staff",
 		});
-		repo.setOrderTest(placed[1]?.id as string, true);
+		repo.cancelOrder(placed[1]?.id as string, {
+			reason: "x",
+			cancelledBy: "Staff",
+		});
 		expect(promos.promoProgress(serial, TODAY).next?.remaining).toBe(2);
 		await orderFor(serial);
 		await orderFor(serial);

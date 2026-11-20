@@ -35,7 +35,7 @@ export interface ShopEvent {
 	status: EventStatus;
 	notes: string;
 	/**
-	 * Once this many orders are in (cancelled and test ones aside), the shop
+	 * Once this many orders are in (cancelled ones aside), the shop
 	 * is fully booked. Null: no limit.
 	 */
 	maxOrders: number | null;

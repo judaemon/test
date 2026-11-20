@@ -7,7 +7,7 @@ export interface ShopUser {
 	name: string;
 	email: string;
 	createdAt: string;
-	/** Orders placed while signed in, leaving out test orders. */
+	/** Orders placed while signed in. */
 	orders: number;
 	lastOrderAt: string | null;
 }
@@ -21,7 +21,7 @@ export const listShopUsers = createServerFn({ method: "GET" }).handler(
 				`SELECT u.id, u.name, u.email, u.createdAt AS createdAt,
 				        COUNT(o.id) AS orders, MAX(o.created_at) AS lastOrderAt
 				   FROM "user" u
-				   LEFT JOIN orders o ON o.customer_id = u.id AND o.is_test = 0
+				   LEFT JOIN orders o ON o.customer_id = u.id
 				  WHERE coalesce(u.role, 'customer') NOT IN ('admin', 'user')
 				  GROUP BY u.id
 				  ORDER BY u.createdAt DESC`,

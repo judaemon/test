@@ -37,6 +37,7 @@ export const ORDER_LOG_ACTIONS = {
 	bouquet_cancelled: "Cancelled a bouquet",
 	customer_edit: "Edited the order",
 	staff_edit: "Edited the order",
+	// Test orders are gone (now cancelled); older entries still read well.
 	test: "Changed test order",
 	wrapper: "Updated a wrapper",
 	rider: "Set the rider",
@@ -122,7 +123,6 @@ function snapshot(order: Order): [OrderLogField, string][] {
 		["amount_paid", money(order, order.payment.amountPaid)],
 		["total", money(order, order.total)],
 		["items", String(order.itemCount)],
-		["test", order.isTest ? "yes" : "no"],
 		[
 			"rider",
 			[order.delivery.riderName, order.delivery.riderPhone]

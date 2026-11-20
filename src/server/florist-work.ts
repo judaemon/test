@@ -53,7 +53,6 @@ export interface FloristBouquet {
 	waitingForPayment: boolean;
 	/** Where the order's payment is, in words a florist reads at a glance. */
 	payment: FloristPayment;
-	isTest: boolean;
 	/** `YYYY-MM-DD`, when the customer chose one. */
 	deliveryDate?: string;
 	/** Which piece of its order this is, and how many the order has (every florist's). */
@@ -126,7 +125,7 @@ export function flowerPhotoMap() {
 /**
  * The bouquets given to a florist that are still to be made (and, if asked,
  * the ones already done), oldest order first. Cancelled orders never show.
- * `forStaff` adds what only staff see: order links and test orders.
+ * `forStaff` adds what only staff see: order links.
  */
 export function floristWork(
 	florist: Florist,
@@ -140,12 +139,7 @@ export function floristWork(
 	const bouquets: FloristBouquet[] = [];
 	let doneCount = 0;
 	// Open orders' bouquets on their recipe as it is now.
-	const orders = withLatestRecipes(
-		listOrders({
-			limit: 1_000_000,
-			test: options.forStaff ? undefined : "exclude",
-		}),
-	);
+	const orders = withLatestRecipes(listOrders({ limit: 1_000_000 }));
 	for (const order of orders) {
 		if (order.stage === "cancelled") continue;
 		const d = order.details;
@@ -178,7 +172,6 @@ export function floristWork(
 					stage: order.stage,
 					waitingForPayment: !canStartMaking(order.payment),
 					payment: floristPayment(order.payment),
-					isTest: order.isTest,
 					...(d.deliveryDate ? { deliveryDate: d.deliveryDate } : {}),
 					orderPiece: lineStart + unit + 1,
 					orderPieces,

@@ -121,7 +121,7 @@ export function countSerialOrders(serialNumber: string) {
 	const row = getDb()
 		.query(
 			`SELECT COUNT(*) AS n FROM orders
-			 WHERE serial_number = $serial AND stage != 'cancelled' AND is_test = 0`,
+			 WHERE serial_number = $serial AND stage != 'cancelled'`,
 		)
 		.get({ serial: serialNumber }) as { n: number };
 	return row.n;

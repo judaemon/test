@@ -89,7 +89,6 @@ interface OrderRow {
 	customer_edited_at: string | null;
 	cancelled_bouquets: string;
 	payment_method_changes: string;
-	is_test: number;
 	amount_paid_cents: number | null;
 	payment_notice: string | null;
 	promo: string | null;
@@ -183,7 +182,6 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 		paymentMethodChanges: JSON.parse(
 			row.payment_method_changes,
 		) as PaymentMethodChange[],
-		isTest: row.is_test === 1,
 	};
 }
 
@@ -191,7 +189,6 @@ function toOrder(row: OrderRow, events: OrderEvent[]): Order {
 export function toCustomerOrder(order: Order): CustomerOrder {
 	const {
 		customerId: _customer,
-		isTest: _isTest,
 		payment: { proofFile: _proof, reviewedBy: _reviewer, ...payment },
 		delivery: { photoFile, ...delivery },
 		cancelledBy: _cancelledBy,
@@ -423,40 +420,6 @@ export function listOrdersAfterNumber(after: number, limit = 20): Order[] {
 	return toOrders(rows);
 }
 
-/**
- * Marks an order as a test or a real order. A test order holds no flowers or
- * wrappers, so its stock goes back, and is taken again if it's unmarked.
- * Cancelled orders have already given theirs back.
- */
-export function setOrderTest(
-	id: string,
-	isTest: boolean,
-	actor: OrderActor = SYSTEM_ACTOR,
-): Order {
-	const db = getDb();
-	return tracked(id, actor, "test", () => {
-		const order = getOrderById(id);
-		if (!order) throw new OrderRuleError("Order not found.");
-		if (order.isTest === isTest) return;
-		if (order.stage !== "cancelled") {
-			const direction = isTest ? 1 : -1;
-			const outOfStyle = adjustStyleStock(order.lines, direction);
-			const short =
-				(outOfStyle && lineName(outOfStyle)) ??
-				adjustWrapperStock(order.lines, direction) ??
-				adjustFlowerStock(order.lines, direction);
-			if (short)
-				throw new OrderRuleError(
-					`There isn’t enough ${short} in stock to make this a real order.`,
-				);
-		}
-		db.query("UPDATE orders SET is_test = $isTest WHERE id = $id").run({
-			id,
-			isTest: isTest ? 1 : 0,
-		});
-	});
-}
-
 /** Shortest thing the public order search will look up. */
 export const ORDER_SEARCH_MIN = 3;
 
@@ -520,8 +483,6 @@ export interface OrderFilter {
 	stages?: OrderStage[];
 	needsVerification?: boolean;
 	onHold?: boolean;
-	/** Only test orders, or leave them out. */
-	test?: "only" | "exclude";
 	search?: string;
 	limit?: number;
 }
@@ -554,7 +515,6 @@ export function listOrders(filter: OrderFilter = {}): Order[] {
 	if (filter.onHold) {
 		where.push("payment_status = 'on_hold' AND stage != 'cancelled'");
 	}
-	if (filter.test) where.push(`is_test = ${filter.test === "only" ? 1 : 0}`);
 	if (filter.search) {
 		where.push(
 			`(number LIKE $q OR full_name LIKE $q OR company LIKE $q OR class_name LIKE $q
@@ -649,27 +609,26 @@ export function updateCustomerOrder(
 					`${lineName(line)} isn’t available right now. Choose another bouquet.`,
 				);
 		}
-		// A test order holds no stock. Failing partway rolls all of this back.
-		if (!order.isTest) {
-			adjustStyleStock(order.lines, 1);
-			adjustWrapperStock(order.lines, 1);
-			adjustFlowerStock(order.lines, 1);
-			const short = adjustStyleStock(update.lines, -1);
-			if (short)
-				throw new OrderRuleError(
-					`There aren’t enough ${lineName(short)} left. Lower the quantity to continue.`,
-				);
-			const wrapper = adjustWrapperStock(update.lines, -1);
-			if (wrapper)
-				throw new OrderRuleError(
-					`There aren’t enough ${wrapper} wrappers left. Lower the quantity to continue.`,
-				);
-			const flower = adjustFlowerStock(update.lines, -1);
-			if (flower)
-				throw new OrderRuleError(
-					`There aren’t enough ${flower} left. Lower the quantity to continue.`,
-				);
-		}
+		// Failing partway rolls all of this back.
+		adjustStyleStock(order.lines, 1);
+		adjustWrapperStock(order.lines, 1);
+		adjustFlowerStock(order.lines, 1);
+		const short = adjustStyleStock(update.lines, -1);
+		if (short)
+			throw new OrderRuleError(
+				`There aren’t enough ${lineName(short)} left. Lower the quantity to continue.`,
+			);
+		const wrapper = adjustWrapperStock(update.lines, -1);
+		if (wrapper)
+			throw new OrderRuleError(
+				`There aren’t enough ${wrapper} wrappers left. Lower the quantity to continue.`,
+			);
+		const flower = adjustFlowerStock(update.lines, -1);
+		if (flower)
+			throw new OrderRuleError(
+				`There aren’t enough ${flower} left. Lower the quantity to continue.`,
+			);
+
 		const subtotal = update.lines.reduce(
 			(sum, line) => sum + toCents(line.lineTotal),
 			0,
@@ -751,13 +710,11 @@ export function cancelBouquet(
 				throw new OrderRuleError(
 					"This is the order’s only bouquet. Cancel the whole order instead.",
 				);
-			// A test order holds no stock.
-			if (!order.isTest) {
-				const one = [{ ...line, quantity: 1 }];
-				adjustStyleStock(one, 1);
-				adjustWrapperStock(one, 1);
-				adjustFlowerStock(one, 1);
-			}
+			const one = [{ ...line, quantity: 1 }];
+			adjustStyleStock(one, 1);
+			adjustWrapperStock(one, 1);
+			adjustFlowerStock(one, 1);
+
 			const lines = order.lines.flatMap((candidate) => {
 				if (candidate !== line) return [candidate];
 				if (candidate.quantity === 1) return [];
@@ -832,12 +789,10 @@ export function cancelOrder(
 				throw new OrderRuleError("This order was already cancelled.");
 			if (order.stage === "done")
 				throw new OrderRuleError("Done orders can’t be cancelled.");
-			// A test order already gave its stock back when it was marked.
-			if (!order.isTest) {
-				adjustStyleStock(order.lines, 1);
-				adjustWrapperStock(order.lines, 1);
-				adjustFlowerStock(order.lines, 1);
-			}
+			adjustStyleStock(order.lines, 1);
+			adjustWrapperStock(order.lines, 1);
+			adjustFlowerStock(order.lines, 1);
+
 			const now = nowIso();
 			db.query(
 				`UPDATE orders SET stage = 'cancelled', stage_updated_at = $now,
@@ -1054,14 +1009,13 @@ export function updateChatOrder(
 		// The bouquet keeps its florist through an edit.
 		const kept = keepFlorists(order.lines[0]?.florists, line.quantity);
 		const lines = [kept ? { ...line, florists: kept } : line];
-		if (!order.isTest) {
-			adjustWrapperStock(order.lines, 1);
-			const short = adjustWrapperStock(lines, -1);
-			if (short)
-				throw new OrderRuleError(
-					`${short} wrappers are out of stock. Pick another, or add stock in Wrappers.`,
-				);
-		}
+		adjustWrapperStock(order.lines, 1);
+		const short = adjustWrapperStock(lines, -1);
+		if (short)
+			throw new OrderRuleError(
+				`${short} wrappers are out of stock. Pick another, or add stock in Wrappers.`,
+			);
+
 		const total = toCents(update.line.lineTotal);
 		db.query(
 			`UPDATE orders SET email = $email, recipient_name = $fullName, first_name = $firstName,
