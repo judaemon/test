@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { DELIVERY_DATES_MAX, isCalendarDate } from "~/lib/delivery-dates";
 import { EVENT_DELIVERY_DATES_MAX } from "~/lib/events";
 import { requireStaff } from "../admin-auth";
+import { getDb } from "../db";
 import {
 	deliveryDatesEvent,
 	getDeliveryDates,
@@ -13,7 +14,11 @@ import { asRecord, InputError } from "../validate";
 export const getDeliveryDatesAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await requireStaff();
-		return { dates: getDeliveryDates(), event: deliveryDatesEvent() };
+		return {
+			dates: getDeliveryDates(),
+			event: deliveryDatesEvent(),
+			booked: bookedByDay(),
+		};
 	},
 );
 
@@ -42,3 +47,22 @@ export const saveDeliveryDatesFn = createServerFn({ method: "POST" })
 			);
 		return saveDeliveryDates(data.dates);
 	});
+
+/** Orders and bouquets booked on each delivery day, cancelled ones aside. */
+function bookedByDay(): Record<string, { orders: number; bouquets: number }> {
+	const rows = getDb()
+		.query(
+			`SELECT o.delivery_date AS day, COUNT(DISTINCT o.id) AS orders,
+			        COALESCE(SUM(json_extract(l.value, '$.quantity')), 0) AS bouquets
+			   FROM orders o LEFT JOIN json_each(o.lines) l
+			  WHERE o.stage != 'cancelled' AND o.delivery_date != ''
+			  GROUP BY o.delivery_date`,
+		)
+		.all() as { day: string; orders: number; bouquets: number }[];
+	return Object.fromEntries(
+		rows.map((row) => [
+			row.day,
+			{ orders: row.orders, bouquets: row.bouquets },
+		]),
+	);
+}
