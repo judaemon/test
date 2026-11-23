@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needsFor, ViewOnlyNote } from "~/components/admin/access";
 import { createCropper } from "~/components/admin/image-cropper";
 import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
@@ -22,6 +23,7 @@ import {
 	MAX_WRAPPER_COLORS,
 	wrapperColors,
 } from "~/lib/custom-bouquet";
+import { can } from "~/lib/permissions";
 import { swatchColors } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
@@ -33,6 +35,7 @@ import {
 } from "~/server/admin/wrappers";
 
 export const Route = createFileRoute("/admin/_dashboard/wrappers/$wrapperId")({
+	beforeLoad: needsFor("catalog.view", "catalog.parts"),
 	staticData: {
 		crumbs: editorCrumbs(
 			"New wrapper",
@@ -92,6 +95,8 @@ function toDraft(wrapper: CustomWrapper | null): WrapperDraft {
 }
 
 function WrapperEditor() {
+	const access = Route.useRouteContext();
+	const canEdit = () => can(access().user, "catalog.parts");
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
@@ -171,317 +176,330 @@ function WrapperEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
-			{cropper.element()}
-			<Link
-				to="/admin/wrappers"
-				onClick={stepBack}
-				class={cn(adminButton.ghost, "-ml-2 mb-2")}
-			>
-				← Wrappers
-			</Link>
-			<PageHeader
-				title={isNew() ? "New wrapper" : draft.savedName || "Untitled wrapper"}
-				actions={
-					<Show when={!isNew()}>
-						<Link
-							to="/admin/logs"
-							search={{ area: "wrappers", item: params().wrapperId }}
-							class={adminButton.secondary}
-						>
-							Change history
-						</Link>
-					</Show>
-				}
-			/>
-
-			<section
-				class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
-			>
-				<div class="flex flex-col items-start gap-1 text-xs">
-					<Show
-						when={draft.image}
-						fallback={
-							<span
-								aria-hidden="true"
-								class={cn(
-									"size-24 rounded-lg border border-black/10",
-									!draft.colorHex && "border-dashed border-petal-300",
-								)}
-								style={{ background: swatch() }}
-							/>
-						}
-					>
-						<ZoomableImage
-							src={draft.image}
-							alt={`${draft.name} wrapper`}
-							hoverPreview
-							class="size-24 rounded-lg border border-black/10 object-cover"
-						/>
-					</Show>
-					<span class="flex gap-2">
-						<label
-							class={cn(
-								"cursor-pointer text-petal-700 py-2 underline-offset-2 hover:underline sm:py-0",
-								uploading() && "pointer-events-none opacity-60",
-							)}
-						>
-							{uploading()
-								? "Uploading…"
-								: draft.image
-									? "Replace"
-									: "Add photo (optional)"}
-							<input
-								type="file"
-								accept="image/png,image/jpeg,image/webp"
-								class="sr-only"
-								aria-label={`${draft.name || "Wrapper"} photo`}
-								onChange={(e) => {
-									void uploadPhoto(e.currentTarget.files);
-									e.currentTarget.value = "";
-								}}
-							/>
-						</label>
-						<Show when={draft.image}>
-							<button
-								type="button"
-								class="text-error-foreground py-2 underline-offset-2 hover:underline sm:py-0"
-								onClick={() => setDraft("image", "")}
+			<fieldset disabled={!canEdit()} class="contents">
+				{cropper.element()}
+				<Link
+					to="/admin/wrappers"
+					onClick={stepBack}
+					class={cn(adminButton.ghost, "-ml-2 mb-2")}
+				>
+					← Wrappers
+				</Link>
+				<PageHeader
+					title={
+						isNew() ? "New wrapper" : draft.savedName || "Untitled wrapper"
+					}
+					actions={
+						<Show when={!isNew()}>
+							<Link
+								to="/admin/logs"
+								search={{ area: "wrappers", item: params().wrapperId }}
+								class={adminButton.secondary}
 							>
-								Remove
-							</button>
+								Change history
+							</Link>
 						</Show>
-					</span>
-				</div>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<Field label="Name">
-						<input
-							value={draft.name}
-							onInput={(e) => setDraft("name", e.currentTarget.value)}
-							required
-							maxLength={40}
-							placeholder="e.g. Kraft brown"
-							class={adminInput}
-						/>
-					</Field>
-					<Field
-						label="Code"
-						hint="Unique. An Excel import overwrites the wrapper with its code."
-					>
-						<input
-							value={draft.code}
-							onInput={(e) => setDraft("code", e.currentTarget.value)}
-							maxLength={40}
-							placeholder="e.g. 2T RED GOLD"
-							class={adminInput}
-						/>
-					</Field>
-					<fieldset class="flex flex-col gap-1.5 sm:col-span-2">
-						<legend class="mb-1.5 text-sm font-medium">Suppliers</legend>
+					}
+				/>
+				<ViewOnlyNote access={access().user} permission="catalog.parts" />
+
+				<section
+					class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
+				>
+					<div class="flex flex-col items-start gap-1 text-xs">
 						<Show
-							when={loaded().suppliers.length > 0}
+							when={draft.image}
 							fallback={
-								<span class="text-xs text-petal-900/55">
-									None yet. Add them in{" "}
-									<Link
-										to="/admin/suppliers"
-										class="underline underline-offset-2 hover:text-petal-900"
-									>
-										Suppliers
-									</Link>
-									.
-								</span>
+								<span
+									aria-hidden="true"
+									class={cn(
+										"size-24 rounded-lg border border-black/10",
+										!draft.colorHex && "border-dashed border-petal-300",
+									)}
+									style={{ background: swatch() }}
+								/>
 							}
 						>
-							<div class="flex flex-wrap gap-2">
-								<For each={loaded().suppliers}>
-									{(supplier) => (
-										<label
-											class={cn(
-												"flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-petal-500",
-												draft.supplierIds.includes(supplier.id)
-													? "border-petal-500 bg-petal-50 text-petal-900"
-													: "border-petal-200 bg-white text-petal-900/75 hover:bg-petal-50",
-											)}
-										>
-											<input
-												type="checkbox"
-												class="accent-petal-600"
-												checked={draft.supplierIds.includes(supplier.id)}
-												onChange={(e) => {
-													const on = e.currentTarget.checked;
-													setDraft("supplierIds", (list) =>
-														on
-															? [...list, supplier.id]
-															: list.filter((id) => id !== supplier.id),
-													);
-												}}
-											/>
-											{supplier.name}
-										</label>
-									)}
-								</For>
-							</div>
-							<span class="text-xs text-petal-900/55">
-								Everyone you buy this wrapper from. Pick as many as apply, or
-								none.
-							</span>
-						</Show>
-					</fieldset>
-					<div class="flex flex-col gap-1.5">
-						<span class="text-sm font-medium">Color</span>
-						<div class="flex flex-wrap items-center gap-2">
-							<input
-								type="color"
-								aria-label="Color 1"
-								value={draft.colorHex || "#ffffff"}
-								onInput={(e) => setDraft("colorHex", e.currentTarget.value)}
-								class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+							<ZoomableImage
+								src={draft.image}
+								alt={`${draft.name} wrapper`}
+								hoverPreview
+								class="size-24 rounded-lg border border-black/10 object-cover"
 							/>
-							<Index each={draft.extraColors}>
-								{(color, index) => (
-									<span class="relative">
-										<input
-											type="color"
-											aria-label={`Color ${index + 2}`}
-											value={color()}
-											onInput={(e) =>
-												setDraft("extraColors", index, e.currentTarget.value)
-											}
-											class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
-										/>
-										<button
-											type="button"
-											aria-label={`Remove color ${index + 2}`}
-											onClick={() =>
-												setDraft("extraColors", (list) =>
-													list.filter((_, i) => i !== index),
-												)
-											}
-											class="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full border border-petal-200 bg-white text-xs text-petal-900/70 outline-none hover:bg-petal-50 hover:text-error-foreground focus-visible:ring-2 focus-visible:ring-petal-500"
-										>
-											✕
-										</button>
-									</span>
+						</Show>
+						<span class="flex gap-2">
+							<label
+								class={cn(
+									"cursor-pointer text-petal-700 py-2 underline-offset-2 hover:underline sm:py-0",
+									uploading() && "pointer-events-none opacity-60",
 								)}
-							</Index>
-							<Show when={draft.extraColors.length + 1 < MAX_WRAPPER_COLORS}>
+							>
+								{uploading()
+									? "Uploading…"
+									: draft.image
+										? "Replace"
+										: "Add photo (optional)"}
+								<input
+									type="file"
+									accept="image/png,image/jpeg,image/webp"
+									class="sr-only"
+									aria-label={`${draft.name || "Wrapper"} photo`}
+									onChange={(e) => {
+										void uploadPhoto(e.currentTarget.files);
+										e.currentTarget.value = "";
+									}}
+								/>
+							</label>
+							<Show when={draft.image}>
 								<button
 									type="button"
-									aria-label="Add a color"
-									title="Add a color"
-									onClick={() =>
-										setDraft("extraColors", (list) => [...list, "#ffffff"])
-									}
-									class="flex h-10 w-12 items-center justify-center rounded-lg border border-dashed border-petal-300 text-lg text-petal-700 outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+									class="text-error-foreground py-2 underline-offset-2 hover:underline sm:py-0"
+									onClick={() => setDraft("image", "")}
 								>
-									+
+									Remove
 								</button>
 							</Show>
-							<span
-								aria-hidden="true"
-								class="size-7 shrink-0 rounded-full border border-black/10"
-								style={{ background: swatch() }}
-							/>
-						</div>
-						<span class="text-xs text-petal-900/55">
-							Required. Press + for wrappers with more than one color, up to{" "}
-							{MAX_WRAPPER_COLORS}.
 						</span>
 					</div>
-					<Field label="Price (₱)" hint="0 shows as “Free”.">
-						<input
-							type="number"
-							min="0"
-							step="0.01"
-							inputMode="decimal"
-							value={draft.price}
-							onInput={(e) => setDraft("price", e.currentTarget.value)}
-							required
-							class={cn(adminInput, "tabular-nums")}
-						/>
-					</Field>
-					<Field
-						label="Stock actual"
-						hint="The count on your stock sheet. Orders don’t change it."
-					>
-						<input
-							type="number"
-							min="0"
-							step="1"
-							inputMode="numeric"
-							value={draft.stockActual}
-							onInput={(e) => setDraft("stockActual", e.currentTarget.value)}
-							placeholder="Not recorded"
-							class={cn(adminInput, "tabular-nums")}
-						/>
-					</Field>
-					<Field
-						label="Stock on hand"
-						hint="Each built bouquet uses one; cancelled orders put it back. Leave blank to not count it."
-					>
-						<input
-							type="number"
-							min="0"
-							step="1"
-							inputMode="numeric"
-							value={draft.stock}
-							onInput={(e) => setDraft("stock", e.currentTarget.value)}
-							placeholder="Not counted"
-							class={cn(
-								adminInput,
-								"tabular-nums",
-								draft.stock === "0" && "border-error-foreground",
-							)}
-						/>
-					</Field>
-					<div class="flex items-center sm:pt-6">
-						<Toggle
-							label="Offer in the bouquet builder"
-							checked={draft.enabled}
-							onChange={(checked) => setDraft("enabled", checked)}
-						/>
-					</div>
-				</div>
-			</section>
-
-			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
-				<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
-					<Show when={!isNew()}>
-						<ConfirmButton
-							class={cn(adminButton.danger, "mr-auto")}
-							title={`Delete ${draft.savedName}?`}
-							description="It can’t be picked in the builder any more. Bouquets already in shoppers’ bags with it ask them to pick another; past orders keep their details."
-							confirmLabel="Delete wrapper"
-							onConfirm={async () => {
-								try {
-									await deleteWrapperFn({ data: { id: params().wrapperId } });
-									toastSuccess("Wrapper deleted.");
-									await refresh();
-									await leave();
-								} catch (error) {
-									toastError(error);
-								}
-							}}
+					<div class="grid gap-4 sm:grid-cols-2">
+						<Field label="Name">
+							<input
+								value={draft.name}
+								onInput={(e) => setDraft("name", e.currentTarget.value)}
+								required
+								maxLength={40}
+								placeholder="e.g. Kraft brown"
+								class={adminInput}
+							/>
+						</Field>
+						<Field
+							label="Code"
+							hint="Unique. An Excel import overwrites the wrapper with its code."
 						>
-							Delete
-						</ConfirmButton>
-					</Show>
-					<Link
-						to="/admin/wrappers"
-						onClick={stepBack}
-						class={adminButton.secondary}
-					>
-						Cancel
-					</Link>
-					<button
-						type="submit"
-						class={adminButton.primary}
-						disabled={saving() || uploading()}
-					>
-						{saving() ? "Saving…" : isNew() ? "Add wrapper" : "Save changes"}
-					</button>
-				</div>
-			</div>
+							<input
+								value={draft.code}
+								onInput={(e) => setDraft("code", e.currentTarget.value)}
+								maxLength={40}
+								placeholder="e.g. 2T RED GOLD"
+								class={adminInput}
+							/>
+						</Field>
+						<fieldset class="flex flex-col gap-1.5 sm:col-span-2">
+							<legend class="mb-1.5 text-sm font-medium">Suppliers</legend>
+							<Show
+								when={loaded().suppliers.length > 0}
+								fallback={
+									<span class="text-xs text-petal-900/55">
+										None yet. Add them in{" "}
+										<Link
+											to="/admin/suppliers"
+											class="underline underline-offset-2 hover:text-petal-900"
+										>
+											Suppliers
+										</Link>
+										.
+									</span>
+								}
+							>
+								<div class="flex flex-wrap gap-2">
+									<For each={loaded().suppliers}>
+										{(supplier) => (
+											<label
+												class={cn(
+													"flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-petal-500",
+													draft.supplierIds.includes(supplier.id)
+														? "border-petal-500 bg-petal-50 text-petal-900"
+														: "border-petal-200 bg-white text-petal-900/75 hover:bg-petal-50",
+												)}
+											>
+												<input
+													type="checkbox"
+													class="accent-petal-600"
+													checked={draft.supplierIds.includes(supplier.id)}
+													onChange={(e) => {
+														const on = e.currentTarget.checked;
+														setDraft("supplierIds", (list) =>
+															on
+																? [...list, supplier.id]
+																: list.filter((id) => id !== supplier.id),
+														);
+													}}
+												/>
+												{supplier.name}
+											</label>
+										)}
+									</For>
+								</div>
+								<span class="text-xs text-petal-900/55">
+									Everyone you buy this wrapper from. Pick as many as apply, or
+									none.
+								</span>
+							</Show>
+						</fieldset>
+						<div class="flex flex-col gap-1.5">
+							<span class="text-sm font-medium">Color</span>
+							<div class="flex flex-wrap items-center gap-2">
+								<input
+									type="color"
+									aria-label="Color 1"
+									value={draft.colorHex || "#ffffff"}
+									onInput={(e) => setDraft("colorHex", e.currentTarget.value)}
+									class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+								/>
+								<Index each={draft.extraColors}>
+									{(color, index) => (
+										<span class="relative">
+											<input
+												type="color"
+												aria-label={`Color ${index + 2}`}
+												value={color()}
+												onInput={(e) =>
+													setDraft("extraColors", index, e.currentTarget.value)
+												}
+												class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+											/>
+											<button
+												type="button"
+												aria-label={`Remove color ${index + 2}`}
+												onClick={() =>
+													setDraft("extraColors", (list) =>
+														list.filter((_, i) => i !== index),
+													)
+												}
+												class="absolute -right-2 -top-2 flex size-6 items-center justify-center rounded-full border border-petal-200 bg-white text-xs text-petal-900/70 outline-none hover:bg-petal-50 hover:text-error-foreground focus-visible:ring-2 focus-visible:ring-petal-500"
+											>
+												✕
+											</button>
+										</span>
+									)}
+								</Index>
+								<Show when={draft.extraColors.length + 1 < MAX_WRAPPER_COLORS}>
+									<button
+										type="button"
+										aria-label="Add a color"
+										title="Add a color"
+										onClick={() =>
+											setDraft("extraColors", (list) => [...list, "#ffffff"])
+										}
+										class="flex h-10 w-12 items-center justify-center rounded-lg border border-dashed border-petal-300 text-lg text-petal-700 outline-none hover:bg-petal-50 focus-visible:ring-2 focus-visible:ring-petal-500"
+									>
+										+
+									</button>
+								</Show>
+								<span
+									aria-hidden="true"
+									class="size-7 shrink-0 rounded-full border border-black/10"
+									style={{ background: swatch() }}
+								/>
+							</div>
+							<span class="text-xs text-petal-900/55">
+								Required. Press + for wrappers with more than one color, up to{" "}
+								{MAX_WRAPPER_COLORS}.
+							</span>
+						</div>
+						<Field label="Price (₱)" hint="0 shows as “Free”.">
+							<input
+								type="number"
+								min="0"
+								step="0.01"
+								inputMode="decimal"
+								value={draft.price}
+								onInput={(e) => setDraft("price", e.currentTarget.value)}
+								required
+								class={cn(adminInput, "tabular-nums")}
+							/>
+						</Field>
+						<Field
+							label="Stock actual"
+							hint="The count on your stock sheet. Orders don’t change it."
+						>
+							<input
+								type="number"
+								min="0"
+								step="1"
+								inputMode="numeric"
+								value={draft.stockActual}
+								onInput={(e) => setDraft("stockActual", e.currentTarget.value)}
+								placeholder="Not recorded"
+								class={cn(adminInput, "tabular-nums")}
+							/>
+						</Field>
+						<Field
+							label="Stock on hand"
+							hint="Each built bouquet uses one; cancelled orders put it back. Leave blank to not count it."
+						>
+							<input
+								type="number"
+								min="0"
+								step="1"
+								inputMode="numeric"
+								value={draft.stock}
+								onInput={(e) => setDraft("stock", e.currentTarget.value)}
+								placeholder="Not counted"
+								class={cn(
+									adminInput,
+									"tabular-nums",
+									draft.stock === "0" && "border-error-foreground",
+								)}
+							/>
+						</Field>
+						<div class="flex items-center sm:pt-6">
+							<Toggle
+								label="Offer in the bouquet builder"
+								checked={draft.enabled}
+								onChange={(checked) => setDraft("enabled", checked)}
+							/>
+						</div>
+					</div>
+				</section>
+
+				<Show when={canEdit()}>
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
+						<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
+							<Show when={!isNew()}>
+								<ConfirmButton
+									class={cn(adminButton.danger, "mr-auto")}
+									title={`Delete ${draft.savedName}?`}
+									description="It can’t be picked in the builder any more. Bouquets already in shoppers’ bags with it ask them to pick another; past orders keep their details."
+									confirmLabel="Delete wrapper"
+									onConfirm={async () => {
+										try {
+											await deleteWrapperFn({
+												data: { id: params().wrapperId },
+											});
+											toastSuccess("Wrapper deleted.");
+											await refresh();
+											await leave();
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Delete
+								</ConfirmButton>
+							</Show>
+							<Link
+								to="/admin/wrappers"
+								onClick={stepBack}
+								class={adminButton.secondary}
+							>
+								Cancel
+							</Link>
+							<button
+								type="submit"
+								class={adminButton.primary}
+								disabled={saving() || uploading()}
+							>
+								{saving()
+									? "Saving…"
+									: isNew()
+										? "Add wrapper"
+										: "Save changes"}
+							</button>
+						</div>
+					</div>
+				</Show>
+			</fieldset>
 		</form>
 	);
 }

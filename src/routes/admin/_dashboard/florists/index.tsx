@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
-
+import { needs } from "~/components/admin/access";
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
+import { can } from "~/lib/permissions";
 import { listFloristsAdmin } from "~/server/admin/florists";
 
 export const Route = createFileRoute("/admin/_dashboard/florists/")({
+	beforeLoad: needs("florists.view"),
 	loader: {
 		handler: () => listFloristsAdmin(),
 		staleReloadMode: "blocking",
@@ -16,6 +18,8 @@ const plural = (n: number, one: string, many: string) =>
 	`${n} ${n === 1 ? one : many}`;
 
 function FloristsPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "florists.manage");
 	const florists = Route.useLoaderData();
 
 	return (
@@ -24,13 +28,15 @@ function FloristsPage() {
 				title="Florists"
 				description="The florists who make the bouquets. Give them bouquets in Orders (tick the rows, then “Give to florist”). Each florist has a sheet of their bouquets to print, with photos, flowers and the customer’s details."
 				actions={
-					<Link
-						to="/admin/florists/$floristId"
-						params={{ floristId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add florist
-					</Link>
+					<Show when={canEdit()}>
+						<Link
+							to="/admin/florists/$floristId"
+							params={{ floristId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add florist
+						</Link>
+					</Show>
 				}
 			/>
 			<Show when={florists().length > 0}>

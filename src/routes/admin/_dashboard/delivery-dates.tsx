@@ -7,6 +7,7 @@ import {
 	type SortingState,
 } from "@tanstack/solid-table";
 import { createEffect, createSignal, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import {
 	adminTableFeatures,
@@ -40,6 +41,7 @@ import {
 	tidyDates,
 	upcomingDeliveryDates,
 } from "~/lib/delivery-dates";
+import { can } from "~/lib/permissions";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
 import {
@@ -65,6 +67,7 @@ interface DatesSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/delivery-dates")({
+	beforeLoad: needs("delivery_dates.view"),
 	validateSearch: (search: Record<string, unknown>): DatesSearch => ({
 		q: textParam(search, "q"),
 		status: textParam(search, "status"),
@@ -112,6 +115,8 @@ const column = createColumnHelper<typeof adminTableFeatures, DayRow>();
 
 /** The days checkout offers, in a table to search, filter and change. */
 function DeliveryDatesPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "delivery_dates.manage");
 	const loaded = Route.useLoaderData();
 	const router = useRouter();
 	const search = Route.useSearch();
@@ -280,17 +285,19 @@ function DeliveryDatesPage() {
 			meta: { class: "w-28 text-right" },
 			header: () => <span class="sr-only">Remove</span>,
 			cell: ({ row }) => (
-				<ConfirmButton
-					class={adminButton.ghost}
-					title={`Remove ${formatDeliveryDate(row.original.date)}?`}
-					description={removeNote([row.original])}
-					confirmLabel="Remove day"
-					disabled={saving()}
-					aria-label={`Remove ${formatDeliveryDate(row.original.date)}`}
-					onConfirm={() => remove([row.original.date])}
-				>
-					Remove
-				</ConfirmButton>
+				<Show when={canEdit()}>
+					<ConfirmButton
+						class={adminButton.ghost}
+						title={`Remove ${formatDeliveryDate(row.original.date)}?`}
+						description={removeNote([row.original])}
+						confirmLabel="Remove day"
+						disabled={saving()}
+						aria-label={`Remove ${formatDeliveryDate(row.original.date)}`}
+						onConfirm={() => remove([row.original.date])}
+					>
+						Remove
+					</ConfirmButton>
+				</Show>
 			),
 		}),
 	]);
@@ -423,28 +430,30 @@ function DeliveryDatesPage() {
 					<ViewOptions table={table} />
 				</div>
 				{/* Adding saves straight away, like removing. */}
-				<form onSubmit={add} class="flex w-full items-center gap-2 sm:w-auto">
-					<label class="sr-only" for="add-delivery-date">
-						Add a delivery date
-					</label>
-					<input
-						id="add-delivery-date"
-						type="date"
-						class={cn(
-							adminInput,
-							"h-10 min-w-0 flex-1 sm:h-10 sm:w-44 sm:flex-none",
-						)}
-						value={adding()}
-						onInput={(e) => setAdding(e.currentTarget.value)}
-					/>
-					<button
-						type="submit"
-						class={cn(adminButton.primary, "shrink-0")}
-						disabled={saving() || !adding()}
-					>
-						+ Add date
-					</button>
-				</form>
+				<Show when={canEdit()}>
+					<form onSubmit={add} class="flex w-full items-center gap-2 sm:w-auto">
+						<label class="sr-only" for="add-delivery-date">
+							Add a delivery date
+						</label>
+						<input
+							id="add-delivery-date"
+							type="date"
+							class={cn(
+								adminInput,
+								"h-10 min-w-0 flex-1 sm:h-10 sm:w-44 sm:flex-none",
+							)}
+							value={adding()}
+							onInput={(e) => setAdding(e.currentTarget.value)}
+						/>
+						<button
+							type="submit"
+							class={cn(adminButton.primary, "shrink-0")}
+							disabled={saving() || !adding()}
+						>
+							+ Add date
+						</button>
+					</form>
+				</Show>
 			</div>
 
 			<DataTable
@@ -462,18 +471,20 @@ function DeliveryDatesPage() {
 				}
 				selectionActions={
 					<>
-						<ConfirmButton
-							class="inline-flex h-9 items-center rounded-lg border border-error-foreground/30 bg-white px-3 font-medium text-error-foreground transition-colors outline-none hover:bg-error focus-visible:ring-2 focus-visible:ring-error-foreground/40"
-							title={`Remove ${selectedRows().length} ${
-								selectedRows().length === 1 ? "day" : "days"
-							}?`}
-							description={removeNote(selectedRows())}
-							confirmLabel="Remove"
-							disabled={saving()}
-							onConfirm={() => remove(selectedRows().map((row) => row.date))}
-						>
-							Remove selected
-						</ConfirmButton>
+						<Show when={canEdit()}>
+							<ConfirmButton
+								class="inline-flex h-9 items-center rounded-lg border border-error-foreground/30 bg-white px-3 font-medium text-error-foreground transition-colors outline-none hover:bg-error focus-visible:ring-2 focus-visible:ring-error-foreground/40"
+								title={`Remove ${selectedRows().length} ${
+									selectedRows().length === 1 ? "day" : "days"
+								}?`}
+								description={removeNote(selectedRows())}
+								confirmLabel="Remove"
+								disabled={saving()}
+								onConfirm={() => remove(selectedRows().map((row) => row.date))}
+							>
+								Remove selected
+							</ConfirmButton>
+						</Show>
 						<button
 							type="button"
 							onClick={() => table.resetRowSelection()}

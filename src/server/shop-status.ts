@@ -8,7 +8,7 @@ import {
 	type ShopStatus,
 	type WishField,
 } from "~/lib/shop-status";
-import { requireOwner, requireStaff } from "./admin-auth";
+import { requirePermission } from "./admin-auth";
 import { currentEvent, eventOrderCount } from "./events-repo";
 import {
 	addShopWish,
@@ -22,7 +22,7 @@ import { asRecord, oneOf, text } from "./validate";
 /** Admin → Interested buyers: the names left on the fully booked page. */
 export const listShopWishesFn = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("interested.view");
 		return listShopWishes();
 	},
 );
@@ -30,7 +30,7 @@ export const listShopWishesFn = createServerFn({ method: "GET" }).handler(
 /** Admin → Shop: how it runs (from the current event), and the names left. */
 export const getShopAdminFn = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("shop.view");
 		const event = currentEvent();
 		return {
 			status: getShopStatus(),
@@ -73,7 +73,7 @@ export const saveShopStatusFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireOwner();
+		await requirePermission("shop.manage");
 		return saveShopStatus(data);
 	});
 
@@ -132,7 +132,7 @@ export const addShopWishFn = createServerFn({ method: "POST" })
 export const deleteShopWishFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => text(asRecord(input), "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("interested.manage");
 		deleteShopWish(data);
 		return listShopWishes();
 	});

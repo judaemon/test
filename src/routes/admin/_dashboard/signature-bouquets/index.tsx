@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
+import { needs } from "~/components/admin/access";
 import {
 	choiceParam,
 	type Facet,
@@ -24,6 +25,7 @@ import {
 } from "~/components/admin/ui";
 import { findArrangementType, sizesForType } from "~/lib/arrangements";
 import { formatRecipeItem, mainFlower } from "~/lib/flowers";
+import { can } from "~/lib/permissions";
 import {
 	formatPrice,
 	stockLabel,
@@ -79,6 +81,7 @@ interface InventorySearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
+	beforeLoad: needs("catalog.view"),
 	validateSearch: (search: Record<string, unknown>): InventorySearch => ({
 		q: textParam(search, "q"),
 		type: textParam(search, "type"),
@@ -100,6 +103,7 @@ export const Route = createFileRoute("/admin/_dashboard/signature-bouquets/")({
 });
 
 function InventoryPage() {
+	const canEdit = () => can(context().user, "catalog.arrangements");
 	const loaded = Route.useLoaderData();
 	const context = Route.useRouteContext();
 	const sizes = useSizes();
@@ -237,8 +241,10 @@ function InventoryPage() {
 
 	return (
 		<div>
-			<WatermarkPhotos />
-			<OptimizePhotos />
+			<Show when={canEdit()}>
+				<WatermarkPhotos />
+				<OptimizePhotos />
+			</Show>
 			{/* Stays in view on wider screens; on phones it would fill the screen. */}
 			<div class="flow-root lg:sticky lg:top-0 lg:z-10 lg:-mx-8 lg:-mt-8 lg:bg-cream lg:px-8 lg:pt-8">
 				<PageHeader
@@ -247,7 +253,7 @@ function InventoryPage() {
 					actions={
 						<>
 							{/* A copy of the photos without the watermark, off the server. */}
-							<Show when={context().user.role === "owner"}>
+							<Show when={can(context().user, "catalog.originals")}>
 								<a
 									href="/api/admin/photo-backup"
 									download=""
@@ -263,42 +269,46 @@ function InventoryPage() {
 							>
 								Florist list
 							</Link>
-							<ConfirmButton
-								class={adminButton.secondary}
-								title="Update flowers and wrappers on open orders?"
-								description="Every bouquet on a new or being-made order gets the flowers its arrangement has now, and its wrapper if it was ordered with none, so the reports and florist sheets match. A wrapper a bouquet already has is kept. Done and cancelled orders, and custom bouquets, stay as they are. Each change is kept in Logs. Saving an arrangement already does this for its own orders."
-								confirmLabel="Update orders"
-								onConfirm={async () => {
-									try {
-										const result = await syncAllOrderRecipesFn();
-										toastSuccess(
-											!result.enabled
-												? "Orders keep their own flowers now; nothing changed."
-												: result.orders
-													? `Updated ${result.bouquets} ${result.bouquets === 1 ? "bouquet" : "bouquets"} in ${result.orders} ${result.orders === 1 ? "order" : "orders"}.`
-													: "Every open order already has its arrangement’s flowers and wrapper.",
-										);
-									} catch (error) {
-										toastError(error);
-									}
-								}}
-							>
-								Update orders’ flowers and wrappers
-							</ConfirmButton>
-							<Link
-								to="/admin/signature-bouquets/arrange"
-								class={adminButton.secondary}
-							>
-								<AdminIcons.grip class="size-4" />
-								Rearrange shop
-							</Link>
-							<Link
-								to="/admin/signature-bouquets/$productId"
-								params={{ productId: "new" }}
-								class={adminButton.primary}
-							>
-								+ New arrangement
-							</Link>
+							<Show when={canEdit()}>
+								<ConfirmButton
+									class={adminButton.secondary}
+									title="Update flowers and wrappers on open orders?"
+									description="Every bouquet on a new or being-made order gets the flowers its arrangement has now, and its wrapper if it was ordered with none, so the reports and florist sheets match. A wrapper a bouquet already has is kept. Done and cancelled orders, and custom bouquets, stay as they are. Each change is kept in Logs. Saving an arrangement already does this for its own orders."
+									confirmLabel="Update orders"
+									onConfirm={async () => {
+										try {
+											const result = await syncAllOrderRecipesFn();
+											toastSuccess(
+												!result.enabled
+													? "Orders keep their own flowers now; nothing changed."
+													: result.orders
+														? `Updated ${result.bouquets} ${result.bouquets === 1 ? "bouquet" : "bouquets"} in ${result.orders} ${result.orders === 1 ? "order" : "orders"}.`
+														: "Every open order already has its arrangement’s flowers and wrapper.",
+											);
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Update orders’ flowers and wrappers
+								</ConfirmButton>
+								<Link
+									to="/admin/signature-bouquets/arrange"
+									class={adminButton.secondary}
+								>
+									<AdminIcons.grip class="size-4" />
+									Rearrange shop
+								</Link>
+							</Show>
+							<Show when={canEdit()}>
+								<Link
+									to="/admin/signature-bouquets/$productId"
+									params={{ productId: "new" }}
+									class={adminButton.primary}
+								>
+									+ New arrangement
+								</Link>
+							</Show>
 						</>
 					}
 				/>
@@ -369,7 +379,7 @@ function InventoryPage() {
 					}
 				/>
 			</div>
-			<div class="flex flex-col gap-6">
+			<fieldset disabled={!canEdit()} class="flex min-w-0 flex-col gap-6">
 				<For
 					each={visible()}
 					fallback={
@@ -497,7 +507,7 @@ function InventoryPage() {
 						</section>
 					)}
 				</For>
-			</div>
+			</fieldset>
 		</div>
 	);
 }
@@ -507,6 +517,8 @@ function ShopToggle(props: {
 	product: AdminProduct;
 	onSaved: (product: AdminProduct) => void;
 }) {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "catalog.arrangements");
 	const [saving, setSaving] = createSignal(false);
 	const [saved, setSaved] = createSignal(false);
 	let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -534,6 +546,7 @@ function ShopToggle(props: {
 	return (
 		<div class="flex h-10 items-center gap-2 rounded-full bg-petal-50 pl-2 pr-3.5">
 			<Toggle
+				disabled={!canEdit()}
 				label={`Show ${props.product.title} in shop`}
 				hideLabel
 				checked={props.product.isVisible}
@@ -557,6 +570,8 @@ function VariantRow(props: {
 	variant: AdminVariant;
 	onSaved: (product: AdminProduct) => void;
 }) {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "catalog.arrangements");
 	const [saving, setSaving] = createSignal(false);
 	/** Which control just saved, for its "Saved ✓". */
 	const [saved, setSaved] = createSignal<
@@ -750,6 +765,7 @@ function VariantRow(props: {
 			>
 				<div class="flex items-center gap-2">
 					<Toggle
+						disabled={!canEdit()}
 						label={`${label()} available`}
 						hideLabel
 						checked={props.variant.isAvailable}

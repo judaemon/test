@@ -14,7 +14,7 @@ import {
 	SALE_SCOPES,
 	type Sale,
 } from "~/lib/sale";
-import { requireOwner } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { listArrangementTypes } from "../arrangement-types-repo";
 import { listAdminProducts } from "../catalog-repo";
 import {
@@ -109,7 +109,7 @@ function parseScope(
 /** The sales, and what a sale can be put on. */
 export const getSalesAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireOwner();
+		await requirePermission("sales.view");
 		return {
 			sales: listSales(),
 			orderPromos: listOrderPromos(),
@@ -145,7 +145,7 @@ export const saveSaleFn = createServerFn({ method: "POST" })
 		}
 	})
 	.handler(async ({ data }): Promise<SaleResult> => {
-		await requireOwner();
+		await requirePermission("sales.manage");
 		if (!data.sale) return { ok: false, message: data.error };
 		return { ok: true, sale: saveSale(data.sale, data.id || undefined) };
 	});
@@ -153,7 +153,7 @@ export const saveSaleFn = createServerFn({ method: "POST" })
 export const deleteSaleFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => text(asRecord(input), "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireOwner();
+		await requirePermission("sales.manage");
 		deleteSale(data);
 		return { ok: true as const };
 	});
@@ -228,7 +228,7 @@ export const saveOrderPromoFn = createServerFn({ method: "POST" })
 		}
 	})
 	.handler(async ({ data }): Promise<OrderPromoResult> => {
-		await requireOwner();
+		await requirePermission("sales.manage");
 		if (!data.promo) return { ok: false, message: data.error };
 		return {
 			ok: true,
@@ -239,7 +239,7 @@ export const saveOrderPromoFn = createServerFn({ method: "POST" })
 export const deleteOrderPromoFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => text(asRecord(input), "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireOwner();
+		await requirePermission("sales.manage");
 		deleteOrderPromo(data);
 		return { ok: true as const };
 	});

@@ -1,4 +1,9 @@
-import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	redirect,
+} from "@tanstack/solid-router";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useLeaveForm } from "~/components/admin/leave-form";
@@ -48,6 +53,7 @@ import {
 	type PaymentMethod,
 	validateStaffReferenceNumber,
 } from "~/lib/payment";
+import { can } from "~/lib/permissions";
 import { formatPrice } from "~/lib/product";
 import { useCustomSettings } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
@@ -63,6 +69,11 @@ interface ChatOrderSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/orders/new")({
+	// Taking an order needs "Take orders"; editing a chat order, "Change orders".
+	beforeLoad: ({ context, search }) => {
+		if (!can(context.user, search.edit ? "orders.edit" : "orders.create"))
+			throw redirect({ to: "/admin/orders" });
+	},
 	staticData: {
 		crumbs: ({ loaderData }) => {
 			const editing = loaderData as { number?: number } | null | undefined;

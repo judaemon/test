@@ -29,6 +29,7 @@ import {
 	type PaymentMethod,
 	validateStaffReferenceNumber,
 } from "~/lib/payment";
+import { can } from "~/lib/permissions";
 import type { PricedLine } from "~/lib/pricing";
 import {
 	BOARD_STAGES,
@@ -40,7 +41,7 @@ import {
 	WRAPPER_STATUSES,
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { getFlorist } from "../florists-repo";
 import { staffActor } from "../order-actor";
 import { listOrderLog } from "../order-log-repo";
@@ -95,7 +96,7 @@ export type OrderActionResult =
 export const listAdminOrderRows = createServerFn({ method: "GET" })
 	.validator((input: unknown) => validateOrdersSearch(asRecord(input ?? {})))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("orders.view");
 		return queryOrderRows(data);
 	});
 
@@ -105,7 +106,7 @@ export const getAdminOrder = createServerFn({ method: "GET" })
 		return id;
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("orders.view");
 		return getOrderById(data) ?? null;
 	});
 
@@ -125,7 +126,7 @@ export const listOrdersToPrint = createServerFn({ method: "GET" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("orders.view");
 		const latest = latestOrderNumber();
 		return {
 			latest,
@@ -154,7 +155,7 @@ export const moveOrder = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.move");
 		return runAction(() =>
 			setOrderStage(data.id, data.stage, staffActor(user)),
 		);
@@ -212,7 +213,7 @@ async function withProof(
 export const cancelOrderFn = createServerFn({ method: "POST" })
 	.validator(parseCancellation)
 	.handler(async ({ data }): Promise<OrderActionResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.cancel");
 		return withProof("cancellations", data.proof, (proofFile) =>
 			cancelOrder(
 				data.id,
@@ -235,7 +236,7 @@ export const cancelBouquetFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<OrderActionResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.cancel");
 		return withProof("cancellations", data.proof, (proofFile) =>
 			cancelBouquet(
 				data.id,
@@ -267,7 +268,7 @@ export const changePaymentMethodFn = createServerFn({ method: "POST" })
 		return { ...parsed, method, proof: parsed.proof };
 	})
 	.handler(async ({ data }): Promise<OrderActionResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.payments");
 		return withProof("proofs", data.proof, (proofFile) =>
 			changePaymentMethod(
 				data.id,
@@ -301,7 +302,7 @@ export const setReferenceNumberFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.payments");
 		return runAction(() =>
 			setReferenceNumber(data.id, data.referenceNumber, staffActor(user)),
 		);
@@ -316,7 +317,7 @@ export const reviewOrderPayment = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.payments");
 		return runAction(() =>
 			reviewPayment(data.id, data.status, user.name, staffActor(user)),
 		);
@@ -332,7 +333,7 @@ export const updateWrapperStatus = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.edit");
 		return runAction(() =>
 			setWrapperStatus(data.id, data.line, data.status, staffActor(user)),
 		);
@@ -347,7 +348,7 @@ export const updateDeliveryDate = createServerFn({ method: "POST" })
 		return { id: text(source, "id", { max: 64 }), date };
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.edit");
 		return runAction(() =>
 			setDeliveryDate(data.id, data.date, staffActor(user)),
 		);
@@ -410,7 +411,7 @@ export const assignFloristFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.assign");
 		const floristId = assignableFlorist(data.floristId);
 		const result = assignFlorist(data.bouquets, floristId, staffActor(user));
 		return { ...result, message: assignedMessage(result, floristId) };
@@ -426,7 +427,7 @@ export const assignFloristMatchingFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.assign");
 		const floristId = assignableFlorist(data.floristId);
 		const rows = matchingOrderRows(data.search).filter(
 			(row) => row.order.stage !== "cancelled",
@@ -468,7 +469,7 @@ export const assignRider = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.assign");
 		return runAction(() => setRider(data.id, data, staffActor(user)));
 	});
 
@@ -482,7 +483,7 @@ export const uploadDeliveryPhoto = createServerFn({ method: "POST" })
 		return { id, file };
 	})
 	.handler(async ({ data }): Promise<OrderActionResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.move");
 		let fileName: string;
 		try {
 			fileName = await saveImage("delivery", data.file);
@@ -672,7 +673,7 @@ function chatOrderLine(
 export const createChatOrderFn = createServerFn({ method: "POST" })
 	.validator(parseChatOrderForm)
 	.handler(async ({ data }): Promise<ChatOrderResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.create");
 		const checked = checkChatOrder(data);
 		if (checked.problem) return checked.problem;
 		const saved: string[] = [];
@@ -727,7 +728,7 @@ export const createChatOrderFn = createServerFn({ method: "POST" })
 export const getChatOrderAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("orders.view");
 		const order = getOrderById(data);
 		return order && isChatOrder(order) ? order : null;
 	});
@@ -740,7 +741,7 @@ export const updateChatOrderFn = createServerFn({ method: "POST" })
 		return { id, form: parseChatOrderForm(input) };
 	})
 	.handler(async ({ data }): Promise<ChatOrderResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.edit");
 		const order = getOrderById(data.id);
 		const previous = order?.lines[0];
 		if (!order || !previous || !isChatOrder(order))
@@ -834,7 +835,7 @@ export const updateShopOrderFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<ShopOrderEditResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.edit");
 		const order = getOrderById(data.id);
 		if (!order) return { ok: false, message: "Order not found." };
 		if (isChatOrder(order))
@@ -897,7 +898,7 @@ export const listOrderLogFn = createServerFn({ method: "GET" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("orders.view");
 		return listOrderLog({
 			orderId: data.orderId || undefined,
 			actor: data.actor || undefined,
@@ -914,7 +915,7 @@ export type OrderNotesResult =
 export const listOrderNotesFn = createServerFn({ method: "GET" })
 	.validator((input: unknown) => text(asRecord(input), "orderId", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("orders.view");
 		return listOrderNotes(data);
 	});
 
@@ -936,7 +937,7 @@ export const addOrderNoteFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<OrderNotesResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.notes");
 		if (!getOrderById(data.orderId))
 			return { ok: false, message: "Order not found." };
 		addOrderNote(data.orderId, data.body, { id: user.id, name: user.name });
@@ -950,7 +951,7 @@ export const editOrderNoteFn = createServerFn({ method: "POST" })
 		return { id: text(source, "id", { max: 64 }), body: noteBody(source) };
 	})
 	.handler(async ({ data }): Promise<OrderNotesResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.notes");
 		const note = getOrderNote(data.id);
 		if (!note) return { ok: false, message: "That note was deleted." };
 		if (note.authorId !== user.id)
@@ -959,17 +960,17 @@ export const editOrderNoteFn = createServerFn({ method: "POST" })
 		return { ok: true, notes: listOrderNotes(note.orderId) };
 	});
 
-/** Staff delete their own notes; the owner can delete any. */
+/** Staff delete their own notes; "Delete anyone’s notes" deletes any. */
 export const deleteOrderNoteFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => text(asRecord(input), "id", { max: 64 }))
 	.handler(async ({ data }): Promise<OrderNotesResult> => {
-		const user = await requireStaff();
+		const user = await requirePermission("orders.notes");
 		const note = getOrderNote(data);
 		if (!note) return { ok: false, message: "That note was already deleted." };
-		if (note.authorId !== user.id && user.role !== "owner")
+		if (note.authorId !== user.id && !can(user, "orders.notes_all"))
 			return {
 				ok: false,
-				message: "Only the shop owner can delete someone else’s note.",
+				message: "You can only delete your own notes.",
 			};
 		deleteOrderNote(data);
 		return { ok: true, notes: listOrderNotes(note.orderId) };

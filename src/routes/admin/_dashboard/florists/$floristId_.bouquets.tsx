@@ -4,6 +4,8 @@ import {
 	notFound,
 	useNavigate,
 } from "@tanstack/solid-router";
+
+import { needs } from "~/components/admin/access";
 import { adminButton } from "~/components/admin/ui";
 import { FloristSheet } from "~/components/florist/florist-sheet";
 import { cn } from "~/lib/utils";
@@ -12,6 +14,7 @@ import { getFloristWorkAdmin } from "~/server/admin/florists";
 export const Route = createFileRoute(
 	"/admin/_dashboard/florists/$floristId_/bouquets",
 )({
+	beforeLoad: needs("florists.view"),
 	staticData: {
 		crumbs: ({ params, loaderData }) => [
 			{

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/solid-start";
 
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { checkBuilderCanSell, getCustomSettings } from "../custom-repo";
 import {
 	deleteFlower,
@@ -25,7 +25,7 @@ import {
 
 export const listFlowersAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return listFlowers();
 	},
 );
@@ -33,7 +33,7 @@ export const listFlowersAdmin = createServerFn({ method: "GET" }).handler(
 export const getFlowerAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return getFlower(data);
 	});
 
@@ -104,7 +104,7 @@ export const saveFlowerFn = createServerFn({ method: "POST" })
 		return { id: id || null, flower: parseFlower(asRecord(source.flower)) };
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.parts");
 		const before = data.id ? getFlower(data.id) : null;
 		if (data.id && !before) throw new InputError("That flower was deleted.");
 		if (flowerNameTaken(data.flower.name, data.id ?? undefined))
@@ -127,7 +127,7 @@ export const setFlowerEnabledFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		const flower = getFlower(data.id);
 		if (!flower) throw new InputError("That flower was deleted.");
 		if (data.enabled && !flower.colors.some((c) => c.enabled))
@@ -144,7 +144,7 @@ export const deleteFlowerFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		const flower = getFlower(data.id);
 		if (!flower) throw new InputError("That flower was already deleted.");
 		keepAFlowerOffered(flower.name);

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Index, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
+import { needsFor, ViewOnlyNote } from "~/components/admin/access";
 import { createCropper } from "~/components/admin/image-cropper";
 import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
@@ -29,6 +30,7 @@ import { editorCrumbs, field } from "~/lib/crumbs";
 import { findFlowerKind } from "~/lib/custom-bouquet";
 import { randomFlowerCode } from "~/lib/flower-codes";
 import { formatRecipeItem, sameRecipe } from "~/lib/flowers";
+import { can } from "~/lib/permissions";
 import {
 	flowerCodeKey,
 	formatReadyDate,
@@ -67,6 +69,7 @@ interface EditorSearch {
 export const Route = createFileRoute(
 	"/admin/_dashboard/signature-bouquets/$productId",
 )({
+	beforeLoad: needsFor("catalog.view", "catalog.arrangements"),
 	staticData: {
 		crumbs: editorCrumbs(
 			"New arrangement",
@@ -237,6 +240,8 @@ function toDraft(product: AdminProduct | null): ProductDraft {
 }
 
 function ProductEditor() {
+	const access = Route.useRouteContext();
+	const canEdit = () => can(access().user, "catalog.arrangements");
 	// The flower list is the one staff keep in Admin → Flowers.
 	const custom = useCustomSettings();
 	const sizes = useSizes();
@@ -625,168 +630,133 @@ function ProductEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-4xl pb-24">
-			{cropper.element()}
-			<Link
-				to="/admin/signature-bouquets"
-				onClick={stepBack}
-				class={cn(adminButton.ghost, "-ml-2 mb-2")}
-			>
-				← Floral arrangements
-			</Link>
-			<PageHeader
-				title={
-					isNew() ? "New arrangement" : draft.title || "Untitled arrangement"
-				}
-				actions={
-					<>
-						<Show when={!isNew()}>
-							<Link
-								to="/admin/logs"
-								search={{ area: "bouquets", item: params().productId }}
-								class={adminButton.secondary}
-							>
-								Change history
-							</Link>
-						</Show>
-						<Show when={!isNew() && loaded()?.isVisible}>
-							<a
-								href={`/products/${loaded()?.slug ?? params().productId}`}
-								target="_blank"
-								rel="noreferrer"
-								class={adminButton.secondary}
-							>
-								View in shop
-							</a>
-						</Show>
-					</>
-				}
-			/>
+			<fieldset disabled={!canEdit()} class="contents">
+				{cropper.element()}
+				<Link
+					to="/admin/signature-bouquets"
+					onClick={stepBack}
+					class={cn(adminButton.ghost, "-ml-2 mb-2")}
+				>
+					← Floral arrangements
+				</Link>
+				<PageHeader
+					title={
+						isNew() ? "New arrangement" : draft.title || "Untitled arrangement"
+					}
+					actions={
+						<>
+							<Show when={!isNew()}>
+								<Link
+									to="/admin/logs"
+									search={{ area: "bouquets", item: params().productId }}
+									class={adminButton.secondary}
+								>
+									Change history
+								</Link>
+							</Show>
+							<Show when={!isNew() && loaded()?.isVisible}>
+								<a
+									href={`/products/${loaded()?.slug ?? params().productId}`}
+									target="_blank"
+									rel="noreferrer"
+									class={adminButton.secondary}
+								>
+									View in shop
+								</a>
+							</Show>
+						</>
+					}
+				/>
+				<ViewOnlyNote
+					access={access().user}
+					permission="catalog.arrangements"
+				/>
 
-			<Show when={!isNew() && !savedVisible()}>
-				<p class="mb-4 rounded-2xl border border-warning-foreground/30 bg-warning px-4 py-3 text-sm text-warning-foreground">
-					<strong class="font-semibold">Hidden from the shop.</strong> Customers
-					can’t see this bouquet. Turn on “Show in shop” and save to publish it.
-				</p>
-			</Show>
-			<section class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-2")}>
-				<Field label="Name" hint={linkHint()} class="sm:col-span-2">
-					<span class="flex gap-2">
-						<input
-							value={draft.title}
-							onInput={(e) => setDraft("title", e.currentTarget.value)}
-							maxLength={30}
-							required
-							placeholder="e.g. Odette"
-							aria-invalid={nameTaken() ? "true" : undefined}
-							class={cn(
-								adminInput,
-								"min-w-0 flex-1",
-								nameTaken() &&
-									"border-destructive focus-visible:border-destructive",
-							)}
-						/>
-						<button
-							type="button"
-							aria-label="Pick a random name"
-							onClick={pickName}
-							class={cn(adminButton.secondary, "shrink-0 px-3")}
-						>
-							Random
-						</button>
-					</span>
-					<Show when={nameTaken()}>
-						<p role="alert" class="text-xs text-destructive">
-							Another bouquet already has this name.
-						</p>
-					</Show>
-				</Field>
-				<Field label="Description" class="sm:col-span-2">
-					<TextArea
-						value={draft.description}
-						onInput={(e) => setDraft("description", e.currentTarget.value)}
-						maxLength={2000}
-						rows={4}
-						class={cn(adminInput, "h-auto py-2 leading-relaxed")}
-					/>
-				</Field>
-				<div class="flex flex-col justify-center gap-1">
-					<Toggle
-						label="Show in shop"
-						checked={draft.isVisible}
-						onChange={(checked) => setDraft("isVisible", checked)}
-					/>
-					<span class="text-xs text-petal-900/55">
-						Turn off to keep working on it before customers see it.
-					</span>
-				</div>
-				<fieldset class="sm:col-span-2">
-					<legend class="mb-2 text-sm font-medium">Type</legend>
-					<div class="grid gap-2 sm:grid-cols-3">
-						<For each={arrangementTypes()}>
-							{(type) => (
-								<label class="cursor-pointer">
-									<input
-										type="radio"
-										name="arrangement"
-										value={type.id}
-										checked={draft.arrangement === type.id}
-										onChange={() => {
-											setDraft("arrangement", type.id);
-											// A size belongs to one type; it can't come along.
-											if (
-												!sizesForType(sizes(), type.id).some(
-													(size) => size.id === draft.size,
-												)
-											)
-												setDraft("size", "");
-										}}
-										class="peer sr-only"
-									/>
-									<span class="flex h-full flex-col rounded-xl border border-petal-200 bg-white px-3 py-2 text-sm transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
-										<span class="font-semibold">{type.name}</span>
-										<span class="text-xs text-petal-900/60">
-											{type.description}
-										</span>
-									</span>
-								</label>
-							)}
-						</For>
-					</div>
-					<p class="mt-1.5 text-xs text-petal-900/55">
-						Types are set in{" "}
-						<Link
-							to="/admin/arrangement-types"
-							class="underline underline-offset-2 hover:text-petal-900"
-						>
-							Arrangement types
-						</Link>
-						.
+				<Show when={!isNew() && !savedVisible()}>
+					<p class="mb-4 rounded-2xl border border-warning-foreground/30 bg-warning px-4 py-3 text-sm text-warning-foreground">
+						<strong class="font-semibold">Hidden from the shop.</strong>{" "}
+						Customers can’t see this bouquet. Turn on “Show in shop” and save to
+						publish it.
 					</p>
-				</fieldset>
-				<Show when={typeSizes().length > 0}>
+				</Show>
+				<section class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-2")}>
+					<Field label="Name" hint={linkHint()} class="sm:col-span-2">
+						<span class="flex gap-2">
+							<input
+								value={draft.title}
+								onInput={(e) => setDraft("title", e.currentTarget.value)}
+								maxLength={30}
+								required
+								placeholder="e.g. Odette"
+								aria-invalid={nameTaken() ? "true" : undefined}
+								class={cn(
+									adminInput,
+									"min-w-0 flex-1",
+									nameTaken() &&
+										"border-destructive focus-visible:border-destructive",
+								)}
+							/>
+							<button
+								type="button"
+								aria-label="Pick a random name"
+								onClick={pickName}
+								class={cn(adminButton.secondary, "shrink-0 px-3")}
+							>
+								Random
+							</button>
+						</span>
+						<Show when={nameTaken()}>
+							<p role="alert" class="text-xs text-destructive">
+								Another bouquet already has this name.
+							</p>
+						</Show>
+					</Field>
+					<Field label="Description" class="sm:col-span-2">
+						<TextArea
+							value={draft.description}
+							onInput={(e) => setDraft("description", e.currentTarget.value)}
+							maxLength={2000}
+							rows={4}
+							class={cn(adminInput, "h-auto py-2 leading-relaxed")}
+						/>
+					</Field>
+					<div class="flex flex-col justify-center gap-1">
+						<Toggle
+							label="Show in shop"
+							checked={draft.isVisible}
+							onChange={(checked) => setDraft("isVisible", checked)}
+						/>
+						<span class="text-xs text-petal-900/55">
+							Turn off to keep working on it before customers see it.
+						</span>
+					</div>
 					<fieldset class="sm:col-span-2">
-						<legend class="mb-2 text-sm font-medium">
-							Size{" "}
-							<span class="font-normal text-petal-900/55">
-								— shown with the size guide
-							</span>
-						</legend>
-						<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-							<For each={typeSizes()}>
-								{(size) => (
+						<legend class="mb-2 text-sm font-medium">Type</legend>
+						<div class="grid gap-2 sm:grid-cols-3">
+							<For each={arrangementTypes()}>
+								{(type) => (
 									<label class="cursor-pointer">
 										<input
 											type="radio"
-											name="size"
-											value={size.id}
-											checked={draft.size === size.id}
-											onChange={() => setDraft("size", size.id)}
+											name="arrangement"
+											value={type.id}
+											checked={draft.arrangement === type.id}
+											onChange={() => {
+												setDraft("arrangement", type.id);
+												// A size belongs to one type; it can't come along.
+												if (
+													!sizesForType(sizes(), type.id).some(
+														(size) => size.id === draft.size,
+													)
+												)
+													setDraft("size", "");
+											}}
 											class="peer sr-only"
 										/>
 										<span class="flex h-full flex-col rounded-xl border border-petal-200 bg-white px-3 py-2 text-sm transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
-											<span class="font-semibold">{size.name}</span>
+											<span class="font-semibold">{type.name}</span>
 											<span class="text-xs text-petal-900/60">
-												{size.description}
+												{type.description}
 											</span>
 										</span>
 									</label>
@@ -794,756 +764,806 @@ function ProductEditor() {
 							</For>
 						</div>
 						<p class="mt-1.5 text-xs text-petal-900/55">
-							<Show when={!draft.size}>
-								No size chosen yet; the shop won’t show one.{" "}
-							</Show>
-							Sizes for each type, and their pictures, are set in{" "}
+							Types are set in{" "}
 							<Link
-								to="/admin/sizes"
+								to="/admin/arrangement-types"
 								class="underline underline-offset-2 hover:text-petal-900"
 							>
-								Sizes
+								Arrangement types
 							</Link>
 							.
 						</p>
 					</fieldset>
-				</Show>
-			</section>
-
-			<h2 class="text-lg font-semibold">Notice for shoppers</h2>
-			<p class="mb-3 text-sm text-petal-900/60">
-				Something to tell everyone who opens this arrangement in the shop, like
-				a wrapper that changed. It pops up once per visit, and stays on the page
-				as a banner they can open again.
-			</p>
-			<section
-				class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
-				aria-label="Notice for shoppers"
-			>
-				<div class="flex flex-col items-start gap-1 text-xs">
-					<Show
-						when={draft.notice.image}
-						fallback={
-							<span class="flex size-32 items-center justify-center rounded-lg border border-dashed border-petal-300 px-2 text-center text-petal-900/50">
-								No picture
-							</span>
-						}
-					>
-						{(src) => (
-							<ZoomableImage
-								src={src()}
-								alt="Notice picture"
-								hoverPreview
-								class="size-32 rounded-lg border border-black/10 bg-white object-contain"
-							/>
-						)}
+					<Show when={typeSizes().length > 0}>
+						<fieldset class="sm:col-span-2">
+							<legend class="mb-2 text-sm font-medium">
+								Size{" "}
+								<span class="font-normal text-petal-900/55">
+									— shown with the size guide
+								</span>
+							</legend>
+							<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+								<For each={typeSizes()}>
+									{(size) => (
+										<label class="cursor-pointer">
+											<input
+												type="radio"
+												name="size"
+												value={size.id}
+												checked={draft.size === size.id}
+												onChange={() => setDraft("size", size.id)}
+												class="peer sr-only"
+											/>
+											<span class="flex h-full flex-col rounded-xl border border-petal-200 bg-white px-3 py-2 text-sm transition-colors hover:border-petal-300 peer-checked:border-petal-700 peer-checked:bg-petal-50 peer-checked:shadow-[inset_0_0_0_1px] peer-checked:shadow-petal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-petal-500">
+												<span class="font-semibold">{size.name}</span>
+												<span class="text-xs text-petal-900/60">
+													{size.description}
+												</span>
+											</span>
+										</label>
+									)}
+								</For>
+							</div>
+							<p class="mt-1.5 text-xs text-petal-900/55">
+								<Show when={!draft.size}>
+									No size chosen yet; the shop won’t show one.{" "}
+								</Show>
+								Sizes for each type, and their pictures, are set in{" "}
+								<Link
+									to="/admin/sizes"
+									class="underline underline-offset-2 hover:text-petal-900"
+								>
+									Sizes
+								</Link>
+								.
+							</p>
+						</fieldset>
 					</Show>
-					<span class="flex gap-2">
-						<label
-							class={cn(
-								"cursor-pointer py-2 text-petal-700 underline-offset-2 hover:underline sm:py-0",
-								noticeUploading() && "pointer-events-none opacity-60",
-							)}
-						>
-							{noticeUploading()
-								? "Uploading…"
-								: draft.notice.image
-									? "Replace"
-									: "Add picture"}
-							<input
-								type="file"
-								accept="image/png,image/jpeg,image/webp"
-								class="sr-only"
-								aria-label="Notice picture"
-								onChange={(e) => {
-									void uploadNotice(e.currentTarget.files);
-									e.currentTarget.value = "";
-								}}
-							/>
-						</label>
-						<Show when={draft.notice.image}>
-							<button
-								type="button"
-								class="py-2 text-error-foreground underline-offset-2 hover:underline sm:py-0"
-								onClick={() => setDraft("notice", "image", "")}
-							>
-								Remove
-							</button>
-						</Show>
-					</span>
-				</div>
-				<div class="grid content-start gap-4">
-					<Field
-						label="What it says"
-						hint="Optional with a picture. Shown under it, e.g. “Only the wrapper changes; the flowers stay the same.”"
-					>
-						<TextArea
-							value={draft.notice.text}
-							onInput={(e) => setDraft("notice", "text", e.currentTarget.value)}
-							maxLength={600}
-							rows={3}
-							class={cn(adminInput, "h-auto py-2 leading-relaxed")}
-						/>
-					</Field>
-					<div class="flex flex-col gap-1">
-						<Toggle
-							label="Show this notice in the shop"
-							checked={draft.notice.enabled}
-							onChange={(checked) => setDraft("notice", "enabled", checked)}
-						/>
+				</section>
+
+				<h2 class="text-lg font-semibold">Notice for shoppers</h2>
+				<p class="mb-3 text-sm text-petal-900/60">
+					Something to tell everyone who opens this arrangement in the shop,
+					like a wrapper that changed. It pops up once per visit, and stays on
+					the page as a banner they can open again.
+				</p>
+				<section
+					class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
+					aria-label="Notice for shoppers"
+				>
+					<div class="flex flex-col items-start gap-1 text-xs">
 						<Show
-							when={draft.notice.enabled}
+							when={draft.notice.image}
 							fallback={
-								<span class="text-xs text-petal-900/55">
-									Off: shoppers don’t see it. It’s kept here for next time.
+								<span class="flex size-32 items-center justify-center rounded-lg border border-dashed border-petal-300 px-2 text-center text-petal-900/50">
+									No picture
 								</span>
 							}
 						>
+							{(src) => (
+								<ZoomableImage
+									src={src()}
+									alt="Notice picture"
+									hoverPreview
+									class="size-32 rounded-lg border border-black/10 bg-white object-contain"
+								/>
+							)}
+						</Show>
+						<span class="flex gap-2">
+							<label
+								class={cn(
+									"cursor-pointer py-2 text-petal-700 underline-offset-2 hover:underline sm:py-0",
+									noticeUploading() && "pointer-events-none opacity-60",
+								)}
+							>
+								{noticeUploading()
+									? "Uploading…"
+									: draft.notice.image
+										? "Replace"
+										: "Add picture"}
+								<input
+									type="file"
+									accept="image/png,image/jpeg,image/webp"
+									class="sr-only"
+									aria-label="Notice picture"
+									onChange={(e) => {
+										void uploadNotice(e.currentTarget.files);
+										e.currentTarget.value = "";
+									}}
+								/>
+							</label>
+							<Show when={draft.notice.image}>
+								<button
+									type="button"
+									class="py-2 text-error-foreground underline-offset-2 hover:underline sm:py-0"
+									onClick={() => setDraft("notice", "image", "")}
+								>
+									Remove
+								</button>
+							</Show>
+						</span>
+					</div>
+					<div class="grid content-start gap-4">
+						<Field
+							label="What it says"
+							hint="Optional with a picture. Shown under it, e.g. “Only the wrapper changes; the flowers stay the same.”"
+						>
+							<TextArea
+								value={draft.notice.text}
+								onInput={(e) =>
+									setDraft("notice", "text", e.currentTarget.value)
+								}
+								maxLength={600}
+								rows={3}
+								class={cn(adminInput, "h-auto py-2 leading-relaxed")}
+							/>
+						</Field>
+						<div class="flex flex-col gap-1">
+							<Toggle
+								label="Show this notice in the shop"
+								checked={draft.notice.enabled}
+								onChange={(checked) => setDraft("notice", "enabled", checked)}
+							/>
 							<Show
-								when={draft.notice.image || draft.notice.text.trim()}
+								when={draft.notice.enabled}
 								fallback={
-									<span class="text-xs text-warning-foreground">
-										Add a picture or some words first, or switch it off.
+									<span class="text-xs text-petal-900/55">
+										Off: shoppers don’t see it. It’s kept here for next time.
 									</span>
 								}
 							>
-								<span class="text-xs text-petal-900/55">
-									On: shoppers see it when they open{" "}
-									{draft.title.trim() || "this arrangement"}, once you save.
-									Switch it off when it no longer applies.
-								</span>
-							</Show>
-						</Show>
-					</div>
-				</div>
-			</section>
-
-			<h2 class="text-lg font-semibold">Flowers</h2>
-			<p class="mb-3 text-sm text-petal-900/60">
-				What this bouquet is made of. Every style uses these unless you give it
-				its own flowers below.
-			</p>
-			<section class={cn(adminCard, "mb-6 p-5")} aria-label="Bouquet flowers">
-				<p class="mb-3 text-sm font-medium">
-					{recipeStems(draft.recipe)} flowers{" "}
-					<span class="font-normal text-petal-900/55">
-						— ₱{recipeCost(draft.recipe).toLocaleString("en-PH")} at Flowers
-						prices
-					</span>
-				</p>
-				<RecipeRows
-					rows={draft.recipe}
-					onPatch={(row, patch) => setDraft("recipe", row, patch)}
-					onChange={(rows) => setDraft("recipe", rows)}
-				/>
-			</section>
-
-			<h2 class="text-lg font-semibold">Styles</h2>
-			<p class="mb-3 text-sm text-petal-900/60">
-				The versions shoppers pick between, e.g. Pink and Cream. The shop calls
-				them themes.
-			</p>
-
-			<div class="flex flex-col gap-4">
-				<Index each={draft.variants}>
-					{(variant, index) => (
-						<section
-							data-color-card
-							data-color-id={variant().id}
-							class={cn(
-								adminCard,
-								"scroll-mt-32 p-5 transition-shadow duration-500 lg:scroll-mt-6",
-								openedColor() &&
-									openedColor() === variant().id &&
-									"ring-2 ring-petal-500",
-							)}
-							aria-label={variant().colorName || `Style ${index + 1}`}
-						>
-							<p class="mb-4 font-semibold">
-								{variant().colorName.trim() || "New style"}
-								<span class="font-normal text-petal-900/55">
-									{" "}
-									· style {index + 1} of {draft.variants.length}
-								</span>
-							</p>
-							<div class="grid gap-4 sm:grid-cols-6">
-								<Field label="Style name" class="sm:col-span-3">
-									<input
-										value={variant().colorName}
-										onInput={(e) =>
-											updateVariant(index, { colorName: e.currentTarget.value })
-										}
-										maxLength={40}
-										required
-										placeholder="e.g. Pink"
-										aria-invalid={styleNameRepeated(index) ? "true" : undefined}
-										class={adminInput}
-									/>
-									<Show when={styleNameRepeated(index)}>
-										<p role="alert" class="text-xs text-destructive">
-											Another style has this name.
-										</p>
-									</Show>
-								</Field>
-								<div class="flex flex-col gap-1.5 sm:col-span-3">
-									<span class="text-sm font-medium">Swatch</span>
-									<span class="flex items-center gap-2">
-										<input
-											type="color"
-											value={variant().colorHex}
-											onInput={(e) =>
-												updateVariant(index, {
-													colorHex: e.currentTarget.value,
-												})
-											}
-											aria-label={`Swatch color for ${variant().colorName || "this style"}`}
-											class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
-										/>
-										<Show when={variant().colorHex2}>
-											<input
-												type="color"
-												value={variant().colorHex2}
-												onInput={(e) =>
-													updateVariant(index, {
-														colorHex2: e.currentTarget.value,
-													})
-												}
-												aria-label={`Second swatch color for ${variant().colorName || "this style"}`}
-												class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
-											/>
-										</Show>
-										<span
-											aria-hidden="true"
-											class="size-7 shrink-0 rounded-full border border-black/10"
-											style={{
-												background: swatchBackground(
-													variant().colorHex,
-													variant().colorHex2,
-												),
-											}}
-										/>
-									</span>
-									<label class="flex items-center gap-1.5 text-xs text-petal-900/70">
-										<input
-											type="checkbox"
-											checked={!!variant().colorHex2}
-											onChange={(e) =>
-												updateVariant(index, {
-													colorHex2: e.currentTarget.checked ? "#ffffff" : "",
-												})
-											}
-											class="accent-petal-700"
-										/>
-										Two colors
-									</label>
-								</div>
-								<Field label="Price (₱)" class="sm:col-span-2">
-									<input
-										type="number"
-										min="1"
-										step="0.01"
-										inputMode="decimal"
-										value={variant().price}
-										onInput={(e) =>
-											updateVariant(index, { price: e.currentTarget.value })
-										}
-										required
-										class={adminInput}
-									/>
-								</Field>
-								<div class="flex flex-col justify-end gap-1 pb-1 sm:col-span-4">
-									<Toggle
-										label="Available"
-										checked={variant().isAvailable}
-										onChange={(checked) =>
-											updateVariant(index, { isAvailable: checked })
-										}
-									/>
-									<span class="text-xs text-petal-900/55">
-										When off, shoppers still see it but can’t order it.
-									</span>
-								</div>
-							</div>
-
-							<div class="mt-5 grid gap-4 rounded-xl border border-petal-100 bg-petal-50/40 p-4 sm:grid-cols-6">
-								<Field
-									label="Ready-made stock"
-									hint="Bouquets made ahead. Blank: made to order, no limit."
-									class="sm:col-span-2"
-								>
-									<input
-										type="number"
-										min="0"
-										max="9999"
-										step="1"
-										inputMode="numeric"
-										placeholder="No limit"
-										value={variant().readyStock}
-										onInput={(e) =>
-											updateVariant(index, {
-												readyStock: e.currentTarget.value,
-											})
-										}
-										class={cn(adminInput, "tabular-nums")}
-									/>
-								</Field>
-								<Show when={variant().readyStock.trim() !== ""}>
-									<div class="flex flex-col justify-center gap-1 sm:col-span-2">
-										<Toggle
-											label="Pre-order when sold out"
-											checked={variant().takesPreorders}
-											onChange={(checked) =>
-												updateVariant(index, { takesPreorders: checked })
-											}
-										/>
-										<span class="text-xs text-petal-900/55">
-											When off, it shows Sold out at 0.
-										</span>
-									</div>
-									<Show when={variant().takesPreorders}>
-										<Field
-											label="Pre-order slots"
-											hint="How many pre-orders to take. Blank: no limit."
-											class="sm:col-span-2"
-										>
-											<input
-												type="number"
-												min="0"
-												max="9999"
-												step="1"
-												inputMode="numeric"
-												placeholder="No limit"
-												value={variant().preorderSlots}
-												onInput={(e) =>
-													updateVariant(index, {
-														preorderSlots: e.currentTarget.value,
-													})
-												}
-												class={cn(adminInput, "tabular-nums")}
-											/>
-										</Field>
-										<fieldset class="sm:col-span-6">
-											<legend class="mb-1.5 text-sm font-medium">
-												Pre-orders are ready
-											</legend>
-											<div class="flex flex-wrap items-center gap-2">
-												<select
-													aria-label="How the ready time is set"
-													onChange={(e) =>
-														updateVariant(index, {
-															readyMode: e.currentTarget
-																.value as VariantDraft["readyMode"],
-														})
-													}
-													class={cn(adminInput, "w-auto")}
-												>
-													<option
-														value=""
-														selected={variant().readyMode === ""}
-													>
-														Not set
-													</option>
-													<option
-														value="days"
-														selected={variant().readyMode === "days"}
-													>
-														A number of days after ordering
-													</option>
-													<option
-														value="date"
-														selected={variant().readyMode === "date"}
-													>
-														On a set date
-													</option>
-												</select>
-												<Show when={variant().readyMode === "days"}>
-													<input
-														type="number"
-														min="1"
-														max="365"
-														step="1"
-														inputMode="numeric"
-														value={variant().readyDays}
-														onInput={(e) =>
-															updateVariant(index, {
-																readyDays: e.currentTarget.value,
-															})
-														}
-														aria-label="Days after ordering"
-														class={cn(adminInput, "w-20 tabular-nums")}
-													/>
-													<span class="text-sm text-petal-900/70">
-														days after ordering
-													</span>
-												</Show>
-												<Show when={variant().readyMode === "date"}>
-													<input
-														type="date"
-														min={shopNow().date}
-														value={variant().readyDate}
-														onInput={(e) =>
-															updateVariant(index, {
-																readyDate: e.currentTarget.value,
-															})
-														}
-														required
-														aria-label="Ready date"
-														class={cn(adminInput, "w-auto")}
-													/>
-												</Show>
-											</div>
-											<p
-												class={cn(
-													"mt-1 text-xs",
-													variant().readyMode === "date" &&
-														variant().readyDate &&
-														variant().readyDate < shopNow().date
-														? "text-error-foreground"
-														: "text-petal-900/55",
-												)}
-											>
-												{variant().readyMode === "date" &&
-												variant().readyDate &&
-												variant().readyDate < shopNow().date
-													? "This date has passed, so shoppers won’t see a ready date. Pick a new one."
-													: variant().readyMode === "days"
-														? "Like “ships in 3 days”: each order gets its own date."
-														: variant().readyMode === "date"
-															? "Every pre-order is ready on this day, e.g. when a batch of flowers arrives."
-															: "Shoppers are told you’ll let them know when it’s ready."}
-											</p>
-										</fieldset>
-									</Show>
-								</Show>
-								<p class="text-sm sm:col-span-6">
-									<span class="text-petal-900/60">Shoppers see: </span>
-									<strong class="font-semibold">
-										{shopperSees(variant())}
-									</strong>
-									<span class="text-petal-900/60">
-										{" "}
-										· Orders take one off as they’re placed, and cancelled
-										orders put it back.
-									</span>
-								</p>
-							</div>
-
-							<div class="mt-5 grid gap-4 sm:grid-cols-6">
-								<fieldset class="sm:col-span-4">
-									<legend class="mb-2 text-sm font-medium">Flowers</legend>
-									<Toggle
-										label="This style has its own flowers"
-										checked={variant().ownRecipe}
-										onChange={(checked) => setOwnRecipe(index, checked)}
-									/>
-									<Show
-										when={variant().ownRecipe}
-										fallback={
-											<p class="mt-2 rounded-xl bg-petal-50 px-3 py-2 text-sm text-petal-900/70">
-												<Show
-													when={bouquetRecipeText()}
-													fallback="The bouquet has no flowers yet. Add them under Flowers above."
-												>
-													Uses the bouquet’s flowers: {bouquetRecipeText()}
-												</Show>
-											</p>
-										}
-									>
-										<p class="mb-2 mt-2 text-xs text-petal-900/55">
-											Only this style uses these:{" "}
-											{recipeStems(variant().recipe)} flowers, ₱
-											{recipeCost(variant().recipe).toLocaleString("en-PH")} at
-											Flowers prices.
-										</p>
-										<Show when={copiesBouquet(variant())}>
-											<p
-												role="alert"
-												class="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-											>
-												These are the same as the bouquet’s flowers. Change at
-												least one for this style, or turn this off.
-											</p>
-										</Show>
-										<RecipeRows
-											rows={variant().recipe}
-											onPatch={(row, patch) =>
-												setDraft("variants", index, "recipe", row, patch)
-											}
-											onChange={(rows) =>
-												setDraft("variants", index, "recipe", rows)
-											}
-										/>
-									</Show>
-								</fieldset>
-								<fieldset class="sm:col-span-2">
-									<legend class="mb-2 text-sm font-medium">Wrappers</legend>
-									<WrapperList
-										label="Wrapper"
-										wrappers={custom().wrappers}
-										value={variant().wrapperIds}
-										onChange={(wrapperIds) =>
-											updateVariant(index, { wrapperIds })
-										}
-									/>
-									<p class="mt-1.5 text-xs text-petal-900/55">
-										From Wrappers. All of them go on the bouquet; shoppers and
-										each order see every one.
-									</p>
-								</fieldset>
-							</div>
-
-							<div class="mt-5">
-								<p class="mb-2 text-sm font-medium">
-									Photos{" "}
-									<span class="font-normal text-petal-900/55">
-										— tag what each one shows and add a caption if you like; the
-										first is the cover
-									</span>
-								</p>
-								<div class="mb-3">
-									<Toggle
-										label="Backgrounds enhanced with AI"
-										checked={variant().aiPhotos}
-										onChange={(checked) =>
-											updateVariant(index, { aiPhotos: checked })
-										}
-									/>
-									<p class="mt-1 text-xs text-petal-900/55">
-										When on, the shop shows a note under this style’s photos.
-										Turn it off if the photos weren’t edited with AI.
-									</p>
-								</div>
-								<ul class="flex flex-wrap gap-3">
-									<For each={variant().images}>
-										{(image, imageIndex) => (
-											<li class="group relative w-36">
-												<ZoomableImage
-													src={image}
-													alt={`${variant().colorName || "Style"}, view ${imageIndex() + 1}`}
-													caption={variant().colorName}
-													class="size-36 rounded-xl border border-petal-100 bg-petal-50 object-cover"
-												/>
-												<select
-													onChange={(e) =>
-														setDraft(
-															"variants",
-															index,
-															"imageTags",
-															imageIndex(),
-															e.currentTarget.value as PhotoTag,
-														)
-													}
-													aria-label={`What photo ${imageIndex() + 1} shows`}
-													class="mt-1 h-10 w-full rounded-lg border border-petal-200 bg-white px-1 text-base font-medium text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:h-7 sm:text-[11px]"
-												>
-													<For each={PHOTO_TAGS}>
-														{(tag) => (
-															<option
-																value={tag.value}
-																selected={
-																	(variant().imageTags[imageIndex()] ?? "") ===
-																	tag.value
-																}
-															>
-																{tag.short}
-															</option>
-														)}
-													</For>
-												</select>
-												<TextArea
-													value={variant().imageCaptions[imageIndex()] ?? ""}
-													onInput={(e) =>
-														setDraft(
-															"variants",
-															index,
-															"imageCaptions",
-															imageIndex(),
-															e.currentTarget.value,
-														)
-													}
-													maxLength={PHOTO_CAPTION_MAX}
-													rows={3}
-													placeholder="Caption (optional)"
-													aria-label={`Caption for photo ${imageIndex() + 1}`}
-													class="mt-1 block w-full resize-none rounded-lg border border-petal-200 bg-white px-2 py-1.5 text-base leading-snug text-petal-900 outline-none placeholder:text-petal-900/40 focus-visible:ring-2 focus-visible:ring-petal-500 sm:text-xs"
-												/>
-												<div class="mt-1 flex justify-between">
-													<button
-														type="button"
-														class={adminButton.ghost}
-														disabled={imageIndex() === 0}
-														onClick={() =>
-															moveImage(index, imageIndex(), imageIndex() - 1)
-														}
-														aria-label={`Move photo ${imageIndex() + 1} earlier`}
-													>
-														←
-													</button>
-													<button
-														type="button"
-														class={cn(
-															adminButton.ghost,
-															"text-error-foreground",
-														)}
-														onClick={() => removeImage(index, imageIndex())}
-														aria-label={`Remove photo ${imageIndex() + 1}`}
-													>
-														✕
-													</button>
-													<button
-														type="button"
-														class={adminButton.ghost}
-														disabled={
-															imageIndex() === variant().images.length - 1
-														}
-														onClick={() =>
-															moveImage(index, imageIndex(), imageIndex() + 1)
-														}
-														aria-label={`Move photo ${imageIndex() + 1} later`}
-													>
-														→
-													</button>
-												</div>
-											</li>
-										)}
-									</For>
-									<li>
-										<label
-											class={cn(
-												"flex size-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-petal-200 bg-white text-center text-xs text-petal-900/60 transition-colors hover:border-petal-300 hover:bg-petal-50",
-												uploading() === variant().key &&
-													"pointer-events-none opacity-60",
-											)}
-										>
-											<span class="text-xl leading-none">+</span>
-											{uploading() === variant().key
-												? "Uploading…"
-												: "Add photos"}
-											<input
-												type="file"
-												accept="image/png,image/jpeg,image/webp"
-												multiple
-												class="sr-only"
-												onChange={(e) => {
-													void uploadImages(index, e.currentTarget.files);
-													e.currentTarget.value = "";
-												}}
-											/>
-										</label>
-									</li>
-								</ul>
-							</div>
-
-							<div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-petal-100 pt-3">
 								<Show
-									when={draft.variants.length > 1}
+									when={draft.notice.image || draft.notice.text.trim()}
 									fallback={
-										<span class="text-xs text-petal-900/50">
-											A bouquet needs at least one style.
+										<span class="text-xs text-warning-foreground">
+											Add a picture or some words first, or switch it off.
 										</span>
 									}
 								>
+									<span class="text-xs text-petal-900/55">
+										On: shoppers see it when they open{" "}
+										{draft.title.trim() || "this arrangement"}, once you save.
+										Switch it off when it no longer applies.
+									</span>
+								</Show>
+							</Show>
+						</div>
+					</div>
+				</section>
+
+				<h2 class="text-lg font-semibold">Flowers</h2>
+				<p class="mb-3 text-sm text-petal-900/60">
+					What this bouquet is made of. Every style uses these unless you give
+					it its own flowers below.
+				</p>
+				<section class={cn(adminCard, "mb-6 p-5")} aria-label="Bouquet flowers">
+					<p class="mb-3 text-sm font-medium">
+						{recipeStems(draft.recipe)} flowers{" "}
+						<span class="font-normal text-petal-900/55">
+							— ₱{recipeCost(draft.recipe).toLocaleString("en-PH")} at Flowers
+							prices
+						</span>
+					</p>
+					<RecipeRows
+						rows={draft.recipe}
+						onPatch={(row, patch) => setDraft("recipe", row, patch)}
+						onChange={(rows) => setDraft("recipe", rows)}
+					/>
+				</section>
+
+				<h2 class="text-lg font-semibold">Styles</h2>
+				<p class="mb-3 text-sm text-petal-900/60">
+					The versions shoppers pick between, e.g. Pink and Cream. The shop
+					calls them themes.
+				</p>
+
+				<div class="flex flex-col gap-4">
+					<Index each={draft.variants}>
+						{(variant, index) => (
+							<section
+								data-color-card
+								data-color-id={variant().id}
+								class={cn(
+									adminCard,
+									"scroll-mt-32 p-5 transition-shadow duration-500 lg:scroll-mt-6",
+									openedColor() &&
+										openedColor() === variant().id &&
+										"ring-2 ring-petal-500",
+								)}
+								aria-label={variant().colorName || `Style ${index + 1}`}
+							>
+								<p class="mb-4 font-semibold">
+									{variant().colorName.trim() || "New style"}
+									<span class="font-normal text-petal-900/55">
+										{" "}
+										· style {index + 1} of {draft.variants.length}
+									</span>
+								</p>
+								<div class="grid gap-4 sm:grid-cols-6">
+									<Field label="Style name" class="sm:col-span-3">
+										<input
+											value={variant().colorName}
+											onInput={(e) =>
+												updateVariant(index, {
+													colorName: e.currentTarget.value,
+												})
+											}
+											maxLength={40}
+											required
+											placeholder="e.g. Pink"
+											aria-invalid={
+												styleNameRepeated(index) ? "true" : undefined
+											}
+											class={adminInput}
+										/>
+										<Show when={styleNameRepeated(index)}>
+											<p role="alert" class="text-xs text-destructive">
+												Another style has this name.
+											</p>
+										</Show>
+									</Field>
+									<div class="flex flex-col gap-1.5 sm:col-span-3">
+										<span class="text-sm font-medium">Swatch</span>
+										<span class="flex items-center gap-2">
+											<input
+												type="color"
+												value={variant().colorHex}
+												onInput={(e) =>
+													updateVariant(index, {
+														colorHex: e.currentTarget.value,
+													})
+												}
+												aria-label={`Swatch color for ${variant().colorName || "this style"}`}
+												class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+											/>
+											<Show when={variant().colorHex2}>
+												<input
+													type="color"
+													value={variant().colorHex2}
+													onInput={(e) =>
+														updateVariant(index, {
+															colorHex2: e.currentTarget.value,
+														})
+													}
+													aria-label={`Second swatch color for ${variant().colorName || "this style"}`}
+													class="h-10 w-12 cursor-pointer rounded-lg border border-petal-200 bg-white p-1"
+												/>
+											</Show>
+											<span
+												aria-hidden="true"
+												class="size-7 shrink-0 rounded-full border border-black/10"
+												style={{
+													background: swatchBackground(
+														variant().colorHex,
+														variant().colorHex2,
+													),
+												}}
+											/>
+										</span>
+										<label class="flex items-center gap-1.5 text-xs text-petal-900/70">
+											<input
+												type="checkbox"
+												checked={!!variant().colorHex2}
+												onChange={(e) =>
+													updateVariant(index, {
+														colorHex2: e.currentTarget.checked ? "#ffffff" : "",
+													})
+												}
+												class="accent-petal-700"
+											/>
+											Two colors
+										</label>
+									</div>
+									<Field label="Price (₱)" class="sm:col-span-2">
+										<input
+											type="number"
+											min="1"
+											step="0.01"
+											inputMode="decimal"
+											value={variant().price}
+											onInput={(e) =>
+												updateVariant(index, { price: e.currentTarget.value })
+											}
+											required
+											class={adminInput}
+										/>
+									</Field>
+									<div class="flex flex-col justify-end gap-1 pb-1 sm:col-span-4">
+										<Toggle
+											label="Available"
+											checked={variant().isAvailable}
+											onChange={(checked) =>
+												updateVariant(index, { isAvailable: checked })
+											}
+										/>
+										<span class="text-xs text-petal-900/55">
+											When off, shoppers still see it but can’t order it.
+										</span>
+									</div>
+								</div>
+
+								<div class="mt-5 grid gap-4 rounded-xl border border-petal-100 bg-petal-50/40 p-4 sm:grid-cols-6">
+									<Field
+										label="Ready-made stock"
+										hint="Bouquets made ahead. Blank: made to order, no limit."
+										class="sm:col-span-2"
+									>
+										<input
+											type="number"
+											min="0"
+											max="9999"
+											step="1"
+											inputMode="numeric"
+											placeholder="No limit"
+											value={variant().readyStock}
+											onInput={(e) =>
+												updateVariant(index, {
+													readyStock: e.currentTarget.value,
+												})
+											}
+											class={cn(adminInput, "tabular-nums")}
+										/>
+									</Field>
+									<Show when={variant().readyStock.trim() !== ""}>
+										<div class="flex flex-col justify-center gap-1 sm:col-span-2">
+											<Toggle
+												label="Pre-order when sold out"
+												checked={variant().takesPreorders}
+												onChange={(checked) =>
+													updateVariant(index, { takesPreorders: checked })
+												}
+											/>
+											<span class="text-xs text-petal-900/55">
+												When off, it shows Sold out at 0.
+											</span>
+										</div>
+										<Show when={variant().takesPreorders}>
+											<Field
+												label="Pre-order slots"
+												hint="How many pre-orders to take. Blank: no limit."
+												class="sm:col-span-2"
+											>
+												<input
+													type="number"
+													min="0"
+													max="9999"
+													step="1"
+													inputMode="numeric"
+													placeholder="No limit"
+													value={variant().preorderSlots}
+													onInput={(e) =>
+														updateVariant(index, {
+															preorderSlots: e.currentTarget.value,
+														})
+													}
+													class={cn(adminInput, "tabular-nums")}
+												/>
+											</Field>
+											<fieldset class="sm:col-span-6">
+												<legend class="mb-1.5 text-sm font-medium">
+													Pre-orders are ready
+												</legend>
+												<div class="flex flex-wrap items-center gap-2">
+													<select
+														aria-label="How the ready time is set"
+														onChange={(e) =>
+															updateVariant(index, {
+																readyMode: e.currentTarget
+																	.value as VariantDraft["readyMode"],
+															})
+														}
+														class={cn(adminInput, "w-auto")}
+													>
+														<option
+															value=""
+															selected={variant().readyMode === ""}
+														>
+															Not set
+														</option>
+														<option
+															value="days"
+															selected={variant().readyMode === "days"}
+														>
+															A number of days after ordering
+														</option>
+														<option
+															value="date"
+															selected={variant().readyMode === "date"}
+														>
+															On a set date
+														</option>
+													</select>
+													<Show when={variant().readyMode === "days"}>
+														<input
+															type="number"
+															min="1"
+															max="365"
+															step="1"
+															inputMode="numeric"
+															value={variant().readyDays}
+															onInput={(e) =>
+																updateVariant(index, {
+																	readyDays: e.currentTarget.value,
+																})
+															}
+															aria-label="Days after ordering"
+															class={cn(adminInput, "w-20 tabular-nums")}
+														/>
+														<span class="text-sm text-petal-900/70">
+															days after ordering
+														</span>
+													</Show>
+													<Show when={variant().readyMode === "date"}>
+														<input
+															type="date"
+															min={shopNow().date}
+															value={variant().readyDate}
+															onInput={(e) =>
+																updateVariant(index, {
+																	readyDate: e.currentTarget.value,
+																})
+															}
+															required
+															aria-label="Ready date"
+															class={cn(adminInput, "w-auto")}
+														/>
+													</Show>
+												</div>
+												<p
+													class={cn(
+														"mt-1 text-xs",
+														variant().readyMode === "date" &&
+															variant().readyDate &&
+															variant().readyDate < shopNow().date
+															? "text-error-foreground"
+															: "text-petal-900/55",
+													)}
+												>
+													{variant().readyMode === "date" &&
+													variant().readyDate &&
+													variant().readyDate < shopNow().date
+														? "This date has passed, so shoppers won’t see a ready date. Pick a new one."
+														: variant().readyMode === "days"
+															? "Like “ships in 3 days”: each order gets its own date."
+															: variant().readyMode === "date"
+																? "Every pre-order is ready on this day, e.g. when a batch of flowers arrives."
+																: "Shoppers are told you’ll let them know when it’s ready."}
+												</p>
+											</fieldset>
+										</Show>
+									</Show>
+									<p class="text-sm sm:col-span-6">
+										<span class="text-petal-900/60">Shoppers see: </span>
+										<strong class="font-semibold">
+											{shopperSees(variant())}
+										</strong>
+										<span class="text-petal-900/60">
+											{" "}
+											· Orders take one off as they’re placed, and cancelled
+											orders put it back.
+										</span>
+									</p>
+								</div>
+
+								<div class="mt-5 grid gap-4 sm:grid-cols-6">
+									<fieldset class="sm:col-span-4">
+										<legend class="mb-2 text-sm font-medium">Flowers</legend>
+										<Toggle
+											label="This style has its own flowers"
+											checked={variant().ownRecipe}
+											onChange={(checked) => setOwnRecipe(index, checked)}
+										/>
+										<Show
+											when={variant().ownRecipe}
+											fallback={
+												<p class="mt-2 rounded-xl bg-petal-50 px-3 py-2 text-sm text-petal-900/70">
+													<Show
+														when={bouquetRecipeText()}
+														fallback="The bouquet has no flowers yet. Add them under Flowers above."
+													>
+														Uses the bouquet’s flowers: {bouquetRecipeText()}
+													</Show>
+												</p>
+											}
+										>
+											<p class="mb-2 mt-2 text-xs text-petal-900/55">
+												Only this style uses these:{" "}
+												{recipeStems(variant().recipe)} flowers, ₱
+												{recipeCost(variant().recipe).toLocaleString("en-PH")}{" "}
+												at Flowers prices.
+											</p>
+											<Show when={copiesBouquet(variant())}>
+												<p
+													role="alert"
+													class="mb-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+												>
+													These are the same as the bouquet’s flowers. Change at
+													least one for this style, or turn this off.
+												</p>
+											</Show>
+											<RecipeRows
+												rows={variant().recipe}
+												onPatch={(row, patch) =>
+													setDraft("variants", index, "recipe", row, patch)
+												}
+												onChange={(rows) =>
+													setDraft("variants", index, "recipe", rows)
+												}
+											/>
+										</Show>
+									</fieldset>
+									<fieldset class="sm:col-span-2">
+										<legend class="mb-2 text-sm font-medium">Wrappers</legend>
+										<WrapperList
+											label="Wrapper"
+											wrappers={custom().wrappers}
+											value={variant().wrapperIds}
+											onChange={(wrapperIds) =>
+												updateVariant(index, { wrapperIds })
+											}
+										/>
+										<p class="mt-1.5 text-xs text-petal-900/55">
+											From Wrappers. All of them go on the bouquet; shoppers and
+											each order see every one.
+										</p>
+									</fieldset>
+								</div>
+
+								<div class="mt-5">
+									<p class="mb-2 text-sm font-medium">
+										Photos{" "}
+										<span class="font-normal text-petal-900/55">
+											— tag what each one shows and add a caption if you like;
+											the first is the cover
+										</span>
+									</p>
+									<div class="mb-3">
+										<Toggle
+											label="Backgrounds enhanced with AI"
+											checked={variant().aiPhotos}
+											onChange={(checked) =>
+												updateVariant(index, { aiPhotos: checked })
+											}
+										/>
+										<p class="mt-1 text-xs text-petal-900/55">
+											When on, the shop shows a note under this style’s photos.
+											Turn it off if the photos weren’t edited with AI.
+										</p>
+									</div>
+									<ul class="flex flex-wrap gap-3">
+										<For each={variant().images}>
+											{(image, imageIndex) => (
+												<li class="group relative w-36">
+													<ZoomableImage
+														src={image}
+														alt={`${variant().colorName || "Style"}, view ${imageIndex() + 1}`}
+														caption={variant().colorName}
+														class="size-36 rounded-xl border border-petal-100 bg-petal-50 object-cover"
+													/>
+													<select
+														onChange={(e) =>
+															setDraft(
+																"variants",
+																index,
+																"imageTags",
+																imageIndex(),
+																e.currentTarget.value as PhotoTag,
+															)
+														}
+														aria-label={`What photo ${imageIndex() + 1} shows`}
+														class="mt-1 h-10 w-full rounded-lg border border-petal-200 bg-white px-1 text-base font-medium text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500 sm:h-7 sm:text-[11px]"
+													>
+														<For each={PHOTO_TAGS}>
+															{(tag) => (
+																<option
+																	value={tag.value}
+																	selected={
+																		(variant().imageTags[imageIndex()] ??
+																			"") === tag.value
+																	}
+																>
+																	{tag.short}
+																</option>
+															)}
+														</For>
+													</select>
+													<TextArea
+														value={variant().imageCaptions[imageIndex()] ?? ""}
+														onInput={(e) =>
+															setDraft(
+																"variants",
+																index,
+																"imageCaptions",
+																imageIndex(),
+																e.currentTarget.value,
+															)
+														}
+														maxLength={PHOTO_CAPTION_MAX}
+														rows={3}
+														placeholder="Caption (optional)"
+														aria-label={`Caption for photo ${imageIndex() + 1}`}
+														class="mt-1 block w-full resize-none rounded-lg border border-petal-200 bg-white px-2 py-1.5 text-base leading-snug text-petal-900 outline-none placeholder:text-petal-900/40 focus-visible:ring-2 focus-visible:ring-petal-500 sm:text-xs"
+													/>
+													<div class="mt-1 flex justify-between">
+														<button
+															type="button"
+															class={adminButton.ghost}
+															disabled={imageIndex() === 0}
+															onClick={() =>
+																moveImage(index, imageIndex(), imageIndex() - 1)
+															}
+															aria-label={`Move photo ${imageIndex() + 1} earlier`}
+														>
+															←
+														</button>
+														<button
+															type="button"
+															class={cn(
+																adminButton.ghost,
+																"text-error-foreground",
+															)}
+															onClick={() => removeImage(index, imageIndex())}
+															aria-label={`Remove photo ${imageIndex() + 1}`}
+														>
+															✕
+														</button>
+														<button
+															type="button"
+															class={adminButton.ghost}
+															disabled={
+																imageIndex() === variant().images.length - 1
+															}
+															onClick={() =>
+																moveImage(index, imageIndex(), imageIndex() + 1)
+															}
+															aria-label={`Move photo ${imageIndex() + 1} later`}
+														>
+															→
+														</button>
+													</div>
+												</li>
+											)}
+										</For>
+										<li>
+											<label
+												class={cn(
+													"flex size-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-petal-200 bg-white text-center text-xs text-petal-900/60 transition-colors hover:border-petal-300 hover:bg-petal-50",
+													uploading() === variant().key &&
+														"pointer-events-none opacity-60",
+												)}
+											>
+												<span class="text-xl leading-none">+</span>
+												{uploading() === variant().key
+													? "Uploading…"
+													: "Add photos"}
+												<input
+													type="file"
+													accept="image/png,image/jpeg,image/webp"
+													multiple
+													class="sr-only"
+													onChange={(e) => {
+														void uploadImages(index, e.currentTarget.files);
+														e.currentTarget.value = "";
+													}}
+												/>
+											</label>
+										</li>
+									</ul>
+								</div>
+
+								<div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-petal-100 pt-3">
 									<Show
-										when={variant().id}
+										when={draft.variants.length > 1}
 										fallback={
-											<button
-												type="button"
-												class={adminButton.ghost}
-												onClick={() =>
+											<span class="text-xs text-petal-900/50">
+												A bouquet needs at least one style.
+											</span>
+										}
+									>
+										<Show
+											when={variant().id}
+											fallback={
+												<button
+													type="button"
+													class={adminButton.ghost}
+													onClick={() =>
+														setDraft("variants", (list) =>
+															list.filter((_, i) => i !== index),
+														)
+													}
+												>
+													Remove style
+												</button>
+											}
+										>
+											<ConfirmButton
+												class={cn(adminButton.ghost, "text-error-foreground")}
+												title={`Remove ${variant().colorName}?`}
+												description="It disappears from the shop when you save. Past orders keep their details."
+												confirmLabel="Remove"
+												onConfirm={() =>
 													setDraft("variants", (list) =>
 														list.filter((_, i) => i !== index),
 													)
 												}
 											>
 												Remove style
-											</button>
-										}
-									>
-										<ConfirmButton
-											class={cn(adminButton.ghost, "text-error-foreground")}
-											title={`Remove ${variant().colorName}?`}
-											description="It disappears from the shop when you save. Past orders keep their details."
-											confirmLabel="Remove"
-											onConfirm={() =>
-												setDraft("variants", (list) =>
-													list.filter((_, i) => i !== index),
-												)
-											}
-										>
-											Remove style
-										</ConfirmButton>
+											</ConfirmButton>
+										</Show>
 									</Show>
-								</Show>
-							</div>
-						</section>
-					)}
-				</Index>
-			</div>
+								</div>
+							</section>
+						)}
+					</Index>
+				</div>
 
-			<Show when={scrolled()}>
-				<button
-					type="button"
-					aria-label="Back to top"
-					onClick={() => window.scrollTo({ top: 0, behavior: smoothly() })}
-					class="fixed bottom-20 right-4 z-30 inline-flex h-11 items-center gap-1 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium text-petal-900 shadow-md transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
-				>
-					<span aria-hidden="true">↑</span> Top
-				</button>
-			</Show>
-
-			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
-				<div class="mx-auto flex max-w-4xl items-center justify-end gap-1.5 sm:gap-2">
-					<Show when={!isNew()}>
-						<ConfirmButton
-							class={cn(adminButton.danger, barButton)}
-							title={`Delete ${draft.title || "this arrangement"}?`}
-							description="This removes the arrangement and all its styles from the shop for good. Past orders keep their details."
-							confirmLabel="Delete arrangement"
-							onConfirm={async () => {
-								try {
-									await deleteProductFn({
-										data: { productId: params().productId },
-									});
-									toastSuccess("Arrangement deleted.");
-									await refresh();
-									await leave();
-								} catch (error) {
-									toastError(error);
-								}
-							}}
-						>
-							Delete<span class="hidden sm:inline"> arrangement</span>
-						</ConfirmButton>
-					</Show>
+				<Show when={scrolled()}>
 					<button
 						type="button"
-						class={cn(adminButton.secondary, barButton, "mr-auto")}
-						onClick={addStyle}
+						aria-label="Back to top"
+						onClick={() => window.scrollTo({ top: 0, behavior: smoothly() })}
+						class="fixed bottom-20 right-4 z-30 inline-flex h-11 items-center gap-1 rounded-full border border-petal-200 bg-white px-4 text-sm font-medium text-petal-900 shadow-md transition-colors hover:bg-petal-50 outline-none focus-visible:ring-2 focus-visible:ring-petal-500"
 					>
-						+ <span class="hidden sm:inline">Add style</span>
-						<span class="sm:hidden">Style</span>
+						<span aria-hidden="true">↑</span> Top
 					</button>
-					<Link
-						to="/admin/signature-bouquets"
-						onClick={stepBack}
-						class={cn(adminButton.secondary, barButton)}
-					>
-						Cancel
-					</Link>
-					<button
-						type="submit"
-						class={cn(adminButton.primary, barButton, "sm:px-5")}
-						disabled={saving() || uploading() !== null}
-					>
-						<Show when={!saving()} fallback="Saving…">
-							{isNew() ? "Create" : "Save"}
-							<span class="hidden sm:inline">
-								{isNew() ? " bouquet" : " changes"}
-							</span>
-						</Show>
-					</button>
-				</div>
-			</div>
+				</Show>
+
+				<Show when={canEdit()}>
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
+						<div class="mx-auto flex max-w-4xl items-center justify-end gap-1.5 sm:gap-2">
+							<Show when={!isNew()}>
+								<ConfirmButton
+									class={cn(adminButton.danger, barButton)}
+									title={`Delete ${draft.title || "this arrangement"}?`}
+									description="This removes the arrangement and all its styles from the shop for good. Past orders keep their details."
+									confirmLabel="Delete arrangement"
+									onConfirm={async () => {
+										try {
+											await deleteProductFn({
+												data: { productId: params().productId },
+											});
+											toastSuccess("Arrangement deleted.");
+											await refresh();
+											await leave();
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Delete<span class="hidden sm:inline"> arrangement</span>
+								</ConfirmButton>
+							</Show>
+							<button
+								type="button"
+								class={cn(adminButton.secondary, barButton, "mr-auto")}
+								onClick={addStyle}
+							>
+								+ <span class="hidden sm:inline">Add style</span>
+								<span class="sm:hidden">Style</span>
+							</button>
+							<Link
+								to="/admin/signature-bouquets"
+								onClick={stepBack}
+								class={cn(adminButton.secondary, barButton)}
+							>
+								Cancel
+							</Link>
+							<button
+								type="submit"
+								class={cn(adminButton.primary, barButton, "sm:px-5")}
+								disabled={saving() || uploading() !== null}
+							>
+								<Show when={!saving()} fallback="Saving…">
+									{isNew() ? "Create" : "Save"}
+									<span class="hidden sm:inline">
+										{isNew() ? " bouquet" : " changes"}
+									</span>
+								</Show>
+							</button>
+						</div>
+					</div>
+				</Show>
+			</fieldset>
 		</form>
 	);
 }

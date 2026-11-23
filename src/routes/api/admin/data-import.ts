@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 
+import { can } from "~/lib/permissions";
 import { getStaffUser } from "~/server/admin-auth";
 import {
 	DataImportError,
@@ -25,9 +26,12 @@ export const Route = createFileRoute("/api/admin/data-import")({
 						{ status: 403 },
 					);
 				const user = await getStaffUser();
-				if (user?.role !== "owner")
+				if (!can(user, "data.import"))
 					return Response.json(
-						{ ok: false, message: "Only the shop owner can do that." },
+						{
+							ok: false,
+							message: "You don’t have permission to replace the shop’s data.",
+						},
 						{ status: 403 },
 					);
 				try {

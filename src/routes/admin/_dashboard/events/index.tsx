@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import { EventStatusBadge } from "~/components/admin/event-status";
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
@@ -9,10 +10,12 @@ import {
 	EVENT_STATUSES,
 	sortEvents,
 } from "~/lib/events";
+import { can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import { listEventsAdmin } from "~/server/admin/events";
 
 export const Route = createFileRoute("/admin/_dashboard/events/")({
+	beforeLoad: needs("events.view"),
 	// Stepped back to after a save, wait for the fresh rows rather than
 	// showing the old ones first and swapping them in.
 	loader: {
@@ -25,6 +28,8 @@ export const Route = createFileRoute("/admin/_dashboard/events/")({
 
 /** Every event, grouped by where it is: current, upcoming, done. */
 function EventsPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "events.manage");
 	const events = Route.useLoaderData();
 	const sorted = () => sortEvents(events());
 	const groups = () =>
@@ -41,13 +46,15 @@ function EventsPage() {
 				title="Events"
 				description="Each academy event the shop takes orders for. The current one runs the shop: it takes orders until it has its most, then it’s fully booked. With none current, the shop is view only."
 				actions={
-					<Link
-						to="/admin/events/$eventId"
-						params={{ eventId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add event
-					</Link>
+					<Show when={canEdit()}>
+						<Link
+							to="/admin/events/$eventId"
+							params={{ eventId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add event
+						</Link>
+					</Show>
 				}
 			/>
 
@@ -60,13 +67,15 @@ function EventsPage() {
 							Add the next event the shop is taking orders for, with its
 							ordering period and delivery days.
 						</p>
-						<Link
-							to="/admin/events/$eventId"
-							params={{ eventId: "new" }}
-							class={cn(adminButton.primary, "mt-5")}
-						>
-							+ Add event
-						</Link>
+						<Show when={canEdit()}>
+							<Link
+								to="/admin/events/$eventId"
+								params={{ eventId: "new" }}
+								class={cn(adminButton.primary, "mt-5")}
+							>
+								+ Add event
+							</Link>
+						</Show>
 					</section>
 				}
 			>

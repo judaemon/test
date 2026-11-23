@@ -6,6 +6,7 @@ import {
 } from "@tanstack/solid-router";
 import { createSignal, onMount, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needsFor, ViewOnlyNote } from "~/components/admin/access";
 import { useLeaveForm } from "~/components/admin/leave-form";
 
 import {
@@ -21,6 +22,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { editorCrumbs, field } from "~/lib/crumbs";
+import { can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import {
 	deleteFloristFn,
@@ -30,6 +32,7 @@ import {
 } from "~/server/admin/florists";
 
 export const Route = createFileRoute("/admin/_dashboard/florists/$floristId")({
+	beforeLoad: needsFor("florists.view", "florists.manage"),
 	staticData: {
 		crumbs: editorCrumbs("New florist", "Untitled florist", field("name")),
 	},
@@ -44,6 +47,8 @@ export const Route = createFileRoute("/admin/_dashboard/florists/$floristId")({
 });
 
 function FloristEditor() {
+	const access = Route.useRouteContext();
+	const canEdit = () => can(access().user, "florists.manage");
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
@@ -93,168 +98,186 @@ function FloristEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
-			<Link
-				to="/admin/florists"
-				onClick={stepBack}
-				class={cn(adminButton.ghost, "-ml-2 mb-2")}
-			>
-				← Florists
-			</Link>
-			<PageHeader
-				title={isNew() ? "New florist" : draft.savedName || "Untitled florist"}
-				actions={
-					<Show when={!isNew()}>
-						<Link
-							to="/admin/logs"
-							search={{ area: "florists", item: params().floristId }}
-							class={adminButton.secondary}
-						>
-							Change history
-						</Link>
-						<Link
-							to="/admin/florists/$floristId/bouquets"
-							params={{ floristId: params().floristId }}
-							class={adminButton.primary}
-						>
-							Bouquet sheet
-						</Link>
-					</Show>
-				}
-			/>
-
-			<section class={cn(adminCard, "grid gap-4 p-5 sm:grid-cols-2")}>
-				<Field label="Name">
-					<input
-						value={draft.name}
-						onInput={(e) => setDraft("name", e.currentTarget.value)}
-						required
-						maxLength={60}
-						placeholder="e.g. Ate Joy"
-						class={adminInput}
-					/>
-				</Field>
-				<Field label="Phone" hint="Optional.">
-					<input
-						type="tel"
-						value={draft.phone}
-						onInput={(e) => setDraft("phone", e.currentTarget.value)}
-						maxLength={40}
-						class={adminInput}
-					/>
-				</Field>
-				<Field label="Email" hint="Optional.">
-					<input
-						type="email"
-						value={draft.email}
-						onInput={(e) => setDraft("email", e.currentTarget.value)}
-						maxLength={120}
-						class={adminInput}
-					/>
-				</Field>
-				<div class="flex flex-col justify-end gap-1 pb-1">
-					<Toggle
-						label="Can be given bouquets"
-						checked={draft.active}
-						onChange={(on) => setDraft("active", on)}
-					/>
-					<p class="text-xs text-petal-900/55">
-						Switch off when they stop working with you. Bouquets they already
-						have stay with them.
-					</p>
-				</div>
-				<Field
-					label="Notes"
-					hint="Optional, staff only. Rates, where they work, how to pay them."
-					class="sm:col-span-2"
+			<fieldset disabled={!canEdit()} class="contents">
+				<Link
+					to="/admin/florists"
+					onClick={stepBack}
+					class={cn(adminButton.ghost, "-ml-2 mb-2")}
 				>
-					<TextArea
-						value={draft.notes}
-						onInput={(e) => setDraft("notes", e.currentTarget.value)}
-						maxLength={500}
-						rows={3}
-						class={adminInput}
-					/>
-				</Field>
-				<Show when={!isNew()}>
-					<p class="text-sm text-petal-900/65 sm:col-span-2">
-						<Show
-							when={assigned() > 0}
-							fallback="No bouquets yet. Give them bouquets from Orders: tick the rows, then “Give to florist”."
-						>
+					← Florists
+				</Link>
+				<PageHeader
+					title={
+						isNew() ? "New florist" : draft.savedName || "Untitled florist"
+					}
+					actions={
+						<Show when={!isNew()}>
 							<Link
-								to="/admin/orders"
-								search={{ florist: params().floristId }}
-								class="font-medium text-petal-700 underline underline-offset-2"
+								to="/admin/logs"
+								search={{ area: "florists", item: params().floristId }}
+								class={adminButton.secondary}
 							>
-								{toMake()} {toMake() === 1 ? "bouquet" : "bouquets"} to make
+								Change history
 							</Link>
-							<Show when={loaded()?.done}>
-								{(done) => <> · {done()} done</>}
-							</Show>
+							<Link
+								to="/admin/florists/$floristId/bouquets"
+								params={{ floristId: params().floristId }}
+								class={adminButton.primary}
+							>
+								Bouquet sheet
+							</Link>
 						</Show>
-					</p>
-				</Show>
-			</section>
+					}
+				/>
+				<ViewOnlyNote access={access().user} permission="florists.manage" />
 
-			<Show when={!isNew() && loaded()}>
-				{(florist) => (
-					<PrivateLink
-						floristId={florist().id}
-						name={draft.savedName}
-						token={florist().shareToken}
-					/>
-				)}
-			</Show>
-
-			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
-				<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
-					<Show when={!isNew()}>
-						<ConfirmButton
-							class={cn(adminButton.danger, "mr-auto")}
-							title={`Delete ${draft.savedName}?`}
-							description={
-								assigned() > 0
-									? `They still have ${assigned()} bouquets on orders, so they can’t be deleted. Give the bouquets to someone else first, or switch off “Can be given bouquets”.`
-									: "They go for good, and their private link stops working."
-							}
-							confirmLabel={
-								assigned() > 0 ? "Show their bouquets" : "Delete florist"
-							}
-							onConfirm={async () => {
-								if (assigned() > 0) {
-									await navigate({
-										to: "/admin/orders",
-										search: { florist: params().floristId, stage: undefined },
-									});
-									return;
-								}
-								try {
-									await deleteFloristFn({
-										data: { id: params().floristId },
-									});
-									toastSuccess("Florist deleted.");
-									await refresh();
-									await leave();
-								} catch (error) {
-									toastError(error);
-								}
-							}}
-						>
-							Delete
-						</ConfirmButton>
-					</Show>
-					<Link
-						to="/admin/florists"
-						onClick={stepBack}
-						class={adminButton.secondary}
+				<section class={cn(adminCard, "grid gap-4 p-5 sm:grid-cols-2")}>
+					<Field label="Name">
+						<input
+							value={draft.name}
+							onInput={(e) => setDraft("name", e.currentTarget.value)}
+							required
+							maxLength={60}
+							placeholder="e.g. Ate Joy"
+							class={adminInput}
+						/>
+					</Field>
+					<Field label="Phone" hint="Optional.">
+						<input
+							type="tel"
+							value={draft.phone}
+							onInput={(e) => setDraft("phone", e.currentTarget.value)}
+							maxLength={40}
+							class={adminInput}
+						/>
+					</Field>
+					<Field label="Email" hint="Optional.">
+						<input
+							type="email"
+							value={draft.email}
+							onInput={(e) => setDraft("email", e.currentTarget.value)}
+							maxLength={120}
+							class={adminInput}
+						/>
+					</Field>
+					<div class="flex flex-col justify-end gap-1 pb-1">
+						<Toggle
+							label="Can be given bouquets"
+							checked={draft.active}
+							onChange={(on) => setDraft("active", on)}
+						/>
+						<p class="text-xs text-petal-900/55">
+							Switch off when they stop working with you. Bouquets they already
+							have stay with them.
+						</p>
+					</div>
+					<Field
+						label="Notes"
+						hint="Optional, staff only. Rates, where they work, how to pay them."
+						class="sm:col-span-2"
 					>
-						Cancel
-					</Link>
-					<button type="submit" class={adminButton.primary} disabled={saving()}>
-						{saving() ? "Saving…" : isNew() ? "Add florist" : "Save changes"}
-					</button>
-				</div>
-			</div>
+						<TextArea
+							value={draft.notes}
+							onInput={(e) => setDraft("notes", e.currentTarget.value)}
+							maxLength={500}
+							rows={3}
+							class={adminInput}
+						/>
+					</Field>
+					<Show when={!isNew()}>
+						<p class="text-sm text-petal-900/65 sm:col-span-2">
+							<Show
+								when={assigned() > 0}
+								fallback="No bouquets yet. Give them bouquets from Orders: tick the rows, then “Give to florist”."
+							>
+								<Link
+									to="/admin/orders"
+									search={{ florist: params().floristId }}
+									class="font-medium text-petal-700 underline underline-offset-2"
+								>
+									{toMake()} {toMake() === 1 ? "bouquet" : "bouquets"} to make
+								</Link>
+								<Show when={loaded()?.done}>
+									{(done) => <> · {done()} done</>}
+								</Show>
+							</Show>
+						</p>
+					</Show>
+				</section>
+
+				<Show when={!isNew() && loaded()}>
+					{(florist) => (
+						<PrivateLink
+							floristId={florist().id}
+							name={draft.savedName}
+							token={florist().shareToken}
+						/>
+					)}
+				</Show>
+
+				<Show when={canEdit()}>
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
+						<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
+							<Show when={!isNew()}>
+								<ConfirmButton
+									class={cn(adminButton.danger, "mr-auto")}
+									title={`Delete ${draft.savedName}?`}
+									description={
+										assigned() > 0
+											? `They still have ${assigned()} bouquets on orders, so they can’t be deleted. Give the bouquets to someone else first, or switch off “Can be given bouquets”.`
+											: "They go for good, and their private link stops working."
+									}
+									confirmLabel={
+										assigned() > 0 ? "Show their bouquets" : "Delete florist"
+									}
+									onConfirm={async () => {
+										if (assigned() > 0) {
+											await navigate({
+												to: "/admin/orders",
+												search: {
+													florist: params().floristId,
+													stage: undefined,
+												},
+											});
+											return;
+										}
+										try {
+											await deleteFloristFn({
+												data: { id: params().floristId },
+											});
+											toastSuccess("Florist deleted.");
+											await refresh();
+											await leave();
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Delete
+								</ConfirmButton>
+							</Show>
+							<Link
+								to="/admin/florists"
+								onClick={stepBack}
+								class={adminButton.secondary}
+							>
+								Cancel
+							</Link>
+							<button
+								type="submit"
+								class={adminButton.primary}
+								disabled={saving()}
+							>
+								{saving()
+									? "Saving…"
+									: isNew()
+										? "Add florist"
+										: "Save changes"}
+							</button>
+						</div>
+					</div>
+				</Show>
+			</fieldset>
 		</form>
 	);
 }

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Index, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needs } from "~/components/admin/access";
 
 import { ChangePaymentMethodButton } from "~/components/admin/change-payment-method";
 import { useLeaveForm } from "~/components/admin/leave-form";
@@ -46,6 +47,7 @@ import { getAdminOrder, updateShopOrderFn } from "~/server/admin/orders";
 
 export const Route = createFileRoute("/admin/_dashboard/orders/$orderId_/edit")(
 	{
+		beforeLoad: needs("orders.edit"),
 		staticData: {
 			crumbs: ({ params, loaderData }) => [
 				{

@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { isLogArea } from "~/lib/activity-log";
 import { isCalendarDate } from "~/lib/delivery-dates";
 import { listLogs } from "../activity-log-repo";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { asRecord, text } from "../validate";
 
 const ACTOR_TYPES = ["staff", "customer", "system"] as const;
@@ -29,7 +29,7 @@ export const listLogsFn = createServerFn({ method: "GET" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("logs.view");
 		return listLogs({
 			area: data.area,
 			itemId: data.itemId || undefined,

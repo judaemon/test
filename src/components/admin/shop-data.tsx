@@ -23,10 +23,10 @@ interface ImportResponse {
 const code = "whitespace-nowrap rounded bg-petal-50 px-1 font-mono text-xs";
 
 /**
- * For the owner: a copy of the live shop to test with on a computer, and,
+ * With "Download the shop’s data": a copy of the live shop to test with on a computer, and,
  * on that computer only, a way to load one in.
  */
-export function ShopDataSection() {
+export function ShopDataSection(props: { canImport: boolean }) {
 	return (
 		<SettingsSection
 			title="Your data"
@@ -54,7 +54,7 @@ export function ShopDataSection() {
 				</a>
 			</SettingsRow>
 			{/* Only on your own computer: the live shop never offers this. */}
-			<Show when={import.meta.env.DEV}>
+			<Show when={import.meta.env.DEV && props.canImport}>
 				<ImportRow />
 			</Show>
 		</SettingsSection>

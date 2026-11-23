@@ -26,6 +26,7 @@ import {
 } from "~/server/catalog-repo";
 import { getCustomSettings, saveCustomSettings } from "~/server/custom-repo";
 import { getDb, seedStarterData } from "~/server/db";
+import { adoptAdminAccounts, STAFF_ROLE_ID } from "~/server/migrations/roles";
 import {
 	cancelOrder,
 	createOrder,
@@ -684,11 +685,17 @@ async function main() {
 		}
 		const { role, ...profile } = account;
 		// Customers get better-auth's default role ("customer").
-		await auth.api.createUser({
+		const { user } = await auth.api.createUser({
 			body: role === "customer" ? profile : { ...profile, role },
 		});
+		// Staff get the Staff role; "admin" accounts become Owners just below.
+		if (role === "user")
+			db.query(
+				"INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ($id, $role)",
+			).run({ id: user.id, role: STAFF_ROLE_ID });
 		console.log(`  + account ${account.email}`);
 	}
+	adoptAdminAccounts(db);
 
 	// ── Products ──────────────────────────────────────────────────────────
 	for (const product of demoBouquets()) {

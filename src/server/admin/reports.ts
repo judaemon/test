@@ -22,7 +22,7 @@ import {
 	type PaymentStatus,
 } from "~/types/order";
 import type { RecipeItem } from "~/types/product";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { listArrangementTypes } from "../arrangement-types-repo";
 import { listCardPrints } from "../card-prints-repo";
 import { getDeliveryDates } from "../delivery-dates-repo";
@@ -196,7 +196,7 @@ const group = (orders: Order[]): OrderGroup => ({
 /** Totals for the reports page. "Active" means every order that isn't cancelled. */
 export const getReport = createServerFn({ method: "GET" }).handler(
 	async (): Promise<Report> => {
-		await requireStaff();
+		await requirePermission("reports.view");
 		// Open orders' bouquets on their recipe as it is now.
 		const all = withLatestRecipes(listOrders({ limit: 100_000 }));
 		const active = all.filter((order) => order.stage !== "cancelled");
@@ -434,7 +434,7 @@ export const getReport = createServerFn({ method: "GET" }).handler(
 /** Flowers to buy: which flowers and colors staff have ordered or bought. */
 export const getFlowerPurchases = createServerFn({ method: "GET" }).handler(
 	async (): Promise<FlowerPurchase[]> => {
-		await requireStaff();
+		await requirePermission("reports.view");
 		return listFlowerPurchases();
 	},
 );
@@ -452,7 +452,7 @@ export const setFlowerPurchaseFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }): Promise<FlowerPurchase[]> => {
-		const user = await requireStaff();
+		const user = await requirePermission("reports.purchases");
 		setFlowerPurchase(data.scope, data.flowerKey, data.status, user.name);
 		return listFlowerPurchases();
 	});

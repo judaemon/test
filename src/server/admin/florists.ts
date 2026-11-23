@@ -3,7 +3,7 @@ import { diffSnapshots } from "~/lib/activity-log";
 import { floristOf } from "~/lib/florists";
 import { writeActivity } from "../activity-log-repo";
 import { floristSnapshot } from "../activity-snapshots";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { floristWork } from "../florist-work";
 import {
 	deleteFlorist,
@@ -55,7 +55,7 @@ const withCounts = (
 
 export const listFloristsAdmin = createServerFn({ method: "GET" }).handler(
 	async (): Promise<FloristRecord[]> => {
-		await requireStaff();
+		await requirePermission("florists.view");
 		const counts = bouquetCounts();
 		return listFlorists().map((florist) => withCounts(florist, counts));
 	},
@@ -64,7 +64,7 @@ export const listFloristsAdmin = createServerFn({ method: "GET" }).handler(
 /** Names only, for the pickers on the orders pages. */
 export const listFloristOptionsFn = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("florists.view", "orders.view");
 		return listFloristOptions();
 	},
 );
@@ -72,7 +72,7 @@ export const listFloristOptionsFn = createServerFn({ method: "GET" }).handler(
 export const getFloristAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }): Promise<FloristRecord | null> => {
-		await requireStaff();
+		await requirePermission("florists.view");
 		const florist = getFlorist(data);
 		return florist ? withCounts(florist, bouquetCounts()) : null;
 	});
@@ -109,7 +109,7 @@ export const saveFloristFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("florists.manage");
 		const before = data.id ? getFlorist(data.id) : null;
 		if (data.id && !before) throw new InputError("That florist was deleted.");
 		if (floristNameTaken(data.florist.name, data.id ?? undefined))
@@ -138,7 +138,7 @@ export const setFloristLinkFn = createServerFn({ method: "POST" })
 		return { id: text(source, "id", { max: 64 }), on: source.on === true };
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("florists.manage");
 		const florist = getFlorist(data.id);
 		if (!florist) throw new InputError("That florist was deleted.");
 		const token = setFloristLink(data.id, data.on);
@@ -156,7 +156,7 @@ export const deleteFloristFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("florists.manage");
 		const florist = getFlorist(data.id);
 		if (!florist) throw new InputError("That florist was already deleted.");
 		const counts = bouquetCounts().get(data.id);
@@ -185,7 +185,7 @@ export const getFloristWorkAdmin = createServerFn({ method: "GET" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("florists.view");
 		const florist = getFlorist(data.id);
 		if (!florist) return null;
 		return floristWork(florist, {

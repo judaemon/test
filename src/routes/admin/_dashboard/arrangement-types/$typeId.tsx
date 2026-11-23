@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needsFor, ViewOnlyNote } from "~/components/admin/access";
 import { useLeaveForm } from "~/components/admin/leave-form";
 
 import {
@@ -14,6 +15,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { editorCrumbs, field } from "~/lib/crumbs";
+import { can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import {
 	deleteArrangementTypeFn,
@@ -24,6 +26,7 @@ import {
 export const Route = createFileRoute(
 	"/admin/_dashboard/arrangement-types/$typeId",
 )({
+	beforeLoad: needsFor("catalog.view", "catalog.parts"),
 	staticData: {
 		crumbs: editorCrumbs("New type", "Untitled type", field("name")),
 	},
@@ -40,6 +43,8 @@ export const Route = createFileRoute(
 });
 
 function ArrangementTypeEditor() {
+	const access = Route.useRouteContext();
+	const canEdit = () => can(access().user, "catalog.parts");
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
@@ -97,110 +102,120 @@ function ArrangementTypeEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
-			<Link
-				to="/admin/arrangement-types"
-				onClick={stepBack}
-				class={cn(adminButton.ghost, "-ml-2 mb-2")}
-			>
-				← Arrangement types
-			</Link>
-			<PageHeader
-				title={isNew() ? "New type" : draft.savedName || "Untitled type"}
-				description={
-					isNew()
-						? "New types go last in the shop’s tabs. Reorder them on the Arrangement types page."
-						: undefined
-				}
-			/>
-
-			<section class={cn(adminCard, "grid gap-4 p-5 sm:grid-cols-2")}>
-				<Field label="Name">
-					<input
-						value={draft.name}
-						onInput={(e) => setDraft("name", e.currentTarget.value)}
-						required
-						maxLength={30}
-						placeholder="e.g. Corsage"
-						class={adminInput}
-					/>
-				</Field>
-				<Field label="Shop tab" hint="The plural, e.g. Corsages.">
-					<input
-						value={draft.pluralName}
-						onInput={(e) => setDraft("pluralName", e.currentTarget.value)}
-						required
-						maxLength={40}
-						placeholder="e.g. Corsages"
-						class={adminInput}
-					/>
-				</Field>
-				<Field
-					label="Description"
-					hint="Shown on each arrangement of this type, and when picking a type."
-					class="sm:col-span-2"
+			<fieldset disabled={!canEdit()} class="contents">
+				<Link
+					to="/admin/arrangement-types"
+					onClick={stepBack}
+					class={cn(adminButton.ghost, "-ml-2 mb-2")}
 				>
-					<input
-						value={draft.description}
-						onInput={(e) => setDraft("description", e.currentTarget.value)}
-						maxLength={120}
-						placeholder="e.g. A wearable floral piece worn on the wrist."
-						class={adminInput}
-					/>
-				</Field>
-				<p class="text-xs text-petal-900/55 sm:col-span-2">
-					<Show
-						when={sizeCount() > 0}
-						fallback="No sizes for this type yet, so its arrangements don’t show one. "
-					>
-						{sizeCount()} {sizeCount() === 1 ? "size" : "sizes"} for this type.{" "}
-					</Show>
-					Add or change them in{" "}
-					<Link
-						to="/admin/sizes"
-						class="underline underline-offset-2 hover:text-petal-900"
-					>
-						Sizes
-					</Link>
-					.
-				</p>
-			</section>
+					← Arrangement types
+				</Link>
+				<PageHeader
+					title={isNew() ? "New type" : draft.savedName || "Untitled type"}
+					description={
+						isNew()
+							? "New types go last in the shop’s tabs. Reorder them on the Arrangement types page."
+							: undefined
+					}
+				/>
+				<ViewOnlyNote access={access().user} permission="catalog.parts" />
 
-			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
-				<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
-					<Show when={!isNew()}>
-						<ConfirmButton
-							class={cn(adminButton.danger, "mr-auto")}
-							title={`Delete ${draft.savedName}?`}
-							description={deleteNote()}
-							confirmLabel="Delete type"
-							onConfirm={async () => {
-								try {
-									await deleteArrangementTypeFn({
-										data: { id: params().typeId },
-									});
-									toastSuccess("Type deleted.");
-									await refresh();
-									await leave();
-								} catch (error) {
-									toastError(error);
-								}
-							}}
-						>
-							Delete
-						</ConfirmButton>
-					</Show>
-					<Link
-						to="/admin/arrangement-types"
-						onClick={stepBack}
-						class={adminButton.secondary}
+				<section class={cn(adminCard, "grid gap-4 p-5 sm:grid-cols-2")}>
+					<Field label="Name">
+						<input
+							value={draft.name}
+							onInput={(e) => setDraft("name", e.currentTarget.value)}
+							required
+							maxLength={30}
+							placeholder="e.g. Corsage"
+							class={adminInput}
+						/>
+					</Field>
+					<Field label="Shop tab" hint="The plural, e.g. Corsages.">
+						<input
+							value={draft.pluralName}
+							onInput={(e) => setDraft("pluralName", e.currentTarget.value)}
+							required
+							maxLength={40}
+							placeholder="e.g. Corsages"
+							class={adminInput}
+						/>
+					</Field>
+					<Field
+						label="Description"
+						hint="Shown on each arrangement of this type, and when picking a type."
+						class="sm:col-span-2"
 					>
-						Cancel
-					</Link>
-					<button type="submit" class={adminButton.primary} disabled={saving()}>
-						{saving() ? "Saving…" : isNew() ? "Add type" : "Save changes"}
-					</button>
-				</div>
-			</div>
+						<input
+							value={draft.description}
+							onInput={(e) => setDraft("description", e.currentTarget.value)}
+							maxLength={120}
+							placeholder="e.g. A wearable floral piece worn on the wrist."
+							class={adminInput}
+						/>
+					</Field>
+					<p class="text-xs text-petal-900/55 sm:col-span-2">
+						<Show
+							when={sizeCount() > 0}
+							fallback="No sizes for this type yet, so its arrangements don’t show one. "
+						>
+							{sizeCount()} {sizeCount() === 1 ? "size" : "sizes"} for this
+							type.{" "}
+						</Show>
+						Add or change them in{" "}
+						<Link
+							to="/admin/sizes"
+							class="underline underline-offset-2 hover:text-petal-900"
+						>
+							Sizes
+						</Link>
+						.
+					</p>
+				</section>
+
+				<Show when={canEdit()}>
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
+						<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
+							<Show when={!isNew()}>
+								<ConfirmButton
+									class={cn(adminButton.danger, "mr-auto")}
+									title={`Delete ${draft.savedName}?`}
+									description={deleteNote()}
+									confirmLabel="Delete type"
+									onConfirm={async () => {
+										try {
+											await deleteArrangementTypeFn({
+												data: { id: params().typeId },
+											});
+											toastSuccess("Type deleted.");
+											await refresh();
+											await leave();
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Delete
+								</ConfirmButton>
+							</Show>
+							<Link
+								to="/admin/arrangement-types"
+								onClick={stepBack}
+								class={adminButton.secondary}
+							>
+								Cancel
+							</Link>
+							<button
+								type="submit"
+								class={adminButton.primary}
+								disabled={saving()}
+							>
+								{saving() ? "Saving…" : isNew() ? "Add type" : "Save changes"}
+							</button>
+						</div>
+					</div>
+				</Show>
+			</fieldset>
 		</form>
 	);
 }

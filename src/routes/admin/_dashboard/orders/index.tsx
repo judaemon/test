@@ -14,6 +14,7 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
+import { needs } from "~/components/admin/access";
 import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { DateRangeFilter } from "~/components/admin/date-range-filter";
 import { OrderNotes } from "~/components/admin/order-notes";
@@ -59,6 +60,7 @@ import {
 	validateOrdersSearch,
 } from "~/lib/order-filters";
 import { PAYMENT_METHOD_LABELS } from "~/lib/payment";
+import { can, type Permission } from "~/lib/permissions";
 import type { PricedLine } from "~/lib/pricing";
 import { formatPrice, preorderNote } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
@@ -111,6 +113,7 @@ const WRAPPER_CLASS: Record<WrapperStatus, string> = {
 };
 
 export const Route = createFileRoute("/admin/_dashboard/orders/")({
+	beforeLoad: needs("orders.view"),
 	validateSearch: validateOrdersSearch,
 	// Switching to the table-only view keeps the rows already loaded.
 	loaderDeps: ({ search }) => rowsSearch(search),
@@ -465,18 +468,23 @@ function OrdersPage() {
 										Print handover list
 									</Link>
 									{/* Every dedication card, 4 to an A4 sheet: the filtered days, if any. */}
-									<Link
-										to="/admin/cards"
-										search={{
-											day: parseList(search().delivery).join(",") || undefined,
-										}}
-										class={adminButton.secondary}
-									>
-										Print cards
-									</Link>
-									<Link to="/admin/orders/new" class={adminButton.primary}>
-										+ Add custom order
-									</Link>
+									<Show when={can(context().user, "cards.print")}>
+										<Link
+											to="/admin/cards"
+											search={{
+												day:
+													parseList(search().delivery).join(",") || undefined,
+											}}
+											class={adminButton.secondary}
+										>
+											Print cards
+										</Link>
+									</Show>
+									<Show when={can(context().user, "orders.create")}>
+										<Link to="/admin/orders/new" class={adminButton.primary}>
+											+ Add custom order
+										</Link>
+									</Show>
 								</>
 							}
 						/>
@@ -960,7 +968,12 @@ function OrdersPage() {
 																order.stage === "making"
 															}
 														>
-															<Show when={canCancelOneBouquet(order)}>
+															<Show
+																when={
+																	canCancelOneBouquet(order) &&
+																	can(context().user, "orders.cancel")
+																}
+															>
 																<CancelOrderButton
 																	order={order}
 																	line={line}
@@ -970,15 +983,17 @@ function OrdersPage() {
 																	Cancel this bouquet
 																</CancelOrderButton>
 															</Show>
-															<CancelOrderButton
-																order={order}
-																class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
-																onCancelled={() => router.invalidate()}
-															>
-																{order.itemCount > 1
-																	? "Cancel whole order"
-																	: "Cancel order"}
-															</CancelOrderButton>
+															<Show when={can(context().user, "orders.cancel")}>
+																<CancelOrderButton
+																	order={order}
+																	class="block whitespace-nowrap py-1 text-xs font-medium text-destructive underline underline-offset-2 hover:opacity-80"
+																	onCancelled={() => router.invalidate()}
+																>
+																	{order.itemCount > 1
+																		? "Cancel whole order"
+																		: "Cancel order"}
+																</CancelOrderButton>
+															</Show>
 														</Show>
 													</details>
 												</div>
@@ -1215,7 +1230,7 @@ function OrdersPage() {
 				</div>
 			</div>
 
-			<Show when={pickedCount() > 0}>
+			<Show when={pickedCount() > 0 && can(context().user, "orders.assign")}>
 				<GiveToFloristBar
 					fullWidth={tableOnly()}
 					count={pickedCount()}
@@ -1330,6 +1345,7 @@ const toPick = (row: OrderRow): BouquetPick => ({
 /** Who makes this bouquet; changed right in the row. */
 function FloristSelect(props: { row: OrderRow; florists: FloristOption[] }) {
 	const router = useRouter();
+	const allowed = useCan();
 	const [saving, setSaving] = createSignal(false);
 	const current = () => floristOf(props.row.line, props.row.unit);
 	// Florists switched off can't be given new bouquets, but keep the ones they have.
@@ -1375,7 +1391,7 @@ function FloristSelect(props: { row: OrderRow; florists: FloristOption[] }) {
 			>
 				<select
 					aria-label={`Florist for ${props.row.line.sku}, order ${props.row.order.number}`}
-					disabled={saving()}
+					disabled={saving() || !allowed("orders.assign")}
 					onChange={(e) => void save(e.currentTarget)}
 					class={cn(
 						"h-10 max-w-44 cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs pointer-coarse:sm:h-10 pointer-coarse:sm:text-sm",
@@ -1745,6 +1761,8 @@ function RowSelect<T extends string>(props: {
 	class: string;
 	onSave: (value: T) => Promise<OrderActionResult>;
 	saved: (label: string) => string;
+	/** Without the permission to change it: the value as a pill. */
+	readOnly?: boolean;
 }) {
 	const router = useRouter();
 	const [saving, setSaving] = createSignal(false);
@@ -1779,33 +1797,55 @@ function RowSelect<T extends string>(props: {
 	});
 
 	return (
-		<select
-			ref={box}
-			autocomplete="off"
-			aria-label={props.label}
-			disabled={saving()}
-			onChange={(e) => void save(e.currentTarget)}
-			class={cn(
-				"h-10 max-w-full cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs pointer-coarse:sm:h-10 pointer-coarse:sm:text-sm",
-				props.class,
-			)}
+		<Show
+			when={!props.readOnly}
+			fallback={
+				<span
+					class={cn(
+						"inline-flex h-8 max-w-full items-center rounded-full px-2.5 text-xs font-medium",
+						props.class,
+					)}
+				>
+					{props.options.find((o) => o.value === props.value)?.label ??
+						props.value}
+				</span>
+			}
 		>
-			<For each={props.options}>
-				{(option) => (
-					<option
-						value={option.value}
-						selected={option.value === props.value}
-						disabled={option.disabled}
-					>
-						{option.label}
-					</option>
+			<select
+				ref={box}
+				autocomplete="off"
+				aria-label={props.label}
+				disabled={saving()}
+				onChange={(e) => void save(e.currentTarget)}
+				class={cn(
+					"h-10 max-w-full cursor-pointer rounded-full border-0 px-2.5 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-petal-500 disabled:opacity-50 sm:h-8 sm:text-xs pointer-coarse:sm:h-10 pointer-coarse:sm:text-sm",
+					props.class,
 				)}
-			</For>
-		</select>
+			>
+				<For each={props.options}>
+					{(option) => (
+						<option
+							value={option.value}
+							selected={option.value === props.value}
+							disabled={option.disabled}
+						>
+							{option.label}
+						</option>
+					)}
+				</For>
+			</select>
+		</Show>
 	);
 }
 
+/** Whether the signed-in person may do this, for the table's own parts. */
+function useCan() {
+	const context = Route.useRouteContext();
+	return (key: Permission) => can(context().user, key);
+}
+
 function OrderStageSelect(props: { order: Order }) {
+	const allowed = useCan();
 	const stage = () => props.order.stage as RowStage;
 	return (
 		<Show
@@ -1828,6 +1868,7 @@ function OrderStageSelect(props: { order: Order }) {
 				onSave={(value) =>
 					moveOrder({ data: { id: props.order.id, stage: value } })
 				}
+				readOnly={!allowed("orders.move")}
 				saved={(label) => `Order #${props.order.number}: ${label}.`}
 			/>
 		</Show>
@@ -1835,6 +1876,7 @@ function OrderStageSelect(props: { order: Order }) {
 }
 
 function PaymentStatusSelect(props: { order: Order }) {
+	const allowed = useCan();
 	const status = () => props.order.payment.status;
 	return (
 		<Show
@@ -1858,6 +1900,7 @@ function PaymentStatusSelect(props: { order: Order }) {
 				onSave={(value) =>
 					reviewOrderPayment({ data: { id: props.order.id, status: value } })
 				}
+				readOnly={!allowed("orders.payments")}
 				saved={(label) => `Order #${props.order.number}: ${label}.`}
 			/>
 		</Show>
@@ -1870,6 +1913,7 @@ function PaymentStatusSelect(props: { order: Order }) {
  * has stays on the list.
  */
 function DeliveryDateSelect(props: { order: Order; dates: string[] }) {
+	const allowed = useCan();
 	const date = () => props.order.details.deliveryDate ?? "";
 	const options = () => [
 		...(date() ? [] : [{ value: "", label: "Not set", disabled: true }]),
@@ -1894,6 +1938,7 @@ function DeliveryDateSelect(props: { order: Order; dates: string[] }) {
 				onSave={(value) =>
 					updateDeliveryDate({ data: { id: props.order.id, date: value } })
 				}
+				readOnly={!allowed("orders.edit")}
 				saved={(label) => `Order #${props.order.number}: delivery ${label}.`}
 			/>
 		</Show>
@@ -1907,6 +1952,7 @@ function WrapperStatusSelect(props: {
 	/** False for corsages and boutonnières: they're never wrapped. */
 	wrapper: boolean;
 }) {
+	const allowed = useCan();
 	const status = () => props.line.wrapperStatus ?? "todo";
 	return (
 		<Show
@@ -1938,6 +1984,7 @@ function WrapperStatusSelect(props: {
 						})
 					}
 					saved={(label) => `${props.line.sku} wrapper: ${label}.`}
+					readOnly={!allowed("orders.edit")}
 				/>
 			</Show>
 		</Show>

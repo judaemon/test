@@ -8,7 +8,7 @@ import {
 	type SortingState,
 } from "@tanstack/solid-table";
 import { createEffect, createSignal, Show } from "solid-js";
-
+import { needs } from "~/components/admin/access";
 import {
 	adminTableFeatures,
 	DataTable,
@@ -38,6 +38,7 @@ import { CIVILIAN } from "~/lib/cadets";
 import { formatSerialNumber } from "~/lib/checkout";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
 import { formatLogTime } from "~/lib/order-log";
+import { can } from "~/lib/permissions";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { deleteShopWishFn, listShopWishesFn } from "~/server/shop-status";
 import type { ShopWish } from "~/server/shop-status-repo";
@@ -60,6 +61,7 @@ interface InterestedSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/interested")({
+	beforeLoad: needs("interested.view"),
 	validateSearch: (search: Record<string, unknown>): InterestedSearch => ({
 		q: textParam(search, "q"),
 		day: textParam(search, "day"),
@@ -121,6 +123,8 @@ const column = createColumnHelper<typeof adminTableFeatures, ShopWish>();
  * event. They aren't orders.
  */
 function InterestedPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "interested.manage");
 	const loaded = Route.useLoaderData();
 	const router = useRouter();
 	const search = Route.useSearch();
@@ -267,14 +271,16 @@ function InterestedPage() {
 			meta: { class: "w-24 text-right" },
 			header: () => <span class="sr-only">Remove</span>,
 			cell: ({ row }) => (
-				<button
-					type="button"
-					class={adminButton.ghost}
-					onClick={() => void remove(row.original)}
-					aria-label={`Remove ${row.original.name}`}
-				>
-					Remove
-				</button>
+				<Show when={canEdit()}>
+					<button
+						type="button"
+						class={adminButton.ghost}
+						onClick={() => void remove(row.original)}
+						aria-label={`Remove ${row.original.name}`}
+					>
+						Remove
+					</button>
+				</Show>
 			),
 		}),
 	]);

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import {
 	choiceParam,
@@ -19,6 +20,7 @@ import {
 } from "~/components/admin/ui";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import type { FlowerColor, FlowerRecord } from "~/lib/custom-bouquet";
+import { can } from "~/lib/permissions";
 import { formatPrice, LOW_STOCK_THRESHOLD } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
@@ -38,6 +40,7 @@ interface FlowersSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/flowers/")({
+	beforeLoad: needs("catalog.view"),
 	validateSearch: (search: Record<string, unknown>): FlowersSearch => ({
 		q: textParam(search, "q"),
 		use: textParam(search, "use"),
@@ -65,6 +68,8 @@ function stockLabel(color: FlowerColor) {
 }
 
 function FlowersPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "catalog.parts");
 	const all = Route.useLoaderData();
 	const router = useRouter();
 	const search = Route.useSearch();
@@ -209,6 +214,7 @@ function FlowersPage() {
 				<Toggle
 					label="Use in custom bouquets"
 					checked={props.flower.enabled}
+					disabled={!canEdit()}
 					onChange={(checked) => void setEnabled(props.flower, checked)}
 				/>
 				<Link
@@ -228,13 +234,15 @@ function FlowersPage() {
 				title="Flowers"
 				description="Every flower the shop uses, with its colors, prices and stock. Flowers marked for custom bouquets can be picked in the bouquet builder; signature bouquet recipes can use any of them."
 				actions={
-					<Link
-						to="/admin/flowers/$flowerId"
-						params={{ flowerId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add flower
-					</Link>
+					<Show when={canEdit()}>
+						<Link
+							to="/admin/flowers/$flowerId"
+							params={{ flowerId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add flower
+						</Link>
+					</Show>
 				}
 			/>
 			<ListToolbar

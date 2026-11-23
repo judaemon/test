@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/solid-start";
 
 import { DELIVERY_DATES_MAX, isCalendarDate } from "~/lib/delivery-dates";
 import { EVENT_DELIVERY_DATES_MAX } from "~/lib/events";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { getDb } from "../db";
 import {
 	deliveryDatesEvent,
@@ -13,7 +13,7 @@ import { asRecord, InputError } from "../validate";
 
 export const getDeliveryDatesAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("delivery_dates.view");
 		return {
 			dates: getDeliveryDates(),
 			event: deliveryDatesEvent(),
@@ -36,7 +36,7 @@ export const saveDeliveryDatesFn = createServerFn({ method: "POST" })
 		return { dates: dates as string[] };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("delivery_dates.manage");
 		if (deliveryDatesEvent() && !data.dates.length)
 			throw new InputError(
 				"The current event needs at least one delivery day.",

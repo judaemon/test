@@ -20,6 +20,7 @@ import {
 	wrapperIdForName,
 } from "./bouquet-tables";
 import { ordersToEvent } from "./migrations/orders-to-event";
+import { rolesTables } from "./migrations/roles";
 import { testsToCancelled } from "./migrations/tests-to-cancelled";
 import { wishesToEvent } from "./migrations/wishes-to-event";
 import { backfillRecipeVersions, RECIPE_VERSIONS_SQL } from "./recipe-versions";
@@ -912,6 +913,8 @@ const MIGRATIONS: (string | ((db: Database) => void))[] = [
 	wishesToEvent,
 	// v66: test orders become cancelled orders.
 	testsToCancelled,
+	// v67: roles the shop manages (Admin → Roles); a person can have several.
+	rolesTables,
 ];
 
 declare global {

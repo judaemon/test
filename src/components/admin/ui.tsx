@@ -4,6 +4,7 @@ import {
 	createEffect,
 	createSignal,
 	createUniqueId,
+	For,
 	onMount,
 	Show,
 	splitProps,
@@ -161,19 +162,44 @@ export function SettingsRow(props: {
 	);
 }
 
-/** Owner in rose, staff in sage, wherever a role is shown. */
-export function RoleBadge(props: { role: "owner" | "staff"; class?: string }) {
+/** A role by name: Owner in rose, every other role in sage. */
+export function RoleBadge(props: {
+	name: string;
+	isOwner?: boolean;
+	class?: string;
+}) {
 	return (
 		<span
 			class={cn(
-				"inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
-				props.role === "owner"
+				"inline-block max-w-full truncate rounded-full px-2.5 py-0.5 text-xs font-medium",
+				props.isOwner
 					? "bg-petal-100 text-petal-700"
 					: "bg-sage-100 text-sage-600",
 				props.class,
 			)}
 		>
-			{props.role === "owner" ? "Owner" : "Staff"}
+			{props.name}
+		</span>
+	);
+}
+
+/** Someone's roles as badges; "No role" when they have none. */
+export function RoleBadges(props: {
+	roles: { id: string; name: string; isOwner: boolean }[];
+	class?: string;
+}) {
+	return (
+		<span class={cn("flex min-w-0 flex-wrap gap-1.5", props.class)}>
+			<For
+				each={props.roles}
+				fallback={
+					<span class="inline-block rounded-full border border-dashed border-petal-200 px-2.5 py-0.5 text-xs text-petal-900/55">
+						No role
+					</span>
+				}
+			>
+				{(role) => <RoleBadge name={role.name} isOwner={role.isOwner} />}
+			</For>
 		</span>
 	);
 }
@@ -493,6 +519,13 @@ export const AdminIcons = {
 		<svg aria-hidden="true" {...icon} class={p.class}>
 			<circle cx="9" cy="8" r="3.5" />
 			<path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.7 2.6 2.4 3 5.2" />
+		</svg>
+	),
+	/** A key: roles, what each one opens. */
+	roles: (p: { class?: string }) => (
+		<svg aria-hidden="true" {...icon} class={p.class}>
+			<circle cx="8" cy="15" r="4" />
+			<path d="m10.8 12.2 8.7-8.7M16.5 6.5l2.5 2.5M14 9l2 2" />
 		</svg>
 	),
 	users: (p: { class?: string }) => (

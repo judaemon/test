@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
-
+import { needs } from "~/components/admin/access";
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
+import { can } from "~/lib/permissions";
 import { listSuppliersAdmin } from "~/server/admin/suppliers";
 
 export const Route = createFileRoute("/admin/_dashboard/suppliers/")({
+	beforeLoad: needs("suppliers.view"),
 	// Stepped back to after a save, wait for the fresh rows rather than
 	// showing the old ones first and swapping them in.
 	loader: {
@@ -15,6 +17,8 @@ export const Route = createFileRoute("/admin/_dashboard/suppliers/")({
 });
 
 function SuppliersPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "suppliers.manage");
 	const suppliers = Route.useLoaderData();
 
 	return (
@@ -23,13 +27,15 @@ function SuppliersPage() {
 				title="Suppliers"
 				description="Who the shop buys wrappers from. Pick a wrapper’s supplier on the wrapper, then filter Wrappers by supplier."
 				actions={
-					<Link
-						to="/admin/suppliers/$supplierId"
-						params={{ supplierId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add supplier
-					</Link>
+					<Show when={canEdit()}>
+						<Link
+							to="/admin/suppliers/$supplierId"
+							params={{ supplierId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add supplier
+						</Link>
+					</Show>
 				}
 			/>
 			<section class={adminCard}>

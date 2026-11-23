@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/solid-start";
 
 import { type CustomBouquetSettings, PESO_BILLS } from "~/lib/custom-bouquet";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import {
 	checkBuilderCanSell,
 	getCustomSettings,
@@ -11,7 +11,7 @@ import { asRecord, bool, InputError, integer, price } from "../validate";
 
 export const getCustomSettingsAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return getCustomSettings();
 	},
 );
@@ -51,7 +51,7 @@ export const saveCustomSettingsFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.custom");
 		checkBuilderCanSell({ ...getCustomSettings(), ...data });
 		return saveCustomSettings(data);
 	});

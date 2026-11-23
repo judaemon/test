@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { createMemo, createSignal, For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import { adminButton, adminCard, PageHeader } from "~/components/admin/ui";
 import { findArrangementType } from "~/lib/arrangements";
@@ -18,6 +19,7 @@ import type { AdminProduct, AdminVariant, RecipeItem } from "~/types/product";
 export const Route = createFileRoute(
 	"/admin/_dashboard/signature-bouquets/florist",
 )({
+	beforeLoad: needs("catalog.view"),
 	staticData: { crumbs: label("Florist list") },
 	loader: () => getFloristList(),
 	component: FloristListPage,

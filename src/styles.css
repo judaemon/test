@@ -193,6 +193,19 @@ code {
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+   * A view-only form (fieldset disabled, see Admin → Roles): switches and
+   * plain text buttons inside look switched off too, not just the inputs.
+   */
+  fieldset:disabled :is(button, .switch-control) {
+    cursor: default;
+    opacity: 0.5;
+  }
+  /* The switch's input is disabled already; this stops the label toggling it. */
+  fieldset:disabled :has(> .switch-control) {
+    pointer-events: none;
+  }
 }
 
 /*

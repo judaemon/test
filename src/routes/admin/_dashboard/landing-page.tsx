@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { createSignal, Match, Show, Switch } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import {
 	adminButton,
@@ -11,6 +12,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { ShopClosed } from "~/components/site/shop-closed";
+import { can } from "~/lib/permissions";
 import {
 	DEFAULT_SHOP_STATUS,
 	SHOP_HEADING_MAX,
@@ -20,6 +22,7 @@ import { cn } from "~/lib/utils";
 import { getShopAdminFn, saveShopStatusFn } from "~/server/shop-status";
 
 export const Route = createFileRoute("/admin/_dashboard/landing-page")({
+	beforeLoad: needs("shop.view"),
 	loader: () => getShopAdminFn(),
 	head: () => ({ meta: [{ title: "Landing page · ORAIA Admin" }] }),
 	component: LandingPage,
@@ -34,7 +37,7 @@ function LandingPage() {
 	const initial = Route.useLoaderData();
 	const router = useRouter();
 	const context = Route.useRouteContext();
-	const isOwner = () => context().user.role === "owner";
+	const canChange = () => can(context().user, "shop.manage");
 	const mode = () => initial().status.mode;
 	const [saved, setSaved] = createSignal({
 		heading: initial().status.heading,
@@ -132,10 +135,11 @@ function LandingPage() {
 								description="Shown on shopping pages while the shop is fully booked. Leave a blank line between paragraphs."
 								footer={
 									<Show
-										when={isOwner()}
+										when={canChange()}
 										fallback={
 											<p class="me-auto text-sm text-petal-900/60">
-												Only the owner can change this.
+												View only: changing this needs “Change the landing
+												page”.
 											</p>
 										}
 									>
@@ -188,7 +192,7 @@ function LandingPage() {
 											value={heading()}
 											maxLength={SHOP_HEADING_MAX}
 											onInput={(e) => setHeading(e.currentTarget.value)}
-											disabled={!isOwner()}
+											disabled={!canChange()}
 										/>
 									</div>
 									<div class="flex flex-col gap-1.5">
@@ -209,7 +213,7 @@ function LandingPage() {
 											value={message()}
 											maxLength={SHOP_MESSAGE_MAX}
 											onInput={(e) => setMessage(e.currentTarget.value)}
-											disabled={!isOwner()}
+											disabled={!canChange()}
 										/>
 									</div>
 								</div>

@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/solid-router";
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import { ActivityLogTable } from "~/components/admin/activity-log-table";
 import { ListPager } from "~/components/admin/list-pager";
@@ -39,6 +40,7 @@ export interface LogsSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/logs")({
+	beforeLoad: needs("logs.view"),
 	validateSearch: (search: Record<string, unknown>): LogsSearch => {
 		const page = Number(search.page);
 		const size = Number(search.size);

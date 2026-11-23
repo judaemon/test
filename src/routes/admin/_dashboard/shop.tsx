@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import { ShopDataSection } from "~/components/admin/shop-data";
 import {
@@ -8,11 +9,13 @@ import {
 	SettingsRow,
 	SettingsSection,
 } from "~/components/admin/ui";
+import { can } from "~/lib/permissions";
 import type { ShopMode } from "~/lib/shop-status";
 import { cn } from "~/lib/utils";
 import { getShopAdminFn } from "~/server/shop-status";
 
 export const Route = createFileRoute("/admin/_dashboard/shop")({
+	beforeLoad: needs("shop.view"),
 	loader: () => getShopAdminFn(),
 	head: () => ({ meta: [{ title: "Shop · ORAIA Admin" }] }),
 	component: ShopPage,
@@ -39,12 +42,12 @@ const MODES: { mode: ShopMode; title: string; text: string }[] = [
 
 /**
  * Shop settings: how the shop runs right now, which follows the events, and,
- * for the owner, a full copy of the shop's data.
+ * with "Download the shop’s data", a full copy of it.
  */
 function ShopPage() {
 	const loaded = Route.useLoaderData();
 	const context = Route.useRouteContext();
-	const isOwner = () => context().user.role === "owner";
+	const canExport = () => can(context().user, "data.export");
 	const mode = () => loaded().status.mode;
 	const event = () => loaded().event;
 
@@ -124,8 +127,8 @@ function ShopPage() {
 					</For>
 				</SettingsSection>
 
-				<Show when={isOwner()}>
-					<ShopDataSection />
+				<Show when={canExport()}>
+					<ShopDataSection canImport={can(context().user, "data.import")} />
 				</Show>
 			</div>
 		</div>

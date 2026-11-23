@@ -1,6 +1,7 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/solid-router";
+import { createFileRoute, useRouter } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needs, ViewOnlyNote } from "~/components/admin/access";
 
 import {
 	adminButton,
@@ -30,6 +31,7 @@ import {
 	PAYMENT_METHODS,
 	type PaymentMethod,
 } from "~/lib/payment";
+import { can } from "~/lib/permissions";
 import { formatPrice } from "~/lib/product";
 import {
 	type ItemScope,
@@ -56,9 +58,7 @@ import {
 } from "~/server/admin/sales";
 
 export const Route = createFileRoute("/admin/_dashboard/sales")({
-	beforeLoad: ({ context }) => {
-		if (context.user.role !== "owner") throw redirect({ to: "/admin" });
-	},
+	beforeLoad: needs("sales.view"),
 	loader: () => getSalesAdmin(),
 	component: SalesPage,
 });
@@ -81,6 +81,8 @@ const day = (value: string) =>
 	});
 
 function SalesPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "sales.manage");
 	const data = Route.useLoaderData();
 	const router = useRouter();
 	/** The sale being edited: its id, "new", or none. */
@@ -97,7 +99,7 @@ function SalesPage() {
 				title="Sales"
 				description="Put the whole shop or chosen arrangements on sale for a few days. The shop shows the sale price, a banner and a countdown, and checkout charges it. Orders keep the price they were placed at."
 				actions={
-					<Show when={editing() !== "new"}>
+					<Show when={editing() !== "new" && canEdit()}>
 						<button
 							type="button"
 							class={adminButton.primary}
@@ -108,6 +110,7 @@ function SalesPage() {
 					</Show>
 				}
 			/>
+			<ViewOnlyNote access={context().user} permission="sales.manage" />
 			<div class="flex flex-col gap-4">
 				<Show when={editing() === "new"}>
 					<SaleEditor
@@ -181,6 +184,8 @@ function SaleSummary(props: {
 	onEdit: () => void;
 	onChanged: () => Promise<void>;
 }) {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "sales.manage");
 	const status = () => saleStatus(props.sale);
 	const [busy, setBusy] = createSignal(false);
 	const setEnabled = async (enabled: boolean) => {
@@ -241,36 +246,38 @@ function SaleSummary(props: {
 				<Toggle
 					label={props.sale.enabled ? "On" : "Off"}
 					checked={props.sale.enabled}
-					disabled={busy()}
+					disabled={busy() || !canEdit()}
 					onChange={setEnabled}
 				/>
 			</div>
-			<div class="mt-4 flex flex-wrap gap-2">
-				<button
-					type="button"
-					class={adminButton.secondary}
-					onClick={props.onEdit}
-				>
-					Edit
-				</button>
-				<ConfirmButton
-					class={adminButton.ghost}
-					title={`Delete ${props.sale.name}?`}
-					description="It comes off the shop straight away. Orders already placed keep their sale price."
-					confirmLabel="Delete sale"
-					onConfirm={async () => {
-						try {
-							await deleteSaleFn({ data: { id: props.sale.id } });
-							toastSuccess("Sale deleted.");
-							await props.onChanged();
-						} catch (error) {
-							toastError(error);
-						}
-					}}
-				>
-					Delete
-				</ConfirmButton>
-			</div>
+			<Show when={canEdit()}>
+				<div class="mt-4 flex flex-wrap gap-2">
+					<button
+						type="button"
+						class={adminButton.secondary}
+						onClick={props.onEdit}
+					>
+						Edit
+					</button>
+					<ConfirmButton
+						class={adminButton.ghost}
+						title={`Delete ${props.sale.name}?`}
+						description="It comes off the shop straight away. Orders already placed keep their sale price."
+						confirmLabel="Delete sale"
+						onConfirm={async () => {
+							try {
+								await deleteSaleFn({ data: { id: props.sale.id } });
+								toastSuccess("Sale deleted.");
+								await props.onChanged();
+							} catch (error) {
+								toastError(error);
+							}
+						}}
+					>
+						Delete
+					</ConfirmButton>
+				</div>
+			</Show>
 		</section>
 	);
 }
@@ -514,6 +521,8 @@ const PROMO_STATUS_LABELS: Record<OrderPromoStatus, string> = {
 
 /** Rewards for ordering again, counted by serial number: e.g. ₱500 off every 10th order. */
 function OrderPromosSection(props: { promos: OrderPromo[]; options: Options }) {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "sales.manage");
 	const router = useRouter();
 	const [editing, setEditing] = createSignal<string>();
 	const refresh = async () => {
@@ -536,7 +545,7 @@ function OrderPromosSection(props: { promos: OrderPromo[]; options: Options }) {
 						any sale. Cancelled orders don’t count.
 					</p>
 				</div>
-				<Show when={editing() !== "new"}>
+				<Show when={editing() !== "new" && canEdit()}>
 					<button
 						type="button"
 						class={adminButton.primary}
@@ -601,6 +610,8 @@ function OrderPromoSummary(props: {
 	onEdit: () => void;
 	onChanged: () => Promise<void>;
 }) {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "sales.manage");
 	const status = () => orderPromoStatus(props.promo);
 	const [busy, setBusy] = createSignal(false);
 	const setEnabled = async (enabled: boolean) => {
@@ -666,36 +677,38 @@ function OrderPromoSummary(props: {
 				<Toggle
 					label={props.promo.enabled ? "On" : "Off"}
 					checked={props.promo.enabled}
-					disabled={busy()}
+					disabled={busy() || !canEdit()}
 					onChange={setEnabled}
 				/>
 			</div>
-			<div class="mt-4 flex flex-wrap gap-2">
-				<button
-					type="button"
-					class={adminButton.secondary}
-					onClick={props.onEdit}
-				>
-					Edit
-				</button>
-				<ConfirmButton
-					class={adminButton.ghost}
-					title={`Delete ${props.promo.name}?`}
-					description="It comes off the shop straight away. Orders that already got it keep their discount."
-					confirmLabel="Delete promo"
-					onConfirm={async () => {
-						try {
-							await deleteOrderPromoFn({ data: { id: props.promo.id } });
-							toastSuccess("Promo deleted.");
-							await props.onChanged();
-						} catch (error) {
-							toastError(error);
-						}
-					}}
-				>
-					Delete
-				</ConfirmButton>
-			</div>
+			<Show when={canEdit()}>
+				<div class="mt-4 flex flex-wrap gap-2">
+					<button
+						type="button"
+						class={adminButton.secondary}
+						onClick={props.onEdit}
+					>
+						Edit
+					</button>
+					<ConfirmButton
+						class={adminButton.ghost}
+						title={`Delete ${props.promo.name}?`}
+						description="It comes off the shop straight away. Orders that already got it keep their discount."
+						confirmLabel="Delete promo"
+						onConfirm={async () => {
+							try {
+								await deleteOrderPromoFn({ data: { id: props.promo.id } });
+								toastSuccess("Promo deleted.");
+								await props.onChanged();
+							} catch (error) {
+								toastError(error);
+							}
+						}}
+					>
+						Delete
+					</ConfirmButton>
+				</div>
+			</Show>
 		</section>
 	);
 }

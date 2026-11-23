@@ -5,7 +5,7 @@ import {
 	HELLO_MESSAGE_MAX,
 	type HelloNote,
 } from "~/lib/hello-page";
-import { requireStaff } from "./admin-auth";
+import { requirePermission } from "./admin-auth";
 import { getHelloNote, saveHelloNote } from "./hello-repo";
 import { asRecord, text } from "./validate";
 
@@ -36,6 +36,6 @@ export const saveHelloNoteFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("cards.print");
 		return saveHelloNote(data);
 	});

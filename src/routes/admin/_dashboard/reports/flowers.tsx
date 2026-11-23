@@ -27,6 +27,7 @@ import {
 	orderFlowers,
 	tallyFlowers,
 } from "~/lib/flower-tally";
+import { can } from "~/lib/permissions";
 import { photoSrc } from "~/lib/photos";
 import { cn } from "~/lib/utils";
 import {
@@ -68,6 +69,8 @@ function StatusPicker(props: {
 	name: string;
 	purchase?: FlowerPurchase;
 	onChange: (status: PurchaseStatus | null) => void;
+	/** Shows the status, without changing it. */
+	readOnly?: boolean;
 }) {
 	const current = () => props.purchase?.status ?? null;
 	const who = () =>
@@ -84,6 +87,7 @@ function StatusPicker(props: {
 		<>
 			<fieldset
 				title={who()}
+				disabled={props.readOnly}
 				class="m-0 inline-flex min-w-0 rounded-full border border-petal-200 bg-white p-0.5 text-xs print:hidden"
 			>
 				<legend class="sr-only">{props.name}: status</legend>
@@ -141,6 +145,8 @@ type BattalionFilter = "all" | "none" | (typeof BATTALIONS)[number]["name"];
  * counted.
  */
 function FlowersToBuy() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "reports.purchases");
 	const report = useReport();
 	const list = createOrderList();
 	const [filter, setFilter] = createSignal<FlowerFilter>("all");
@@ -556,6 +562,7 @@ function FlowersToBuy() {
 													}
 												>
 													<StatusPicker
+														readOnly={!canEdit()}
 														name={flower.flower}
 														purchase={purchaseOf(flower.colors[0] as FlowerRow)}
 														onChange={(status) =>
@@ -616,6 +623,7 @@ function FlowersToBuy() {
 														</td>
 														<td class="py-1">
 															<StatusPicker
+																readOnly={!canEdit()}
 																name={`${flower.flower}, ${row.color || "no color"}${row.filler ? " (filler)" : ""}`}
 																purchase={purchaseOf(row)}
 																onChange={(status) =>

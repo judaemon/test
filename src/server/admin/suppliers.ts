@@ -6,7 +6,7 @@ import {
 	supplierSnapshot,
 	wrapperChanges,
 } from "../activity-snapshots";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { staffActor } from "../order-actor";
 import {
 	deleteSupplier,
@@ -22,7 +22,7 @@ const oneSpace = (value: string) => value.replace(/\s+/g, " ");
 
 export const listSuppliersAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("suppliers.view", "catalog.view");
 		return listSuppliers();
 	},
 );
@@ -30,7 +30,7 @@ export const listSuppliersAdmin = createServerFn({ method: "GET" }).handler(
 export const getSupplierAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("suppliers.view");
 		return getSupplier(data);
 	});
 
@@ -72,7 +72,7 @@ export const saveSupplierFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("suppliers.manage");
 		const before = data.id ? getSupplier(data.id) : null;
 		if (data.id && !before) throw new InputError("That supplier was deleted.");
 		if (supplierNameTaken(data.supplier.name, data.id ?? undefined))
@@ -100,7 +100,7 @@ export const deleteSupplierFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("suppliers.manage");
 		const supplier = getSupplier(data.id);
 		if (!supplier) throw new InputError("That supplier was already deleted.");
 		// Its wrappers lose it too; each one's log says so.

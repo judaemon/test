@@ -7,6 +7,7 @@ import {
 	on,
 	Show,
 } from "solid-js";
+import { needs } from "~/components/admin/access";
 import { CancelOrderButton } from "~/components/admin/cancel-order";
 import { ChangePaymentMethodButton } from "~/components/admin/change-payment-method";
 import { useLeaveForm } from "~/components/admin/leave-form";
@@ -46,6 +47,7 @@ import { type FloristOption, floristName, floristOf } from "~/lib/florists";
 import { formatRecipeItem, stemCount } from "~/lib/flowers";
 import { canCancelOneBouquet, ORDER_EDIT_HOURS } from "~/lib/order-edit";
 import { CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS } from "~/lib/payment";
+import { can, type Permission } from "~/lib/permissions";
 import type { PricedLine } from "~/lib/pricing";
 import { formatPrice, preorderNote, wrapperNames } from "~/lib/product";
 import { useFlowerPhotos } from "~/lib/use-catalog";
@@ -77,6 +79,7 @@ const SHOW_DELIVERY = false;
 const proofId = (fileName: string) => fileName.replace(/\.(png|jpg|webp)$/, "");
 
 export const Route = createFileRoute("/admin/_dashboard/orders/$orderId")({
+	beforeLoad: needs("orders.view"),
 	staticData: {
 		crumbs: ({ loaderData }) => [
 			{
@@ -109,6 +112,7 @@ function OrderDetail() {
 	const loaded = Route.useLoaderData();
 	const context = Route.useRouteContext();
 	const staff = () => context().user;
+	const allowed = (key: Permission) => can(staff(), key);
 	// Back to the list as it was (filters and scroll).
 	const { stepBack } = useLeaveForm({
 		routeId: Route.id,
@@ -310,7 +314,12 @@ function OrderDetail() {
 													? line.title
 													: `${line.title} · ${line.sku}`}
 											</span>
-											<Show when={canCancelOneBouquet(order())}>
+											<Show
+												when={
+													canCancelOneBouquet(order()) &&
+													allowed("orders.cancel")
+												}
+											>
 												<CancelOrderButton
 													order={order()}
 													line={line}
@@ -589,7 +598,11 @@ function OrderDetail() {
 									{(stage) => (
 										<button
 											type="button"
-											disabled={busy() || order().stage === stage}
+											disabled={
+												busy() ||
+												order().stage === stage ||
+												!allowed("orders.move")
+											}
 											aria-pressed={order().stage === stage}
 											onClick={() => moveTo(stage)}
 											class={cn(
@@ -732,7 +745,13 @@ function OrderDetail() {
 								</ul>
 							</div>
 						</Show>
-						<Show when={payment().method !== "card" && !cancelled()}>
+						<Show
+							when={
+								payment().method !== "card" &&
+								!cancelled() &&
+								allowed("orders.payments")
+							}
+						>
 							<ReferenceNumberEditor
 								order={order()}
 								disabled={busy()}
@@ -785,7 +804,7 @@ function OrderDetail() {
 
 					<div class="flex flex-col gap-2">
 						{/* Orders added from a chat are edited in their own form. */}
-						<Show when={!cancelled()}>
+						<Show when={!cancelled() && allowed("orders.edit")}>
 							<Show
 								when={isChatOrder(order())}
 								fallback={
@@ -807,7 +826,13 @@ function OrderDetail() {
 								</Link>
 							</Show>
 						</Show>
-						<Show when={!cancelled() && order().stage !== "done"}>
+						<Show
+							when={
+								!cancelled() &&
+								order().stage !== "done" &&
+								allowed("orders.cancel")
+							}
+						>
 							<CancelOrderButton
 								order={order()}
 								class={cn(adminButton.danger, "w-full")}
@@ -836,6 +861,8 @@ function LineFlorists(props: {
 	florists: FloristOption[];
 	onChange: (order: Order) => void;
 }) {
+	const context = Route.useRouteContext();
+	const canAssign = () => can(context().user, "orders.assign");
 	const [saving, setSaving] = createSignal<number | null>(null);
 	const units = () => Array.from({ length: props.line.quantity }, (_, i) => i);
 	const save = async (unit: number, select: HTMLSelectElement) => {
@@ -898,7 +925,7 @@ function LineFlorists(props: {
 												? `Florist for bouquet ${unit + 1} of ${props.line.quantity}`
 												: "Florist"
 										}
-										disabled={saving() === unit}
+										disabled={saving() === unit || !canAssign()}
 										onChange={(e) => void save(unit, e.currentTarget)}
 										class={cn(adminInput, "h-9 w-auto py-0 pr-8 sm:h-9")}
 									>

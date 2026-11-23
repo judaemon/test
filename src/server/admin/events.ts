@@ -9,7 +9,7 @@ import {
 } from "~/lib/events";
 import { writeActivity } from "../activity-log-repo";
 import { eventSnapshot } from "../activity-snapshots";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import {
 	deleteEvent,
 	eventNameTaken,
@@ -27,7 +27,7 @@ const oneSpace = (value: string) => value.replace(/\s+/g, " ");
 
 export const listEventsAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("events.view");
 		const counts = eventOrderCounts();
 		return listEvents().map((event) => ({
 			...event,
@@ -39,7 +39,7 @@ export const listEventsAdmin = createServerFn({ method: "GET" }).handler(
 export const getEventAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("events.view");
 		const event = getEvent(data);
 		return event ? { ...event, orders: eventOrderCount(event.id) } : null;
 	});
@@ -111,7 +111,7 @@ export const saveEventFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("events.manage");
 		const before = data.id ? getEvent(data.id) : null;
 		if (data.id && !before) throw new InputError("That event was deleted.");
 		if (eventNameTaken(data.event.name, data.id ?? undefined))
@@ -145,7 +145,7 @@ export const deleteEventFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("events.manage");
 		const event = getEvent(data.id);
 		if (!event || !deleteEvent(data.id))
 			throw new InputError("That event was already deleted.");

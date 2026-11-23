@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import {
 	adminButton,
@@ -7,6 +8,7 @@ import {
 	PageHeader,
 	toastError,
 } from "~/components/admin/ui";
+import { can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import {
 	listArrangementTypesAdmin,
@@ -14,6 +16,7 @@ import {
 } from "~/server/admin/arrangement-types";
 
 export const Route = createFileRoute("/admin/_dashboard/arrangement-types/")({
+	beforeLoad: needs("catalog.view"),
 	// Stepped back to after a save, wait for the fresh rows rather than
 	// showing the old ones first and swapping them in.
 	loader: {
@@ -27,6 +30,8 @@ const count = (n: number, one: string, many: string) =>
 	`${n} ${n === 1 ? one : many}`;
 
 function ArrangementTypesPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "catalog.parts");
 	const types = Route.useLoaderData();
 	const router = useRouter();
 	const [moving, setMoving] = createSignal(false);
@@ -53,13 +58,15 @@ function ArrangementTypesPage() {
 				title="Arrangement types"
 				description="The kinds of floral arrangement the shop sells, like bouquets, corsages and boutonnières. Each one is a tab in the shop, in this order; the first is shown by default. Give a type sizes in Sizes."
 				actions={
-					<Link
-						to="/admin/arrangement-types/$typeId"
-						params={{ typeId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add type
-					</Link>
+					<Show when={canEdit()}>
+						<Link
+							to="/admin/arrangement-types/$typeId"
+							params={{ typeId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add type
+						</Link>
+					</Show>
 				}
 			/>
 			<section class={adminCard}>
@@ -102,7 +109,7 @@ function ArrangementTypesPage() {
 										<button
 											type="button"
 											class={adminButton.ghost}
-											disabled={index() === 0 || moving()}
+											disabled={index() === 0 || moving() || !canEdit()}
 											aria-label={`Move ${type.name} earlier`}
 											onClick={() => move(type.id, -1)}
 										>
@@ -111,7 +118,9 @@ function ArrangementTypesPage() {
 										<button
 											type="button"
 											class={adminButton.ghost}
-											disabled={index() === types().length - 1 || moving()}
+											disabled={
+												index() === types().length - 1 || moving() || !canEdit()
+											}
 											aria-label={`Move ${type.name} later`}
 											onClick={() => move(type.id, 1)}
 										>

@@ -6,7 +6,7 @@ import { WATERMARK_VERSION } from "~/lib/watermark";
 import type { AdminProduct } from "~/types/product";
 import { writeActivity } from "../activity-log-repo";
 import { bouquetChanges } from "../activity-snapshots";
-import { requireStaff } from "../admin-auth";
+import { requirePermission, type StaffUser } from "../admin-auth";
 import { listArrangementTypes } from "../arrangement-types-repo";
 import {
 	deleteProduct,
@@ -59,7 +59,7 @@ import { getWrapper } from "../wrappers-repo";
 
 export const listInventory = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return listAdminProducts();
 	},
 );
@@ -67,7 +67,7 @@ export const listInventory = createServerFn({ method: "GET" }).handler(
 /** Every bouquet's name, so the editor can suggest a free one and warn about repeats. */
 export const listFlowerCodes = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return listAdminProducts().map((product) => ({
 			code: product.title,
 			productId: product.id,
@@ -81,7 +81,7 @@ export const getAdminProductFn = createServerFn({ method: "GET" })
 		return id;
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return getAdminProduct(data) ?? null;
 	});
 
@@ -106,7 +106,7 @@ export const updateStyleFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		const before = getAdminProduct(data.productId);
 		updateStyle(data.productId, data.variantId, data);
 		const after = getAdminProduct(data.productId);
@@ -116,7 +116,7 @@ export const updateStyleFn = createServerFn({ method: "POST" })
 
 /** Logs what changed on an arrangement, if anything did, and who did it. */
 function logBouquet(
-	user: Awaited<ReturnType<typeof requireStaff>>,
+	user: StaffUser,
 	action: "added" | "edited" | "quick_edit" | "style_deleted",
 	before: AdminProduct | undefined | null,
 	after: AdminProduct | undefined | null,
@@ -144,7 +144,7 @@ export const setProductVisibleFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		const before = getAdminProduct(data.productId);
 		setProductVisible(data.productId, data.isVisible);
 		const after = getAdminProduct(data.productId);
@@ -334,7 +334,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		const name = flowerCodeKey(data.product.title);
 		const other = listAdminProducts().find(
 			(product) =>
@@ -370,7 +370,7 @@ export const saveProductFn = createServerFn({ method: "POST" })
  */
 export const syncAllOrderRecipesFn = createServerFn({ method: "POST" }).handler(
 	async () => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		return {
 			enabled: SYNC_ORDER_RECIPES,
 			...syncOrderRecipesFromCatalog(staffActor(user)),
@@ -391,7 +391,7 @@ export const reorderProductsFn = createServerFn({ method: "POST" })
 		return { ids: ids as string[] };
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		reorderProducts(data.ids);
 		writeActivity(
 			"bouquets",
@@ -410,7 +410,11 @@ export const uploadProductImage = createServerFn({ method: "POST" })
 		return file;
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission(
+			"catalog.arrangements",
+			"catalog.parts",
+			"catalog.custom",
+		);
 		try {
 			const fileName = await saveImage("products", data);
 			return { ok: true as const, url: publicUploadUrl("products", fileName) };
@@ -439,7 +443,7 @@ export const saveProductThumbnail = createServerFn({ method: "POST" })
 		return { id, file };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.arrangements");
 		if (!(await readUpload("products", data.id)))
 			return { ok: false as const, message: "That photo was deleted." };
 		try {
@@ -465,7 +469,7 @@ export const saveProductThumbnail = createServerFn({ method: "POST" })
 export const listPhotosWithoutThumbnails = createServerFn({
 	method: "GET",
 }).handler(async () => {
-	await requireStaff();
+	await requirePermission("catalog.arrangements");
 	const names = new Set((await listUploads("products")).map(stripExtension));
 	return [...names]
 		.filter((name) => !/-w\d+$/.test(name) && !names.has(thumbName(name)))
@@ -493,7 +497,7 @@ export const uploadBouquetPhoto = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.arrangements");
 		const id = crypto.randomUUID();
 		try {
 			await saveImage("originals", data.original, id);
@@ -511,7 +515,7 @@ export const uploadBouquetPhoto = createServerFn({ method: "POST" })
 /** Bouquet photos that don't have the current watermark yet. */
 export const listPhotosToWatermark = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.arrangements");
 		return {
 			version: WATERMARK_VERSION,
 			...photosNeedingWatermark(WATERMARK_VERSION),
@@ -538,7 +542,7 @@ export const replaceBouquetPhoto = createServerFn({ method: "POST" })
 		return { id, file: formFile(input, "file", "an image"), thumb };
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.arrangements");
 		const original = await cleanOriginal(data.id);
 		if (!original)
 			return {
@@ -590,7 +594,7 @@ export const deleteProductFn = createServerFn({ method: "POST" })
 		productId: text(asRecord(input), "productId", { max: 80 }),
 	}))
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		const before = getAdminProduct(data.productId);
 		if (!before || !deleteProduct(data.productId))
 			throw new InputError("That bouquet was already deleted.");
@@ -612,7 +616,7 @@ export const deleteVariantFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.arrangements");
 		const before = getAdminProduct(data.productId);
 		deleteVariant(data.productId, data.variantId, user.name);
 		const after = getAdminProduct(data.productId);

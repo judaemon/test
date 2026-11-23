@@ -9,6 +9,7 @@ import {
 	type SortingState,
 } from "@tanstack/solid-table";
 import { createEffect, createSignal, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import {
 	adminTableFeatures,
@@ -52,6 +53,7 @@ interface UsersSearch {
 }
 
 export const Route = createFileRoute("/admin/_dashboard/users")({
+	beforeLoad: needs("customers.view"),
 	validateSearch: (search: Record<string, unknown>): UsersSearch => {
 		const day = (key: string) =>
 			typeof search[key] === "string" && DAY.test(search[key] as string)

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needsFor, ViewOnlyNote } from "~/components/admin/access";
 import { createCropper } from "~/components/admin/image-cropper";
 import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
@@ -18,6 +19,7 @@ import {
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { editorCrumbs, field } from "~/lib/crumbs";
 import { type FlowerRecord, SINGLE_COLOR_NAME } from "~/lib/custom-bouquet";
+import { can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
 import {
@@ -27,6 +29,7 @@ import {
 } from "~/server/admin/flowers";
 
 export const Route = createFileRoute("/admin/_dashboard/flowers/$flowerId")({
+	beforeLoad: needsFor("catalog.view", "catalog.parts"),
 	staticData: {
 		crumbs: editorCrumbs("New flower", "Untitled flower", field("name")),
 	},
@@ -102,6 +105,8 @@ function toDraft(flower: FlowerRecord | null): FlowerDraft {
 }
 
 function FlowerEditor() {
+	const access = Route.useRouteContext();
+	const canEdit = () => can(access().user, "catalog.parts");
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
@@ -254,237 +259,250 @@ function FlowerEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
-			{cropper.element()}
-			<Link
-				to="/admin/flowers"
-				onClick={stepBack}
-				class={cn(adminButton.ghost, "-ml-2 mb-2")}
-			>
-				← Flowers
-			</Link>
-			<PageHeader
-				title={isNew() ? "New flower" : draft.savedName || "Untitled flower"}
-			/>
-
-			<section
-				class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
-			>
-				<PhotoPicker
-					src={draft.image}
-					alt={draft.name || "Flower"}
-					slot="flower"
-					size="size-24"
-					onFiles={(files) => void uploadPhoto(files)}
-					onRemove={() => setDraft("image", "")}
+			<fieldset disabled={!canEdit()} class="contents">
+				{cropper.element()}
+				<Link
+					to="/admin/flowers"
+					onClick={stepBack}
+					class={cn(adminButton.ghost, "-ml-2 mb-2")}
+				>
+					← Flowers
+				</Link>
+				<PageHeader
+					title={isNew() ? "New flower" : draft.savedName || "Untitled flower"}
 				/>
-				<div class="grid gap-4">
-					<Field label="Name">
-						<input
-							value={draft.name}
-							onInput={(e) => setDraft("name", e.currentTarget.value)}
-							required
-							maxLength={40}
-							placeholder="e.g. Peony"
-							class={adminInput}
-						/>
-					</Field>
-					<Show when={renamed() && usedIn() > 0}>
-						<p class="-mt-2 text-xs text-petal-900/60">
-							{usedIn()} signature{" "}
-							{usedIn() === 1 ? "bouquet uses" : "bouquets use"} “
-							{draft.savedName}
-							”; their recipes show the new name when you save.
-						</p>
-					</Show>
-					<Field
-						label="Note (optional)"
-						hint="Shown with the name in the builder."
-					>
-						<input
-							value={draft.hint}
-							onInput={(e) => setDraft("hint", e.currentTarget.value)}
-							maxLength={60}
-							placeholder="e.g. big yellow chrysanthemum"
-							class={adminInput}
-						/>
-					</Field>
-					<div class="flex flex-col gap-1">
-						<Toggle
-							label="Use in custom bouquets"
-							checked={draft.enabled}
-							onChange={(checked) => setDraft("enabled", checked)}
-						/>
-						<span class="text-xs text-petal-900/55">
-							Shoppers can pick it in the bouquet builder. Signature bouquet
-							recipes can use it either way.
-						</span>
-					</div>
-				</div>
-			</section>
+				<ViewOnlyNote access={access().user} permission="catalog.parts" />
 
-			<section class={cn(adminCard, "mb-6 p-5")}>
-				<div class="mb-3 flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<h2 class="font-semibold">Colors</h2>
-						<p class="text-sm text-petal-900/60">
-							Each color has its own price and stock, per stem or bunch. Switch
-							on “In custom bouquets” for the colors shoppers can choose in the
-							builder. With just one color, shoppers don’t pick one.
-						</p>
-						<p id="color-stock-hint" class="text-sm text-petal-900/60">
-							Built bouquets take from stock; cancelled orders put it back.
-							Leave stock blank to not count it.
-						</p>
-					</div>
-					<button
-						type="button"
-						class={adminButton.secondary}
-						onClick={() => setDraft("colors", (list) => [...list, newColor()])}
-					>
-						+ Add color
-					</button>
-				</div>
-				<ul class="flex flex-col gap-3">
-					<For each={draft.colors}>
-						{(color, index) => (
-							<li class="flex flex-wrap items-end gap-3 rounded-xl border border-petal-100 p-3">
-								<PhotoPicker
-									src={color.image}
-									alt={`${color.name} ${draft.name}`.trim() || "Color"}
-									slot={color.key}
-									size="size-16"
-									onFiles={(files) => void uploadPhoto(files, color.key)}
-									onRemove={() => setDraft("colors", index(), "image", "")}
-								/>
-								<Field label="Color" class="min-w-36 flex-1">
-									<input
-										value={color.name}
-										onInput={(e) =>
-											setDraft("colors", index(), "name", e.currentTarget.value)
-										}
-										required
-										maxLength={30}
-										placeholder="e.g. Red"
-										class={adminInput}
-									/>
-								</Field>
-								<Field label="Price each (₱)">
-									<input
-										type="number"
-										min="0"
-										step="0.01"
-										inputMode="decimal"
-										value={color.price}
-										onInput={(e) =>
-											setDraft(
-												"colors",
-												index(),
-												"price",
-												e.currentTarget.value,
-											)
-										}
-										required
-										class={cn(adminInput, "w-32 tabular-nums")}
-									/>
-								</Field>
-								<Field label="In stock">
-									<input
-										type="number"
-										min="0"
-										step="1"
-										inputMode="numeric"
-										value={color.stock}
-										onInput={(e) =>
-											setDraft(
-												"colors",
-												index(),
-												"stock",
-												e.currentTarget.value,
-											)
-										}
-										placeholder="Not counted"
-										aria-describedby="color-stock-hint"
-										class={cn(
-											adminInput,
-											"w-32 tabular-nums",
-											color.stock === "0" && "border-error-foreground",
-										)}
-									/>
-								</Field>
-								<div class="pb-2">
-									<Toggle
-										label="In custom bouquets"
-										checked={color.enabled}
-										onChange={(checked) =>
-											setDraft("colors", index(), "enabled", checked)
-										}
-									/>
-								</div>
-								<button
-									type="button"
-									class={cn(adminButton.ghost, "mb-1 text-error-foreground")}
-									disabled={draft.colors.length === 1}
-									title={
-										draft.colors.length === 1
-											? "Every flower needs at least one color."
-											: undefined
-									}
-									onClick={() =>
-										setDraft("colors", (list) =>
-											list.filter((c) => c.key !== color.key),
-										)
-									}
-								>
-									Remove
-								</button>
-							</li>
-						)}
-					</For>
-				</ul>
-			</section>
-
-			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
-				<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
-					<Show when={!isNew()}>
-						<ConfirmButton
-							class={cn(adminButton.danger, "mr-auto")}
-							title={`Delete ${draft.savedName}?`}
-							description={
-								usedIn() > 0
-									? `It’s in ${usedIn()} signature bouquet${usedIn() === 1 ? "" : "s"}, so it can’t be deleted until it’s taken out of those recipes. To hide it from the builder, stop using it in custom bouquets instead.`
-									: "It and its colors are removed for good. Past orders keep their details."
-							}
-							confirmLabel="Delete flower"
-							onConfirm={async () => {
-								try {
-									await deleteFlowerFn({ data: { id: params().flowerId } });
-									toastSuccess("Flower deleted.");
-									await refresh();
-									await leave();
-								} catch (error) {
-									toastError(error);
-								}
-							}}
+				<section
+					class={cn(adminCard, "mb-6 grid gap-4 p-5 sm:grid-cols-[auto_1fr]")}
+				>
+					<PhotoPicker
+						src={draft.image}
+						alt={draft.name || "Flower"}
+						slot="flower"
+						size="size-24"
+						onFiles={(files) => void uploadPhoto(files)}
+						onRemove={() => setDraft("image", "")}
+					/>
+					<div class="grid gap-4">
+						<Field label="Name">
+							<input
+								value={draft.name}
+								onInput={(e) => setDraft("name", e.currentTarget.value)}
+								required
+								maxLength={40}
+								placeholder="e.g. Peony"
+								class={adminInput}
+							/>
+						</Field>
+						<Show when={renamed() && usedIn() > 0}>
+							<p class="-mt-2 text-xs text-petal-900/60">
+								{usedIn()} signature{" "}
+								{usedIn() === 1 ? "bouquet uses" : "bouquets use"} “
+								{draft.savedName}
+								”; their recipes show the new name when you save.
+							</p>
+						</Show>
+						<Field
+							label="Note (optional)"
+							hint="Shown with the name in the builder."
 						>
-							Delete
-						</ConfirmButton>
-					</Show>
-					<Link
-						to="/admin/flowers"
-						onClick={stepBack}
-						class={adminButton.secondary}
-					>
-						Cancel
-					</Link>
-					<button
-						type="submit"
-						class={adminButton.primary}
-						disabled={saving() || uploading() !== null}
-					>
-						{saving() ? "Saving…" : isNew() ? "Add flower" : "Save changes"}
-					</button>
-				</div>
-			</div>
+							<input
+								value={draft.hint}
+								onInput={(e) => setDraft("hint", e.currentTarget.value)}
+								maxLength={60}
+								placeholder="e.g. big yellow chrysanthemum"
+								class={adminInput}
+							/>
+						</Field>
+						<div class="flex flex-col gap-1">
+							<Toggle
+								label="Use in custom bouquets"
+								checked={draft.enabled}
+								onChange={(checked) => setDraft("enabled", checked)}
+							/>
+							<span class="text-xs text-petal-900/55">
+								Shoppers can pick it in the bouquet builder. Signature bouquet
+								recipes can use it either way.
+							</span>
+						</div>
+					</div>
+				</section>
+
+				<section class={cn(adminCard, "mb-6 p-5")}>
+					<div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<h2 class="font-semibold">Colors</h2>
+							<p class="text-sm text-petal-900/60">
+								Each color has its own price and stock, per stem or bunch.
+								Switch on “In custom bouquets” for the colors shoppers can
+								choose in the builder. With just one color, shoppers don’t pick
+								one.
+							</p>
+							<p id="color-stock-hint" class="text-sm text-petal-900/60">
+								Built bouquets take from stock; cancelled orders put it back.
+								Leave stock blank to not count it.
+							</p>
+						</div>
+						<button
+							type="button"
+							class={adminButton.secondary}
+							onClick={() =>
+								setDraft("colors", (list) => [...list, newColor()])
+							}
+						>
+							+ Add color
+						</button>
+					</div>
+					<ul class="flex flex-col gap-3">
+						<For each={draft.colors}>
+							{(color, index) => (
+								<li class="flex flex-wrap items-end gap-3 rounded-xl border border-petal-100 p-3">
+									<PhotoPicker
+										src={color.image}
+										alt={`${color.name} ${draft.name}`.trim() || "Color"}
+										slot={color.key}
+										size="size-16"
+										onFiles={(files) => void uploadPhoto(files, color.key)}
+										onRemove={() => setDraft("colors", index(), "image", "")}
+									/>
+									<Field label="Color" class="min-w-36 flex-1">
+										<input
+											value={color.name}
+											onInput={(e) =>
+												setDraft(
+													"colors",
+													index(),
+													"name",
+													e.currentTarget.value,
+												)
+											}
+											required
+											maxLength={30}
+											placeholder="e.g. Red"
+											class={adminInput}
+										/>
+									</Field>
+									<Field label="Price each (₱)">
+										<input
+											type="number"
+											min="0"
+											step="0.01"
+											inputMode="decimal"
+											value={color.price}
+											onInput={(e) =>
+												setDraft(
+													"colors",
+													index(),
+													"price",
+													e.currentTarget.value,
+												)
+											}
+											required
+											class={cn(adminInput, "w-32 tabular-nums")}
+										/>
+									</Field>
+									<Field label="In stock">
+										<input
+											type="number"
+											min="0"
+											step="1"
+											inputMode="numeric"
+											value={color.stock}
+											onInput={(e) =>
+												setDraft(
+													"colors",
+													index(),
+													"stock",
+													e.currentTarget.value,
+												)
+											}
+											placeholder="Not counted"
+											aria-describedby="color-stock-hint"
+											class={cn(
+												adminInput,
+												"w-32 tabular-nums",
+												color.stock === "0" && "border-error-foreground",
+											)}
+										/>
+									</Field>
+									<div class="pb-2">
+										<Toggle
+											label="In custom bouquets"
+											checked={color.enabled}
+											onChange={(checked) =>
+												setDraft("colors", index(), "enabled", checked)
+											}
+										/>
+									</div>
+									<button
+										type="button"
+										class={cn(adminButton.ghost, "mb-1 text-error-foreground")}
+										disabled={draft.colors.length === 1}
+										title={
+											draft.colors.length === 1
+												? "Every flower needs at least one color."
+												: undefined
+										}
+										onClick={() =>
+											setDraft("colors", (list) =>
+												list.filter((c) => c.key !== color.key),
+											)
+										}
+									>
+										Remove
+									</button>
+								</li>
+							)}
+						</For>
+					</ul>
+				</section>
+
+				<Show when={canEdit()}>
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
+						<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
+							<Show when={!isNew()}>
+								<ConfirmButton
+									class={cn(adminButton.danger, "mr-auto")}
+									title={`Delete ${draft.savedName}?`}
+									description={
+										usedIn() > 0
+											? `It’s in ${usedIn()} signature bouquet${usedIn() === 1 ? "" : "s"}, so it can’t be deleted until it’s taken out of those recipes. To hide it from the builder, stop using it in custom bouquets instead.`
+											: "It and its colors are removed for good. Past orders keep their details."
+									}
+									confirmLabel="Delete flower"
+									onConfirm={async () => {
+										try {
+											await deleteFlowerFn({ data: { id: params().flowerId } });
+											toastSuccess("Flower deleted.");
+											await refresh();
+											await leave();
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Delete
+								</ConfirmButton>
+							</Show>
+							<Link
+								to="/admin/flowers"
+								onClick={stepBack}
+								class={adminButton.secondary}
+							>
+								Cancel
+							</Link>
+							<button
+								type="submit"
+								class={adminButton.primary}
+								disabled={saving() || uploading() !== null}
+							>
+								{saving() ? "Saving…" : isNew() ? "Add flower" : "Save changes"}
+							</button>
+						</div>
+					</div>
+				</Show>
+			</fieldset>
 		</form>
 	);
 }

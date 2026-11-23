@@ -1,5 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/solid-router";
 import { For } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import { adminButton, PageHeader } from "~/components/admin/ui";
 import { cn } from "~/lib/utils";
@@ -7,6 +8,7 @@ import { getReport } from "~/server/admin/reports";
 
 /** Every report page shares this one load of the report. */
 export const Route = createFileRoute("/admin/_dashboard/reports")({
+	beforeLoad: needs("reports.view"),
 	loader: () => getReport(),
 	component: ReportsLayout,
 });

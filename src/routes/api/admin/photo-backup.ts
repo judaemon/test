@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { zipSync } from "fflate";
-
+import { can } from "~/lib/permissions";
 import { productPhotoId } from "~/lib/photos";
 import { shopNow } from "~/lib/time";
 import { getStaffUser } from "~/server/admin-auth";
@@ -28,10 +28,13 @@ export const Route = createFileRoute("/api/admin/photo-backup")({
 		handlers: {
 			GET: async () => {
 				const user = await getStaffUser();
-				if (user?.role !== "owner")
-					return new Response("Only the shop owner can do that.", {
-						status: 403,
-					});
+				if (!can(user, "catalog.originals"))
+					return new Response(
+						"You don’t have permission to download original photos.",
+						{
+							status: 403,
+						},
+					);
 
 				const files: Record<string, Uint8Array> = {};
 				const used = new Set<string>();

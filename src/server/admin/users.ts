@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/solid-start";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { getDb } from "../db";
 
 export interface ShopUser {
@@ -15,7 +15,7 @@ export interface ShopUser {
 /** Everyone who made an account on the shop, newest first. Staff aren't here. */
 export const listShopUsers = createServerFn({ method: "GET" }).handler(
 	async (): Promise<ShopUser[]> => {
-		await requireStaff();
+		await requirePermission("customers.view");
 		return getDb()
 			.query(
 				`SELECT u.id, u.name, u.email, u.createdAt AS createdAt,

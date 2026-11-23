@@ -9,6 +9,7 @@ import { createEffect, For, on, Show } from "solid-js";
 
 import { orderCards } from "~/lib/bouquet-messages";
 import { CONTACT } from "~/lib/contact";
+import { can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import { getAdminOrder } from "~/server/admin/orders";
 import { getAdminSession } from "~/server/admin/settings";
@@ -58,6 +59,7 @@ export const Route = createFileRoute("/admin/card/$orderId")({
 				to: "/admin/login",
 				search: { redirect: location.href },
 			});
+		if (!can(user, "orders.view")) throw redirect({ to: "/admin" });
 	},
 	loader: async ({ params }) => {
 		const order = await getAdminOrder({ data: params.orderId });

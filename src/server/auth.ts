@@ -5,15 +5,18 @@ import { tanstackStartCookies } from "better-auth/tanstack-start/solid";
 
 import { siblingOrigins } from "~/lib/origins";
 import { getDb, liveDb } from "./db";
+import { adoptAdminAccounts, OWNER_ROLE_ID } from "./migrations/roles";
 
 /**
- * One account system, three roles:
+ * One account system. better-auth's `role` only says who is staff:
  *  - "customer": anyone who signs up on the shop (the default role).
- *  - "user":     staff, created by an owner from Admin → Staff.
- *  - "admin":    owner, full access. The first is seeded from ADMIN_EMAIL /
- *                ADMIN_PASSWORD.
- * Only "user" and "admin" can reach the admin (see admin-auth.ts). Sign-ups
- * can't choose their role: the admin plugin marks `role` as input: false.
+ *  - "user":     staff, added from Admin → Staff. The first, the owner, is
+ *                seeded from ADMIN_EMAIL / ADMIN_PASSWORD.
+ * What staff can do comes from their roles in Admin → Roles (roles-repo.ts),
+ * and a person can have several. "admin" accounts from before that become
+ * Owners on start-up, so nobody holds better-auth's own admin role and its
+ * admin endpoints stay closed. Sign-ups can't choose their role: the admin
+ * plugin marks `role` as input: false.
  */
 const options = {
 	// Follows the database across an import, without a restart.
@@ -46,6 +49,7 @@ export function getAuth() {
 		await runMigrations();
 		const auth = createAuth();
 		await seedOwner(auth);
+		adoptAdminAccounts(getDb());
 		return auth;
 	})();
 	return authPromise;
@@ -72,9 +76,14 @@ async function seedOwner(auth: Auth) {
 	}
 	try {
 		// Called without request headers, so the admin plugin allows it.
-		await auth.api.createUser({
-			body: { email, password, name: "Owner", role: "admin" },
+		const { user } = await auth.api.createUser({
+			body: { email, password, name: "Owner", role: "user" },
 		});
+		getDb()
+			.query(
+				"INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES ($id, $role)",
+			)
+			.run({ id: user.id, role: OWNER_ROLE_ID });
 		console.info(`[oraia] Created owner account ${email}.`);
 	} catch (error) {
 		// Never let a bad seed value take sign-in down for everyone.

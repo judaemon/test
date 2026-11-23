@@ -23,7 +23,9 @@ const itemLink = "font-medium underline-offset-2 hover:underline";
 /** The order, arrangement, wrapper or supplier a row is about, linked when it still has a page. */
 function ItemName(props: { entry: LogEntry }): JSX.Element {
 	const id = () => props.entry.itemId;
-	const gone = () => props.entry.action === "Deleted";
+	const gone = () =>
+		props.entry.action === "Deleted" ||
+		props.entry.action === "Removed from staff";
 	return (
 		<Show
 			when={id() && !gone() ? id() : undefined}
@@ -80,6 +82,24 @@ function ItemName(props: { entry: LogEntry }): JSX.Element {
 						<Link
 							to="/admin/florists/$floristId"
 							params={{ floristId: itemId() }}
+							class={itemLink}
+						>
+							{props.entry.itemName}
+						</Link>
+					</Match>
+					<Match when={props.entry.area === "staff"}>
+						<Link
+							to="/admin/staff/$userId"
+							params={{ userId: itemId() }}
+							class={itemLink}
+						>
+							{props.entry.itemName}
+						</Link>
+					</Match>
+					<Match when={props.entry.area === "roles"}>
+						<Link
+							to="/admin/roles/$roleId"
+							params={{ roleId: itemId() }}
 							class={itemLink}
 						>
 							{props.entry.itemName}

@@ -21,7 +21,8 @@ import {
 	Show,
 } from "solid-js";
 
-import { AdminIcons, Avatar, RoleBadge } from "~/components/admin/ui";
+import { type NavItem, visibleNav } from "~/components/admin/nav";
+import { AdminIcons, Avatar, RoleBadges } from "~/components/admin/ui";
 import { FlowerMark, Wordmark } from "~/components/site/brand";
 import {
 	Tooltip,
@@ -30,6 +31,7 @@ import {
 } from "~/components/ui/tooltip";
 import { authClient } from "~/lib/auth-client";
 import type { Crumb } from "~/lib/crumbs";
+import type { RoleRef } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import { getAdminSession } from "~/server/admin/settings";
 
@@ -49,111 +51,6 @@ export const Route = createFileRoute("/admin/_dashboard")({
 	}),
 	component: AdminLayout,
 });
-
-type NavItem = {
-	to: string;
-	label: string;
-	icon: (props: { class?: string }) => JSX.Element;
-	owner?: boolean;
-};
-
-/** The sidebar, grouped the way the work happens: orders first, setup last. */
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
-	{
-		label: "Orders",
-		items: [
-			{ to: "/admin/orders", label: "Orders", icon: AdminIcons.orders },
-			{ to: "/admin/cards", label: "Cards", icon: AdminIcons.cards },
-			{
-				to: "/admin/printer",
-				label: "Order printer",
-				icon: AdminIcons.printer,
-			},
-		],
-	},
-	{
-		label: "Catalog",
-		items: [
-			{
-				to: "/admin/signature-bouquets",
-				label: "Floral arrangements",
-				icon: AdminIcons.products,
-			},
-			{
-				to: "/admin/custom",
-				label: "Custom bouquets",
-				icon: AdminIcons.custom,
-			},
-			{ to: "/admin/flowers", label: "Flowers", icon: AdminIcons.flowers },
-			{ to: "/admin/wrappers", label: "Wrappers", icon: AdminIcons.wrappers },
-			{ to: "/admin/sizes", label: "Sizes", icon: AdminIcons.sizes },
-			{
-				to: "/admin/arrangement-types",
-				label: "Arrangement types",
-				icon: AdminIcons.types,
-			},
-			{
-				to: "/admin/sales",
-				label: "Sales",
-				icon: AdminIcons.sale,
-				owner: true,
-			},
-		],
-	},
-	{
-		label: "People",
-		items: [
-			{ to: "/admin/users", label: "Users", icon: AdminIcons.users },
-			{ to: "/admin/florists", label: "Florists", icon: AdminIcons.florists },
-			{
-				to: "/admin/suppliers",
-				label: "Suppliers",
-				icon: AdminIcons.suppliers,
-			},
-			{
-				to: "/admin/staff",
-				label: "Staff",
-				icon: AdminIcons.staff,
-				owner: true,
-			},
-		],
-	},
-	{
-		label: "Shop setup",
-		items: [
-			{ to: "/admin/events", label: "Events", icon: AdminIcons.events },
-			{ to: "/admin/shop", label: "Shop", icon: AdminIcons.shop },
-			{
-				to: "/admin/landing-page",
-				label: "Landing page",
-				icon: AdminIcons.landing,
-			},
-			{
-				to: "/admin/interested",
-				label: "Interested buyers",
-				icon: AdminIcons.interested,
-			},
-			{
-				to: "/admin/delivery-dates",
-				label: "Delivery dates",
-				icon: AdminIcons.calendar,
-			},
-			{
-				to: "/admin/payments",
-				label: "Payments",
-				icon: AdminIcons.payments,
-				owner: true,
-			},
-		],
-	},
-	{
-		label: "Records",
-		items: [
-			{ to: "/admin/reports", label: "Reports", icon: AdminIcons.reports },
-			{ to: "/admin/logs", label: "Logs", icon: AdminIcons.log },
-		],
-	},
-];
 
 const navLink =
 	"flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-petal-900/75 lg:py-2 transition-colors hover:bg-petal-100 hover:text-petal-900 outline-none focus-visible:ring-2 focus-visible:ring-petal-500";
@@ -321,7 +218,7 @@ function ProfileMenu(props: {
 	user: {
 		name: string;
 		email: string;
-		role: "owner" | "staff";
+		roles: RoleRef[];
 		image?: string;
 	};
 	onOpen: (to: "/admin/account/profile" | "/admin/account/security") => void;
@@ -348,15 +245,11 @@ function ProfileMenu(props: {
 							class="size-10 text-sm"
 						/>
 						<div class="min-w-0 flex-1">
-							<p class="flex items-center gap-2">
-								<span class="truncate text-sm font-semibold">
-									{props.user.name}
-								</span>
-								<RoleBadge role={props.user.role} class="shrink-0" />
-							</p>
+							<p class="truncate text-sm font-semibold">{props.user.name}</p>
 							<p class="truncate text-xs text-petal-900/60">
 								{props.user.email}
 							</p>
+							<RoleBadges roles={props.user.roles} class="mt-1.5" />
 						</div>
 					</div>
 					<DropdownMenu.Separator class="mx-1.5 mb-1.5 border-petal-100" />
@@ -426,14 +319,8 @@ function AdminLayout() {
 	const context = Route.useRouteContext();
 	const navigate = useNavigate();
 	const user = () => context().user;
-	// Owner-only pages are left out for staff, and so is a group left empty.
-	const groups = () =>
-		NAV_GROUPS.map((group) => ({
-			...group,
-			items: group.items.filter(
-				(item) => !item.owner || user().role === "owner",
-			),
-		})).filter((group) => group.items.length > 0);
+	// Pages their roles don't open are left out, and so is a group left empty.
+	const groups = () => visibleNav(user());
 	const items = () => groups().flatMap((group) => group.items);
 
 	const location = useLocation();

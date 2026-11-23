@@ -10,6 +10,7 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
+import { needs } from "~/components/admin/access";
 import {
 	adminButton,
 	adminCard,
@@ -60,6 +61,7 @@ import {
 } from "~/server/admin/cards";
 
 export const Route = createFileRoute("/admin/_dashboard/cards")({
+	beforeLoad: needs("cards.print"),
 	// The day to open on, e.g. from Orders' "Print cards".
 	validateSearch: (
 		search: Record<string, unknown>,

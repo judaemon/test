@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 
 import {
 	adminButton,
@@ -7,12 +8,14 @@ import {
 	PageHeader,
 	toastError,
 } from "~/components/admin/ui";
+import { can } from "~/lib/permissions";
 import { formatPrice } from "~/lib/product";
 import { useArrangementTypes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { listSizesAdmin, moveSizeFn } from "~/server/admin/sizes";
 
 export const Route = createFileRoute("/admin/_dashboard/sizes/")({
+	beforeLoad: needs("catalog.view"),
 	// Stepped back to after a save, wait for the fresh rows rather than
 	// showing the old ones first and swapping them in.
 	loader: {
@@ -23,6 +26,8 @@ export const Route = createFileRoute("/admin/_dashboard/sizes/")({
 });
 
 function SizesPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "catalog.parts");
 	const sizes = Route.useLoaderData();
 	const arrangementTypes = useArrangementTypes();
 	const router = useRouter();
@@ -64,13 +69,15 @@ function SizesPage() {
 				title="Sizes"
 				description="Sizes for each arrangement type, smallest first. An arrangement can only have a size for its type. The shop shows a type’s sizes side by side as its size guide, and shoppers can filter by size. Sizes with a builder price can be picked in Build your bouquet."
 				actions={
-					<Link
-						to="/admin/sizes/$sizeId"
-						params={{ sizeId: "new" }}
-						class={adminButton.primary}
-					>
-						+ Add size
-					</Link>
+					<Show when={canEdit()}>
+						<Link
+							to="/admin/sizes/$sizeId"
+							params={{ sizeId: "new" }}
+							class={adminButton.primary}
+						>
+							+ Add size
+						</Link>
+					</Show>
 				}
 			/>
 			<div class="flex flex-col gap-6">
@@ -90,14 +97,16 @@ function SizesPage() {
 									</div>
 									<Show when={entry.id}>
 										{(typeId) => (
-											<Link
-												to="/admin/sizes/$sizeId"
-												params={{ sizeId: "new" }}
-												search={{ type: typeId() }}
-												class={adminButton.secondary}
-											>
-												+ Add {entry.name.toLowerCase()} size
-											</Link>
+											<Show when={canEdit()}>
+												<Link
+													to="/admin/sizes/$sizeId"
+													params={{ sizeId: "new" }}
+													search={{ type: typeId() }}
+													class={adminButton.secondary}
+												>
+													+ Add {entry.name.toLowerCase()} size
+												</Link>
+											</Show>
 										)}
 									</Show>
 								</header>
@@ -143,7 +152,7 @@ function SizesPage() {
 														<button
 															type="button"
 															class={adminButton.ghost}
-															disabled={index() === 0 || moving()}
+															disabled={index() === 0 || moving() || !canEdit()}
 															aria-label={`Move ${size.name} smaller`}
 															onClick={() => move(size.id, -1)}
 														>
@@ -153,7 +162,9 @@ function SizesPage() {
 															type="button"
 															class={adminButton.ghost}
 															disabled={
-																index() === group().length - 1 || moving()
+																index() === group().length - 1 ||
+																moving() ||
+																!canEdit()
 															}
 															aria-label={`Move ${size.name} larger`}
 															onClick={() => move(size.id, 1)}

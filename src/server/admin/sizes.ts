@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/solid-start";
 
 import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { listArrangementTypes } from "../arrangement-types-repo";
 import {
 	deleteSize,
@@ -22,7 +22,7 @@ import {
 
 export const listSizesAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return listSizes();
 	},
 );
@@ -30,7 +30,7 @@ export const listSizesAdmin = createServerFn({ method: "GET" }).handler(
 export const getSizeAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return getSize(data);
 	});
 
@@ -66,7 +66,7 @@ export const saveSizeFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		if (data.id && !getSize(data.id))
 			throw new InputError("That size was deleted.");
 		if (sizeNameTaken(data.size.name, data.id ?? undefined))
@@ -85,7 +85,7 @@ export const moveSizeFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		moveSize(data.id, data.direction === "1" ? 1 : -1);
 		return listSizes();
 	});
@@ -95,7 +95,7 @@ export const deleteSizeFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		if (!deleteSize(data.id))
 			throw new InputError("That size was already deleted.");
 		return { ok: true as const };

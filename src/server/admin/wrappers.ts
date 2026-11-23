@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { MAX_WRAPPER_COLORS, normalizeWrapperCode } from "~/lib/custom-bouquet";
 import { writeActivity } from "../activity-log-repo";
 import { wrapperChanges } from "../activity-snapshots";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { checkBuilderCanSell, getCustomSettings } from "../custom-repo";
 import { staffActor } from "../order-actor";
 import { getSupplier } from "../suppliers-repo";
@@ -29,7 +29,7 @@ import {
 
 export const listWrappersAdmin = createServerFn({ method: "GET" }).handler(
 	async () => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return listWrappers();
 	},
 );
@@ -37,7 +37,7 @@ export const listWrappersAdmin = createServerFn({ method: "GET" }).handler(
 export const getWrapperAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return getWrapper(data);
 	});
 
@@ -105,7 +105,7 @@ export const saveWrapperFn = createServerFn({ method: "POST" })
 		return { id: id || null, wrapper: parseWrapper(asRecord(source.wrapper)) };
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.parts");
 		const before = data.id ? getWrapper(data.id) : null;
 		if (data.id && !before) throw new InputError("That wrapper was deleted.");
 		if (data.id && !data.wrapper.enabled) keepAWrapperOffered(data.id);
@@ -140,7 +140,7 @@ export const importWrapperFn = createServerFn({ method: "POST" })
 		return { ...wrapper, code: wrapper.code };
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.parts");
 		const before = getWrapperByCode(data.code);
 		const id = importWrapper(data);
 		const after = getWrapper(id);
@@ -166,7 +166,7 @@ export const setWrapperEnabledFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.parts");
 		if (!data.enabled) keepAWrapperOffered(data.id);
 		const before = getWrapper(data.id);
 		if (!setWrapperEnabled(data.id, data.enabled))
@@ -189,7 +189,7 @@ export const deleteWrapperFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("catalog.parts");
 		keepAWrapperOffered(data.id);
 		const before = getWrapper(data.id);
 		if (!before || !deleteWrapper(data.id))

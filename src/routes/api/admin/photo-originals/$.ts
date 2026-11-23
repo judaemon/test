@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 
+import { canAny } from "~/lib/permissions";
 import { getStaffUser } from "~/server/admin-auth";
 import { cleanOriginal } from "~/server/photo-watermarks";
 
@@ -10,8 +11,11 @@ export const Route = createFileRoute("/api/admin/photo-originals/$")({
 	server: {
 		handlers: {
 			GET: async ({ params }) => {
-				if (!(await getStaffUser()))
-					return new Response("Unauthorized", { status: 401 });
+				const user = await getStaffUser();
+				if (!user) return new Response("Unauthorized", { status: 401 });
+				// For re-stamping watermarks on the arrangement pages.
+				if (!canAny(user, ["catalog.arrangements", "catalog.originals"]))
+					return new Response("Forbidden", { status: 403 });
 				const id = params._splat ?? "";
 				const file = /^[a-z0-9-]+$/.test(id) ? await cleanOriginal(id) : null;
 				if (!file) return new Response("Not found", { status: 404 });

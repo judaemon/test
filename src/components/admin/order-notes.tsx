@@ -9,6 +9,7 @@ import {
 	toastSuccess,
 } from "~/components/admin/ui";
 import { formatLogTime } from "~/lib/order-log";
+import { type Access, can } from "~/lib/permissions";
 import { cn } from "~/lib/utils";
 import {
 	addOrderNoteFn,
@@ -59,12 +60,12 @@ const grow = (box: HTMLTextAreaElement) => {
 
 /**
  * Staff's notes on an order, like a short thread: who wrote what, and when.
- * Customers never see them. Staff edit and delete their own notes; the owner
- * can delete anyone's.
+ * Customers never see them. With "Write notes", staff add notes and edit
+ * and delete their own; "Delete anyone’s notes" deletes any.
  */
 export function OrderNotes(props: {
 	orderId: string;
-	user: { id: string; role: "owner" | "staff" };
+	user: Access & { id: string };
 	/** Replaces the card look, e.g. inside the orders list's notes panel. */
 	class?: string;
 	/** Told how many notes there are after each add or delete. */
@@ -168,62 +169,65 @@ export function OrderNotes(props: {
 				</ol>
 			</Show>
 
-			<form
-				onSubmit={(event) => {
-					event.preventDefault();
-					void add();
-				}}
-				class="flex flex-col gap-2"
-			>
-				<label for="new-note" class="sr-only">
-					New note
-				</label>
-				<textarea
-					id="new-note"
-					ref={box}
-					value={draft()}
-					onInput={(event) => {
-						setDraft(event.currentTarget.value);
-						grow(event.currentTarget);
+			<Show when={can(props.user, "orders.notes")}>
+				<form
+					onSubmit={(event) => {
+						event.preventDefault();
+						void add();
 					}}
-					onKeyDown={(event) => keys(event, { save: () => void add() })}
-					rows={2}
-					maxLength={NOTE_MAX}
-					placeholder="Add a note for the team, e.g. “Customer asked for a pink ribbon.”"
-					class={cn(adminInput, "h-auto resize-none py-2")}
-				/>
-				<div class="flex flex-wrap items-center justify-between gap-2">
-					<span class="text-xs text-petal-900/50">
-						<Show
-							when={draft().length > NOTE_MAX - 200}
-							fallback="Ctrl or ⌘ + Enter to add"
+					class="flex flex-col gap-2"
+				>
+					<label for="new-note" class="sr-only">
+						New note
+					</label>
+					<textarea
+						id="new-note"
+						ref={box}
+						value={draft()}
+						onInput={(event) => {
+							setDraft(event.currentTarget.value);
+							grow(event.currentTarget);
+						}}
+						onKeyDown={(event) => keys(event, { save: () => void add() })}
+						rows={2}
+						maxLength={NOTE_MAX}
+						placeholder="Add a note for the team, e.g. “Customer asked for a pink ribbon.”"
+						class={cn(adminInput, "h-auto resize-none py-2")}
+					/>
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<span class="text-xs text-petal-900/50">
+							<Show
+								when={draft().length > NOTE_MAX - 200}
+								fallback="Ctrl or ⌘ + Enter to add"
+							>
+								<span class="tabular-nums">
+									{draft().length}/{NOTE_MAX}
+								</span>
+							</Show>
+						</span>
+						<button
+							type="submit"
+							class={adminButton.primary}
+							disabled={!draft().trim() || adding()}
 						>
-							<span class="tabular-nums">
-								{draft().length}/{NOTE_MAX}
-							</span>
-						</Show>
-					</span>
-					<button
-						type="submit"
-						class={adminButton.primary}
-						disabled={!draft().trim() || adding()}
-					>
-						{adding() ? "Adding…" : "Add note"}
-					</button>
-				</div>
-			</form>
+							{adding() ? "Adding…" : "Add note"}
+						</button>
+					</div>
+				</form>
+			</Show>
 		</section>
 	);
 }
 
 function NoteItem(props: {
 	note: OrderNote;
-	user: { id: string; role: "owner" | "staff" };
+	user: Access & { id: string };
 	onSaved: (result: OrderNotesResult) => boolean;
 	onDeleted: (result: OrderNotesResult) => boolean;
 }) {
-	const mine = () => props.note.authorId === props.user.id;
-	const canDelete = () => mine() || props.user.role === "owner";
+	const mine = () =>
+		props.note.authorId === props.user.id && can(props.user, "orders.notes");
+	const canDelete = () => mine() || can(props.user, "orders.notes_all");
 	const [editing, setEditing] = createSignal(false);
 	const [text, setText] = createSignal("");
 	const [saving, setSaving] = createSignal(false);

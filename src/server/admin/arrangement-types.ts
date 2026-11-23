@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/solid-start";
 
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import {
 	arrangementTypeNameTaken,
 	deleteArrangementType,
@@ -16,14 +16,14 @@ const oneSpace = (value: string) => value.replace(/\s+/g, " ");
 export const listArrangementTypesAdmin = createServerFn({
 	method: "GET",
 }).handler(async () => {
-	await requireStaff();
+	await requirePermission("catalog.view");
 	return listArrangementTypes();
 });
 
 export const getArrangementTypeAdmin = createServerFn({ method: "GET" })
 	.validator((id: unknown) => text({ id }, "id", { max: 64 }))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.view");
 		return getArrangementType(data);
 	});
 
@@ -48,7 +48,7 @@ export const saveArrangementTypeFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		if (data.id && !getArrangementType(data.id))
 			throw new InputError("That type was deleted.");
 		if (arrangementTypeNameTaken(data.type.name, data.id ?? undefined))
@@ -67,7 +67,7 @@ export const moveArrangementTypeFn = createServerFn({ method: "POST" })
 		};
 	})
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		moveArrangementType(data.id, data.direction === "1" ? 1 : -1);
 		return listArrangementTypes();
 	});
@@ -77,7 +77,7 @@ export const deleteArrangementTypeFn = createServerFn({ method: "POST" })
 		id: text(asRecord(input), "id", { max: 64 }),
 	}))
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("catalog.parts");
 		if (!deleteArrangementType(data.id))
 			throw new InputError("That type was already deleted.");
 		return { ok: true as const };

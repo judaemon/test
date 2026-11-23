@@ -3,6 +3,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 
 import { OrderReceipt } from "~/components/admin/order-receipt";
 import { shortDeliveryDate } from "~/lib/delivery-dates";
+import { can } from "~/lib/permissions";
 import { formatPrice } from "~/lib/product";
 import { cn } from "~/lib/utils";
 import { listOrdersToPrint } from "~/server/admin/orders";
@@ -69,6 +70,7 @@ export const Route = createFileRoute("/admin/printer")({
 				to: "/admin/login",
 				search: { redirect: location.href },
 			});
+		if (!can(user, "orders.view")) throw redirect({ to: "/admin" });
 	},
 	head: () => ({
 		meta: [

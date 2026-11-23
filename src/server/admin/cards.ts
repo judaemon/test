@@ -8,7 +8,7 @@ import {
 	type PrintCard,
 	printStatus,
 } from "~/lib/print-cards";
-import { requireStaff } from "../admin-auth";
+import { requirePermission } from "../admin-auth";
 import { ensureCardLinks } from "../card-links-repo";
 import {
 	clearCardPrints,
@@ -30,7 +30,7 @@ export interface PrintCardsResult {
  */
 export const listPrintCardsFn = createServerFn({ method: "GET" }).handler(
 	async (): Promise<PrintCardsResult> => {
-		await requireStaff();
+		await requirePermission("cards.print");
 		const prints = new Map(
 			listCardPrints().map((print) => [
 				`${print.orderId}/${print.slot}`,
@@ -121,7 +121,7 @@ export const markCardsPrintedFn = createServerFn({ method: "POST" })
 		})),
 	)
 	.handler(async ({ data }) => {
-		const user = await requireStaff();
+		const user = await requirePermission("cards.print");
 		recordCardPrints(data, user.name);
 		return { ok: true as const, count: data.length };
 	});
@@ -132,7 +132,7 @@ export const unmarkCardsPrintedFn = createServerFn({ method: "POST" })
 		cardRefs(input).map(({ orderId, slot }) => ({ orderId, slot })),
 	)
 	.handler(async ({ data }) => {
-		await requireStaff();
+		await requirePermission("cards.print");
 		clearCardPrints(data);
 		return { ok: true as const, count: data.length };
 	});

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/solid-router";
 import { createSignal, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
+import { needsFor, ViewOnlyNote } from "~/components/admin/access";
 import { createCropper } from "~/components/admin/image-cropper";
 import { useLeaveForm } from "~/components/admin/leave-form";
 import { saveThumbnailFor } from "~/components/admin/photo-thumbnails";
@@ -16,12 +17,14 @@ import {
 } from "~/components/admin/ui";
 import { DEFAULT_ARRANGEMENT } from "~/lib/arrangements";
 import { editorCrumbs, field } from "~/lib/crumbs";
+import { can } from "~/lib/permissions";
 import { useArrangementTypes } from "~/lib/use-catalog";
 import { cn } from "~/lib/utils";
 import { uploadProductImage } from "~/server/admin/catalog";
 import { deleteSizeFn, getSizeAdmin, saveSizeFn } from "~/server/admin/sizes";
 
 export const Route = createFileRoute("/admin/_dashboard/sizes/$sizeId")({
+	beforeLoad: needsFor("catalog.view", "catalog.parts"),
 	staticData: {
 		crumbs: editorCrumbs("New size", "Untitled size", field("name")),
 	},
@@ -45,6 +48,8 @@ export const Route = createFileRoute("/admin/_dashboard/sizes/$sizeId")({
 });
 
 function SizeEditor() {
+	const access = Route.useRouteContext();
+	const canEdit = () => can(access().user, "catalog.parts");
 	const loaded = Route.useLoaderData();
 	const params = Route.useParams();
 	const { refresh, leave, stepBack } = useLeaveForm({
@@ -124,181 +129,188 @@ function SizeEditor() {
 
 	return (
 		<form onSubmit={save} class="mx-auto max-w-3xl pb-24">
-			{cropper.element()}
-			<Link
-				to="/admin/sizes"
-				onClick={stepBack}
-				class={cn(adminButton.ghost, "-ml-2 mb-2")}
-			>
-				← Sizes
-			</Link>
-			<PageHeader
-				title={isNew() ? "New size" : draft.savedName || "Untitled size"}
-				description={
-					isNew()
-						? "New sizes go last (largest). Reorder them on the Sizes page."
-						: undefined
-				}
-			/>
+			<fieldset disabled={!canEdit()} class="contents">
+				{cropper.element()}
+				<Link
+					to="/admin/sizes"
+					onClick={stepBack}
+					class={cn(adminButton.ghost, "-ml-2 mb-2")}
+				>
+					← Sizes
+				</Link>
+				<PageHeader
+					title={isNew() ? "New size" : draft.savedName || "Untitled size"}
+					description={
+						isNew()
+							? "New sizes go last (largest). Reorder them on the Sizes page."
+							: undefined
+					}
+				/>
+				<ViewOnlyNote access={access().user} permission="catalog.parts" />
 
-			<section class={cn(adminCard, "grid gap-5 p-5 sm:grid-cols-[auto_1fr]")}>
-				<div class="flex flex-col items-start gap-1 text-xs">
-					<Show
-						when={draft.image}
-						fallback={
-							<span class="flex h-48 w-[85px] items-center justify-center rounded-lg border-2 border-dashed border-petal-200 px-2 text-center text-[10px] text-petal-900/45">
-								No picture
-							</span>
-						}
-					>
-						<img
-							src={draft.image}
-							alt={`Someone holding a ${draft.name} bouquet`}
-							class="h-48 w-[85px] rounded-lg border border-black/10 bg-[#fdf9ea] object-contain"
-						/>
-					</Show>
-					<span class="flex gap-2">
-						<label
-							class={cn(
-								"cursor-pointer text-petal-700 py-2 underline-offset-2 hover:underline sm:py-0",
-								uploading() && "pointer-events-none opacity-60",
-							)}
-						>
-							{uploading()
-								? "Uploading…"
-								: draft.image
-									? "Replace"
-									: "Add picture"}
-							<input
-								type="file"
-								accept="image/png,image/jpeg,image/webp"
-								class="sr-only"
-								aria-label={`${draft.name || "Size"} picture`}
-								onChange={(e) => {
-									void uploadPhoto(e.currentTarget.files);
-									e.currentTarget.value = "";
-								}}
-							/>
-						</label>
-						<Show when={draft.image}>
-							<button
-								type="button"
-								class="text-error-foreground py-2 underline-offset-2 hover:underline sm:py-0"
-								onClick={() => setDraft("image", "")}
-							>
-								Remove
-							</button>
-						</Show>
-					</span>
-				</div>
-				<div class="grid content-start gap-4">
-					<Field
-						label="Type"
-						hint="Arrangements of this type can have this size. Changing it takes the size off arrangements of the old type."
-					>
-						<select
-							value={draft.arrangement}
-							onChange={(e) => setDraft("arrangement", e.currentTarget.value)}
-							class={adminInput}
-						>
-							<For each={arrangementTypes()}>
-								{(type) => (
-									<option
-										value={type.id}
-										selected={draft.arrangement === type.id}
-									>
-										{type.name}
-									</option>
-								)}
-							</For>
-						</select>
-					</Field>
-					<Field label="Name">
-						<input
-							value={draft.name}
-							onInput={(e) => setDraft("name", e.currentTarget.value)}
-							required
-							maxLength={30}
-							placeholder="e.g. Petite"
-							class={adminInput}
-						/>
-					</Field>
-					<Field
-						label="Description"
-						hint="Shown under the name in the size guide and on each bouquet."
-					>
-						<input
-							value={draft.description}
-							onInput={(e) => setDraft("description", e.currentTarget.value)}
-							maxLength={80}
-							placeholder="e.g. Small enough to hold in one hand"
-							class={adminInput}
-						/>
-					</Field>
-					<Field
-						label="Builder price (₱)"
-						hint="Added to a custom bouquet this size. Leave empty to leave this size out of Build your bouquet; 0 shows as “Free”."
-					>
-						<input
-							type="number"
-							min="0"
-							step="0.01"
-							inputMode="decimal"
-							value={draft.price}
-							onInput={(e) => setDraft("price", e.currentTarget.value)}
-							placeholder="Not in the builder"
-							class={cn(adminInput, "tabular-nums")}
-						/>
-					</Field>
-					<p class="text-xs text-petal-900/55">
-						The picture shows someone holding a bouquet this size; the size
-						guide puts all the pictures side by side.
-					</p>
-				</div>
-			</section>
-
-			<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
-				<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
-					<Show when={!isNew()}>
-						<ConfirmButton
-							class={cn(adminButton.danger, "mr-auto")}
-							title={`Delete ${draft.savedName}?`}
-							description={
-								usedIn() > 0
-									? `${usedIn()} ${usedIn() === 1 ? "arrangement has" : "arrangements have"} this size, so it can’t be deleted until they get another size.`
-									: "It’s removed from the size guide for good."
+				<section
+					class={cn(adminCard, "grid gap-5 p-5 sm:grid-cols-[auto_1fr]")}
+				>
+					<div class="flex flex-col items-start gap-1 text-xs">
+						<Show
+							when={draft.image}
+							fallback={
+								<span class="flex h-48 w-[85px] items-center justify-center rounded-lg border-2 border-dashed border-petal-200 px-2 text-center text-[10px] text-petal-900/45">
+									No picture
+								</span>
 							}
-							confirmLabel="Delete size"
-							onConfirm={async () => {
-								try {
-									await deleteSizeFn({ data: { id: params().sizeId } });
-									toastSuccess("Size deleted.");
-									await refresh();
-									await leave();
-								} catch (error) {
-									toastError(error);
-								}
-							}}
 						>
-							Delete
-						</ConfirmButton>
-					</Show>
-					<Link
-						to="/admin/sizes"
-						onClick={stepBack}
-						class={adminButton.secondary}
-					>
-						Cancel
-					</Link>
-					<button
-						type="submit"
-						class={adminButton.primary}
-						disabled={saving() || uploading()}
-					>
-						{saving() ? "Saving…" : isNew() ? "Add size" : "Save changes"}
-					</button>
-				</div>
-			</div>
+							<img
+								src={draft.image}
+								alt={`Someone holding a ${draft.name} bouquet`}
+								class="h-48 w-[85px] rounded-lg border border-black/10 bg-[#fdf9ea] object-contain"
+							/>
+						</Show>
+						<span class="flex gap-2">
+							<label
+								class={cn(
+									"cursor-pointer text-petal-700 py-2 underline-offset-2 hover:underline sm:py-0",
+									uploading() && "pointer-events-none opacity-60",
+								)}
+							>
+								{uploading()
+									? "Uploading…"
+									: draft.image
+										? "Replace"
+										: "Add picture"}
+								<input
+									type="file"
+									accept="image/png,image/jpeg,image/webp"
+									class="sr-only"
+									aria-label={`${draft.name || "Size"} picture`}
+									onChange={(e) => {
+										void uploadPhoto(e.currentTarget.files);
+										e.currentTarget.value = "";
+									}}
+								/>
+							</label>
+							<Show when={draft.image}>
+								<button
+									type="button"
+									class="text-error-foreground py-2 underline-offset-2 hover:underline sm:py-0"
+									onClick={() => setDraft("image", "")}
+								>
+									Remove
+								</button>
+							</Show>
+						</span>
+					</div>
+					<div class="grid content-start gap-4">
+						<Field
+							label="Type"
+							hint="Arrangements of this type can have this size. Changing it takes the size off arrangements of the old type."
+						>
+							<select
+								value={draft.arrangement}
+								onChange={(e) => setDraft("arrangement", e.currentTarget.value)}
+								class={adminInput}
+							>
+								<For each={arrangementTypes()}>
+									{(type) => (
+										<option
+											value={type.id}
+											selected={draft.arrangement === type.id}
+										>
+											{type.name}
+										</option>
+									)}
+								</For>
+							</select>
+						</Field>
+						<Field label="Name">
+							<input
+								value={draft.name}
+								onInput={(e) => setDraft("name", e.currentTarget.value)}
+								required
+								maxLength={30}
+								placeholder="e.g. Petite"
+								class={adminInput}
+							/>
+						</Field>
+						<Field
+							label="Description"
+							hint="Shown under the name in the size guide and on each bouquet."
+						>
+							<input
+								value={draft.description}
+								onInput={(e) => setDraft("description", e.currentTarget.value)}
+								maxLength={80}
+								placeholder="e.g. Small enough to hold in one hand"
+								class={adminInput}
+							/>
+						</Field>
+						<Field
+							label="Builder price (₱)"
+							hint="Added to a custom bouquet this size. Leave empty to leave this size out of Build your bouquet; 0 shows as “Free”."
+						>
+							<input
+								type="number"
+								min="0"
+								step="0.01"
+								inputMode="decimal"
+								value={draft.price}
+								onInput={(e) => setDraft("price", e.currentTarget.value)}
+								placeholder="Not in the builder"
+								class={cn(adminInput, "tabular-nums")}
+							/>
+						</Field>
+						<p class="text-xs text-petal-900/55">
+							The picture shows someone holding a bouquet this size; the size
+							guide puts all the pictures side by side.
+						</p>
+					</div>
+				</section>
+
+				<Show when={canEdit()}>
+					<div class="fixed inset-x-0 bottom-0 z-30 border-t border-petal-100 bg-white/95 px-4 py-3 backdrop-blur lg:left-[var(--admin-sidebar,240px)]">
+						<div class="mx-auto flex max-w-3xl items-center justify-end gap-2">
+							<Show when={!isNew()}>
+								<ConfirmButton
+									class={cn(adminButton.danger, "mr-auto")}
+									title={`Delete ${draft.savedName}?`}
+									description={
+										usedIn() > 0
+											? `${usedIn()} ${usedIn() === 1 ? "arrangement has" : "arrangements have"} this size, so it can’t be deleted until they get another size.`
+											: "It’s removed from the size guide for good."
+									}
+									confirmLabel="Delete size"
+									onConfirm={async () => {
+										try {
+											await deleteSizeFn({ data: { id: params().sizeId } });
+											toastSuccess("Size deleted.");
+											await refresh();
+											await leave();
+										} catch (error) {
+											toastError(error);
+										}
+									}}
+								>
+									Delete
+								</ConfirmButton>
+							</Show>
+							<Link
+								to="/admin/sizes"
+								onClick={stepBack}
+								class={adminButton.secondary}
+							>
+								Cancel
+							</Link>
+							<button
+								type="submit"
+								class={adminButton.primary}
+								disabled={saving() || uploading()}
+							>
+								{saving() ? "Saving…" : isNew() ? "Add size" : "Save changes"}
+							</button>
+						</div>
+					</div>
+				</Show>
+			</fieldset>
 		</form>
 	);
 }

@@ -10,6 +10,7 @@ import {
 	SortableProvider,
 } from "@thisbeyond/solid-dnd";
 import { createSignal, For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 import { useLeaveForm } from "~/components/admin/leave-form";
 import {
 	adminButton,
@@ -25,6 +26,7 @@ import type { AdminProduct } from "~/types/product";
 export const Route = createFileRoute(
 	"/admin/_dashboard/signature-bouquets/arrange",
 )({
+	beforeLoad: needs("catalog.arrangements"),
 	staticData: { crumbs: label("Arrange shop order") },
 	loader: ({ abortController }) =>
 		listInventory({ signal: abortController.signal }),

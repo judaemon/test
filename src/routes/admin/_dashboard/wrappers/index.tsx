@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/solid-router";
 import { For, Show } from "solid-js";
+import { needs } from "~/components/admin/access";
 import { ListPager } from "~/components/admin/list-pager";
 import {
 	choiceParam,
@@ -20,6 +21,7 @@ import {
 import { WrapperImport } from "~/components/admin/wrapper-import";
 import { ZoomableImage } from "~/components/zoom/zoomable-image";
 import { type CustomWrapper, wrapperColors } from "~/lib/custom-bouquet";
+import { can } from "~/lib/permissions";
 import { formatPrice, LOW_STOCK_THRESHOLD, swatchColors } from "~/lib/product";
 import { joinList, parseList } from "~/lib/shop-filters";
 import { cn } from "~/lib/utils";
@@ -62,6 +64,7 @@ const countParam = (search: Record<string, unknown>, key: string) => {
 };
 
 export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
+	beforeLoad: needs("catalog.view"),
 	validateSearch: (search: Record<string, unknown>): WrappersSearch => ({
 		q: textParam(search, "q"),
 		use: textParam(search, "use"),
@@ -87,6 +90,8 @@ export const Route = createFileRoute("/admin/_dashboard/wrappers/")({
 });
 
 function WrappersPage() {
+	const context = Route.useRouteContext();
+	const canEdit = () => can(context().user, "catalog.parts");
 	const loaded = Route.useLoaderData();
 	const all = () => loaded().wrappers;
 	/** The wrapper's supplier names, as listed on it; deleted ones are gone. */
@@ -190,14 +195,18 @@ function WrappersPage() {
 				description="Shoppers pick one for each bouquet they build. A price of 0 shows as “Free”."
 				actions={
 					<>
-						<WrapperImport wrappers={all()} />
-						<Link
-							to="/admin/wrappers/$wrapperId"
-							params={{ wrapperId: "new" }}
-							class={adminButton.primary}
-						>
-							+ Add wrapper
-						</Link>
+						<Show when={canEdit()}>
+							<WrapperImport wrappers={all()} />
+						</Show>
+						<Show when={canEdit()}>
+							<Link
+								to="/admin/wrappers/$wrapperId"
+								params={{ wrapperId: "new" }}
+								class={adminButton.primary}
+							>
+								+ Add wrapper
+							</Link>
+						</Show>
 					</>
 				}
 			/>
@@ -346,6 +355,7 @@ function WrappersPage() {
 										<Toggle
 											label="Offered"
 											checked={wrapper.enabled}
+											disabled={!canEdit()}
 											onChange={(checked) => void setEnabled(wrapper, checked)}
 										/>
 										<Link

@@ -8,6 +8,8 @@ export const LOG_AREAS = {
 	suppliers: "Suppliers",
 	florists: "Florists",
 	events: "Events",
+	staff: "Staff",
+	roles: "Roles",
 } as const;
 export type LogArea = keyof typeof LOG_AREAS;
 /** Areas kept in `activity_log`; orders have their own log. */
@@ -29,6 +31,8 @@ export const ACTIVITY_ACTIONS = {
 	link_on: "Turned on the private link",
 	link_new: "Made a new private link",
 	link_off: "Turned off the private link",
+	password_reset: "Reset their password",
+	removed: "Removed from staff",
 } as const;
 export type ActivityAction = keyof typeof ACTIVITY_ACTIONS;
 
