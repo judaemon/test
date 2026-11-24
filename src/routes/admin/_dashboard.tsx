@@ -540,7 +540,7 @@ function AdminLayout() {
 								<CloseIcon class="size-6" />
 							</Dialog.CloseButton>
 						</div>
-						<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4">
+						<div class="admin-nav-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4">
 							<NavList />
 						</div>
 						<SidebarFooter />
@@ -562,7 +562,7 @@ function AdminLayout() {
 				>
 					<Brand compact={rail()} />
 				</div>
-				<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+				<div class="admin-nav-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
 					<NavList rail={rail()} />
 				</div>
 				<SidebarFooter rail={rail()} toggle />

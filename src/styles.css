@@ -331,3 +331,26 @@ input[type='search']::-webkit-search-cancel-button:hover {
     animation-duration: 1ms;
   }
 }
+
+/* Admin sidebar and drawer: a slim rose scrollbar instead of the wide gray
+   one. Chrome and Safari draw it from the ::-webkit-scrollbar rules, which
+   they ignore once scrollbar-width is set, so that's for Firefox only. */
+.admin-nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.admin-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-nav-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-petal-200);
+  border-radius: 9999px;
+}
+.admin-nav-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--color-petal-300);
+}
+@supports (-moz-appearance: none) {
+  .admin-nav-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-petal-200) transparent;
+  }
+}
